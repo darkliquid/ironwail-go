@@ -1,8 +1,0 @@
-name: Audio Backends
-type: module
-description: "Concrete Oto and null backends plus DMA cursor management"
-blackbox: false
-mapping:
-  paths:
-    - internal/audio/backend.go
-    - internal/audio/backend_oto.go

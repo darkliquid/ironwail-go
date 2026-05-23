@@ -1,7 +1,0 @@
-name: BSP
-type: module
-description: "BSP format boundary for loading Quake map lumps, normalized trees, and lighting sidecars"
-blackbox: false
-mapping:
-  paths:
-    - internal/bsp/

@@ -161,7 +161,7 @@ func (g *Game) applyRuntimeRendererState(state *runtimeRendererLoopState) {
 	renderDT, renderEvents := state.pendingRendererFrame()
 	origin, angles := g.runtimeViewState()
 	camera := g.runtimeCameraState(origin, angles)
-	g.Renderer.UpdateCamera(camera, 0.1, 4096.0)
+	g.Renderer.UpdateCamera(camera, 0.1, 65536.0)
 	g.applyRuntimeRendererVisualEffects(renderDT, g.Renderer, renderEvents)
 	g.applyRuntimeRendererSkybox(g.Renderer)
 }

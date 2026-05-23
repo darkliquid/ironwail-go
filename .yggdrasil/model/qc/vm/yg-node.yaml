@@ -1,9 +1,0 @@
-name: QuakeC VM Model
-type: module
-description: "VM state model, globals, entity field layout, and shared typed helpers"
-blackbox: false
-mapping:
-  paths:
-    - internal/qc/doc.go
-    - internal/qc/vm.go
-    - internal/qc/types.go
