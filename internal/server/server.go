@@ -95,7 +95,7 @@ type Server struct {
 	ModelPrecache  []string
 	StaticEntities []EntityState
 	StaticSounds   []StaticSound
-	LightStyles    [64]string
+	LightStyles    [256]string
 	FileSystem     modelAssetFileSystem
 
 	// Protocol version (15=NetQuake, 666=FitzQuake, 999=RMQ)

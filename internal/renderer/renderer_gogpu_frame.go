@@ -38,7 +38,7 @@ type RenderFrameState struct {
 	ViewModel *AliasModelEntity
 
 	// LightStyles contains evaluated lightstyle scalars for the current frame.
-	LightStyles [64]float32
+	LightStyles [256]float32
 
 	// FogColor and FogDensity mirror the authoritative renderer state for parity tracking.
 	FogColor   [3]float32

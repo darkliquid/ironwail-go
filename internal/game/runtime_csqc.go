@@ -176,6 +176,34 @@ func (g *Game) prepareCSQCPic(pic *qimage.QPic, posX, posY, sizeX, sizeY, srcX, 
 	return int(drawX), int(drawY), drawPic, true
 }
 
+func (g *Game) getCSQCCharPic(char int) *qimage.QPic {
+	if g.Draw == nil {
+		return nil
+	}
+	conchars := g.Draw.ConcharsData()
+	if len(conchars) < 128*128 {
+		return nil
+	}
+
+	char = char & 255
+	// conchars is arranged as a 16x16 grid of 8x8 glyphs
+	cx := (char % 16) * 8
+	cy := (char / 16) * 8
+
+	pic := &qimage.QPic{
+		Width:  8,
+		Height: 8,
+		Pixels: make([]byte, 64),
+	}
+
+	for y := range 8 {
+		srcIdx := (cy+y)*128 + cx
+		dstIdx := y * 8
+		copy(pic.Pixels[dstIdx:dstIdx+8], conchars[srcIdx:srcIdx+8])
+	}
+	return pic
+}
+
 func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activity *csqcDrawActivity) qc.CSQCDrawHooks {
 	var clip csqcClipRect
 
@@ -207,7 +235,21 @@ func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activit
 			if alpha <= 0 {
 				return
 			}
-			rc.DrawCharacter(int(posX), int(posY), char)
+			pic := g.getCSQCCharPic(char)
+			if pic == nil {
+				return
+			}
+			x, y, drawPic, ok := g.prepareCSQCPic(pic, posX, posY, sizeX, sizeY, 0, 0, 1, 1, clip)
+			if !ok {
+				return
+			}
+			if alphaDrawer, ok := rc.(interface {
+				DrawPicAlpha(x, y int, pic *qimage.QPic, alpha float32)
+			}); ok {
+				alphaDrawer.DrawPicAlpha(x, y, drawPic, alpha)
+			} else {
+				rc.DrawPic(x, y, drawPic)
+			}
 			activity.mark()
 		},
 		DrawString: func(posX, posY float32, text string, sizeX, sizeY float32, r, G, b, alpha float32, drawflag int, useColors bool) {
@@ -220,7 +262,19 @@ func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activit
 			}
 			x := int(posX)
 			for _, ch := range text {
-				rc.DrawCharacter(x, int(posY), int(ch))
+				pic := g.getCSQCCharPic(int(ch))
+				if pic != nil {
+					dx, dy, drawPic, ok := g.prepareCSQCPic(pic, float32(x), posY, sizeX, sizeY, 0, 0, 1, 1, clip)
+					if ok {
+						if alphaDrawer, ok := rc.(interface {
+							DrawPicAlpha(x, y int, pic *qimage.QPic, alpha float32)
+						}); ok {
+							alphaDrawer.DrawPicAlpha(dx, dy, drawPic, alpha)
+						} else {
+							rc.DrawPic(dx, dy, drawPic)
+						}
+					}
+				}
 				x += step
 			}
 			activity.mark()
@@ -237,7 +291,13 @@ func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activit
 			if !ok {
 				return
 			}
-			rc.DrawPic(x, y, drawPic)
+			if alphaDrawer, ok := rc.(interface {
+				DrawPicAlpha(x, y int, pic *qimage.QPic, alpha float32)
+			}); ok {
+				alphaDrawer.DrawPicAlpha(x, y, drawPic, alpha)
+			} else {
+				rc.DrawPic(x, y, drawPic)
+			}
 			activity.mark()
 		},
 		DrawFill: func(posX, posY float32, sizeX, sizeY float32, red, green, blue, alpha float32, drawflag int) {
@@ -253,7 +313,7 @@ func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activit
 				palette = g.Draw.Palette()
 			}
 			color := g.nearestPaletteIndex(red, green, blue, palette)
-			rc.DrawFill(int(x), int(y), int(width), int(height), color)
+			rc.DrawFillAlpha(int(x), int(y), int(width), int(height), color, alpha)
 			activity.mark()
 		},
 		DrawSubPic: func(posX, posY float32, sizeX, sizeY float32, name string, srcX, srcY, srcW, srcH float32, r, G, b, alpha float32, drawflag int) {
@@ -264,11 +324,29 @@ func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activit
 			if pic == nil {
 				return
 			}
-			x, y, drawPic, ok := g.prepareCSQCPic(pic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH, clip)
+			// CSQC specs use pixel coordinates, but some legacy internal Go tests pass normalized [0, 1] bounds.
+			// Proactively detect if coordinates are already normalized:
+			isNormalized := srcX <= 1.0 && srcY <= 1.0 && srcW <= 1.0 && srcH <= 1.0 && srcW > 0 && srcH > 0
+			var normX, normY, normW, normH float32
+			if isNormalized {
+				normX, normY, normW, normH = srcX, srcY, srcW, srcH
+			} else if pic.Width > 0 && pic.Height > 0 {
+				normX = srcX / float32(pic.Width)
+				normY = srcY / float32(pic.Height)
+				normW = srcW / float32(pic.Width)
+				normH = srcH / float32(pic.Height)
+			}
+			x, y, drawPic, ok := g.prepareCSQCPic(pic, posX, posY, sizeX, sizeY, normX, normY, normW, normH, clip)
 			if !ok {
 				return
 			}
-			rc.DrawPic(x, y, drawPic)
+			if alphaDrawer, ok := rc.(interface {
+				DrawPicAlpha(x, y int, pic *qimage.QPic, alpha float32)
+			}); ok {
+				alphaDrawer.DrawPicAlpha(x, y, drawPic, alpha)
+			} else {
+				rc.DrawPic(x, y, drawPic)
+			}
 			activity.mark()
 		},
 		SetClipArea: func(x, y, width, height float32) {

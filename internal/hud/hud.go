@@ -109,7 +109,20 @@ func NewHUD(dm *draw.Manager, cv *cvar.CVarSystem) *HUD {
 	if cv == nil {
 		cv = cvar.NewCVarSystem()
 	}
-	cv.Register(hudStyleCVar, "0", cvar.FlagArchive, "HUD presentation style: 0=classic status bar, 1=modern center-ammo, 2=modern side-ammo, 3=QuakeWorld status bar")
+	hudStyleCVarObj := cv.Register(hudStyleCVar, "0", cvar.FlagArchive, "HUD presentation style: 0=classic status bar, 1=modern center-ammo, 2=modern side-ammo, 3=QuakeWorld status bar")
+	hudstyleLegacyObj := cv.Register("hudstyle", "0", cvar.FlagArchive, "HUD presentation style (legacy alias)")
+
+	hudStyleCVarObj.Callback = func(c *cvar.CVar) {
+		if legacy := cv.Get("hudstyle"); legacy != nil && legacy.String != c.String {
+			cv.Set("hudstyle", c.String)
+		}
+	}
+	hudstyleLegacyObj.Callback = func(c *cvar.CVar) {
+		if style := cv.Get(hudStyleCVar); style != nil && style.String != c.String {
+			cv.Set(hudStyleCVar, c.String)
+		}
+	}
+
 	return &HUD{
 		drawManager: dm,
 		cvars:       cv,

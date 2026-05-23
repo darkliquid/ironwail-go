@@ -56,7 +56,7 @@ func init() {
 }
 
 // resetLightStyles initializes all dynamic lightstyle slots to "m" (normal brightness baseline).
-func resetLightStyles(values *[64]string) {
+func resetLightStyles(values *[256]string) {
 	for i := range values {
 		values[i] = "m"
 	}

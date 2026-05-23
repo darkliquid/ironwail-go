@@ -36,14 +36,14 @@ func DefaultLightStyleConfig() LightStyleConfig {
 }
 
 // LightStyleValues evaluates the current lightstyle scalars for the client clock.
-func (c *Client) LightStyleValues() [64]float32 {
+func (c *Client) LightStyleValues() [256]float32 {
 	return c.LightStyleValuesWithConfig(DefaultLightStyleConfig())
 }
 
 // LightStyleValuesWithConfig evaluates lightstyle brightness with the given
 // animation configuration, matching C R_AnimateLight() behavior.
-func (c *Client) LightStyleValuesWithConfig(cfg LightStyleConfig) [64]float32 {
-	var out [64]float32
+func (c *Client) LightStyleValuesWithConfig(cfg LightStyleConfig) [256]float32 {
+	var out [256]float32
 	for i := range out {
 		out[i] = 1
 	}

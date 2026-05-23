@@ -11,7 +11,7 @@ import (
 	"github.com/gogpu/wgpu"
 )
 
-func (r *Renderer) createWorldLightmapPageTexture(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, page *WorldLightmapPage, values [64]float32) (*gpuWorldTexture, error) {
+func (r *Renderer) createWorldLightmapPageTexture(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, page *WorldLightmapPage, values [256]float32) (*gpuWorldTexture, error) {
 	if device == nil || queue == nil || sampler == nil || page == nil {
 		return nil, fmt.Errorf("invalid world lightmap upload inputs")
 	}
@@ -62,7 +62,7 @@ func (r *Renderer) createWorldLightmapPageTexture(device *wgpu.Device, queue *wg
 	return &gpuWorldTexture{texture: texture, view: view, bindGroup: bindGroup}, nil
 }
 
-func (r *Renderer) uploadWorldLightmapPages(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, pages []WorldLightmapPage, values [64]float32) []*gpuWorldTexture {
+func (r *Renderer) uploadWorldLightmapPages(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, pages []WorldLightmapPage, values [256]float32) []*gpuWorldTexture {
 	if device == nil || queue == nil || sampler == nil || len(pages) == 0 {
 		return nil
 	}
@@ -106,17 +106,15 @@ func lightmapDirtyBounds(page WorldLightmapPage) (x, y, w, h int) {
 	return minX, minY, maxX - minX, maxY - minY
 }
 
-func extractLightmapRegionRGBA(dst, rgba []byte, pageWidth, x, y, w, h int) []byte {
-	if len(rgba) == 0 || pageWidth <= 0 || w <= 0 || h <= 0 {
+func extractLightmapRegionRGBA(dst []byte, rgba []byte, srcWidth, x, y, w, h int) []byte {
+	if w <= 0 || h <= 0 || len(rgba) == 0 {
 		return nil
 	}
 	size := w * h * 4
-	if cap(dst) < size {
+	if len(dst) != size {
 		dst = make([]byte, size)
-	} else {
-		dst = dst[:size]
 	}
-	srcStride := pageWidth * 4
+	srcStride := srcWidth * 4
 	dstStride := w * 4
 	for row := 0; row < h; row++ {
 		srcStart := ((y + row) * srcStride) + x*4
@@ -127,7 +125,7 @@ func extractLightmapRegionRGBA(dst, rgba []byte, pageWidth, x, y, w, h int) []by
 	return dst
 }
 
-func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTexture, pages []WorldLightmapPage, values [64]float32) {
+func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTexture, pages []WorldLightmapPage, values [256]float32) {
 	if queue == nil || len(pages) == 0 || len(uploaded) == 0 {
 		return
 	}
@@ -164,7 +162,7 @@ func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTextur
 	clearDirtyFlags(pages)
 }
 
-func (r *Renderer) setGoGPUWorldLightStyleValues(values [64]float32) {
+func (r *Renderer) setGoGPUWorldLightStyleValues(values [256]float32) {
 	queue := r.getWGPUQueue()
 	if queue == nil {
 		return
@@ -189,20 +187,20 @@ func (r *Renderer) setGoGPUWorldLightStyleValues(values [64]float32) {
 	r.worldLightStyleValues = values
 }
 
-func defaultWorldLightStyleValues() [64]float32 {
-	var values [64]float32
+func defaultWorldLightStyleValues() [256]float32 {
+	var values [256]float32
 	values[0] = 1
 	return values
 }
 
-func worldLightstyleScale(values [64]float32, style uint8) float32 {
+func worldLightstyleScale(values [256]float32, style uint8) float32 {
 	if int(style) >= len(values) {
 		return 0
 	}
 	return values[style]
 }
 
-func compositeWorldLightmapSurfaceRGBA(rgba []byte, pageWidth int, surface WorldLightmapSurface, values [64]float32) {
+func compositeWorldLightmapSurfaceRGBA(rgba []byte, pageWidth int, surface WorldLightmapSurface, values [256]float32) {
 	if surface.Width <= 0 || surface.Height <= 0 {
 		return
 	}
@@ -240,7 +238,7 @@ func compositeWorldLightmapSurfaceRGBA(rgba []byte, pageWidth int, surface World
 	}
 }
 
-func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []byte {
+func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [256]float32) []byte {
 	if page.Width <= 0 || page.Height <= 0 {
 		return nil
 	}
@@ -261,8 +259,8 @@ func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []b
 	return page.CachedRGBA
 }
 
-func lightStylesChanged(old, new_ [64]float32) [64]bool {
-	var changed [64]bool
+func lightStylesChanged(old, new_ [256]float32) [256]bool {
+	var changed [256]bool
 	for i := range old {
 		if old[i] != new_[i] {
 			changed[i] = true
@@ -271,7 +269,7 @@ func lightStylesChanged(old, new_ [64]float32) [64]bool {
 	return changed
 }
 
-func anyLightStyleChanged(changed [64]bool) bool {
+func anyLightStyleChanged(changed [256]bool) bool {
 	for _, dirty := range changed {
 		if dirty {
 			return true
@@ -280,7 +278,7 @@ func anyLightStyleChanged(changed [64]bool) bool {
 	return false
 }
 
-func markDirtyLightmapPages(pages []WorldLightmapPage, changed [64]bool) {
+func markDirtyLightmapPages(pages []WorldLightmapPage, changed [256]bool) {
 	for i := range pages {
 		pageDirty := false
 		for j := range pages[i].Surfaces {
@@ -289,7 +287,7 @@ func markDirtyLightmapPages(pages []WorldLightmapPage, changed [64]bool) {
 				if style == 255 {
 					break
 				}
-				if style < 64 && changed[style] {
+				if int(style) < 256 && changed[style] {
 					surf.Dirty = true
 					pageDirty = true
 					break
@@ -314,7 +312,7 @@ func clearDirtyFlags(pages []WorldLightmapPage) {
 	}
 }
 
-func recompositeDirtySurfaces(rgba []byte, page WorldLightmapPage, values [64]float32) bool {
+func recompositeDirtySurfaces(rgba []byte, page WorldLightmapPage, values [256]float32) bool {
 	recomposited := false
 	for _, surface := range page.Surfaces {
 		if !surface.Dirty {

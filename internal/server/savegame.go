@@ -54,7 +54,7 @@ type SaveGameState struct {
 	SoundPrecache  []string
 	StaticEntities []EntityState
 	StaticSounds   []StaticSound
-	LightStyles    [64]string
+	LightStyles    [256]string
 	Clients        []SaveClientState
 	Edicts         []SaveEdictState
 	Globals        []SaveGlobalState

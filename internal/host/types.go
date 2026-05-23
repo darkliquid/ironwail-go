@@ -22,7 +22,7 @@ const (
 	MinEdicts      = 256
 	MaxEdicts      = 32000
 	MaxQPath       = 64
-	MaxLightstyles = 64
+	MaxLightstyles = 256
 	MaxModels      = 4096
 	MaxSounds      = 2048
 	MaxScoreboard  = 16

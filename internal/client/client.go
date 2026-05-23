@@ -276,7 +276,7 @@ type Client struct {
 	MouseForwardMove float32
 	MouseUpMove      float32
 
-	LightStyles [64]LightStyle
+	LightStyles [256]LightStyle
 
 	// Movement prediction state
 	PredictedOrigin               [3]float32                // Predicted player position
