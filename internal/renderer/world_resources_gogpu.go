@@ -284,7 +284,7 @@ func (r *Renderer) createWorldOpaquePipeline(device *wgpu.Device, vertexShader, 
 		Primitive: gputypes.PrimitiveState{
 			Topology:  gputypes.PrimitiveTopologyTriangleList,
 			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeNone,
+			CullMode:  gputypes.CullModeFront,
 		},
 		DepthStencil: gogpuNonDecalDepthStencilState(true),
 		Multisample: gputypes.MultisampleState{
@@ -343,7 +343,7 @@ func (r *Renderer) createWorldSkyPipelineWithDepthState(device *wgpu.Device, ver
 		Primitive: gputypes.PrimitiveState{
 			Topology:  gputypes.PrimitiveTopologyTriangleList,
 			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeNone,
+			CullMode:  gputypes.CullModeFront,
 		},
 		DepthStencil: depthStencil,
 		Multisample: gputypes.MultisampleState{
@@ -443,7 +443,7 @@ func (r *Renderer) createWorldTurbulentPipeline(device *wgpu.Device, vertexShade
 		Primitive: gputypes.PrimitiveState{
 			Topology:  gputypes.PrimitiveTopologyTriangleList,
 			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeNone,
+			CullMode:  gputypes.CullModeFront,
 		},
 		DepthStencil: gogpuNonDecalDepthStencilState(true),
 		Multisample: gputypes.MultisampleState{
@@ -494,7 +494,7 @@ func (r *Renderer) createWorldTranslucentPipeline(device *wgpu.Device, vertexSha
 		Primitive: gputypes.PrimitiveState{
 			Topology:  gputypes.PrimitiveTopologyTriangleList,
 			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeNone,
+			CullMode:  gputypes.CullModeFront,
 		},
 		DepthStencil: gogpuNonDecalDepthStencilState(false),
 		Multisample: gputypes.MultisampleState{
@@ -545,7 +545,7 @@ func (r *Renderer) createWorldTranslucentTurbulentPipeline(device *wgpu.Device, 
 		Primitive: gputypes.PrimitiveState{
 			Topology:  gputypes.PrimitiveTopologyTriangleList,
 			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeNone,
+			CullMode:  gputypes.CullModeFront,
 		},
 		DepthStencil: gogpuNonDecalDepthStencilState(false),
 		Multisample: gputypes.MultisampleState{
@@ -727,25 +727,27 @@ func (r *Renderer) createWorldTextureSampler(device *wgpu.Device) (*wgpu.Sampler
 		AddressModeU: gputypes.AddressModeRepeat,
 		AddressModeV: gputypes.AddressModeRepeat,
 		AddressModeW: gputypes.AddressModeRepeat,
-		MagFilter:    gputypes.FilterModeNearest,
-		MinFilter:    gputypes.FilterModeNearest,
-		MipmapFilter: gputypes.FilterModeNearest,
-		LodMinClamp:  0,
-		LodMaxClamp:  0,
+		MagFilter:     gputypes.FilterModeLinear,
+		MinFilter:     gputypes.FilterModeLinear,
+		MipmapFilter:  gputypes.FilterModeLinear,
+		MaxAnisotropy: 16,
+		LodMinClamp:   0,
+		LodMaxClamp:   0,
 	})
 }
 
 func (r *Renderer) createWorldLightmapSampler(device *wgpu.Device) (*wgpu.Sampler, error) {
 	return device.CreateSampler(&wgpu.SamplerDescriptor{
-		Label:        "World Lightmap Sampler",
-		AddressModeU: gputypes.AddressModeClampToEdge,
-		AddressModeV: gputypes.AddressModeClampToEdge,
-		AddressModeW: gputypes.AddressModeClampToEdge,
-		MagFilter:    gputypes.FilterModeLinear,
-		MinFilter:    gputypes.FilterModeLinear,
-		MipmapFilter: gputypes.FilterModeNearest,
-		LodMinClamp:  0,
-		LodMaxClamp:  0,
+		Label:          "World Lightmap Sampler",
+		AddressModeU:   gputypes.AddressModeClampToEdge,
+		AddressModeV:   gputypes.AddressModeClampToEdge,
+		AddressModeW:   gputypes.AddressModeClampToEdge,
+		MagFilter:      gputypes.FilterModeLinear,
+		MinFilter:      gputypes.FilterModeLinear,
+		MipmapFilter:   gputypes.FilterModeLinear,
+		MaxAnisotropy:  16,
+		LodMinClamp:    0,
+		LodMaxClamp:    0,
 	})
 }
 

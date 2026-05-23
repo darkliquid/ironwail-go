@@ -674,8 +674,7 @@ func (s *Server) touchLinks(ent *Edict) {
 			"touchlinks candidates=%d mover_classname=%q", len(touches), moverClassName)
 	}
 
-	ctx := captureQCExecutionContext(s.QCVM)
-	defer restoreQCExecutionContext(s.QCVM, ctx)
+
 
 	for _, touch := range touches {
 		touchNum := s.NumForEdict(touch)
@@ -746,6 +745,9 @@ func (s *Server) touchLinks(ent *Edict) {
 		s.syncEdictToQCVM(entNum, ent)
 		pusherSnapshots := s.capturePusherSnapshots()
 		s.syncPushersToQCVM()
+
+		ctx := captureQCExecutionContext(s.QCVM)
+
 		s.QCVM.SetGlobal("self", touchNum)
 		s.QCVM.SetGlobal("other", entNum)
 		s.setQCTimeGlobal(s.Time)
@@ -758,6 +760,9 @@ func (s *Server) touchLinks(ent *Edict) {
 			s.syncMutatedPushersFromQCVM(pusherSnapshots)
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
+
+		restoreQCExecutionContext(s.QCVM, ctx)
+
 		if telemetryEnabled {
 			linkState := "linked"
 			if touch.AreaPrev == nil {

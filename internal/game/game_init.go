@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -825,19 +824,6 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 			return g.runtimeMenuMods(g.Subs)
 		})
 		g.Menu.SetCurrentMod(g.ModDir)
-		g.Menu.SetNewGameConfirmationProvider(func() bool {
-			if g.Host == nil {
-				return false
-			}
-			return g.Host.ServerActive()
-		})
-		g.Menu.SetResumeGameAvailableProvider(func() bool {
-			if g.Host == nil {
-				return false
-			}
-			_, err := os.Stat(filepath.Join(g.Host.UserDir(), "saves", "autosave", "start.sav"))
-			return err == nil
-		})
 		g.Menu.SetSaveEntryAllowedProvider(func() bool {
 			if g.Host == nil {
 				return false

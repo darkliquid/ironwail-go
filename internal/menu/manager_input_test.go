@@ -115,7 +115,6 @@ func TestMenuStateStringability(t *testing.T) {
 		MenuNone,
 		MenuMain,
 		MenuSinglePlayer,
-		MenuSkill,
 		MenuLoad,
 		MenuSave,
 		MenuMultiPlayer,

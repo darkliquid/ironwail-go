@@ -60,9 +60,6 @@ func (m *Manager) setMenuCursor(cursor int) {
 	case MenuSinglePlayer:
 		changed = m.singlePlayerCursor != cursor
 		m.singlePlayerCursor = cursor
-	case MenuSkill:
-		changed = m.skillCursor != cursor
-		m.skillCursor = cursor
 	case MenuLoad:
 		changed = m.loadCursor != cursor
 		m.loadCursor = cursor
@@ -119,8 +116,6 @@ func (m *Manager) menuCursorForPoint(x, y int) (int, bool) {
 		return visible[slot], true
 	case MenuSinglePlayer:
 		return hitTestStride(y, 32, 20, singlePlayerItems)
-	case MenuSkill:
-		return hitTestTable(y, m.skillRowPositions(), 8)
 	case MenuLoad:
 		return hitTestStride(y, 32, 8, maxSaveGames)
 	case MenuSave:
@@ -203,8 +198,6 @@ func (m *Manager) moveCursorDown() {
 		}
 	case MenuSinglePlayer:
 		m.singlePlayerCursor = (m.singlePlayerCursor + 1) % singlePlayerItems
-	case MenuSkill:
-		m.skillCursor = (m.skillCursor + 1) % m.skillItemCount()
 	case MenuLoad:
 		m.loadCursor = (m.loadCursor + 1) % maxSaveGames
 	case MenuSave:
@@ -248,11 +241,6 @@ func (m *Manager) moveCursorUp() {
 		m.singlePlayerCursor--
 		if m.singlePlayerCursor < 0 {
 			m.singlePlayerCursor = singlePlayerItems - 1
-		}
-	case MenuSkill:
-		m.skillCursor--
-		if m.skillCursor < 0 {
-			m.skillCursor = m.skillItemCount() - 1
 		}
 	case MenuLoad:
 		m.loadCursor--

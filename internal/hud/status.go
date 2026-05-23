@@ -238,9 +238,9 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 		if sb.ibarPic != nil {
 			sb.drawPicAlpha(rc, sbarX, inventoryY, sb.inventoryBarPic(state), sbarAlpha)
 		} else {
-			rc.DrawFillAlpha(sbarX, inventoryY, sbarWidth, inventoryHeight, 4, sbarAlpha)
+			rc.DrawFillAlpha(sbarX, inventoryY, 320, 24, 4, sbarAlpha)
 		}
-		sb.drawInventory(rc, sbarX, inventoryY, state)
+		sb.drawInventory(rc, sbarX, sbarY, state)
 	}
 
 	if pic := sb.armorPic(state); pic != nil {
@@ -356,7 +356,7 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 		}
 		flashOn := sb.weaponFlashIndex(state, bit, state.ActiveWeapon == int(bit))
 		if pic := sb.weaponPic(i, flashOn); pic != nil {
-			rc.DrawPic(x+i*24, y+8, pic)
+			rc.DrawPic(x+i*24, y-16, pic)
 		}
 	}
 	if state.ModHipnotic {
@@ -368,7 +368,7 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 
 	ammoCounts := []int{state.Shells, state.Nails, state.Rockets, state.Cells}
 	for i, count := range ammoCounts {
-		DrawNumber(rc, x+48*i+34, y, count, 3)
+		DrawNumber(rc, x+48*i+34, y-10, count, 3)
 	}
 
 	itemBits := []uint32{
@@ -385,7 +385,7 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 		}
 		if state.Items&bit != 0 {
 			if pic := sb.itemPics[i]; pic != nil {
-				rc.DrawPic(x+192+i*16, y+8, pic)
+				rc.DrawPic(x+192+i*24, y-32, pic)
 			}
 		}
 	}
@@ -396,7 +396,7 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 				continue
 			}
 			if pic := sb.hipItemPics[i]; pic != nil {
-				rc.DrawPic(x+288+i*16, y+8, pic)
+				rc.DrawPic(x+288+i*16, y-32, pic)
 			}
 		}
 	}
@@ -407,7 +407,7 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 				continue
 			}
 			if pic := sb.rogueItems[i]; pic != nil {
-				rc.DrawPic(x+288+i*16, y+8, pic)
+				rc.DrawPic(x+288+i*16, y-16, pic)
 			}
 		}
 		return
@@ -417,7 +417,7 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 	for i, bit := range sigilBits {
 		if state.Items&bit != 0 {
 			if pic := sb.sigilPics[i]; pic != nil {
-				rc.DrawPic(x+288+i*8, y+8, pic)
+				rc.DrawPic(x+288, y-24, pic)
 			}
 		}
 	}
@@ -801,26 +801,22 @@ func (sb *StatusBar) drawHipnoticWeapons(rc renderer.RenderContext, x, y int, st
 			if state.Items&(1<<hipProximityBit) != 0 && flashOn > 1 {
 				grenadeFlashing = true
 				if pic := sb.hipWeapons[flashOn][2]; pic != nil {
-					rc.DrawPic(x+96, y+8, pic)
+					rc.DrawPic(x+96, y-16, pic)
 				}
 			}
 		case 3:
 			if state.Items&cl.ItemGrenadeLauncher != 0 {
 				if !grenadeFlashing {
-					idx := flashOn
-					if idx == 0 {
-						idx = 1
-					}
-					if pic := sb.hipWeapons[idx][3]; pic != nil {
-						rc.DrawPic(x+96, y+8, pic)
+					if pic := sb.hipWeapons[flashOn][3]; pic != nil {
+						rc.DrawPic(x+96, y-16, pic)
 					}
 				}
 			} else if pic := sb.hipWeapons[flashOn][4]; pic != nil {
-				rc.DrawPic(x+96, y+8, pic)
+				rc.DrawPic(x+96, y-16, pic)
 			}
 		default:
 			if pic := sb.hipWeapons[flashOn][i]; pic != nil {
-				rc.DrawPic(x+176+i*24, y+8, pic)
+				rc.DrawPic(x+176+i*24, y-16, pic)
 			}
 		}
 	}

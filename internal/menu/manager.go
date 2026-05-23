@@ -33,7 +33,6 @@ const (
 	MenuNone         MenuState = iota // No menu active
 	MenuMain                          // Main menu
 	MenuSinglePlayer                  // Single player submenu
-	MenuSkill                         // Skill / resume submenu for New Game
 	MenuLoad                          // Load game submenu
 	MenuSave                          // Save game submenu
 	MenuMultiPlayer                   // Multiplayer submenu
@@ -66,7 +65,6 @@ const (
 	mainItems        = 6 // total slots (Mods may be skipped)
 
 	singlePlayerItems = 3
-	skillBaseItems    = 4
 	multiPlayerItems  = 3
 	joinGameBaseItems = 4
 	hostGameItems     = 9
@@ -276,8 +274,6 @@ type Manager struct {
 	mainCursor int
 
 	singlePlayerCursor int
-	skillCursor        int
-	skillCanResume     bool
 	loadCursor         int
 	saveCursor         int
 	multiPlayerCursor  int
@@ -349,8 +345,6 @@ type Manager struct {
 	saveSlotProvider     func(slotCount int) []SaveSlotInfo
 	loadSlotLabels       [maxSaveGames]string
 	saveSlotLabels       [maxSaveGames]string
-	shouldConfirmNewGame func() bool
-	resumeGameAvailable  func() bool
 	saveEntryAllowed     func() bool
 }
 
@@ -393,18 +387,6 @@ func (m *Manager) SetCurrentMod(name string) {
 	m.currentMod = name
 }
 
-// SetNewGameConfirmationProvider sets a callback that decides whether selecting
-// Single Player -> New Game should show a confirmation prompt before starting.
-func (m *Manager) SetNewGameConfirmationProvider(provider func() bool) {
-	m.shouldConfirmNewGame = provider
-}
-
-// SetResumeGameAvailableProvider sets a callback that decides whether selecting
-// Single Player -> New Game should offer resuming the canonical autosave first.
-func (m *Manager) SetResumeGameAvailableProvider(provider func() bool) {
-	m.resumeGameAvailable = provider
-}
-
 // SetSaveEntryAllowedProvider sets a callback that decides whether selecting
 // Single Player -> Save is currently allowed.
 func (m *Manager) SetSaveEntryAllowedProvider(provider func() bool) {
@@ -421,8 +403,6 @@ func NewManager(drawMgr DrawManager, inputSys *input.System, cvars *cvar.CVarSys
 		state:              MenuNone,
 		mainCursor:         0,
 		singlePlayerCursor: 0,
-		skillCursor:        0,
-		skillCanResume:     false,
 		loadCursor:         0,
 		saveCursor:         0,
 		multiPlayerCursor:  0,
@@ -650,8 +630,6 @@ func (m *Manager) M_Key(key int) {
 		m.mainKey(key)
 	case MenuSinglePlayer:
 		m.singlePlayerKey(key)
-	case MenuSkill:
-		m.skillKey(key)
 	case MenuLoad:
 		m.loadKey(key)
 	case MenuSave:
@@ -723,8 +701,6 @@ func (m *Manager) M_Draw(dc renderer.RenderContext) {
 		m.drawMain(dc)
 	case MenuSinglePlayer:
 		m.drawSinglePlayer(dc)
-	case MenuSkill:
-		m.drawSkill(dc)
 	case MenuLoad:
 		m.drawLoad(dc)
 	case MenuSave:
