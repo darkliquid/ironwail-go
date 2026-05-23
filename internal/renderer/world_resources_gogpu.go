@@ -730,7 +730,7 @@ func (r *Renderer) createWorldTextureSampler(device *wgpu.Device) (*wgpu.Sampler
 		MagFilter:     gputypes.FilterModeLinear,
 		MinFilter:     gputypes.FilterModeLinear,
 		MipmapFilter:  gputypes.FilterModeLinear,
-		MaxAnisotropy: 16,
+		Anisotropy:    16,
 		LodMinClamp:   0,
 		LodMaxClamp:   0,
 	})
@@ -745,7 +745,7 @@ func (r *Renderer) createWorldLightmapSampler(device *wgpu.Device) (*wgpu.Sample
 		MagFilter:      gputypes.FilterModeLinear,
 		MinFilter:      gputypes.FilterModeLinear,
 		MipmapFilter:   gputypes.FilterModeLinear,
-		MaxAnisotropy:  16,
+		Anisotropy:     16,
 		LodMinClamp:    0,
 		LodMaxClamp:    0,
 	})
