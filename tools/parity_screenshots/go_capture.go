@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -23,30 +24,27 @@ func goCaptureMethod() string {
 	}
 }
 
-func goCaptureArgs(quakeBaseDir string, width, height int, vp viewpoint, outputPath string) []string {
+func goCaptureArgs(quakeBaseDir string, width, height int, vp viewpoint, outputPath string, cfgFile string) []string {
 	args := []string{
 		"-basedir", quakeBaseDir,
 		"-window",
 		"-width", fmt.Sprintf("%d", width),
 		"-height", fmt.Sprintf("%d", height),
 	}
+	if vp.Game != "" {
+		args = append(args, "-game", vp.Game)
+	}
 	if goCaptureMethod() == "engine" {
 		args = append(args, "-screenshot", outputPath)
 	}
 	args = append(args,
-		"+scr_viewsize", "130",
-		"+r_drawviewmodel", "0",
-		"+crosshair", "0",
 		"+map", vp.Map,
-		"+noclip",
-		"+setpos",
-		fmtFloat(vp.Pos[0]), fmtFloat(vp.Pos[1]), fmtFloat(vp.Pos[2]),
-		fmtFloat(vp.Angles[0]), fmtFloat(vp.Angles[1]), fmtFloat(vp.Angles[2]),
+		"+exec", cfgFile,
 	)
 	return args
 }
 
-func runGoWindowCapture(timeout time.Duration, goBin string, args []string, outputPath string) int {
+func runGoWindowCapture(timeout time.Duration, goBin string, args []string, outputPath string, env []string) int {
 	if _, err := exec.LookPath("xdotool"); err != nil {
 		fmt.Printf("    ERROR: PARITY_GO_CAPTURE=window requires xdotool: %v\n", err)
 		return 1
@@ -64,13 +62,25 @@ func runGoWindowCapture(timeout time.Duration, goBin string, args []string, outp
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, goBin, args...)
-	cmd.Env = append(os.Environ(), captureEnv(false)...)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
+	cmd.Env = append(os.Environ(), env...)
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		fmt.Printf("    ERROR: attach Go stdout pipe: %v\n", err)
+		return 1
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		fmt.Printf("    ERROR: attach Go stderr pipe: %v\n", err)
+		return 1
+	}
 	if err := cmd.Start(); err != nil {
 		fmt.Printf("    ERROR: start Go capture: %v\n", err)
 		return 1
 	}
+	const readyMarker = "PARITY_READY"
+	markerSeen := make(chan struct{}, 1)
+	go watchForReadyMarker(stdoutPipe, readyMarker, markerSeen)
+	go watchForReadyMarker(stderrPipe, readyMarker, markerSeen)
 
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -86,10 +96,16 @@ func runGoWindowCapture(timeout time.Duration, goBin string, args []string, outp
 		fmt.Printf("    ERROR: find Go window: %v\n", err)
 		return 1
 	}
-	settle := time.Duration(parseIntEnv("PARITY_GO_WINDOW_SETTLE_MS", 2500)) * time.Millisecond
+	targetWidth := parseCaptureArgInt(args, "-width")
+	targetHeight := parseCaptureArgInt(args, "-height")
+	settle := time.Duration(parseIntEnv("PARITY_GO_WINDOW_SETTLE_MS", 9000)) * time.Millisecond
 	if settle > 0 {
+		ready := false
 		select {
+		case <-markerSeen:
+			ready = true
 		case <-time.After(settle):
+			fmt.Printf("    NOTE: Go capture marker %q not observed before timeout; capturing anyway\n", readyMarker)
 		case <-ctx.Done():
 			return 124
 		case err := <-done:
@@ -97,6 +113,26 @@ func runGoWindowCapture(timeout time.Duration, goBin string, args []string, outp
 				return processExitCode(err)
 			}
 			return 0
+		}
+		if ready {
+			postReadyDelay := time.Duration(parseIntEnv("PARITY_GO_POST_READY_MS", 2000)) * time.Millisecond
+			if postReadyDelay > 0 {
+				select {
+				case <-time.After(postReadyDelay):
+				case <-ctx.Done():
+					return 124
+				case err := <-done:
+					if err != nil {
+						return processExitCode(err)
+					}
+					return 0
+				}
+			}
+		}
+	}
+	if targetWidth > 0 && targetHeight > 0 {
+		if err := waitForWindowGeometry(ctx, windowID, targetWidth, targetHeight, 5*time.Second); err != nil {
+			fmt.Printf("    NOTE: Go window did not settle to requested geometry before capture: %v\n", err)
 		}
 	}
 
@@ -216,4 +252,45 @@ func processExitCode(err error) int {
 		}
 	}
 	return 1
+}
+
+func waitForWindowGeometry(ctx context.Context, windowID string, targetWidth, targetHeight int, timeout time.Duration) error {
+	waitCtx := ctx
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		waitCtx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		width, height, ok := windowGeometry(waitCtx, windowID)
+		if ok && width == targetWidth && height == targetHeight {
+			return nil
+		}
+		select {
+		case <-waitCtx.Done():
+			if width == 0 && height == 0 {
+				return waitCtx.Err()
+			}
+			return fmt.Errorf("final geometry %dx%d, expected %dx%d", width, height, targetWidth, targetHeight)
+		case <-ticker.C:
+		}
+	}
+}
+
+func watchForReadyMarker(r io.Reader, marker string, seen chan<- struct{}) {
+	scanner := bufio.NewScanner(r)
+	const maxLine = 1024 * 1024
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxLine)
+	for scanner.Scan() {
+		if strings.Contains(scanner.Text(), marker) {
+			select {
+			case seen <- struct{}{}:
+			default:
+			}
+			return
+		}
+	}
 }

@@ -93,6 +93,7 @@ func main() {
 
 	args := flag.Args()
 	mapArg := startupMapArg(args)
+	explicitPlusMap := hasPlusMapArg(args)
 	if startupOpts.Dedicated && mapArg == "" {
 		mapArg = "start"
 	}
@@ -121,7 +122,11 @@ func main() {
 		slog.Info("menu active")
 	}
 
-	runStartupMap(mapArg)
+	// C Ironwail executes +map from command-line via stuffcmds inside quake.rc.
+	// Avoid manually spawning in that case or startup map logic will run twice.
+	if !explicitPlusMap {
+		runStartupMap(mapArg)
+	}
 
 	screenshotPath := strings.TrimSpace(*screenshotFlag)
 	screenshotMode := screenshotPath != ""
@@ -193,6 +198,15 @@ func startupMapArg(args []string) string {
 	return ""
 }
 
+func hasPlusMapArg(args []string) bool {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "+map" && i+1 < len(args) {
+			return true
+		}
+	}
+	return false
+}
+
 func runStartupMap(mapArg string) {
 	if mapArg == "" {
 		return
@@ -208,5 +222,8 @@ func runStartupMap(mapArg string) {
 	if g.Client != nil && g.Client.State == cl.StateActive && g.Host.SignOns() == 4 {
 		g.ApplyStartupGameplayInputMode()
 		slog.Info("client active", "map", mapArg)
+
+		// Dismiss startup menu so game can unpause and run queued frames
+		g.Host.Cmd.AddText("togglemenu\n")
 	}
 }

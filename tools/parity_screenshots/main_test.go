@@ -311,22 +311,32 @@ func TestGoCaptureArgsDefaultToWindowCapture(t *testing.T) {
 	t.Setenv("PARITY_GO_CAPTURE", "")
 	vp := viewpoint{Map: "start", Pos: [3]float64{1, 2, 3}, Angles: [3]float64{4, 5, 6}}
 
-	got := goCaptureArgs("/quake", 640, 480, vp, "/tmp/shot.png")
+	got := goCaptureArgs("/quake", 640, 480, vp, "/tmp/shot.png", "parity_go_test.cfg")
 
 	if slices.Contains(got, "-screenshot") {
 		t.Fatalf("window capture args included -screenshot: %v", got)
 	}
 	assertArgSequence(t, got, []string{"-basedir", "/quake", "-window", "-width", "640", "-height", "480"})
-	assertArgSequence(t, got, []string{"+map", "start", "+noclip", "+setpos", "1", "2", "3", "4", "5", "6"})
+	assertArgSequence(t, got, []string{"+map", "start", "+exec", "parity_go_test.cfg"})
 }
 
 func TestGoCaptureArgsEngineCaptureUsesScreenshotFlag(t *testing.T) {
 	t.Setenv("PARITY_GO_CAPTURE", "engine")
 	vp := viewpoint{Map: "start"}
 
-	got := goCaptureArgs("/quake", 320, 200, vp, "/tmp/shot.png")
+	got := goCaptureArgs("/quake", 320, 200, vp, "/tmp/shot.png", "parity_go_test.cfg")
 
 	assertArgSequence(t, got, []string{"-screenshot", "/tmp/shot.png"})
+}
+
+func TestGoCaptureArgsWithGame(t *testing.T) {
+	t.Setenv("PARITY_GO_CAPTURE", "")
+	vp := viewpoint{Game: "qbj3", Map: "start", Pos: [3]float64{1, 2, 3}, Angles: [3]float64{4, 5, 6}}
+
+	got := goCaptureArgs("/quake", 640, 480, vp, "/tmp/shot.png", "parity_go_test.cfg")
+
+	assertArgSequence(t, got, []string{"-basedir", "/quake", "-window", "-width", "640", "-height", "480", "-game", "qbj3"})
+	assertArgSequence(t, got, []string{"+map", "start", "+exec", "parity_go_test.cfg"})
 }
 
 func TestRunUsageDoesNotRequireViewpointsFile(t *testing.T) {
@@ -424,8 +434,8 @@ func TestGenReferenceCfgClosesConsoleBeforeScreenshot(t *testing.T) {
 	if !strings.Contains(text, "\ncrosshair 0\n") {
 		t.Fatalf("cfg missing hidden crosshair setting:\n%s", text)
 	}
-	if !strings.Contains(text, "\ntoggleconsole\n") {
-		t.Fatalf("cfg missing toggleconsole command:\n%s", text)
+	if !strings.Contains(text, "\nhideconsole\n") {
+		t.Fatalf("cfg missing hideconsole command:\n%s", text)
 	}
 	if !strings.Contains(text, "\nhost_framerate 0.0001\n") {
 		t.Fatalf("cfg missing freeze-time command:\n%s", text)
@@ -434,7 +444,7 @@ func TestGenReferenceCfgClosesConsoleBeforeScreenshot(t *testing.T) {
 		t.Fatalf("cfg missing deterministic screenshot name:\n%s", text)
 	}
 
-	toggleIdx := strings.Index(text, "\ntoggleconsole\n")
+	toggleIdx := strings.Index(text, "\nhideconsole\n")
 	setposIdx := strings.Index(text, "\nsetpos ")
 	freezeIdx := strings.Index(text, "\nhost_framerate 0.0001\n")
 	shotIdx := strings.Index(text, "\nscreenshot png\n")
@@ -442,13 +452,42 @@ func TestGenReferenceCfgClosesConsoleBeforeScreenshot(t *testing.T) {
 		t.Fatalf("cfg missing expected command ordering markers:\n%s", text)
 	}
 	if toggleIdx >= freezeIdx || freezeIdx >= setposIdx || setposIdx >= shotIdx {
-		t.Fatalf("expected toggleconsole -> host_framerate -> setpos -> screenshot ordering:\n%s", text)
+		t.Fatalf("expected hideconsole -> host_framerate -> setpos -> screenshot ordering:\n%s", text)
 	}
 	if waits := countWaitLines(text[:toggleIdx]); waits < 40 {
 		t.Fatalf("expected substantial startup waits before toggleconsole, found %d:\n%s", waits, text)
 	}
 	if waits := countWaitLines(text[toggleIdx:freezeIdx]); waits < 10 {
 		t.Fatalf("expected console-close waits before freeze/setpos, found %d:\n%s", waits, text)
+	}
+}
+
+func TestGenGoCfgAppliesDeterministicViewpointSetup(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	cfgPath := genGoCfg(dir, viewpoint{
+		ID:     "qbj3-view",
+		Map:    "start",
+		Pos:    [3]float64{48.93, -93.81, -903.97},
+		Angles: [3]float64{58.24, 107.57, 0},
+	})
+	t.Cleanup(func() { _ = os.Remove(cfgPath) })
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("read Go cfg: %v", err)
+	}
+	text := string(data)
+
+	if !strings.Contains(text, "\nhost_framerate 0.0001\n") {
+		t.Fatalf("Go cfg missing host_framerate freeze command:\n%s", text)
+	}
+	if !strings.Contains(text, "\nnoclip\n") {
+		t.Fatalf("Go cfg missing noclip command:\n%s", text)
+	}
+	if !strings.Contains(text, "\nsetpos 48.93 -93.81 -903.97 58.24 107.57 0\n") {
+		t.Fatalf("Go cfg missing expected setpos command:\n%s", text)
 	}
 }
 

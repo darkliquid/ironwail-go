@@ -3,6 +3,8 @@ package game
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 	"sync"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
@@ -88,7 +90,22 @@ func (g *Game) prepareRuntimeRendererScreenshot(screenshotMode bool) {
 }
 
 func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeRendererLoopState) {
+	var paritySetupDone bool
 	g.Renderer.OnUpdate(func(dt float64) {
+		if os.Getenv("PARITY_RUN") == "1" && !paritySetupDone && g.Client != nil && g.Client.State == cl.StateActive && g.Host.SignOns() == 4 {
+			if g.Menu != nil && g.Menu.IsActive() {
+				g.Menu.HideMenu()
+			}
+			if g.Input != nil && g.Input.KeyDest() == input.KeyConsole {
+				g.Input.SetKeyDest(input.KeyGame)
+			}
+			g.Host.Cmd.AddText("noclip\n")
+			// Wait a few command frames so server fixangle reaches the local client
+			// before signaling readiness to the external screenshot harness.
+			g.Host.Cmd.AddText(fmt.Sprintf("setpos %s %s\nwait\nwait\nwait\nwait\nwait\nviewpos\necho PARITY_READY\n", os.Getenv("PARITY_POS"), os.Getenv("PARITY_ANGLES")))
+			paritySetupDone = true
+		}
+
 		g.pollRuntimeInputEvents()
 		if g.Input != nil {
 			g.syncGameplayInputMode()
@@ -138,6 +155,7 @@ func (g *Game) applyRuntimeRendererState(state *runtimeRendererLoopState) {
 	if g.Renderer == nil {
 		return
 	}
+	g.applyParityViewAnglesOverride()
 
 	g.ApplyQueuedRendererAssets()
 	renderDT, renderEvents := state.pendingRendererFrame()
@@ -146,6 +164,32 @@ func (g *Game) applyRuntimeRendererState(state *runtimeRendererLoopState) {
 	g.Renderer.UpdateCamera(camera, 0.1, 4096.0)
 	g.applyRuntimeRendererVisualEffects(renderDT, g.Renderer, renderEvents)
 	g.applyRuntimeRendererSkybox(g.Renderer)
+}
+
+func (g *Game) applyParityViewAnglesOverride() {
+	if os.Getenv("PARITY_RUN") != "1" || g.Client == nil || g.Client.State != cl.StateActive {
+		return
+	}
+	angles, ok := parseParityAnglesEnv(os.Getenv("PARITY_ANGLES"))
+	if !ok {
+		return
+	}
+	g.Client.ViewAngles = angles
+	g.Client.MViewAngles[0] = angles
+	g.Client.MViewAngles[1] = angles
+	g.Client.PendingCmd.ViewAngles = angles
+}
+
+func parseParityAnglesEnv(raw string) ([3]float32, bool) {
+	fields := strings.Fields(raw)
+	if len(fields) != 3 {
+		return [3]float32{}, false
+	}
+	var pitch, yaw, roll float32
+	if _, err := fmt.Sscanf(strings.Join(fields, " "), "%f %f %f", &pitch, &yaw, &roll); err != nil {
+		return [3]float32{}, false
+	}
+	return [3]float32{pitch, yaw, roll}, true
 }
 
 func (g *Game) uploadDeferredRuntimeWorld() {

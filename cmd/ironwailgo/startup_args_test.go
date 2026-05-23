@@ -25,6 +25,25 @@ func TestStartupMapArg(t *testing.T) {
 	}
 }
 
+func TestHasPlusMapArg(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "plus map", args: []string{"+map", "start"}, want: true},
+		{name: "plus map missing value", args: []string{"+map"}, want: false},
+		{name: "positional map only", args: []string{"start"}, want: false},
+		{name: "other plus command", args: []string{"+skill", "2"}, want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hasPlusMapArg(tc.args); got != tc.want {
+				t.Fatalf("hasPlusMapArg(%v) = %v, want %v", tc.args, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestParseStartupOptions(t *testing.T) {
 	for _, tc := range []struct {
 		name        string

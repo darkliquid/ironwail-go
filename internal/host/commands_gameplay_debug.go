@@ -164,6 +164,10 @@ func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
 		ent.Vars.Angles[0] = filtered[3]
 		ent.Vars.Angles[1] = filtered[4]
 		ent.Vars.Angles[2] = filtered[5]
+		// Keep server and immediate local view queries aligned. C updates client
+		// view through fixangle; mirroring VAngle here avoids transient stale
+		// orientation when scripts issue setpos and immediately capture output.
+		ent.Vars.VAngle = [3]float32{filtered[3], filtered[4], filtered[5]}
 		ent.Vars.FixAngle = 1
 	}
 

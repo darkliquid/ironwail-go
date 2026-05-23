@@ -31,6 +31,7 @@ type viewpointsFile struct {
 
 type viewpoint struct {
 	ID          string     `json:"id"`
+	Game        string     `json:"game,omitempty"`
 	Map         string     `json:"map"`
 	Pos         [3]float64 `json:"pos"`
 	Angles      [3]float64 `json:"angles"`
@@ -173,8 +174,12 @@ func captureReference(quakeBaseDir, ironwailBin, refDir string, viewpoints []vie
 		return captureSummary{}, fmt.Errorf("c ironwail binary not found: %s", ironwailBin)
 	}
 	mustMkdir(refDir)
-	screenshotDir := filepath.Join(quakeBaseDir, "id1", "screenshots")
-	mustMkdir(screenshotDir)
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return captureSummary{}, fmt.Errorf("user home dir: %w", err)
+	}
+	refUserDir := filepath.Join(homeDir, ".ironwail")
 
 	fmt.Println("=== Capturing reference screenshots from C Ironwail ===")
 	fmt.Println("Binary:", ironwailBin)
@@ -184,21 +189,33 @@ func captureReference(quakeBaseDir, ironwailBin, refDir string, viewpoints []vie
 	summary := captureSummary{Count: len(viewpoints)}
 	for _, vp := range viewpoints {
 		fmt.Printf("  [REF] %s: %s\n", vp.ID, vp.Description)
-		clearScreenshotMatches(screenshotDir, vp.ID)
-		cfgFile := genReferenceCfg(filepath.Join(quakeBaseDir, "id1"), vp, width, height)
+		activeGameDir := "id1"
+		if vp.Game != "" {
+			activeGameDir = vp.Game
+		}
+		vpScreenshotDir := filepath.Join(refUserDir, activeGameDir, "screenshots")
+		mustMkdir(vpScreenshotDir)
+
+		clearScreenshotMatches(vpScreenshotDir, vp.ID)
+		cfgFile := genReferenceCfg(filepath.Join(refUserDir, activeGameDir), vp, width, height)
 		args := []string{
 			"-basedir", quakeBaseDir,
 			"-window", "-width", fmt.Sprintf("%d", width), "-height", fmt.Sprintf("%d", height),
+		}
+		if vp.Game != "" {
+			args = append(args, "-game", vp.Game)
+		}
+		args = append(args,
 			"+map", vp.Map,
 			"+exec", filepath.Base(cfgFile),
-		}
-		fmt.Printf("    exec: %s %s", ironwailBin, strings.Join(args, " "))
+		)
+		fmt.Printf("    exec: %s %s\n", ironwailBin, strings.Join(args, " "))
 		if status := runWithTimeout(30*time.Second, captureEnv(true), ironwailBin, args...); status != 0 {
 			fmt.Printf("    WARNING: C Ironwail exited with error for %s\n", vp.ID)
 			summary.Failures++
 		}
 		_ = os.Remove(cfgFile)
-		if err := moveFirstMatch(screenshotDir, vp.ID, filepath.Join(refDir, vp.ID+".png")); err != nil {
+		if err := moveFirstMatch(vpScreenshotDir, vp.ID, filepath.Join(refDir, vp.ID+".png")); err != nil {
 			summary.Failures++
 			return summary, fmt.Errorf("capture reference %s: %w", vp.ID, err)
 		}
@@ -230,6 +247,12 @@ func captureGo(projectDir, quakeBaseDir, goBin, goDir string, viewpoints []viewp
 	}
 	mustMkdir(goDir)
 
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return captureSummary{}, fmt.Errorf("user home dir: %w", err)
+	}
+	refUserDir := filepath.Join(homeDir, ".ironwail")
+
 	fmt.Println("=== Capturing Go port screenshots ===")
 	fmt.Println("Binary:", goBin)
 	fmt.Println("Output:", goDir)
@@ -249,14 +272,21 @@ func captureGo(projectDir, quakeBaseDir, goBin, goDir string, viewpoints []viewp
 			fmt.Printf("    matching reference image size %dx%d\n", captureWidth, captureHeight)
 		}
 		outputPath := filepath.Join(goDir, vp.ID+".png")
-		args := goCaptureArgs(quakeBaseDir, captureWidth, captureHeight, vp, outputPath)
-		fmt.Printf("    exec: %s %s", goBin, strings.Join(args, " "))
-		status := 0
-		if goCaptureMethod() == "window" {
-			status = runGoWindowCapture(30*time.Second, goBin, args, outputPath)
-		} else {
-			status = runWithTimeout(30*time.Second, captureEnv(false), goBin, args...)
+		activeGameDir := "id1"
+		if vp.Game != "" {
+			activeGameDir = vp.Game
 		}
+		cfgFile := genGoCfg(filepath.Join(refUserDir, activeGameDir), vp)
+		args := goCaptureArgs(quakeBaseDir, captureWidth, captureHeight, vp, outputPath, filepath.Base(cfgFile))
+		fmt.Printf("    exec: %s %s\n", goBin, strings.Join(args, " "))
+		status := 0
+		goEnv := goCaptureEnv(vp)
+		if goCaptureMethod() == "window" {
+			status = runGoWindowCapture(30*time.Second, goBin, args, outputPath, goEnv)
+		} else {
+			status = runWithTimeout(30*time.Second, goEnv, goBin, args...)
+		}
+		_ = os.Remove(cfgFile)
 		if status != 0 {
 			fmt.Printf("    WARNING: Go binary exited with error for %s\n", vp.ID)
 			summary.Failures++
@@ -394,7 +424,7 @@ func genReferenceCfg(dir string, vp viewpoint, width, height int) string {
 	}
 	defer func() { _ = f.Close() }()
 	preToggleWaits := waitLines(45)
-	postToggleWaits := waitLines(12)
+	postToggleWaits := waitLines(150)
 	preShotWaits := waitLines(4)
 	content := fmt.Sprintf(`// Auto-generated parity screenshot config
 vid_fullscreen 0
@@ -405,10 +435,11 @@ r_drawviewmodel 0
 crosshair 0
 fov 90
 gamma 1
+con_speed 999999
 scr_conspeed 999999
 cl_screenshotname screenshots/%s
 %s
-toggleconsole
+hideconsole
 %s
 host_framerate 0.0001
 setpos %s %s %s %s %s %s
@@ -419,6 +450,30 @@ quit
 `, width, height, vp.ID, preToggleWaits, postToggleWaits, fmtFloat(vp.Pos[0]), fmtFloat(vp.Pos[1]), fmtFloat(vp.Pos[2]), fmtFloat(vp.Angles[0]), fmtFloat(vp.Angles[1]), fmtFloat(vp.Angles[2]), preShotWaits)
 	if _, err := io.WriteString(f, content); err != nil {
 		die("write cfg: %v", err)
+	}
+	return f.Name()
+}
+
+func genGoCfg(dir string, vp viewpoint) string {
+	mustMkdir(dir)
+	f, err := os.CreateTemp(dir, "parity_go_*.cfg")
+	if err != nil {
+		die("create Go temp cfg: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	// Keep Go capture setup close to the reference flow so map spawn settles,
+	// menu state is dismissed by startup logic, and setpos runs deterministically
+	// before window capture.
+	content := fmt.Sprintf(`// Auto-generated parity Go screenshot config
+scr_viewsize 130
+r_drawviewmodel 0
+crosshair 0
+host_framerate 0.0001
+noclip
+setpos %s %s %s %s %s %s
+`, fmtFloat(vp.Pos[0]), fmtFloat(vp.Pos[1]), fmtFloat(vp.Pos[2]), fmtFloat(vp.Angles[0]), fmtFloat(vp.Angles[1]), fmtFloat(vp.Angles[2]))
+	if _, err := io.WriteString(f, content); err != nil {
+		die("write Go cfg: %v", err)
 	}
 	return f.Name()
 }
@@ -452,28 +507,6 @@ func clearScreenshotMatches(dir, id string) {
 			_ = os.Remove(match)
 		}
 	}
-}
-
-func waitLines(count int) string {
-	if count <= 0 {
-		return ""
-	}
-	var b strings.Builder
-	for i := 0; i < count; i++ {
-		b.WriteString("wait\n")
-	}
-	return b.String()
-}
-
-func captureEnv(reference bool) []string {
-	env := []string{
-		"WAYLAND_DISPLAY=",
-		"XDG_SESSION_TYPE=x11",
-	}
-	if reference {
-		env = append(env, "SDL_VIDEODRIVER=x11")
-	}
-	return env
 }
 
 func runWithTimeout(timeout time.Duration, env []string, name string, args ...string) int {
@@ -512,17 +545,6 @@ func runInDir(dir string, env []string, name string, args ...string) int {
 		return 1
 	}
 	return 0
-}
-
-func fmtFloat(v float64) string {
-	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.6f", v), "0"), ".")
-}
-
-func envOr(key, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
-		return value
-	}
-	return fallback
 }
 
 func mustMkdir(path string) {
@@ -944,30 +966,6 @@ func clampFloat(v, minValue, maxValue float64) float64 {
 	return v
 }
 
-func parseFloatEnv(key string, fallback float64) float64 {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback
-	}
-	var parsed float64
-	if _, err := fmt.Sscanf(value, "%f", &parsed); err != nil {
-		return fallback
-	}
-	return parsed
-}
-
-func parseIntEnv(key string, fallback int) int {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback
-	}
-	var parsed int
-	if _, err := fmt.Sscanf(value, "%d", &parsed); err != nil {
-		return fallback
-	}
-	return parsed
-}
-
 func die(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "ERROR: "+format+"\n", args...)
 	os.Exit(1)
@@ -975,22 +973,4 @@ func die(format string, args ...any) {
 
 func compareFailed(summary compareSummary) bool {
 	return summary.ReferenceCount == 0 || summary.DiffCount > 0 || summary.MissingCount > 0 || summary.GoCount != summary.ReferenceCount
-}
-
-func printUsage() {
-	fmt.Println("Usage: go run ./tools/parity_screenshots {reference|go|compare|both}")
-	fmt.Println()
-	fmt.Println("Commands:")
-	fmt.Println("  reference  Capture reference screenshots from C Ironwail")
-	fmt.Println("  go         Capture screenshots from the Go GoGPU parity build")
-	fmt.Println("  compare    Compare reference vs Go screenshots (nonzero on diffs/missing captures)")
-	fmt.Println("  both       Do all three in sequence (nonzero on diffs/missing captures)")
-	fmt.Println()
-	fmt.Println("Environment:")
-	fmt.Println("  QUAKE_BASEDIR  Path to Quake data")
-	fmt.Println("  IRONWAIL_BIN   Path to C Ironwail binary")
-	fmt.Println("  GO_BIN         Path to Go binary (default: ./ironwailgo)")
-	fmt.Println("  PARITY_GO_CAPTURE  Go capture method: window or engine (default: window)")
-	fmt.Println("  PARITY_GO_WINDOW_SETTLE_MS  Delay before window capture (default: 2500)")
-	fmt.Println("  PARITY_ONION_ALPHA  Blend weight for reference image in overlay output (default: 0.5)")
 }
