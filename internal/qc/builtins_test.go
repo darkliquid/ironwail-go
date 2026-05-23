@@ -625,3 +625,28 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 		t.Fatalf("unexpected hook calls: %+v", hookCalls)
 	}
 }
+
+func TestDPrintFallbackRequiresDeveloperCvar(t *testing.T) {
+	vm := newBuiltinsTestVM(1)
+	vm.Cvars = cvar.NewCVarSystem()
+	vm.SetGString(OFSParm0, "debug line\n")
+
+	var printed []string
+	console.SetPrintCallback(func(msg string) {
+		printed = append(printed, msg)
+	})
+	t.Cleanup(func() {
+		console.SetPrintCallback(nil)
+	})
+
+	dprint(vm)
+	if len(printed) != 0 {
+		t.Fatalf("dprint emitted with developer disabled: %q", printed)
+	}
+
+	vm.Cvars.Set("developer", "1")
+	dprint(vm)
+	if len(printed) != 1 || printed[0] != "debug line\n" {
+		t.Fatalf("dprint emitted %q with developer enabled, want one debug line", printed)
+	}
+}

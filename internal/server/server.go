@@ -759,10 +759,9 @@ func NewServer() *Server {
 			}
 		},
 		DebugPrint: func(vm *qc.VM, msg string) {
-			console.Printf("%s", msg)
+			console.DPrintf(s.CVar.FloatValue("developer") != 0, "%s", msg)
 		},
 		CenterPrint: func(vm *qc.VM, entNum int, msg string) {
-			console.CenterPrintf(40, "%s", msg)
 			if client := clientForEntNum(entNum); client != nil && client.Message != nil {
 				client.Message.PutByte(byte(inet.SVCCenterPrint))
 				client.Message.WriteString(msg)

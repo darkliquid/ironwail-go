@@ -434,6 +434,9 @@ func dprint(vm *VM) {
 		vm.ServerHooks.DebugPrint(vm, msg)
 		return
 	}
+	if vm.Cvars == nil || vm.Cvars.FloatValue("developer") == 0 {
+		return
+	}
 	console.Printf("%s", msg)
 }
 

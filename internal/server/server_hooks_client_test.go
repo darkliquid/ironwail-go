@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
@@ -173,6 +174,13 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	}
 
 	clientBefore = s.Static.Clients[0].Message.Len()
+	var centerConsole []string
+	console.SetPrintCallback(func(msg string) {
+		centerConsole = append(centerConsole, msg)
+	})
+	t.Cleanup(func() {
+		console.SetPrintCallback(nil)
+	})
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
 	vm.SetGString(qc.OFSParm1, "centered")
 	vm.Builtins[73](vm)
@@ -186,6 +194,9 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	if got := string(msg); got != "centered" {
 		t.Fatalf("centerprint message = %q, want %q", got, "centered")
 	}
+	if len(centerConsole) != 0 {
+		t.Fatalf("centerprint unexpectedly echoed to server console: %q", centerConsole)
+	}
 
 	clientBefore = s.Static.Clients[0].Message.Len()
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
@@ -197,6 +208,9 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	msg = s.Static.Clients[0].Message.Data[clientBefore+1 : s.Static.Clients[0].Message.Len()-1]
 	if got := string(msg); got != "line1\nline2" {
 		t.Fatalf("escaped centerprint message = %q, want real newline payload", got)
+	}
+	if len(centerConsole) != 0 {
+		t.Fatalf("escaped centerprint unexpectedly echoed to server console: %q", centerConsole)
 	}
 
 	clientBefore = s.Static.Clients[0].Message.Len()
