@@ -37,8 +37,9 @@ func TestParseWorldspawnSkyboxName(t *testing.T) {
 	}
 }
 
-// TestSpawnServerSyncsRoundedClampedSkillToQCVM tests skill level synchronization with QuakeC.
-// It ensuring that the skill cvar is correctly clamped and rounded before being passed to the QuakeC world spawn.
+// TestSpawnServerSyncsRoundedClampedSkillToQCVM tests spawn-time skill setup.
+// C normalizes the skill cvar before worldspawn; worldspawn then publishes it
+// to QuakeC so spawn functions and frame logic start from the canonical value.
 // Where in C: SV_SpawnServer in sv_main.c
 func TestSpawnServerSyncsRoundedClampedSkillToQCVM(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
@@ -89,6 +90,22 @@ func TestSpawnServerSyncsRoundedClampedSkillToQCVM(t *testing.T) {
 				t.Fatalf("QC skill global = %d, want %d", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestSyncQCVMStateDoesNotOverwriteQCSkillGlobal(t *testing.T) {
+	s := NewServer()
+	withSkillCVar(t, s, "1")
+	vm := newServerTestVM(s, 1)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvFloat), Ofs: 10, Name: vm.AllocString("skill")},
+	}
+	vm.SetGFloat(10, 3)
+
+	s.syncQCVMState()
+
+	if got := vm.GFloat(10); got != 3 {
+		t.Fatalf("syncQCVMState overwrote QC skill global = %v, want 3", got)
 	}
 }
 
@@ -600,8 +617,8 @@ func TestLoadMapEntitiesReservesFreshSignonSpaceAndSeedsServerFlags(t *testing.T
 	}
 	vm.SetGInt(inspectBuiltinOfs, -1)
 	s.syncQCVMState()
-	if got := vm.GlobalInt("serverflags"); got != 7 {
-		t.Fatalf("syncQCVMState serverflags = %d, want 7", got)
+	if got := vm.GlobalFloat("serverflags"); got != 7 {
+		t.Fatalf("syncQCVMState serverflags = %v, want 7", got)
 	}
 
 	raw := `{

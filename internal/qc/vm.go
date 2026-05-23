@@ -802,17 +802,27 @@ func (vm *VM) NumForEdict(e int) int {
 //	vm.SetGlobal("time", float32(10.5))
 //	vm.SetGlobal("self", edict)
 func (vm *VM) SetGlobal(name string, value any) {
-	ofs := vm.FindGlobal(name)
-	if ofs < 0 {
+	def, ok := vm.findGlobalDef(name)
+	if !ok {
 		return
 	}
+	ofs := int(def.Ofs)
+	typ := EType(def.Type & 0x7fff)
 	switch v := value.(type) {
 	case float32:
 		vm.SetGFloat(ofs, v)
 	case int:
-		vm.SetGInt(ofs, int32(v))
+		if typ == EvFloat {
+			vm.SetGFloat(ofs, float32(v))
+		} else {
+			vm.SetGInt(ofs, int32(v))
+		}
 	case int32:
-		vm.SetGInt(ofs, v)
+		if typ == EvFloat {
+			vm.SetGFloat(ofs, float32(v))
+		} else {
+			vm.SetGInt(ofs, v)
+		}
 	case *Edict:
 		vm.SetGInt(ofs, int32(v.Num))
 	}

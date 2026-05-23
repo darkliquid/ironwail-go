@@ -378,9 +378,13 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 		}
 	}
 
-	// Push QC globals (skill, mapname, deathmatch, coop) and the world
-	// entity to the VM before spawning map entities. QC spawn functions
-	// read these globals to decide behavior.
+	// C Ironwail normalizes the skill cvar once in SV_SpawnServer. QC code then
+	// owns the skill global; mods like qbj3 use it as a StartFrame change latch.
+	s.normalizeSkillCVarForSpawn()
+
+	// Push engine-owned QC globals (mapname, deathmatch, coop) and the world
+	// entity to the VM before spawning map entities. QC spawn functions read
+	// these globals to decide behavior.
 	s.syncQCVMState()
 
 	// Cache QC field offsets for alpha/scale (used every frame in entity updates).

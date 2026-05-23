@@ -5,6 +5,30 @@ import (
 	"testing"
 )
 
+func TestSetGlobalIntegerValueUsesQuakeCGlobalType(t *testing.T) {
+	vm := NewVM()
+	vm.Globals = make([]float32, 64)
+
+	const (
+		skillOfs = 10
+		selfOfs  = 11
+	)
+	vm.GlobalDefs = []DDef{
+		{Type: uint16(EvFloat), Ofs: skillOfs, Name: vm.AllocString("skill")},
+		{Type: uint16(EvEntity), Ofs: selfOfs, Name: vm.AllocString("self")},
+	}
+
+	vm.SetGlobal("skill", 1)
+	vm.SetGlobal("self", 2)
+
+	if got := vm.GFloat(skillOfs); got != 1 {
+		t.Fatalf("float global written from int = %v, want 1", got)
+	}
+	if got := vm.GInt(selfOfs); got != 2 {
+		t.Fatalf("entity global written from int = %d, want 2", got)
+	}
+}
+
 func TestExecuteProgramDivByZeroBehaviorMatrixMatchesC(t *testing.T) {
 	vm := NewVM()
 	vm.Globals = make([]float32, 64)

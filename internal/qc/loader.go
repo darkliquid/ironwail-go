@@ -92,6 +92,15 @@ func (vm *VM) FindGlobal(name string) int {
 	return -1
 }
 
+func (vm *VM) findGlobalDef(name string) (DDef, bool) {
+	for _, def := range vm.GlobalDefs {
+		if vm.String(def.Name) == name {
+			return def, true
+		}
+	}
+	return DDef{}, false
+}
+
 func (vm *VM) FindField(name string) int {
 	for _, def := range vm.FieldDefs {
 		if vm.String(def.Name) == name {

@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"reflect"
-	"strconv"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/qc"
@@ -549,20 +548,9 @@ func (s *Server) syncQCVMState() {
 	if s.QCVM == nil {
 		return
 	}
-	skill := 1
-	if skillCV := s.CVar.Get("skill"); skillCV != nil {
-		skill = int(skillCV.Float + 0.5)
-		if skill < 0 {
-			skill = 0
-		} else if skill > 3 {
-			skill = 3
-		}
-		s.CVar.Set("skill", strconv.Itoa(skill))
-	}
 	s.ensureQCVMEdictStorage()
 	s.QCVM.SetGlobal("world", 0)
 	s.QCVM.SetGlobal("mapname", s.QCVM.AllocString(s.Name))
-	s.QCVM.SetGlobal("skill", skill)
 	s.QCVM.SetGlobal("time", s.Time)
 	if s.Static != nil {
 		s.QCVM.SetGlobal("serverflags", s.Static.ServerFlags)
