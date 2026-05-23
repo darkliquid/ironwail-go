@@ -529,10 +529,13 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	//                  → stuffcmds → startdemos demo1 demo2 demo3
 	//
 	// If quake.rc isn't available (e.g. no PAK files in test environments),
-	// fall back to directly loading the user config from userDir.
+	// execute default.cfg first to establish base controls, then load the user config.
 	if subs.Files != nil && subs.Files.FileExists("quake.rc") {
 		executeConfigText(subs, "exec quake.rc\n")
 	} else {
+		if builtin, ok := builtinExecConfigText("default.cfg"); ok {
+			executeConfigText(subs, builtin)
+		}
 		if err := h.execUserConfig(subs); err != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("Warning: couldn't exec %s: %v\n", configFileName, err))
 		}

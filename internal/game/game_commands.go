@@ -420,8 +420,12 @@ func (g *Game) ensureRequiredGameplayBindings() {
 }
 
 func (g *Game) ensureGameplayBindings() {
-	if !g.hasAnyGameplayBindings() {
-		g.applyDefaultGameplayBindings()
+	if g.Input != nil {
+		for _, binding := range gameplayDefaultBindings {
+			if strings.TrimSpace(g.Input.Binding(binding.Key)) == "" {
+				g.Input.SetBinding(binding.Key, binding.Command)
+			}
+		}
 	}
 	g.ensureRequiredGameplayBindings()
 	g.ensureEssentialFallbackBindings()
