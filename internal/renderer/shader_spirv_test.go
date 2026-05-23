@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gogpu/naga"
@@ -67,5 +68,23 @@ func TestWorldShaderSPIRVValidation(t *testing.T) {
 				t.Logf("spirv-val PASSED for %s (%d bytes)", name, len(spirvBytes))
 			}
 		})
+	}
+}
+
+func TestWorldFragmentShaderAlphaDiscardModesMatchC(t *testing.T) {
+	// C Ironwail only discards world texture alpha in WORLDSHADER_ALPHATEST.
+	// Regular fullbright texels encode alpha=0 as a lighting mask, so the
+	// opaque shader must keep them and use alpha to choose unlit vs lit color.
+	if strings.Contains(worldFragmentShaderWGSL, "discard") {
+		t.Fatalf("opaque world shader contains discard; fullbright alpha-mask texels would disappear")
+	}
+	if !strings.Contains(worldFragmentShaderWGSL, "mix(sampled.rgb, sampled.rgb * totalLight * 2.0, sampled.a)") {
+		t.Fatalf("opaque world shader does not use sampled alpha as the C fullbright lighting mask")
+	}
+	if !strings.Contains(worldAlphaTestFragmentShaderWGSL, "discard") {
+		t.Fatalf("alpha-test world shader missing discard")
+	}
+	if !strings.Contains(worldAlphaTestFragmentShaderWGSL, "sampled.a < 0.666") {
+		t.Fatalf("alpha-test world shader discard threshold does not match C Ironwail")
 	}
 }

@@ -620,6 +620,57 @@ func TestRunClientSpawnQCCallsClientConnectBeforePutClientInServer(t *testing.T)
 	}
 }
 
+func TestRunClientSpawnQCSyncsEntitiesSpawnedByClientConnect(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	client := s.Static.Clients[0]
+	client.Edict = s.EdictNum(1)
+
+	vm := newServerTestVM(s, 16)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSFrameTime), Name: vm.AllocString("frametime")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSMsgEntity), Name: vm.AllocString("msg_entity")},
+	}
+	vm.FieldDefs = []qc.DDef{
+		{Type: uint16(qc.EvString), Ofs: uint16(qc.EntFieldClassName), Name: vm.AllocString("classname")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.EntFieldOwner), Name: vm.AllocString("owner")},
+	}
+	animClassname := vm.AllocString("animcontroller")
+	vm.Builtins[1] = func(vm *qc.VM) {
+		controller := s.AllocEdict()
+		controllerNum := s.NumForEdict(controller)
+		vm.SetEString(controllerNum, qc.EntFieldClassName, int32(animClassname))
+		vm.SetEEntity(controllerNum, qc.EntFieldOwner, int32(vm.GInt(qc.OFSSelf)))
+	}
+	vm.Builtins[2] = func(vm *qc.VM) {}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("ClientConnect"), FirstStatement: -1},
+		{Name: vm.AllocString("PutClientInServer"), FirstStatement: -2},
+	}
+	s.QCVM = vm
+
+	if err := s.runClientSpawnQC(client); err != nil {
+		t.Fatalf("runClientSpawnQC failed: %v", err)
+	}
+
+	controller := s.EdictNum(2)
+	if controller == nil || controller.Vars == nil {
+		t.Fatal("ClientConnect-spawned edict was not mirrored into the server")
+	}
+	if got := s.String(controller.Vars.ClassName); got != "animcontroller" {
+		t.Fatalf("spawned edict classname = %q, want animcontroller", got)
+	}
+	if got := controller.Vars.Owner; got != 1 {
+		t.Fatalf("spawned edict owner = %d, want player edict 1", got)
+	}
+}
+
 func TestExecuteClientStringCommandFallsBackToSVParseClientCommandQC(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {

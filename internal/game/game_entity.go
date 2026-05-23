@@ -745,19 +745,23 @@ func (g *Game) collectViewModelEntity() *renderer.AliasModelEntity {
 
 	modelIndex := g.Client.WeaponModelIndex()
 	if modelIndex <= 0 {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=weapon_model_index index=%d health=%d active_weapon=%d items=0x%x", modelIndex, g.Client.Health(), g.Client.ActiveWeapon(), g.Client.Items)
 		return nil
 	}
 	precacheIndex := modelIndex - 1
 	if precacheIndex < 0 || precacheIndex >= len(g.Client.ModelPrecache) {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=weapon_precache_range index=%d precache_len=%d", modelIndex, len(g.Client.ModelPrecache))
 		return nil
 	}
 
 	modelName := g.Client.ModelPrecache[precacheIndex]
 	if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=weapon_model_name index=%d name=%q", modelIndex, modelName)
 		return nil
 	}
 	mdl, ok := g.loadAliasModel(modelName)
 	if !ok || mdl == nil || mdl.AliasHeader == nil || mdl.AliasHeader.NumFrames == 0 {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=alias_load name=%q ok=%t nil=%t", modelName, ok, mdl == nil)
 		return nil
 	}
 

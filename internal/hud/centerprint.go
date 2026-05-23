@@ -96,6 +96,8 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 	if rc == nil {
 		return
 	}
+	_ = screenWidth
+	_ = screenHeight
 	if state.Intermission != 0 && state.HideIntermissionOverlay {
 		return
 	}
@@ -119,7 +121,10 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 	if message == "" {
 		return
 	}
-	cp.drawTextBlock(rc, message, screenWidth, cp.regularCenterprintY(screenHeight, message), cp.centerprintBackgroundMode(), alpha)
+	prevCanvas := rc.Canvas().Type
+	rc.SetCanvas(renderer.CanvasMenu)
+	defer rc.SetCanvas(prevCanvas)
+	cp.drawTextBlock(rc, message, 320, cp.regularCenterprintY(200, message), cp.centerprintBackgroundMode(), alpha)
 }
 
 // drawIntermissionOverlay renders the level-completion screen (Intermission 1).

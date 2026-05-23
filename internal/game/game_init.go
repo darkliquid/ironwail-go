@@ -531,10 +531,16 @@ func (g *Game) loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error
 		return nil
 	}
 
-	if loadedName, csprogsData, err := fileSys.LoadFirstAvailable([]string{"csprogs.dat", "progs.dat"}); err == nil {
+	for _, candidate := range []string{"csprogs.dat", "progs.dat"} {
+		csprogsData, err := fileSys.LoadFile(candidate)
+		if err != nil {
+			continue
+		}
 		if err := g.CSQC.Load(bytes.NewReader(csprogsData)); err != nil {
-			slog.Warn("failed to load csqc progs", "file", loadedName, "error", err)
-			return nil
+			g.CSQC.Unload()
+			qc.RegisterBuiltins(g.CSQC.VM)
+			slog.Warn("failed to load csqc progs", "file", candidate, "error", err)
+			continue
 		}
 
 		frameState := g.buildCSQCFrameState()
@@ -548,6 +554,7 @@ func (g *Game) loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error
 			g.CSQC.Unload()
 			slog.Warn("failed to initialize csqc", "error", err)
 		}
+		break
 	}
 
 	return nil

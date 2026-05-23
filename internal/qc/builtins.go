@@ -177,6 +177,8 @@ func RegisterBuiltins(vm *VM) {
 	vm.Builtins[119] = strunzoneBuiltin
 	vm.Builtins[222] = str2chrBuiltin
 	vm.Builtins[223] = chr2strBuiltin
+	vm.Builtins[232] = noopBuiltin // clientstat registration; core stats are still sent by the server.
+	vm.Builtins[233] = noopBuiltin // globalstat registration; accepted for FTE-compatible SSQC.
 	vm.Builtins[245] = modBuiltin
 	// CSQC drawing builtins
 	vm.Builtins[316] = csqcIsCachedPic

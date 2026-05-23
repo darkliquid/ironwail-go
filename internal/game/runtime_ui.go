@@ -158,6 +158,7 @@ func (g *Game) runtimeConsoleForcedUp() bool {
 
 func (g *Game) runtimeViewModelVisible() bool {
 	if g.Client == nil {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=no_client")
 		return false
 	}
 	// Note: C Ironwail's R_IsViewModelVisible does NOT suppress the
@@ -166,24 +167,34 @@ func (g *Game) runtimeViewModelVisible() bool {
 	// Hiding it here caused parity captures running behind the attract-
 	// mode menu overlay to show no weapon while C did.
 	if g.Client.Intermission != 0 {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=intermission value=%d", g.Client.Intermission)
 		return false
 	}
 	if !g.Host.CVar.BoolValue("r_drawentities") {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=r_drawentities")
 		return false
 	}
 	if !g.Host.CVar.BoolValue("r_drawviewmodel") {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=r_drawviewmodel")
 		return false
 	}
 	if g.Host.CVar.BoolValue("chase_active") {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=chase_active")
 		return false
 	}
 	if g.currentRuntimeViewSize() >= 130 {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=viewsize value=%.1f", g.currentRuntimeViewSize())
 		return false
 	}
 	if g.Client.Health() <= 0 {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=health value=%d", g.Client.Health())
 		return false
 	}
-	return g.Client.Items&cl.ItemInvisibility == 0
+	if g.Client.Items&cl.ItemInvisibility != 0 {
+		g.runtimeDebugViewLogf("viewmodel_skip", "reason=invisibility items=0x%x", g.Client.Items)
+		return false
+	}
+	return true
 }
 
 func (g *Game) runtimePauseActive() bool {

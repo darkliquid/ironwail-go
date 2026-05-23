@@ -169,7 +169,13 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 	case filepath.IsAbs(filename):
 		data, err = os.ReadFile(filename)
 	case h.userDir != "":
-		data, err = os.ReadFile(filepath.Join(h.userDir, filename))
+		err = os.ErrNotExist
+		for _, dir := range configUserDirs(h.userDir, h.gameDir) {
+			data, err = os.ReadFile(filepath.Join(dir, filename))
+			if err == nil || !os.IsNotExist(err) {
+				break
+			}
+		}
 	default:
 		err = os.ErrNotExist
 	}
@@ -213,8 +219,12 @@ func (h *Host) userConfigFileExists(filename string) bool {
 		_, err := os.Stat(filename)
 		return err == nil
 	case h.userDir != "":
-		_, err := os.Stat(filepath.Join(h.userDir, filename))
-		return err == nil
+		for _, dir := range configUserDirs(h.userDir, h.gameDir) {
+			if _, err := os.Stat(filepath.Join(dir, filename)); err == nil {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}

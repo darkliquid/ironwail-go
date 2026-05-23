@@ -72,6 +72,7 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 	}
 	vm := s.QCVM
 	ctx := captureQCExecutionContext(vm)
+	prevNumEdicts := s.NumEdicts
 	snapshots := s.captureNonPusherQCVMEdictSnapshots()
 
 	restoreContext := true
@@ -85,6 +86,7 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 		err := vm.ExecuteFunction(funcIdx)
 		if err == nil {
 			s.syncMutatedNonPushersFromQCVM(snapshots)
+			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		return err
 	}
@@ -103,6 +105,22 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 	err := vm.ExecuteFunction(funcIdx)
 	if err == nil {
 		s.syncMutatedNonPushersFromQCVM(snapshots)
+		s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
+	}
+	return err
+}
+
+func (s *Server) executeQCFunctionLeavingGlobals(funcIdx int) error {
+	if s == nil || s.QCVM == nil {
+		return nil
+	}
+	vm := s.QCVM
+	prevNumEdicts := s.NumEdicts
+	snapshots := s.captureNonPusherQCVMEdictSnapshots()
+	err := vm.ExecuteFunction(funcIdx)
+	if err == nil {
+		s.syncMutatedNonPushersFromQCVM(snapshots)
+		s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 	}
 	return err
 }

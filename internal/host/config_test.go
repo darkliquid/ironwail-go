@@ -135,6 +135,34 @@ func TestHostCmdExecConfigAliasUsesCanonicalConfigName(t *testing.T) {
 	}
 }
 
+func TestHostCmdExecConfigAliasPrefersGameUserConfig(t *testing.T) {
+	h := NewHost()
+	userDir := t.TempDir()
+	h.SetUserDir(userDir)
+	h.gameDir = "qbj3"
+
+	if err := os.MkdirAll(filepath.Join(userDir, h.gameDir), 0755); err != nil {
+		t.Fatalf("MkdirAll(game user dir): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, configFileName), []byte("test_exec_alias root\n"), 0644); err != nil {
+		t.Fatalf("WriteFile(root %q): %v", configFileName, err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, h.gameDir, configFileName), []byte("test_exec_alias game\n"), 0644); err != nil {
+		t.Fatalf("WriteFile(game %q): %v", configFileName, err)
+	}
+
+	var executed string
+	h.Cmd.AddCommand("test_exec_alias", func(args []string) {
+		executed = strings.Join(args, " ")
+	}, "")
+	defer h.Cmd.RemoveCommand("test_exec_alias")
+
+	h.CmdExec([]string{legacyConfigName}, &Subsystems{Commands: h.Cmd})
+	if executed != "game" {
+		t.Fatalf("exec config alias payload = %q, want game-specific config", executed)
+	}
+}
+
 func TestHostCmdExecDefaultCfgUsesBuiltinFallback(t *testing.T) {
 	h := NewHost()
 

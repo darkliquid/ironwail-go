@@ -299,14 +299,17 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 
 	if entNum := s.NumForEdict(ent); s.DebugTelemetry != nil &&
 		s.DebugTelemetry.ShouldLogEvent(DebugEventPhysics, s.QCVM, entNum, ent) {
+		weaponModelName := s.String(ent.Vars.WeaponModel)
 		s.DebugTelemetry.LogEventf(DebugEventPhysics, s.QCVM, entNum, ent,
-			"clientdata serialize bits=%#x onground=%t waterlevel=%d viewofs=(%.1f %.1f %.1f) idealpitch=%.1f vel=(%.1f %.1f %.1f) punch=(%.1f %.1f %.1f) fixangle_sent=%t ground=%d teleport=%.3f",
+			"clientdata serialize bits=%#x onground=%t waterlevel=%d viewofs=(%.1f %.1f %.1f) idealpitch=%.1f vel=(%.1f %.1f %.1f) punch=(%.1f %.1f %.1f) fixangle_sent=%t ground=%d teleport=%.3f items=%#x weapon=%#x weaponmodel=%q weaponmodelidx=%d ammo=%d shells=%d",
 			bits, uint32(ent.Vars.Flags)&FlagOnGround != 0, int(ent.Vars.WaterLevel),
 			ent.Vars.ViewOfs[0], ent.Vars.ViewOfs[1], ent.Vars.ViewOfs[2],
 			ent.Vars.IdealPitch,
 			ent.Vars.Velocity[0], ent.Vars.Velocity[1], ent.Vars.Velocity[2],
 			ent.Vars.PunchAngle[0], ent.Vars.PunchAngle[1], ent.Vars.PunchAngle[2],
-			fixAngleSent, int(ent.Vars.GroundEntity), ent.Vars.TeleportTime)
+			fixAngleSent, int(ent.Vars.GroundEntity), ent.Vars.TeleportTime,
+			uint32(ent.Vars.Items), uint32(ent.Vars.Weapon), weaponModelName, weaponModelIdx,
+			int(ent.Vars.CurrentAmmo), int(ent.Vars.AmmoShells))
 	}
 
 	msg.PutByte(byte(inet.SVCClientData))

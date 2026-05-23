@@ -65,7 +65,16 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 // worldFragmentShaderWGSL is the WGSL source for the GoGPU world fragment shader.
 // Keep its lightmap/fullbright/fog math aligned with the canonical world-shader
 // behavior so BSP world surfaces look the same across renderer paths.
-func buildWorldFragmentShaderWGSL(planeNormalExpr string) string {
+func buildWorldFragmentShaderWGSL(planeNormalExpr string, alphaTest bool) string {
+	alphaDiscard := ""
+	lightExpr := "mix(sampled.rgb, sampled.rgb * totalLight * 2.0, sampled.a) + fullbright.rgb * fullbright.a"
+	if alphaTest {
+		alphaDiscard = `
+	if (sampled.a < 0.666) {
+		discard;
+	}`
+		lightExpr = "sampled.rgb * totalLight * 2.0 + fullbright.rgb * fullbright.a"
+	}
 	return fmt.Sprintf(`
 %s
 struct VertexOutput {
@@ -138,25 +147,23 @@ fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>) -> ve
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
-	if (sampled.a < 0.1) {
-		discard;
-	}
+	%s
 	var totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
 	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
 	let dynamicLight = accumulateDynamicLights(input.worldPos, %s);
 	totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
-	let lit = sampled.rgb * totalLight * 2.0 + fullbright.rgb * fullbright.a;
+	let lit = %s;
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
 	let fogged = mix(uniforms.fogColor, lit, fog);
 	return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
-`, worldUniformsWGSL, gogpuWorldDynamicLightBufferMax, planeNormalExpr)
+`, worldUniformsWGSL, gogpuWorldDynamicLightBufferMax, alphaDiscard, planeNormalExpr, lightExpr)
 }
 
-var worldFragmentShaderWGSL = buildWorldFragmentShaderWGSL("cross(dpdx(input.worldPos), dpdy(input.worldPos))")
+var worldFragmentShaderWGSL = buildWorldFragmentShaderWGSL("cross(dpdx(input.worldPos), dpdy(input.worldPos))", false)
 
-var worldAlphaTestFragmentShaderWGSL = buildWorldFragmentShaderWGSL("input.normal")
+var worldAlphaTestFragmentShaderWGSL = buildWorldFragmentShaderWGSL("input.normal", true)
 
 const worldSkyVertexShaderWGSL = `
 struct VertexInput {

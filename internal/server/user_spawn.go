@@ -241,8 +241,36 @@ func (s *Server) runClientQCFunction(client *Client, functionName string, includ
 	}
 
 	s.syncEdictFromQCVM(entNum, client.Edict)
+	if functionName == "ClientConnect" {
+		s.syncClientAnimControllerFromQCVM(entNum)
+	}
 
 	return nil
+}
+
+func (s *Server) syncClientAnimControllerFromQCVM(clientEntNum int) {
+	if s == nil || s.QCVM == nil {
+		return
+	}
+	// Some mods create a client-owned helper entity during ClientConnect and
+	// store it in a custom player field. Import that helper before the next QC
+	// entry point so syncQCVMState does not republish stale Go-side fields.
+	animOfs := s.QCVM.FindField("animcontroller")
+	if animOfs < 0 {
+		return
+	}
+	animEntNum := int(s.QCVM.EEntity(clientEntNum, animOfs))
+	if animEntNum <= 0 || animEntNum >= s.NumEdicts {
+		return
+	}
+	animEnt := s.EdictNum(animEntNum)
+	if animEnt == nil || animEnt.Free {
+		return
+	}
+	if animEnt.Vars == nil {
+		animEnt.Vars = &EntVars{}
+	}
+	s.syncEdictFromQCVM(animEntNum, animEnt)
 }
 
 func (s *Server) runClientPutInServerQC(client *Client) error {

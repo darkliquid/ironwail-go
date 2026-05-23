@@ -587,6 +587,18 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
+func configUserDirs(userDir, gameDir string) []string {
+	if userDir == "" {
+		return nil
+	}
+	dirs := make([]string, 0, 2)
+	if gameDir != "" {
+		dirs = append(dirs, filepath.Join(userDir, gameDir))
+	}
+	dirs = append(dirs, userDir)
+	return dirs
+}
+
 func LoadArchivedCvars(cv *cvar.CVarSystem, userDir string, names []string) error {
 	if cv == nil || userDir == "" || len(names) == 0 {
 		return nil
@@ -641,15 +653,17 @@ func executeConfigText(subs *Subsystems, text string) {
 }
 
 func (h *Host) execUserConfig(subs *Subsystems) error {
-	for _, name := range []string{configFileName, legacyConfigName} {
-		configPath := filepath.Join(h.userDir, name)
-		data, err := os.ReadFile(configPath)
-		if err == nil {
-			executeConfigText(subs, string(data))
-			return nil
-		}
-		if !os.IsNotExist(err) {
-			return err
+	for _, dir := range configUserDirs(h.userDir, h.gameDir) {
+		for _, name := range []string{configFileName, legacyConfigName} {
+			configPath := filepath.Join(dir, name)
+			data, err := os.ReadFile(configPath)
+			if err == nil {
+				executeConfigText(subs, string(data))
+				return nil
+			}
+			if !os.IsNotExist(err) {
+				return err
+			}
 		}
 	}
 	return nil
@@ -718,7 +732,14 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 		configName += ".cfg"
 	}
 
-	configPath := filepath.Join(h.userDir, configName)
+	configDir := h.userDir
+	if h.gameDir != "" {
+		configDir = filepath.Join(h.userDir, h.gameDir)
+	}
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	configPath := filepath.Join(configDir, configName)
 	f, err := os.Create(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)

@@ -98,6 +98,40 @@ func TestHUDDrawCenterprintPreservesQuakeHighBitGlyphBytes(t *testing.T) {
 	}
 }
 
+func TestHUDRegularCenterprintUsesMenuCanvasAndLogicalCoordinates(t *testing.T) {
+	registerCenterprintTestCvars()
+	testCV.Set("scr_centerprintbg", "0")
+	testCV.Set("con_notifyfade", "0")
+
+	cp := NewCenterprint(nil, testCV)
+	rc := &mockRenderContext{}
+	rc.SetCanvas(renderer.CanvasDefault)
+	cp.Draw(rc, State{
+		CenterPrint:   "AB",
+		CenterPrintAt: 1,
+		Time:          1.5,
+	}, 1920, 1080)
+
+	if len(rc.canvasSwitch) < 3 {
+		t.Fatalf("canvas switches = %v, want default setup plus menu push/restore", rc.canvasSwitch)
+	}
+	if got := rc.canvasSwitch[len(rc.canvasSwitch)-2]; got != renderer.CanvasMenu {
+		t.Fatalf("centerprint draw canvas = %v, want CanvasMenu", got)
+	}
+	if got := rc.canvasSwitch[len(rc.canvasSwitch)-1]; got != renderer.CanvasDefault {
+		t.Fatalf("restored canvas = %v, want CanvasDefault", got)
+	}
+	if len(rc.characters) != 2 {
+		t.Fatalf("characters = %d, want 2", len(rc.characters))
+	}
+	if got, want := rc.characters[0].x, (320-2*8)/2; got != want {
+		t.Fatalf("first character x = %d, want logical 320-centered x %d", got, want)
+	}
+	if got, want := rc.characters[0].y, int(200*0.35); got != want {
+		t.Fatalf("first character y = %d, want logical 200 centerprint y %d", got, want)
+	}
+}
+
 func TestHUDRegularCenterprintSuppressesWhilePaused(t *testing.T) {
 	registerCenterprintTestCvars()
 	cp := NewCenterprint(nil, testCV)
