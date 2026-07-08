@@ -258,22 +258,30 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		slog.Warn("failed to ensure decal resources", "error", err)
 		return
 	}
-	if err := r.ensureAliasScratchBufferLocked(device, 36*6); err != nil {
-		r.mu.Unlock()
-		slog.Warn("failed to ensure decal scratch buffer", "error", err)
-		return
-	}
 	pipeline := r.decalPipeline
 	uniformBuffer := r.decalUniformBuffer
 	uniformBindGroup := r.decalUniformBindGroup
 	bindGroup := r.decalBindGroup
-	scratchBuffer := r.aliasScratchBuffer
 	depthView := r.worldDepthTextureView
 	camera := r.cameraState
-	r.mu.Unlock()
 
 	draws := prepareDecalDraws(marks, camera)
-	if len(draws) == 0 || pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || bindGroup == nil || scratchBuffer == nil {
+	preparedDraws := prepareGoGPUDecalHALDraws(draws)
+	
+	totalVertexBytes := uint64(0)
+	for _, prepared := range preparedDraws {
+		totalVertexBytes += uint64(len(prepared.VertexBytes))
+	}
+	
+	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
+		r.mu.Unlock()
+		slog.Warn("failed to ensure decal scratch buffer", "error", err)
+		return
+	}
+	scratchBuffer := r.aliasScratchBuffer
+	r.mu.Unlock()
+
+	if len(draws) == 0 || totalVertexBytes == 0 || pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || bindGroup == nil || scratchBuffer == nil {
 		return
 	}
 
@@ -312,17 +320,21 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		return
 	}
 
-	preparedDraws := prepareGoGPUDecalHALDraws(draws)
+	bulkVertexData := make([]byte, 0, totalVertexBytes)
+	totalVertices := uint32(0)
 	for _, prepared := range preparedDraws {
 		if prepared.VertexCount == 0 {
 			continue
 		}
-		if err := queue.WriteBuffer(scratchBuffer, 0, prepared.VertexBytes); err != nil {
-			slog.Warn("failed to upload decal vertices", "error", err)
-			continue
-		}
-		renderPass.Draw(prepared.VertexCount, 1, 0, 0)
+		bulkVertexData = append(bulkVertexData, prepared.VertexBytes...)
+		totalVertices += prepared.VertexCount
 	}
+
+	if err := queue.WriteBuffer(scratchBuffer, 0, bulkVertexData); err != nil {
+		slog.Warn("failed to upload decal vertices", "error", err)
+		return
+	}
+	renderPass.Draw(totalVertices, 1, 0, 0)
 
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderDecalMarksHAL: render pass end error", "error", err)

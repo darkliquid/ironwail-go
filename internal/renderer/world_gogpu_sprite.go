@@ -405,29 +405,28 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	// HAL backends require an active pipeline layout before SetBindGroup.
 	renderPass.SetPipeline(pipeline)
 	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
-	renderPass.SetBindGroup(0, uniformBindGroup, []uint32{0})
-
+	// Preallocate contiguous slices for bulk upload
 	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
 	cameraForward, cameraRight, cameraUp := spriteCameraBasis(cameraAngles)
 	currentPipeline := pipeline
 
-	for _, draw := range draws {
+	bulkUniformData := make([]byte, uint64(len(draws))*worldUniformAlign)
+	bulkVertexData := make([]byte, 0, len(draws)*4*44) // 4 vertices per quad, 44 bytes per vertex
+
+	uniformOffsets := make([]uint32, len(draws))
+	vertexCounts := make([]uint32, len(draws))
+	vertexOffsets := make([]uint32, len(draws))
+
+	currentVertexOffset := uint32(0)
+	for i, draw := range draws {
 		if draw.sprite == nil || draw.frame < 0 || draw.frame >= len(draw.sprite.frames) {
 			continue
 		}
 		frame := draw.sprite.frames[draw.frame]
 		if frame.bindGroup == nil {
 			continue
-		}
-		targetPipeline := pipeline
-		if spriteUsesOpaqueCutout(draw.sprite.spriteType, draw.alpha) {
-			targetPipeline = depthOffsetPipeline
-		}
-		if currentPipeline != targetPipeline {
-			renderPass.SetPipeline(targetPipeline)
-			currentPipeline = targetPipeline
 		}
 		vertices := buildSpriteQuadVertices(&spriteRenderModel{
 			modelID:    draw.sprite.modelID,
@@ -450,16 +449,55 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 				TexCoord: vertex.TexCoord,
 			}
 		})
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldgogpu.SpriteUniformBytes(vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)); err != nil {
-			slog.Warn("failed to update sprite uniform buffer", "error", err)
+		
+		uOffset := uint32(i) * worldUniformAlign
+		uniformOffsets[i] = uOffset
+		
+		// Accumulate uniform data
+		uBytes := worldgogpu.SpriteUniformBytes(vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)
+		copy(bulkUniformData[uOffset:], uBytes)
+
+		// Accumulate vertex data
+		vertexBytes := aliasVertexBytes(worldVertices)
+		bulkVertexData = append(bulkVertexData, vertexBytes...)
+		
+		vertexCounts[i] = uint32(len(worldVertices))
+		vertexOffsets[i] = currentVertexOffset
+		currentVertexOffset += uint32(len(worldVertices))
+	}
+
+	// Bulk upload all uniforms
+	if len(draws) > 0 {
+		if err := queue.WriteBuffer(uniformBuffer, 0, bulkUniformData); err != nil {
+			slog.Warn("failed to upload sprite uniform buffer in bulk", "error", err)
+			return
+		}
+	}
+	
+	// Bulk upload all vertices
+	if len(bulkVertexData) > 0 {
+		if err := queue.WriteBuffer(scratchBuffer, 0, bulkVertexData); err != nil {
+			slog.Warn("failed to upload sprite vertices in bulk", "error", err)
+			return
+		}
+	}
+
+	for i, draw := range draws {
+		if vertexCounts[i] == 0 {
 			continue
 		}
-		if err := queue.WriteBuffer(scratchBuffer, 0, aliasVertexBytes(worldVertices)); err != nil {
-			slog.Warn("failed to upload sprite vertices", "error", err)
-			continue
+		frame := draw.sprite.frames[draw.frame]
+		targetPipeline := pipeline
+		if spriteUsesOpaqueCutout(draw.sprite.spriteType, draw.alpha) {
+			targetPipeline = depthOffsetPipeline
 		}
+		if currentPipeline != targetPipeline {
+			renderPass.SetPipeline(targetPipeline)
+			currentPipeline = targetPipeline
+		}
+		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{uniformOffsets[i]})
 		renderPass.SetBindGroup(1, frame.bindGroup, nil)
-		renderPass.Draw(uint32(len(worldVertices)), 1, 0, 0)
+		renderPass.Draw(vertexCounts[i], 1, vertexOffsets[i], 0)
 	}
 
 	if err := renderPass.End(); err != nil {

@@ -165,6 +165,8 @@ type Renderer struct {
 	activeDynamicLightsScratch     []DynamicLight
 	uniformDataScratch             []byte
 	uniformOffset                  uint32
+	particleScratchBuffer          *wgpu.Buffer
+	decalScratchBuffer             *wgpu.Buffer
 	worldVertexBuffer                 *wgpu.Buffer
 	worldIndexBuffer                  *wgpu.Buffer
 	worldDynamicIndexBuffer           *wgpu.Buffer

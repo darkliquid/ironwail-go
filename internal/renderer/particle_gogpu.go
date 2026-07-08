@@ -221,6 +221,22 @@ func (r *Renderer) ensureParticleResourcesLocked(device *wgpu.Device) error {
 		return fmt.Errorf("create particle fragment shader: %w", err)
 	}
 
+	scratchBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Particle Scratch Buffer",
+		Size:             uint64(particleBatchCapacity) * uint64(unsafe.Sizeof(ParticleVertex{})),
+		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		fragmentShader.Release()
+		vertexShader.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		return fmt.Errorf("create particle scratch buffer: %w", err)
+	}
+
 	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
 	if r.app != nil {
 		if provider := r.app.DeviceProvider(); provider != nil {
@@ -299,6 +315,7 @@ func (r *Renderer) ensureParticleResourcesLocked(device *wgpu.Device) error {
 	r.particlePipelineLayout = pipelineLayout
 	r.particleUniformBuffer = uniformBuffer
 	r.particleUniformBindGroup = uniformBindGroup
+	r.particleScratchBuffer = scratchBuffer
 	r.particleVertexShader = vertexShader
 	r.particleFragmentShader = fragmentShader
 	r.particleOpaquePipeline = opaquePipeline
@@ -373,23 +390,13 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 	}
 	uniformBuffer := r.particleUniformBuffer
 	uniformBindGroup := r.particleUniformBindGroup
+	scratchBuffer := r.particleScratchBuffer
 	depthView := r.worldDepthTextureView
 	camera := r.cameraState
 	r.mu.Unlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil {
+	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
 		return
 	}
-	scratchBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
-		Label:            "Particle Scratch Buffer",
-		Size:             uint64(particleBatchCapacity) * uint64(unsafe.Sizeof(ParticleVertex{})),
-		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
-		MappedAtCreation: false,
-	})
-	if err != nil {
-		slog.Warn("failed to create particle scratch buffer", "error", err)
-		return
-	}
-	defer scratchBuffer.Release()
 
 	vpMatrix := r.ViewProjectionMatrix()
 	projectionMatrix := r.ProjectionMatrix()

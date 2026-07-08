@@ -703,28 +703,47 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	vertexOffsets := make([]uint64, len(prepared))
 	vertexCounts := make([]uint32, len(prepared))
 	uniformOffsets := make([]uint32, len(prepared))
-	vertexByteScratch := make([]byte, 0)
+	
+	// Preallocate contiguous slices for bulk upload
+	bulkUniformData := make([]byte, uint64(len(prepared))*worldUniformAlign)
+	bulkVertexData := make([]byte, 0, len(prepared)*1024) // Estimate 1KB per model
+
 	currentVertexOffset := uint64(0)
 	for i, pd := range prepared {
 		vertexScratch = buildAliasVerticesInterpolatedInto(vertexScratch[:0], pd.draw.alias, pd.draw.model, pd.draw.pose1, pd.draw.pose2, pd.draw.blend, pd.draw.origin, pd.draw.angles, pd.draw.scale, pd.draw.full)
 		if len(vertexScratch) == 0 {
 			continue
 		}
-		uniformOffsets[i] = uint32(i) * worldUniformAlign
+		
+		uOffset := uint32(i) * worldUniformAlign
+		uniformOffsets[i] = uOffset
 		vertexOffsets[i] = currentVertexOffset
 		vertexCounts[i] = pd.vertexCount
 
-		if err := queue.WriteBuffer(uniformBuffer, uint64(uniformOffsets[i]), aliasSceneUniformBytes(vpMatrix, cameraOrigin, pd.alpha, fogColor, fogDensity)); err != nil {
-			slog.Warn("failed to update alias uniform buffer", "error", err, "draw", i)
-			return
-		}
-		vertexBytes := aliasVertexBytesInto(vertexByteScratch[:0], vertexScratch)
-		vertexByteScratch = vertexBytes[:0]
-		if err := queue.WriteBuffer(scratchBuffer, currentVertexOffset, vertexBytes); err != nil {
-			slog.Warn("failed to upload alias vertices", "error", err, "draw", i)
-			return
-		}
+		// Accumulate uniform data
+		uBytes := aliasSceneUniformBytes(vpMatrix, cameraOrigin, pd.alpha, fogColor, fogDensity)
+		copy(bulkUniformData[uOffset:], uBytes)
+
+		// Accumulate vertex data
+		vertexBytes := aliasVertexBytesInto(nil, vertexScratch)
+		bulkVertexData = append(bulkVertexData, vertexBytes...)
 		currentVertexOffset += uint64(len(vertexBytes))
+	}
+
+	// Bulk upload all uniforms
+	if len(prepared) > 0 {
+		if err := queue.WriteBuffer(uniformBuffer, 0, bulkUniformData); err != nil {
+			slog.Warn("failed to upload alias uniform buffer in bulk", "error", err)
+			return
+		}
+	}
+	
+	// Bulk upload all vertices
+	if len(bulkVertexData) > 0 {
+		if err := queue.WriteBuffer(scratchBuffer, 0, bulkVertexData); err != nil {
+			slog.Warn("failed to upload alias vertices in bulk", "error", err)
+			return
+		}
 	}
 
 	// Record a single render pass with all draws.
