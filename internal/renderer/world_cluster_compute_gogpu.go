@@ -21,7 +21,7 @@ func (r *Renderer) createWorldClusterComputePipeline(device *wgpu.Device, comput
 			{
 				Binding: 0, // ComputeUniforms
 				Visibility: gputypes.ShaderStageCompute,
-				Buffer: gputypes.BufferBindingLayout{
+				Buffer: &gputypes.BufferBindingLayout{
 					Type:           gputypes.BufferBindingTypeUniform,
 					HasDynamicOffset: false,
 					MinBindingSize:   0,
@@ -30,7 +30,7 @@ func (r *Renderer) createWorldClusterComputePipeline(device *wgpu.Device, comput
 			{
 				Binding: 1, // DynamicLight array
 				Visibility: gputypes.ShaderStageCompute,
-				Buffer: gputypes.BufferBindingLayout{
+				Buffer: &gputypes.BufferBindingLayout{
 					Type:           gputypes.BufferBindingTypeReadOnlyStorage,
 					HasDynamicOffset: false,
 					MinBindingSize:   0,
@@ -39,7 +39,7 @@ func (r *Renderer) createWorldClusterComputePipeline(device *wgpu.Device, comput
 			{
 				Binding: 2, // LightClusters storage texture
 				Visibility: gputypes.ShaderStageCompute,
-				StorageTexture: gputypes.StorageTextureBindingLayout{
+				StorageTexture: &gputypes.StorageTextureBindingLayout{
 					Access: gputypes.StorageTextureAccessWriteOnly,
 					Format: gputypes.TextureFormatRG32Uint,
 					ViewDimension: gputypes.TextureViewDimension3D,
@@ -62,10 +62,8 @@ func (r *Renderer) createWorldClusterComputePipeline(device *wgpu.Device, comput
 	pipeline, err := device.CreateComputePipeline(&wgpu.ComputePipelineDescriptor{
 		Label: "World Cluster Compute Pipeline",
 		Layout: pipelineLayout,
-		Compute: wgpu.ProgrammableStageDescriptor{
-			Module:     computeShader,
-			EntryPoint: "cs_main",
-		},
+		Module:     computeShader,
+		EntryPoint: "cs_main",
 	})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create compute pipeline: %w", err)
@@ -126,20 +124,21 @@ func (r *Renderer) dispatchWorldClusterCompute(device *wgpu.Device, queue *wgpu.
 	}
 
 	// 3. Dispatch Compute Pass
-	computePass := encoder.BeginComputePass(&wgpu.ComputePassDescriptor{
+	computePass, err := encoder.BeginComputePass(&wgpu.ComputePassDescriptor{
 		Label: "World Cluster Compute Pass",
 	})
-	if computePass == nil {
-		return fmt.Errorf("begin compute pass failed")
+	if err != nil {
+		return fmt.Errorf("begin compute pass failed: %w", err)
 	}
 
 	computePass.SetPipeline(r.worldClusterComputePipeline)
 	computePass.SetBindGroup(0, r.worldClusterComputeBindGroup, nil)
 	// Dispatch for 32x16x32 Grid with 8x8x1 threads per group
 	// (32+7)/8 = 4, (16+7)/8 = 2, 32/1 = 32
-	computePass.DispatchWorkgroups(4, 2, 32)
-	computePass.End()
-	computePass.Release()
+	computePass.Dispatch(4, 2, 32)
+	if err := computePass.End(); err != nil {
+		return fmt.Errorf("end compute pass failed: %w", err)
+	}
 
 	return nil
 }

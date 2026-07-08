@@ -101,7 +101,7 @@ func TestSpawnServerStartMap(t *testing.T) {
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
-
+	qc.RegisterBuiltins(s.QCVM)
 	if err := s.SpawnServer("start", vfs); err != nil {
 		t.Fatalf("spawn server: %v", err)
 	}
@@ -448,6 +448,7 @@ func TestSpawnServerActiveQueuesReconnectForConnectedClients(t *testing.T) {
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
+	qc.RegisterBuiltins(s.QCVM)
 	if err := s.SpawnServer("start", vfs); err != nil {
 		t.Fatalf("first spawn server: %v", err)
 	}

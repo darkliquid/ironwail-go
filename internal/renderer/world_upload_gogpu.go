@@ -251,7 +251,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 
 	computeTexture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "World Light Clusters",
-		Size:          gputypes.Extent3D{Width: 32, Height: 16, DepthOrArrayLayers: 32},
+		Size:          wgpu.Extent3D{Width: 32, Height: 16, DepthOrArrayLayers: 32},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension3D,
@@ -261,7 +261,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if err != nil {
 		return fmt.Errorf("create light clusters texture: %w", err)
 	}
-	computeTextureView, err := computeTexture.CreateView(nil)
+	computeTextureView, err := device.CreateTextureView(computeTexture, nil)
 	if err != nil {
 		return fmt.Errorf("create light clusters texture view: %w", err)
 	}
@@ -432,7 +432,6 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldSkyExternalPipelineLayout = externalSkyPipelineLayout
 	r.worldDynamicLightsBuffer = dynamicLightsBuffer
 	r.worldDynamicLightsBindGroup = dynamicLightsBindGroup
-	r.worldDynamicLightsBindGroupLayout = dynamicLightsBindGroupLayout
 	r.worldClusterComputePipeline = computePipeline
 	r.worldClusterComputePipelineLayout = computePipelineLayout
 	r.worldClusterComputeBindGroupLayout = computeBindGroupLayout

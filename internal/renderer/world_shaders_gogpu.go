@@ -342,7 +342,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     if (uniforms.litWater > 0.5) {
         totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
     }
-    let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)), input.clipPos);
+    let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)));
     totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
     let lit = sampled.rgb * totalLight * 2.0 + fullbright.rgb * fullbright.a;
     let fogPosition = input.worldPos - uniforms.cameraOrigin;

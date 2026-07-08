@@ -1,6 +1,6 @@
 package renderer
 
-import "fmt"
+
 
 const worldClusterComputeShaderWGSL = `
 struct ComputeUniforms {

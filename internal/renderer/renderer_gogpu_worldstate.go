@@ -137,6 +137,15 @@ func (r *Renderer) ClearDynamicLights() {
 	}
 }
 
+func (r *Renderer) ActiveLights() []DynamicLight {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.lightPool == nil {
+		return nil
+	}
+	return r.lightPool.ActiveLights()
+}
+
 func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte, error)) {
 	normalized := normalizeSkyboxBaseName(name)
 
