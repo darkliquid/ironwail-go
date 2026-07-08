@@ -9,7 +9,6 @@ struct ComputeUniforms {
     zLogScale: f32,
     zLogBias: f32,
     numLights: u32,
-    _padding: vec3<f32>,
 }
 
 struct DynamicLight {

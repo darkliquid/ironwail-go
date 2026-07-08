@@ -10,9 +10,19 @@ import (
 	"github.com/gogpu/wgpu"
 )
 
-const worldVertexStrideBytes = 11 * 4
+// worldVertexStrideBytes is the number of bytes per vertex in the flat byte
+// buffer uploaded to the GPU. Must match WorldVertex (world/types.go) and
+// every pipeline's ArrayStride. See docs/VERTEX_LAYOUT.md.
+const worldVertexStrideBytes = 12 * 4 // 48 bytes
 
 // VertexBytes packs shared world vertices into the GoGPU brush vertex layout.
+// This is one of four vertex-packing functions that must all agree on the byte
+// layout — see docs/VERTEX_LAYOUT.md.
+//
+// If a field is missing or the stride is wrong, the GPU reads vertex data at
+// incorrect offsets. The classic symptom is "shadow geometry" — solid-coloured
+// phantom triangles appearing around moving brush entities (doors, platforms)
+// while the brush itself is invisible.
 func VertexBytes(vertices []worldimpl.WorldVertex) []byte {
 	data := make([]byte, len(vertices)*worldVertexStrideBytes)
 	for i, v := range vertices {
@@ -21,6 +31,8 @@ func VertexBytes(vertices []worldimpl.WorldVertex) []byte {
 		putFloat32Slice(data[offset+12:offset+20], v.TexCoord[:])
 		putFloat32Slice(data[offset+20:offset+28], v.LightmapCoord[:])
 		putFloat32Slice(data[offset+28:offset+40], v.Normal[:])
+		putFloat32Slice(data[offset+40:offset+44], []float32{v.LightmapLayer})
+		binary.LittleEndian.PutUint32(data[offset+44:offset+48], v.MaterialID)
 	}
 	return data
 }

@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"fmt"
 	"log/slog"
 	"unsafe"
 
@@ -9,17 +8,18 @@ import (
 	"github.com/gogpu/wgpu"
 )
 
-func (r *Renderer) createWorldLightmapPageTexture(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, page *WorldLightmapPage, values [256]float32) (*gpuWorldTexture, error) {
-	if device == nil || queue == nil || sampler == nil || page == nil {
-		return nil, fmt.Errorf("invalid world lightmap upload inputs")
+func (r *Renderer) uploadWorldLightmapArray(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, pages []WorldLightmapPage, values [256]float32) *gpuWorldTexture {
+	if device == nil || queue == nil || sampler == nil || len(pages) == 0 {
+		return nil
 	}
-	rgba := buildWorldLightmapPageRGBA(page, values)
-	if len(rgba) == 0 {
-		return nil, fmt.Errorf("empty world lightmap page")
-	}
+
+	width := uint32(pages[0].Width)
+	height := uint32(pages[0].Height)
+	layers := uint32(len(pages))
+
 	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
-		Label:         "World Lightmap Texture",
-		Size:          wgpu.Extent3D{Width: uint32(page.Width), Height: uint32(page.Height), DepthOrArrayLayers: 1},
+		Label:         "World Lightmap Array Texture",
+		Size:          wgpu.Extent3D{Width: width, Height: height, DepthOrArrayLayers: layers},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -27,53 +27,50 @@ func (r *Renderer) createWorldLightmapPageTexture(device *wgpu.Device, queue *wg
 		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create world lightmap texture: %w", err)
+		slog.Warn("failed to create world lightmap array texture", "error", err)
+		return nil
 	}
-	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
-		Texture:  texture,
-		MipLevel: 0,
-		Aspect:   gputypes.TextureAspectAll,
-	}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(page.Width * 4), RowsPerImage: uint32(page.Height)}, &wgpu.Extent3D{Width: uint32(page.Width), Height: uint32(page.Height), DepthOrArrayLayers: 1}); err != nil {
-		texture.Release()
-		return nil, fmt.Errorf("write world lightmap texture: %w", err)
+
+	for i := range pages {
+		rgba := buildWorldLightmapPageRGBA(&pages[i], values)
+		if len(rgba) == 0 {
+			continue
+		}
+		if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
+			Texture:  texture,
+			MipLevel: 0,
+			Aspect:   gputypes.TextureAspectAll,
+			Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: uint32(i)},
+		}, rgba, &wgpu.ImageDataLayout{BytesPerRow: width * 4, RowsPerImage: height}, &wgpu.Extent3D{Width: width, Height: height, DepthOrArrayLayers: 1}); err != nil {
+			slog.Warn("failed to write world lightmap array texture layer", "layer", i, "error", err)
+		}
 	}
+
 	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
-		Label:           "World Lightmap Texture View",
+		Label:           "World Lightmap Array Texture View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
-		Dimension:       gputypes.TextureViewDimension2D,
+		Dimension:       gputypes.TextureViewDimension2DArray,
 		Aspect:          gputypes.TextureAspectAll,
 		BaseMipLevel:    0,
 		MipLevelCount:   1,
 		BaseArrayLayer:  0,
-		ArrayLayerCount: 1,
+		ArrayLayerCount: layers,
 	})
 	if err != nil {
 		texture.Release()
-		return nil, fmt.Errorf("create world lightmap view: %w", err)
+		slog.Warn("failed to create world lightmap array view", "error", err)
+		return nil
 	}
-	bindGroup, err := r.createWorldTextureBindGroup(device, sampler, view)
+
+	bindGroup, err := r.createWorldLightmapBindGroup(device, sampler, view)
 	if err != nil {
 		view.Release()
 		texture.Release()
-		return nil, fmt.Errorf("create world lightmap bind group: %w", err)
-	}
-	return &gpuWorldTexture{texture: texture, view: view, bindGroup: bindGroup}, nil
-}
-
-func (r *Renderer) uploadWorldLightmapPages(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, pages []WorldLightmapPage, values [256]float32) []*gpuWorldTexture {
-	if device == nil || queue == nil || sampler == nil || len(pages) == 0 {
+		slog.Warn("failed to create world lightmap array bind group", "error", err)
 		return nil
 	}
-	out := make([]*gpuWorldTexture, len(pages))
-	for i := range pages {
-		pageTexture, err := r.createWorldLightmapPageTexture(device, queue, sampler, &pages[i], values)
-		if err != nil {
-			slog.Warn("failed to upload world lightmap page", "page", i, "error", err)
-			continue
-		}
-		out[i] = pageTexture
-	}
-	return out
+
+	return &gpuWorldTexture{texture: texture, view: view, bindGroup: bindGroup}
 }
 
 func lightmapDirtyBounds(page WorldLightmapPage) (x, y, w, h int) {
@@ -123,16 +120,13 @@ func extractLightmapRegionRGBA(dst []byte, rgba []byte, srcWidth, x, y, w, h int
 	return dst
 }
 
-func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTexture, pages []WorldLightmapPage, values [256]float32) {
-	if queue == nil || len(pages) == 0 || len(uploaded) == 0 {
+func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded *gpuWorldTexture, pages []WorldLightmapPage, values [256]float32) {
+	if queue == nil || len(pages) == 0 || uploaded == nil || uploaded.texture == nil {
 		return
 	}
-	count := len(uploaded)
-	if len(pages) < count {
-		count = len(pages)
-	}
+	count := len(pages)
 	for i := 0; i < count; i++ {
-		if !pages[i].Dirty || uploaded[i] == nil || uploaded[i].texture == nil {
+		if !pages[i].Dirty {
 			continue
 		}
 		rgba := buildWorldLightmapPageRGBA(&pages[i], values)
@@ -149,12 +143,12 @@ func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTextur
 		}
 		pages[i].CachedRegionRGBA = region
 		if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
-			Texture:  uploaded[i].texture,
+			Texture:  uploaded.texture,
 			MipLevel: 0,
 			Aspect:   gputypes.TextureAspectAll,
-			Origin:   wgpu.Origin3D{X: uint32(x), Y: uint32(y)},
+			Origin:   wgpu.Origin3D{X: uint32(x), Y: uint32(y), Z: uint32(i)},
 		}, region, &wgpu.ImageDataLayout{BytesPerRow: uint32(w * 4), RowsPerImage: uint32(h)}, &wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}); err != nil {
-			slog.Warn("failed to update world lightmap page", "page", i, "error", err)
+			slog.Warn("failed to update world lightmap array page", "page", i, "error", err)
 		}
 	}
 	clearDirtyFlags(pages)
@@ -173,7 +167,7 @@ func (r *Renderer) setGoGPUWorldLightStyleValues(values [256]float32) {
 	}
 	if r.worldData != nil && r.worldData.Geometry != nil {
 		markDirtyLightmapPages(r.worldData.Geometry.Lightmaps, changed)
-		updateUploadedLightmapsLocked(queue, r.worldLightmapPages, r.worldData.Geometry.Lightmaps, values)
+		updateUploadedLightmapsLocked(queue, r.worldLightmapArray, r.worldData.Geometry.Lightmaps, values)
 	}
 	for submodelIndex, geom := range r.brushModelGeometry {
 		if geom == nil || len(geom.Lightmaps) == 0 {

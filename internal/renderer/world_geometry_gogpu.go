@@ -186,6 +186,15 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *surfacep
 	texInfo := worldFaceTexInfo(tree, face)
 	textureWidth, textureHeight := worldTextureDimensions(tree, texInfo)
 
+	// Compute the material ID once per face using the same remapping logic
+	// as worldFaceTextureIndex, which handles missing/invalid miptex indices
+	// by mapping them to dummy texture slots (textureCount / textureCount+1).
+	textureIndex := worldFaceTextureIndex(tree, face)
+	var materialID uint32
+	if textureIndex >= 0 {
+		materialID = uint32(textureIndex)
+	}
+
 	// Iterate through edges to extract vertex positions
 	for i := int32(0); i < face.NumEdges; i++ {
 		surfEdgeIdx := int(face.FirstEdge) + int(i)
@@ -230,6 +239,7 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *surfacep
 			TexCoord:      texCoord,
 			LightmapCoord: lightmapCoord,
 			Normal:        normal,
+			MaterialID:    materialID,
 		})
 	}
 
@@ -486,6 +496,7 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bs
 			lightS / float32(worldLightmapPageSize),
 			lightT / float32(worldLightmapPageSize),
 		}
+		vertices[i].LightmapLayer = float32(texNum)
 	}
 
 	return &faceLightmapSurface{pageIndex: texNum}, nil

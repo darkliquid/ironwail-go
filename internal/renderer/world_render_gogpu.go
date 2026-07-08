@@ -186,6 +186,10 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 	timeSeconds := float64(camera.Time)
+	// Update animated world texture material layers before drawing.
+	if dc.renderer.worldMaterialsBuffer != nil && queue != nil {
+		_ = dc.renderer.updateWorldMaterialsBuffer(queue, float32(timeSeconds))
+	}
 	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
 	worldHasLitWater := worldData.Geometry.HasLitWater
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
@@ -269,24 +273,24 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				translucentLiquidFaces = append(translucentLiquidFaces, face)
 			case shouldDrawGoGPUOpaqueWorldFace(face), shouldDrawGoGPUAlphaTestWorldFace(face), shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha):
 				textureBindGroup := dc.renderer.whiteTextureBindGroup
-				if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-					textureBindGroup = worldTexture.bindGroup
+				if dc.renderer.worldTextures != nil && dc.renderer.worldTextures.bindGroup != nil {
+					textureBindGroup = dc.renderer.worldTextures.bindGroup
 				}
 				lightmapBindGroup := dc.renderer.whiteLightmapBindGroup
 				litWater := float32(0)
 				if shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha) {
-					lightmapBindGroup, litWater = gogpuWorldLightmapBindGroupForFace(face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup, worldHasLitWater)
-				} else if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(dc.renderer.worldLightmapPages) {
-					if lightmapPage := dc.renderer.worldLightmapPages[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-						lightmapBindGroup = lightmapPage.bindGroup
+					lightmapBindGroup, litWater = gogpuWorldLightmapArrayBindGroupForFace(face, dc.renderer.worldLightmapArray, dc.renderer.whiteLightmapBindGroup, worldHasLitWater)
+				} else if face.LightmapIndex >= 0 {
+					if dc.renderer.worldLightmapArray != nil && dc.renderer.worldLightmapArray.bindGroup != nil {
+						lightmapBindGroup = dc.renderer.worldLightmapArray.bindGroup
 					}
 				}
 				fullbrightBindGroup := dc.renderer.transparentBindGroup
 				if fullbrightBindGroup == nil {
 					fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
 				}
-				if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldFullbrightTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-					fullbrightBindGroup = worldTexture.bindGroup
+				if dc.renderer.worldFullbrightTextures != nil && dc.renderer.worldFullbrightTextures.bindGroup != nil {
+					fullbrightBindGroup = dc.renderer.worldFullbrightTextures.bindGroup
 				}
 				draw := gogpuWorldFaceDraw{
 					face:                face,

@@ -158,75 +158,76 @@ type Renderer struct {
 	worldBatchCacheNext           int
 
 	// Scratch buffers for render state
-	brushTexturesScratch           map[int32]*gpuWorldTexture
-	brushFullbrightTexturesScratch map[int32]*gpuWorldTexture
-	brushTextureAnimationsScratch  []*surfacepkg.SurfaceTexture
-	brushLightmapPagesScratch      []*gpuWorldTexture
-	activeDynamicLightsScratch     []DynamicLight
-	uniformDataScratch             []byte
-	uniformOffset                  uint32
-	particleScratchBuffer          *wgpu.Buffer
-	decalScratchBuffer             *wgpu.Buffer
-	worldVertexBuffer                 *wgpu.Buffer
-	worldIndexBuffer                  *wgpu.Buffer
-	worldDynamicIndexBuffer           *wgpu.Buffer
-	worldDynamicIndexBufferSize       uint64
-	worldIndexCount                   uint32
-	worldPipeline                     *wgpu.RenderPipeline
-	worldAlphaTestPipeline            *wgpu.RenderPipeline
-	worldTranslucentPipeline          *wgpu.RenderPipeline
-	worldTurbulentPipeline            *wgpu.RenderPipeline
-	worldTranslucentTurbulentPipeline *wgpu.RenderPipeline
-	worldSkyPipeline                  *wgpu.RenderPipeline
-	worldSkyExternalPipeline          *wgpu.RenderPipeline
-	worldSkyExternalOverlayPipeline   *wgpu.RenderPipeline
-	worldPipelineLayout               *wgpu.PipelineLayout
-	worldSkyExternalPipelineLayout    *wgpu.PipelineLayout
-	worldDynamicLightsBuffer          *wgpu.Buffer
-	worldDynamicLightsBindGroup       *wgpu.BindGroup
-	worldDynamicLightsBindGroupLayout *wgpu.BindGroupLayout
-	worldClusterComputePipeline       *wgpu.ComputePipeline
-	worldClusterComputePipelineLayout *wgpu.PipelineLayout
-	worldClusterComputeBindGroup      *wgpu.BindGroup
+	// (removed scratch maps for textures)
+	brushTextureAnimationsScratch      []*surfacepkg.SurfaceTexture
+	activeDynamicLightsScratch         []DynamicLight
+	uniformDataScratch                 []byte
+	uniformOffset                      uint32
+	particleScratchBuffer              *wgpu.Buffer
+	decalScratchBuffer                 *wgpu.Buffer
+	worldVertexBuffer                  *wgpu.Buffer
+	worldIndexBuffer                   *wgpu.Buffer
+	worldDynamicIndexBuffer            *wgpu.Buffer
+	worldDynamicIndexBufferSize        uint64
+	worldIndexCount                    uint32
+	worldPipeline                      *wgpu.RenderPipeline
+	worldAlphaTestPipeline             *wgpu.RenderPipeline
+	worldTranslucentPipeline           *wgpu.RenderPipeline
+	worldTurbulentPipeline             *wgpu.RenderPipeline
+	worldTranslucentTurbulentPipeline  *wgpu.RenderPipeline
+	worldSkyPipeline                   *wgpu.RenderPipeline
+	worldSkyExternalPipeline           *wgpu.RenderPipeline
+	worldSkyExternalOverlayPipeline    *wgpu.RenderPipeline
+	worldPipelineLayout                *wgpu.PipelineLayout
+	worldSkyExternalPipelineLayout     *wgpu.PipelineLayout
+	worldDynamicLightsBuffer           *wgpu.Buffer
+	worldDynamicLightsBindGroup        *wgpu.BindGroup
+	worldDynamicLightsBindGroupLayout  *wgpu.BindGroupLayout
+	worldClusterComputePipeline        *wgpu.ComputePipeline
+	worldClusterComputePipelineLayout  *wgpu.PipelineLayout
+	worldClusterComputeBindGroup       *wgpu.BindGroup
 	worldClusterComputeBindGroupLayout *wgpu.BindGroupLayout
-	worldClusterComputeUniformBuffer  *wgpu.Buffer
-	worldClusterComputeTexture        *wgpu.Texture
-	worldClusterComputeTextureView    *wgpu.TextureView
-	worldBindGroup                    *wgpu.BindGroup
-	worldShader                       *wgpu.ShaderModule
-	uniformBuffer                     *wgpu.Buffer
-	uniformBindGroup                  *wgpu.BindGroup
-	uniformBindGroupLayout            *wgpu.BindGroupLayout
-	textureBindGroupLayout            *wgpu.BindGroupLayout
-	worldSkyExternalBindGroupLayout   *wgpu.BindGroupLayout
-	worldTextureSampler               *wgpu.Sampler
-	worldTextures                     map[int32]*gpuWorldTexture
-	worldFullbrightTextures           map[int32]*gpuWorldTexture
-	worldSkySolidTextures             map[int32]*gpuWorldTexture
-	worldSkyAlphaTextures             map[int32]*gpuWorldTexture
-	worldTextureAnimations            []*surfacepkg.SurfaceTexture
-	worldSkyExternalTextures          [6]*wgpu.Texture
-	worldSkyExternalViews             [6]*wgpu.TextureView
-	worldSkyExternalBindGroup         *wgpu.BindGroup
-	worldSkyExternalFaces             [6]externalSkyboxFace
-	worldSkyExternalWind              externalSkyboxWind
-	worldSkyExternalWindLoaded        bool
-	worldSkyExternalLoaded            int
-	worldSkyExternalMode              externalSkyboxRenderMode
-	worldSkyExternalName              string
-	worldSkyExternalRequestID         uint64
-	worldSkyExternalLoading           bool
-	worldSkyExternalUploadCursor      int
-	worldSkyExternalWorldDrawLogged   bool
-	worldSkyExternalBrushDrawLogged   bool
-	whiteTextureBindGroup             *wgpu.BindGroup
-	transparentTexture                *wgpu.Texture
-	transparentTextureView            *wgpu.TextureView
-	transparentBindGroup              *wgpu.BindGroup
-	worldLightmapSampler              *wgpu.Sampler
-	worldLightmapPages                []*gpuWorldTexture
-	whiteLightmapBindGroup            *wgpu.BindGroup
-	worldLightStyleValues             [256]float32
+	worldClusterComputeUniformBuffer   *wgpu.Buffer
+	worldClusterComputeTexture         *wgpu.Texture
+	worldClusterComputeTextureView     *wgpu.TextureView
+	worldBindGroup                     *wgpu.BindGroup
+	worldShader                        *wgpu.ShaderModule
+	uniformBuffer                      *wgpu.Buffer
+	worldMaterialsBuffer               *wgpu.Buffer
+	uniformBindGroup                   *wgpu.BindGroup
+	uniformBindGroupLayout             *wgpu.BindGroupLayout
+	textureBindGroupLayout             *wgpu.BindGroupLayout
+	lightmapBindGroupLayout            *wgpu.BindGroupLayout
+	worldSkyExternalBindGroupLayout    *wgpu.BindGroupLayout
+	worldTextureSampler                *wgpu.Sampler
+	worldTextures                      *gpuWorldTexture
+	worldFullbrightTextures            *gpuWorldTexture
+	worldSkySolidTextures              map[int32]*gpuWorldTexture
+	worldSkyAlphaTextures              map[int32]*gpuWorldTexture
+	worldTextureAnimations             []*surfacepkg.SurfaceTexture
+	worldBaseMaterials                 []WorldMaterialData
+	worldSkyExternalTextures           [6]*wgpu.Texture
+	worldSkyExternalViews              [6]*wgpu.TextureView
+	worldSkyExternalBindGroup          *wgpu.BindGroup
+	worldSkyExternalFaces              [6]externalSkyboxFace
+	worldSkyExternalWind               externalSkyboxWind
+	worldSkyExternalWindLoaded         bool
+	worldSkyExternalLoaded             int
+	worldSkyExternalMode               externalSkyboxRenderMode
+	worldSkyExternalName               string
+	worldSkyExternalRequestID          uint64
+	worldSkyExternalLoading            bool
+	worldSkyExternalUploadCursor       int
+	worldSkyExternalWorldDrawLogged    bool
+	worldSkyExternalBrushDrawLogged    bool
+	whiteTextureBindGroup              *wgpu.BindGroup
+	transparentTexture                 *wgpu.Texture
+	transparentTextureView             *wgpu.TextureView
+	transparentBindGroup               *wgpu.BindGroup
+	worldLightmapSampler               *wgpu.Sampler
+	worldLightmapArray                 *gpuWorldTexture
+	whiteLightmapBindGroup             *wgpu.BindGroup
+	worldLightStyleValues              [256]float32
 
 	// 1x1 white texture for fallback
 	whiteTexture          *wgpu.Texture
@@ -260,12 +261,16 @@ type Renderer struct {
 	// Alias-model resources for the gogpu backend.
 	lightPool                      *glLightPool
 	brushModelGeometry             map[int]*WorldGeometry
-	brushModelLightmaps            map[int][]*gpuWorldTexture
+	brushModelLightmaps            map[int]*gpuWorldTexture
 	externalBrushGeometry          map[string]*WorldGeometry
-	externalBrushLightmaps         map[string][]*gpuWorldTexture
-	externalBrushTextures          map[string]map[int32]*gpuWorldTexture
-	externalBrushFullbright        map[string]map[int32]*gpuWorldTexture
+	externalBrushTextures          map[string]*gpuWorldTexture
+	externalBrushFullbright        map[string]*gpuWorldTexture
 	externalBrushAnimations        map[string][]*surfacepkg.SurfaceTexture
+	externalBrushBaseMaterials     map[string][]WorldMaterialData
+	externalBrushMaterialsBuffers  map[string]*wgpu.Buffer
+	externalBrushUniformBindGroups map[string]*wgpu.BindGroup
+	externalBrushClusterTexture    map[string]*wgpu.Texture
+	externalBrushClusterView       map[string]*wgpu.TextureView
 	aliasModels                    map[string]*gpuAliasModel
 	spriteModels                   map[string]*gpuSpriteModel
 	aliasEntityStates              map[int]*AliasEntity

@@ -6,42 +6,43 @@ import (
 	"sync"
 
 	"github.com/darkliquid/ironwail-go/internal/model"
-	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
-
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
+	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+	"github.com/gogpu/wgpu"
 )
 
 type gogpuOpaqueBrushEntityDraw struct {
-	hasLitWater bool
-	alpha       float32
-	frame       int
-	vertices    []WorldVertex
-	indices     []uint32
-	faces       []WorldFace
-	centers     [][3]float32
-	lightmaps   []*gpuWorldTexture
+	hasLitWater   bool
+	alpha         float32
+	frame         int
+	vertices      []WorldVertex
+	indices       []uint32
+	faces         []WorldFace
+	centers       [][3]float32
+	lightmapArray *gpuWorldTexture
 	// Optional per-draw texture overrides used for standalone-BSP brush
 	// entities (e.g. b_rock0.bsp). Nil means use the world texture tables.
-	textures           map[int32]*gpuWorldTexture
-	fullbrightTextures map[int32]*gpuWorldTexture
+	textures           *gpuWorldTexture
+	fullbrightTextures *gpuWorldTexture
 	textureAnimations  []*surfacepkg.SurfaceTexture
+	uniformBindGroup   *wgpu.BindGroup
 }
 
 type gogpuClassifiedBrushEntityDraw struct {
-	alpha            float32
-	frame            int
-	vertices         []WorldVertex
-	opaqueIndices    []uint32
-	opaqueFaces      []WorldFace
-	opaqueCenters    [][3]float32
-	alphaTestIndices []uint32
-	alphaTestFaces   []WorldFace
-	alphaTestCenters [][3]float32
-	lightmaps        []*gpuWorldTexture
-	// Optional per-draw texture overrides — see gogpuOpaqueBrushEntityDraw.
-	textures           map[int32]*gpuWorldTexture
-	fullbrightTextures map[int32]*gpuWorldTexture
+	alpha              float32
+	frame              int
+	vertices           []WorldVertex
+	opaqueIndices      []uint32
+	opaqueFaces        []WorldFace
+	opaqueCenters      [][3]float32
+	alphaTestIndices   []uint32
+	alphaTestFaces     []WorldFace
+	alphaTestCenters   [][3]float32
+	lightmapArray      *gpuWorldTexture
+	textures           *gpuWorldTexture
+	fullbrightTextures *gpuWorldTexture
 	textureAnimations  []*surfacepkg.SurfaceTexture
+	uniformBindGroup   *wgpu.BindGroup
 }
 
 type gogpuPreparedClassifiedBrushDraw struct {
@@ -75,7 +76,18 @@ var gogpuBrushPrepScratchPool = sync.Pool{
 	},
 }
 
-const goGPUWorldVertexStrideBytes = 11 * 4
+// goGPUWorldVertexStrideBytes is the number of bytes between the start of one
+// vertex and the start of the next in the flat byte buffer uploaded to the GPU.
+//
+// This MUST match:
+//   - unsafe.Sizeof(WorldVertex{}) in world/types.go (currently 48)
+//   - ArrayStride in every pipeline's VertexBufferLayout (currently 48)
+//
+// If this is too small, the GPU reads past the end of each vertex into the
+// next vertex's data, causing materialID and lightmapLayer to contain garbage
+// — which produces scrambled textures and "shadow geometry" around moving
+// brushes (doors, platforms, triggers). See docs/VERTEX_LAYOUT.md.
+const goGPUWorldVertexStrideBytes = 12 * 4 // 12 float32-sized slots = 48 bytes
 
 func shouldDrawGoGPUOpaqueBrushFace(face WorldFace, entityAlpha float32) bool {
 	return isFullyOpaqueAlpha(clamp01(entityAlpha)) && shouldDrawGoGPUOpaqueWorldFace(face)
@@ -119,6 +131,16 @@ func classifyGoGPUBrushEntityFace(face WorldFace, entityAlpha float32) worldgogp
 	}
 }
 
+// appendGoGPUWorldVertexBytes packs brush-entity vertices into a flat byte
+// array for GPU upload. This is one of four vertex-packing functions that must
+// all agree on the byte layout — see docs/VERTEX_LAYOUT.md.
+//
+// Every field must be written at the correct offset within each 48-byte vertex.
+// Missing fields cause the GPU to read uninitialized (zero) bytes, which makes
+// materialID default to 0 (wrong texture) and lightmapLayer default to 0
+// (wrong lightmap page). A stride that's too small causes the GPU to read into
+// the next vertex's data, producing the classic "shadow geometry" symptom
+// around moving brushes.
 func appendGoGPUWorldVertexBytes(dst []byte, vertices []WorldVertex) []byte {
 	if len(vertices) == 0 {
 		return dst
@@ -131,6 +153,8 @@ func appendGoGPUWorldVertexBytes(dst []byte, vertices []WorldVertex) []byte {
 		putGoGPUFloat32Slice(dst[write+12:write+20], vertex.TexCoord[:])
 		putGoGPUFloat32Slice(dst[write+20:write+28], vertex.LightmapCoord[:])
 		putGoGPUFloat32Slice(dst[write+28:write+40], vertex.Normal[:])
+		putGoGPUFloat32Slice(dst[write+40:write+44], []float32{vertex.LightmapLayer})
+		binary.LittleEndian.PutUint32(dst[write+44:write+48], vertex.MaterialID)
 		write += goGPUWorldVertexStrideBytes
 	}
 	return dst
@@ -187,15 +211,15 @@ func buildGoGPUSkyBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogp
 }
 
 type gogpuTranslucentLiquidBrushEntityDraw struct {
-	frame     int
-	vertices  []WorldVertex
-	indices   []uint32
-	faces     []gogpuTranslucentLiquidFaceDraw
-	lightmaps []*gpuWorldTexture
-	// Optional per-entity texture overrides for standalone-BSP brush entities.
-	textures           map[int32]*gpuWorldTexture
-	fullbrightTextures map[int32]*gpuWorldTexture
+	frame              int
+	vertices           []WorldVertex
+	indices            []uint32
+	faces              []gogpuTranslucentLiquidFaceDraw
+	lightmapArray      *gpuWorldTexture
+	textures           *gpuWorldTexture
+	fullbrightTextures *gpuWorldTexture
 	textureAnimations  []*surfacepkg.SurfaceTexture
+	uniformBindGroup   *wgpu.BindGroup
 }
 
 func convertGoGPUTranslucentFaceDraws(src []worldgogpu.TranslucentFaceDraw) []gogpuTranslucentLiquidFaceDraw {
@@ -232,18 +256,18 @@ func buildGoGPUTranslucentLiquidBrushEntityDraw(entity BrushEntity, geom *WorldG
 }
 
 type gogpuTranslucentBrushEntityDraw struct {
-	frame            int
-	vertices         []WorldVertex
-	indices          []uint32
-	alphaTestFaces   []WorldFace
-	alphaTestCenters [][3]float32
-	translucentFaces []gogpuTranslucentLiquidFaceDraw
-	liquidFaces      []gogpuTranslucentLiquidFaceDraw
-	lightmaps        []*gpuWorldTexture
-	// Optional per-entity texture overrides for standalone-BSP brush entities.
-	textures           map[int32]*gpuWorldTexture
-	fullbrightTextures map[int32]*gpuWorldTexture
+	frame              int
+	vertices           []WorldVertex
+	indices            []uint32
+	alphaTestFaces     []WorldFace
+	alphaTestCenters   [][3]float32
+	translucentFaces   []gogpuTranslucentLiquidFaceDraw
+	liquidFaces        []gogpuTranslucentLiquidFaceDraw
+	lightmapArray      *gpuWorldTexture
+	textures           *gpuWorldTexture
+	fullbrightTextures *gpuWorldTexture
 	textureAnimations  []*surfacepkg.SurfaceTexture
+	uniformBindGroup   *wgpu.BindGroup
 }
 
 func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, liquidAlpha worldLiquidAlphaSettings, camera CameraState) *gogpuTranslucentBrushEntityDraw {

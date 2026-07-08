@@ -71,7 +71,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		textureCache:        make(map[cacheKey]*cachedTexture),
 		lightPool:           NewGLLightPool(512),
 		brushModelGeometry:  make(map[int]*WorldGeometry),
-		brushModelLightmaps: make(map[int][]*gpuWorldTexture),
+		brushModelLightmaps: make(map[int]*gpuWorldTexture),
 		aliasModels:         make(map[string]*gpuAliasModel),
 		spriteModels:        make(map[string]*gpuSpriteModel),
 		aliasEntityStates:   make(map[int]*AliasEntity),

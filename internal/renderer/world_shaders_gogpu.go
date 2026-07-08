@@ -29,6 +29,8 @@ struct VertexInput {
     @location(1) texCoord: vec2<f32>,
     @location(2) lightmapCoord: vec2<f32>,
     @location(3) normal: vec3<f32>,
+    @location(4) lightmapLayer: f32,
+    @location(5) materialID: u32,
 }
 ` + worldUniformsWGSL + `
 
@@ -38,7 +40,17 @@ struct VertexOutput {
     @location(1) lightmapCoord: vec2<f32>,
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
-    @location(4) clipPos: vec4<f32>,
+    @location(4) lightmapLayer: f32,
+    @location(5) materialID: u32,
+    @location(6) clipPos: vec4<f32>,
+}
+
+struct MaterialData {
+    atlasBounds: vec4<f32>,
+    layer: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 }
 
 @group(0) @binding(0)
@@ -57,6 +69,8 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     output.worldPos = input.position;
     output.normal = input.normal;
     output.clipPos = clipPos;
+    output.lightmapLayer = input.lightmapLayer;
+    output.materialID = input.materialID;
     
     return output;
 }
@@ -83,7 +97,17 @@ struct VertexOutput {
     @location(1) lightmapCoord: vec2<f32>,
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
-    @location(4) clipPos: vec4<f32>,
+    @location(4) lightmapLayer: f32,
+    @location(5) materialID: u32,
+    @location(6) clipPos: vec4<f32>,
+}
+
+struct MaterialData {
+    atlasBounds: vec4<f32>,
+    layer: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 }
 
 struct DynamicLight {
@@ -99,23 +123,26 @@ struct DynamicLights {
 @group(0) @binding(0)
 var<uniform> uniforms: Uniforms;
 
+@group(0) @binding(1)
+var<uniform> materials: array<MaterialData, 256>;
+
 @group(1) @binding(0)
 var worldSampler: sampler;
 
 @group(1) @binding(1)
-var worldTexture: texture_2d<f32>;
+var worldTexture: texture_2d_array<f32>;
 
 @group(2) @binding(0)
 var worldLightmapSampler: sampler;
 
 @group(2) @binding(1)
-var worldLightmap: texture_2d<f32>;
+var worldLightmap: texture_2d_array<f32>;
 
 @group(3) @binding(0)
 var worldFullbrightSampler: sampler;
 
 @group(3) @binding(1)
-var worldFullbrightTexture: texture_2d<f32>;
+var worldFullbrightTexture: texture_2d_array<f32>;
 
 @group(4) @binding(0)
 var lightClusters: texture_3d<u32>;
@@ -182,15 +209,18 @@ fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>, clipP
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
+    let mat = materials[input.materialID];
+    let localUV = fract(input.texCoord);
+    let atlasUV = localUV * mat.atlasBounds.zw + mat.atlasBounds.xy;
+    let sampled = textureSample(worldTexture, worldSampler, atlasUV, i32(mat.layer));
+    let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, atlasUV, i32(mat.layer));
 	%s
-	var totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
-	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
-	let dynamicLight = accumulateDynamicLights(input.worldPos, %s, input.clipPos);
-	totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
-	let lit = %s;
-	let fogPosition = input.worldPos - uniforms.cameraOrigin;
-	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
+    var totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord, i32(input.lightmapLayer)).rgb;
+    let dynamicLight = accumulateDynamicLights(input.worldPos, %s, input.clipPos);
+    totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
+    let lit = %s;
+    let fogPosition = input.worldPos - uniforms.cameraOrigin;
+    let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
 	let fogged = mix(uniforms.fogColor, lit, fog);
 	return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
@@ -207,6 +237,8 @@ struct VertexInput {
     @location(1) texCoord: vec2<f32>,
     @location(2) lightmapCoord: vec2<f32>,
     @location(3) normal: vec3<f32>,
+    @location(4) lightmapLayer: f32,
+    @location(5) materialID: u32,
 }
 ` + worldUniformsWGSL + `
 
@@ -239,6 +271,8 @@ struct VertexInput {
     @location(1) texCoord: vec2<f32>,
     @location(2) lightmapCoord: vec2<f32>,
     @location(3) normal: vec3<f32>,
+    @location(4) lightmapLayer: f32,
+    @location(5) materialID: u32,
 }
 ` + worldUniformsWGSL + `
 
@@ -272,7 +306,17 @@ struct VertexOutput {
     @location(1) lightmapCoord: vec2<f32>,
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
-    @location(4) clipPos: vec4<f32>,
+    @location(4) lightmapLayer: f32,
+    @location(5) materialID: u32,
+    @location(6) clipPos: vec4<f32>,
+}
+
+struct MaterialData {
+    atlasBounds: vec4<f32>,
+    layer: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 }
 
 struct DynamicLight {
@@ -288,23 +332,26 @@ struct DynamicLights {
 @group(0) @binding(0)
 var<uniform> uniforms: Uniforms;
 
+@group(0) @binding(1)
+var<uniform> materials: array<MaterialData, 256>;
+
 @group(1) @binding(0)
 var worldSampler: sampler;
 
 @group(1) @binding(1)
-var worldTexture: texture_2d<f32>;
+var worldTexture: texture_2d_array<f32>;
 
 @group(2) @binding(0)
 var worldLightmapSampler: sampler;
 
 @group(2) @binding(1)
-var worldLightmap: texture_2d<f32>;
+var worldLightmap: texture_2d_array<f32>;
 
 @group(3) @binding(0)
 var worldFullbrightSampler: sampler;
 
 @group(3) @binding(1)
-var worldFullbrightTexture: texture_2d<f32>;
+var worldFullbrightTexture: texture_2d_array<f32>;
 
 @group(4) @binding(0)
 var<storage, read> dynamicLights: DynamicLights;
@@ -335,12 +382,14 @@ fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>) -> ve
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    let uv = input.texCoord * 2.0 + 0.125 * sin(input.texCoord.yx * (3.14159265 * 2.0) + vec2<f32>(uniforms.time, uniforms.time));
-    let sampled = textureSample(worldTexture, worldSampler, uv);
-    let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, uv);
+    let mat = materials[input.materialID];
+    let uv = fract(input.texCoord * 2.0 + 0.125 * sin(input.texCoord.yx * (3.14159265 * 2.0) + vec2<f32>(uniforms.time, uniforms.time)));
+    let atlasUV = uv * mat.atlasBounds.zw + mat.atlasBounds.xy;
+    let sampled = textureSample(worldTexture, worldSampler, atlasUV, i32(mat.layer));
+    let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, atlasUV, i32(mat.layer));
     var totalLight = vec3<f32>(0.5);
     if (uniforms.litWater > 0.5) {
-        totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
+        totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord, i32(input.lightmapLayer)).rgb;
     }
     let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)));
     totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
@@ -367,20 +416,20 @@ var<uniform> uniforms: Uniforms;
 var skySolidSampler: sampler;
 
 @group(1) @binding(1)
-var skySolidTexture: texture_2d<f32>;
+var skySolidTexture: texture_2d_array<f32>;
 
 @group(2) @binding(0)
 var skyAlphaSampler: sampler;
 
 @group(2) @binding(1)
-var skyAlphaTexture: texture_2d<f32>;
+var skyAlphaTexture: texture_2d_array<f32>;
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let dir = normalize(input.dir);
     let uv = dir.xy * (189.0 / 64.0);
-    var result = textureSample(skySolidTexture, skySolidSampler, uv + vec2<f32>(uniforms.time / 16.0, uniforms.time / 16.0));
-    let layer = textureSample(skyAlphaTexture, skyAlphaSampler, uv + vec2<f32>(uniforms.time / 8.0, uniforms.time / 8.0));
+    var result = textureSample(skySolidTexture, skySolidSampler, uv + vec2<f32>(uniforms.time / 16.0, uniforms.time / 16.0), 0);
+    let layer = textureSample(skyAlphaTexture, skyAlphaSampler, uv + vec2<f32>(uniforms.time / 8.0, uniforms.time / 8.0), 0);
     result = vec4<f32>(mix(result.rgb, layer.rgb, vec3<f32>(layer.a)), 1.0);
     result = vec4<f32>(mix(result.rgb, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), 1.0);
     return result;

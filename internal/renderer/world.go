@@ -239,7 +239,7 @@ var dynamicLightsBytesPool = sync.Pool{
 func encodeGoGPUWorldDynamicLights(lights []DynamicLight) (*[]byte, []byte) {
 	ptr := dynamicLightsBytesPool.Get().(*[]byte)
 	data := *ptr
-	
+
 	if !dynamicLightsEnabled() || len(lights) == 0 {
 		return ptr, data[:gogpuWorldDynamicLightHeaderSize]
 	}
@@ -361,16 +361,15 @@ func worldLitWaterCvarEnabled() bool {
 	return cv.Int != 0
 }
 
-func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTexture, fallback *wgpu.BindGroup, hasLitWater bool) (*wgpu.BindGroup, float32) {
+func gogpuWorldLightmapArrayBindGroupForFace(face WorldFace, lightmapArray *gpuWorldTexture, fallback *wgpu.BindGroup, hasLitWater bool) (*wgpu.BindGroup, float32) {
 	bindGroup := fallback
-	if face.LightmapIndex < 0 || int(face.LightmapIndex) >= len(lightmaps) {
+	if face.LightmapIndex < 0 {
 		return bindGroup, 0
 	}
-	lightmapPage := lightmaps[face.LightmapIndex]
-	if lightmapPage == nil || lightmapPage.bindGroup == nil {
+	if lightmapArray == nil || lightmapArray.bindGroup == nil {
 		return bindGroup, 0
 	}
-	bindGroup = lightmapPage.bindGroup
+	bindGroup = lightmapArray.bindGroup
 	if worldLitWaterCvarEnabled() && hasLitWater && face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0 {
 		return bindGroup, 1
 	}

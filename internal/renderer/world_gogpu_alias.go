@@ -17,8 +17,8 @@ import (
 const (
 	aliasUniformBufferSize      = 80
 	aliasSceneUniformBufferSize = 96
-	aliasInitialDrawCapacity    = 64  // initial capacity for batched draws
-	aliasVertexStride           = 44
+	aliasInitialDrawCapacity    = 64 // initial capacity for batched draws
+	aliasVertexStride           = 48 // must match WorldVertex size and every pipeline's ArrayStride — see docs/VERTEX_LAYOUT.md
 )
 
 func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
@@ -137,7 +137,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 	}
 
 	sampler, err := device.CreateSampler(&wgpu.SamplerDescriptor{
-		Label:        "Alias Sampler",
+		Label: "Alias Sampler",
 		// C alias skins are uploaded without TEXPREF_CLAMP (see gl_model.c
 		// R_LoadSkin), so the GL default GL_REPEAT wrap applies. Match that
 		// here: some v_*.mdl seam/back-facing triangles have UVs that land
@@ -204,7 +204,7 @@ func createAliasRenderPipeline(device *wgpu.Device, vertexShader, fragmentShader
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers: []gputypes.VertexBufferLayout{{
-				ArrayStride: 44,
+				ArrayStride: 48,
 				StepMode:    gputypes.VertexStepModeVertex,
 				Attributes: []gputypes.VertexAttribute{
 					{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
@@ -703,7 +703,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	vertexOffsets := make([]uint64, len(prepared))
 	vertexCounts := make([]uint32, len(prepared))
 	uniformOffsets := make([]uint32, len(prepared))
-	
+
 	// Preallocate contiguous slices for bulk upload
 	bulkUniformData := make([]byte, uint64(len(prepared))*worldUniformAlign)
 	bulkVertexData := make([]byte, 0, len(prepared)*1024) // Estimate 1KB per model
@@ -714,7 +714,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		if len(vertexScratch) == 0 {
 			continue
 		}
-		
+
 		uOffset := uint32(i) * worldUniformAlign
 		uniformOffsets[i] = uOffset
 		vertexOffsets[i] = currentVertexOffset
@@ -737,7 +737,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 			return
 		}
 	}
-	
+
 	// Bulk upload all vertices
 	if len(bulkVertexData) > 0 {
 		if err := queue.WriteBuffer(scratchBuffer, 0, bulkVertexData); err != nil {
@@ -811,6 +811,9 @@ func aliasVertexBytes(vertices []WorldVertex) []byte {
 	return aliasVertexBytesInto(nil, vertices)
 }
 
+// aliasVertexBytesInto packs alias-model vertices into a flat byte array.
+// This is one of four vertex-packing functions that must all agree on the byte
+// layout — see docs/VERTEX_LAYOUT.md.
 func aliasVertexBytesInto(dst []byte, vertices []WorldVertex) []byte {
 	required := len(vertices) * aliasVertexStride
 	data := dst[:0]
@@ -825,6 +828,8 @@ func aliasVertexBytesInto(dst []byte, vertices []WorldVertex) []byte {
 		putFloat32s(data[offset+12:offset+20], v.TexCoord[:])
 		putFloat32s(data[offset+20:offset+28], v.LightmapCoord[:])
 		putFloat32s(data[offset+28:offset+40], v.Normal[:])
+		putFloat32s(data[offset+40:offset+44], []float32{v.LightmapLayer})
+		binary.LittleEndian.PutUint32(data[offset+44:offset+48], v.MaterialID)
 	}
 	return data
 }

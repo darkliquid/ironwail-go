@@ -6,8 +6,6 @@ import (
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
-
-	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
@@ -39,7 +37,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			scratch.classifiedBuild = scratch.classifiedBuild[:len(scratch.classifiedBuild)-1]
 			continue
 		}
-		extTextures, extFullbright, extAnimations := dc.renderer.brushEntityTextures(entity)
+		extTextures, extFullbright, extAnimations, extBindGroup := dc.renderer.brushEntityTextures(entity)
 		scratch.classifiedDraws = append(scratch.classifiedDraws, gogpuClassifiedBrushEntityDraw{
 			alpha:              buildDraw.Alpha,
 			frame:              buildDraw.Frame,
@@ -50,10 +48,11 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			alphaTestIndices:   buildDraw.AlphaTestIndices,
 			alphaTestFaces:     buildDraw.AlphaTestFaces,
 			alphaTestCenters:   buildDraw.AlphaTestCenters,
-			lightmaps:          dc.renderer.brushEntityLightmaps(entity, geom),
+			lightmapArray:      dc.renderer.brushEntityLightmaps(entity, geom),
 			textures:           extTextures,
 			fullbrightTextures: extFullbright,
 			textureAnimations:  extAnimations,
+			uniformBindGroup:   extBindGroup,
 		})
 		drawIndex := len(scratch.classifiedDraws) - 1
 		draw := &scratch.classifiedDraws[drawIndex]
@@ -95,31 +94,12 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	dynamicLightsBuffer := r.worldDynamicLightsBuffer
 	dynamicLightsBindGroup := r.worldDynamicLightsBindGroup
 	camera := r.cameraState
-	if r.brushTexturesScratch == nil {
-		r.brushTexturesScratch = make(map[int32]*gpuWorldTexture, len(r.worldTextures))
-	} else {
-		clear(r.brushTexturesScratch)
-	}
-	for k, v := range r.worldTextures {
-		r.brushTexturesScratch[k] = v
-	}
-	worldTextures := r.brushTexturesScratch
-
-	if r.brushFullbrightTexturesScratch == nil {
-		r.brushFullbrightTexturesScratch = make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures))
-	} else {
-		clear(r.brushFullbrightTexturesScratch)
-	}
-	for k, v := range r.worldFullbrightTextures {
-		r.brushFullbrightTexturesScratch[k] = v
-	}
-	worldFullbrightTextures := r.brushFullbrightTexturesScratch
+	worldTextures := r.worldTextures
+	worldFullbrightTextures := r.worldFullbrightTextures
 
 	r.brushTextureAnimationsScratch = append(r.brushTextureAnimationsScratch[:0], r.worldTextureAnimations...)
-	worldTextureAnimations := r.brushTextureAnimationsScratch
 
-	r.brushLightmapPagesScratch = append(r.brushLightmapPagesScratch[:0], r.worldLightmapPages...)
-	worldLightmapPages := r.brushLightmapPagesScratch
+	worldLightmapArray := r.worldLightmapArray
 
 	r.activeDynamicLightsScratch = r.activeDynamicLightsScratch[:0]
 	if r.lightPool != nil {
@@ -184,46 +164,48 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 
 	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	timeSeconds := float64(camera.Time)
 	var materialBindState gogpuWorldMaterialBindState
 	for _, preparedDraw := range scratch.classifiedPrepared {
 		draw := scratch.classifiedDraws[preparedDraw.drawIndex]
 		renderPass.SetVertexBuffer(0, vertexScratchBuffer, preparedDraw.vertexOffset)
 		drawTextures := worldTextures
 		drawFullbright := worldFullbrightTextures
-		drawAnimations := worldTextureAnimations
 		if draw.textures != nil {
 			drawTextures = draw.textures
 		}
 		if draw.fullbrightTextures != nil {
 			drawFullbright = draw.fullbrightTextures
 		}
-		if draw.textureAnimations != nil {
-			drawAnimations = draw.textureAnimations
-		}
+
 		if len(draw.opaqueFaces) > 0 {
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.opaqueIndexOffset)
 			for _, face := range draw.opaqueFaces {
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
 				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
-				renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
+
+				activeUniformBindGroup := uniformBindGroup
+				if draw.uniformBindGroup != nil {
+					activeUniformBindGroup = draw.uniformBindGroup
+				}
+
+				renderPass.SetBindGroup(0, activeUniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
-				if worldTexture := gogpuWorldTextureForFace(face, drawTextures, drawAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-					textureBindGroup = worldTexture.bindGroup
+				if drawTextures != nil && drawTextures.bindGroup != nil {
+					textureBindGroup = drawTextures.bindGroup
 				}
 				lightmapBindGroup := whiteLightmapBindGroup
-				if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(draw.lightmaps) {
-					if lightmapPage := draw.lightmaps[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-						lightmapBindGroup = lightmapPage.bindGroup
+				if face.LightmapIndex >= 0 {
+					if draw.lightmapArray != nil && draw.lightmapArray.bindGroup != nil {
+						lightmapBindGroup = draw.lightmapArray.bindGroup
 					}
-				} else if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(worldLightmapPages) {
-					if lightmapPage := worldLightmapPages[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-						lightmapBindGroup = lightmapPage.bindGroup
+				} else if face.LightmapIndex >= 0 {
+					if worldLightmapArray != nil && worldLightmapArray.bindGroup != nil {
+						lightmapBindGroup = worldLightmapArray.bindGroup
 					}
 				}
 				fullbrightBindGroup := transparentBindGroup
-				if worldTexture := gogpuWorldTextureForFace(face, drawFullbright, drawAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-					fullbrightBindGroup = worldTexture.bindGroup
+				if drawFullbright != nil && drawFullbright.bindGroup != nil {
+					fullbrightBindGroup = drawFullbright.bindGroup
 				}
 				setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
 				if setTexture {
@@ -243,24 +225,30 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			for _, face := range draw.alphaTestFaces {
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
 				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
-				renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
+
+				activeUniformBindGroup := uniformBindGroup
+				if draw.uniformBindGroup != nil {
+					activeUniformBindGroup = draw.uniformBindGroup
+				}
+
+				renderPass.SetBindGroup(0, activeUniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
-				if worldTexture := gogpuWorldTextureForFace(face, drawTextures, drawAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-					textureBindGroup = worldTexture.bindGroup
+				if drawTextures != nil && drawTextures.bindGroup != nil {
+					textureBindGroup = drawTextures.bindGroup
 				}
 				lightmapBindGroup := whiteLightmapBindGroup
-				if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(draw.lightmaps) {
-					if lightmapPage := draw.lightmaps[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-						lightmapBindGroup = lightmapPage.bindGroup
+				if face.LightmapIndex >= 0 {
+					if draw.lightmapArray != nil && draw.lightmapArray.bindGroup != nil {
+						lightmapBindGroup = draw.lightmapArray.bindGroup
 					}
-				} else if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(worldLightmapPages) {
-					if lightmapPage := worldLightmapPages[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-						lightmapBindGroup = lightmapPage.bindGroup
+				} else if face.LightmapIndex >= 0 {
+					if worldLightmapArray != nil && worldLightmapArray.bindGroup != nil {
+						lightmapBindGroup = worldLightmapArray.bindGroup
 					}
 				}
 				fullbrightBindGroup := transparentBindGroup
-				if worldTexture := gogpuWorldTextureForFace(face, drawFullbright, drawAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-					fullbrightBindGroup = worldTexture.bindGroup
+				if drawFullbright != nil && drawFullbright.bindGroup != nil {
+					fullbrightBindGroup = drawFullbright.bindGroup
 				}
 				setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
 				if setTexture {
@@ -328,15 +316,8 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	transparentBindGroup := r.transparentBindGroup
 	dynamicLightsBuffer := r.worldDynamicLightsBuffer
 	dynamicLightsBindGroup := r.worldDynamicLightsBindGroup
-	worldSkySolidTextures := make(map[int32]*gpuWorldTexture, len(r.worldSkySolidTextures))
-	for k, v := range r.worldSkySolidTextures {
-		worldSkySolidTextures[k] = v
-	}
-	worldSkyAlphaTextures := make(map[int32]*gpuWorldTexture, len(r.worldSkyAlphaTextures))
-	for k, v := range r.worldSkyAlphaTextures {
-		worldSkyAlphaTextures[k] = v
-	}
-	worldTextureAnimations := append([]*surfacepkg.SurfaceTexture(nil), r.worldTextureAnimations...)
+	worldSkySolidTextures := r.worldSkySolidTextures
+	worldSkyAlphaTextures := r.worldSkyAlphaTextures
 	externalSkyMode := r.worldSkyExternalMode
 	externalSkyBindGroup := r.worldSkyExternalBindGroup
 	externalSkyWind := r.worldSkyExternalWind
@@ -466,14 +447,13 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 				renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 				continue
 			}
-			textureIndex := resolveWorldSkyTextureIndex(face, worldTextureAnimations, draw.frame, float64(camera.Time))
 			solidBindGroup := whiteTextureBindGroup
-			if worldTexture := worldSkySolidTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
-				solidBindGroup = worldTexture.bindGroup
+			if wt := worldSkySolidTextures[face.TextureIndex]; wt != nil && wt.bindGroup != nil {
+				solidBindGroup = wt.bindGroup
 			}
 			alphaBindGroup := transparentBindGroup
-			if worldTexture := worldSkyAlphaTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
-				alphaBindGroup = worldTexture.bindGroup
+			if wt := worldSkyAlphaTextures[face.TextureIndex]; wt != nil && wt.bindGroup != nil {
+				alphaBindGroup = wt.bindGroup
 			}
 			renderPass.SetBindGroup(1, solidBindGroup, nil)
 			renderPass.SetBindGroup(2, alphaBindGroup, nil)
@@ -564,7 +544,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			scratch.opaqueBuild = scratch.opaqueBuild[:len(scratch.opaqueBuild)-1]
 			continue
 		}
-		extTextures, extFullbright, extAnimations := dc.renderer.brushEntityTextures(entity)
+		extTextures, extFullbright, extAnimations, extBindGroup := dc.renderer.brushEntityTextures(entity)
 		scratch.opaqueDraws = append(scratch.opaqueDraws, gogpuOpaqueBrushEntityDraw{
 			hasLitWater:        buildDraw.HasLitWater,
 			alpha:              buildDraw.Alpha,
@@ -573,10 +553,11 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			indices:            buildDraw.Indices,
 			faces:              buildDraw.Faces,
 			centers:            buildDraw.Centers,
-			lightmaps:          dc.renderer.brushEntityLightmaps(entity, geom),
+			lightmapArray:      dc.renderer.brushEntityLightmaps(entity, geom),
 			textures:           extTextures,
 			fullbrightTextures: extFullbright,
 			textureAnimations:  extAnimations,
+			uniformBindGroup:   extBindGroup,
 		})
 		drawIndex := len(scratch.opaqueDraws) - 1
 		draw := &scratch.opaqueDraws[drawIndex]
@@ -615,31 +596,10 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	dynamicLightsBuffer := r.worldDynamicLightsBuffer
 	dynamicLightsBindGroup := r.worldDynamicLightsBindGroup
 	camera := r.cameraState
-	if r.brushTexturesScratch == nil {
-		r.brushTexturesScratch = make(map[int32]*gpuWorldTexture, len(r.worldTextures))
-	} else {
-		clear(r.brushTexturesScratch)
-	}
-	for k, v := range r.worldTextures {
-		r.brushTexturesScratch[k] = v
-	}
-	worldTextures := r.brushTexturesScratch
-
-	if r.brushFullbrightTexturesScratch == nil {
-		r.brushFullbrightTexturesScratch = make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures))
-	} else {
-		clear(r.brushFullbrightTexturesScratch)
-	}
-	for k, v := range r.worldFullbrightTextures {
-		r.brushFullbrightTexturesScratch[k] = v
-	}
-	worldFullbrightTextures := r.brushFullbrightTexturesScratch
+	worldTextures := r.worldTextures
+	worldFullbrightTextures := r.worldFullbrightTextures
 
 	r.brushTextureAnimationsScratch = append(r.brushTextureAnimationsScratch[:0], r.worldTextureAnimations...)
-	worldTextureAnimations := r.brushTextureAnimationsScratch
-
-	r.brushLightmapPagesScratch = append(r.brushLightmapPagesScratch[:0], r.worldLightmapPages...)
-	_ = r.brushLightmapPagesScratch
 
 	r.activeDynamicLightsScratch = r.activeDynamicLightsScratch[:0]
 	if r.lightPool != nil {
@@ -703,7 +663,6 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 
 	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	timeSeconds := float64(camera.Time)
 	var materialBindState gogpuWorldMaterialBindState
 	for _, preparedDraw := range scratch.opaquePrepared {
 		draw := scratch.opaqueDraws[preparedDraw.drawIndex]
@@ -711,28 +670,30 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.indexOffset)
 		drawTextures := worldTextures
 		drawFullbright := worldFullbrightTextures
-		drawAnimations := worldTextureAnimations
 		if draw.textures != nil {
 			drawTextures = draw.textures
 		}
 		if draw.fullbrightTextures != nil {
 			drawFullbright = draw.fullbrightTextures
 		}
-		if draw.textureAnimations != nil {
-			drawAnimations = draw.textureAnimations
-		}
 		for _, face := range draw.faces {
 			textureBindGroup := whiteTextureBindGroup
-			if worldTexture := gogpuWorldTextureForFace(face, drawTextures, drawAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-				textureBindGroup = worldTexture.bindGroup
+			if drawTextures != nil && drawTextures.bindGroup != nil {
+				textureBindGroup = drawTextures.bindGroup
 			}
-			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(face, draw.lightmaps, whiteLightmapBindGroup, preparedDraw.hasLitWater)
+			lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, draw.lightmapArray, whiteLightmapBindGroup, preparedDraw.hasLitWater)
 			offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
-			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1, litWater)
-			renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
+			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, litWater)
+
+			activeUniformBindGroup := uniformBindGroup
+			if draw.uniformBindGroup != nil {
+				activeUniformBindGroup = draw.uniformBindGroup
+			}
+
+			renderPass.SetBindGroup(0, activeUniformBindGroup, []uint32{offset})
 			fullbrightBindGroup := transparentBindGroup
-			if worldTexture := gogpuWorldTextureForFace(face, drawFullbright, drawAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-				fullbrightBindGroup = worldTexture.bindGroup
+			if drawFullbright != nil && drawFullbright.bindGroup != nil {
+				fullbrightBindGroup = drawFullbright.bindGroup
 			}
 			setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
 			if setTexture {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
@@ -169,6 +170,15 @@ func (r *Renderer) ClearWorld() {
 		if r.worldDynamicLightsBindGroupLayout != nil {
 			r.worldDynamicLightsBindGroupLayout.Release()
 		}
+		if r.worldClusterComputeUniformBuffer != nil {
+			r.worldClusterComputeUniformBuffer.Release()
+		}
+		if r.worldClusterComputeBindGroup != nil {
+			r.worldClusterComputeBindGroup.Release()
+		}
+		if r.worldClusterComputeBindGroupLayout != nil {
+			r.worldClusterComputeBindGroupLayout.Release()
+		}
 		if r.textureBindGroupLayout != nil {
 			r.textureBindGroupLayout.Release()
 		}
@@ -187,84 +197,71 @@ func (r *Renderer) ClearWorld() {
 		if r.worldLightmapSampler != nil {
 			r.worldLightmapSampler.Release()
 		}
-		for textureIndex, worldTexture := range r.worldTextures {
-			if worldTexture == nil {
-				delete(r.worldTextures, textureIndex)
-				continue
+		if r.worldTextures != nil {
+			if r.worldTextures.bindGroup != nil {
+				r.worldTextures.bindGroup.Release()
 			}
-			if worldTexture.bindGroup != nil {
-				worldTexture.bindGroup.Release()
+			if r.worldTextures.view != nil {
+				r.worldTextures.view.Release()
 			}
-			if worldTexture.view != nil {
-				worldTexture.view.Release()
+			if r.worldTextures.texture != nil {
+				r.worldTextures.texture.Release()
 			}
-			if worldTexture.texture != nil {
-				worldTexture.texture.Release()
-			}
-			delete(r.worldTextures, textureIndex)
+			r.worldTextures = nil
 		}
-		for textureIndex, worldTexture := range r.worldSkySolidTextures {
-			if worldTexture == nil {
-				delete(r.worldSkySolidTextures, textureIndex)
+		for _, skyTex := range r.worldSkySolidTextures {
+			if skyTex == nil {
 				continue
 			}
-			if worldTexture.bindGroup != nil {
-				worldTexture.bindGroup.Release()
+			if skyTex.bindGroup != nil {
+				skyTex.bindGroup.Release()
 			}
-			if worldTexture.view != nil {
-				worldTexture.view.Release()
+			if skyTex.view != nil {
+				skyTex.view.Release()
 			}
-			if worldTexture.texture != nil {
-				worldTexture.texture.Release()
+			if skyTex.texture != nil {
+				skyTex.texture.Release()
 			}
-			delete(r.worldSkySolidTextures, textureIndex)
 		}
-		for textureIndex, worldTexture := range r.worldSkyAlphaTextures {
-			if worldTexture == nil {
-				delete(r.worldSkyAlphaTextures, textureIndex)
+		r.worldSkySolidTextures = nil
+		for _, skyTex := range r.worldSkyAlphaTextures {
+			if skyTex == nil {
 				continue
 			}
-			if worldTexture.bindGroup != nil {
-				worldTexture.bindGroup.Release()
+			if skyTex.bindGroup != nil {
+				skyTex.bindGroup.Release()
 			}
-			if worldTexture.view != nil {
-				worldTexture.view.Release()
+			if skyTex.view != nil {
+				skyTex.view.Release()
 			}
-			if worldTexture.texture != nil {
-				worldTexture.texture.Release()
+			if skyTex.texture != nil {
+				skyTex.texture.Release()
 			}
-			delete(r.worldSkyAlphaTextures, textureIndex)
 		}
-		for textureIndex, worldTexture := range r.worldFullbrightTextures {
-			if worldTexture == nil {
-				delete(r.worldFullbrightTextures, textureIndex)
-				continue
+		r.worldSkyAlphaTextures = nil
+		if r.worldFullbrightTextures != nil {
+			if r.worldFullbrightTextures.bindGroup != nil {
+				r.worldFullbrightTextures.bindGroup.Release()
 			}
-			if worldTexture.bindGroup != nil {
-				worldTexture.bindGroup.Release()
+			if r.worldFullbrightTextures.view != nil {
+				r.worldFullbrightTextures.view.Release()
 			}
-			if worldTexture.view != nil {
-				worldTexture.view.Release()
+			if r.worldFullbrightTextures.texture != nil {
+				r.worldFullbrightTextures.texture.Release()
 			}
-			if worldTexture.texture != nil {
-				worldTexture.texture.Release()
-			}
-			delete(r.worldFullbrightTextures, textureIndex)
+			r.worldFullbrightTextures = nil
 		}
-		for index, worldLightmap := range r.worldLightmapPages {
-			if worldLightmap == nil {
-				continue
+		if r.worldLightmapArray != nil {
+			if r.worldLightmapArray.bindGroup != nil {
+				r.worldLightmapArray.bindGroup.Release()
 			}
-			if worldLightmap.bindGroup != nil {
-				worldLightmap.bindGroup.Release()
+			if r.worldLightmapArray.view != nil {
+				r.worldLightmapArray.view.Release()
 			}
-			if worldLightmap.view != nil {
-				worldLightmap.view.Release()
+			if r.worldLightmapArray.texture != nil {
+				r.worldLightmapArray.texture.Release()
 			}
-			if worldLightmap.texture != nil {
-				worldLightmap.texture.Release()
-			}
-			r.worldLightmapPages[index] = nil
+			r.worldLightmapArray = nil
 		}
 		if r.whiteTextureView != nil {
 			r.whiteTextureView.Release()
@@ -287,22 +284,60 @@ func (r *Renderer) ClearWorld() {
 		if r.worldDepthTexture != nil {
 			r.worldDepthTexture.Release()
 		}
-		for submodelIndex, lightmaps := range r.brushModelLightmaps {
-			for _, lightmap := range lightmaps {
-				if lightmap == nil {
-					continue
-				}
-				if lightmap.bindGroup != nil {
-					lightmap.bindGroup.Release()
-				}
-				if lightmap.view != nil {
-					lightmap.view.Release()
-				}
-				if lightmap.texture != nil {
-					lightmap.texture.Release()
-				}
+		if r.worldMaterialsBuffer != nil {
+			r.worldMaterialsBuffer.Release()
+		}
+		for _, buf := range r.externalBrushMaterialsBuffers {
+			if buf != nil {
+				buf.Release()
 			}
-			delete(r.brushModelLightmaps, submodelIndex)
+		}
+		for _, bg := range r.externalBrushUniformBindGroups {
+			if bg != nil {
+				bg.Release()
+			}
+		}
+		for _, tex := range r.externalBrushTextures {
+			if tex == nil {
+				continue
+			}
+			if tex.bindGroup != nil {
+				tex.bindGroup.Release()
+			}
+			if tex.view != nil {
+				tex.view.Release()
+			}
+			if tex.texture != nil {
+				tex.texture.Release()
+			}
+		}
+		for _, tex := range r.externalBrushFullbright {
+			if tex == nil {
+				continue
+			}
+			if tex.bindGroup != nil {
+				tex.bindGroup.Release()
+			}
+			if tex.view != nil {
+				tex.view.Release()
+			}
+			if tex.texture != nil {
+				tex.texture.Release()
+			}
+		}
+		for _, lightmap := range r.brushModelLightmaps {
+			if lightmap == nil {
+				continue
+			}
+			if lightmap.bindGroup != nil {
+				lightmap.bindGroup.Release()
+			}
+			if lightmap.view != nil {
+				lightmap.view.Release()
+			}
+			if lightmap.texture != nil {
+				lightmap.texture.Release()
+			}
 		}
 		r.destroyGoGPUExternalSkyboxResourcesLocked()
 
@@ -323,12 +358,18 @@ func (r *Renderer) ClearWorld() {
 		r.worldSkyExternalPipelineLayout = nil
 		r.worldShader = nil
 		r.uniformBuffer = nil
+		r.worldMaterialsBuffer = nil
+		r.worldBaseMaterials = nil
 		r.worldDynamicLightsBuffer = nil
 		r.uniformBindGroup = nil
 		r.worldDynamicLightsBindGroup = nil
 		r.uniformBindGroupLayout = nil
 		r.worldDynamicLightsBindGroupLayout = nil
+		r.worldClusterComputeUniformBuffer = nil
+		r.worldClusterComputeBindGroup = nil
+		r.worldClusterComputeBindGroupLayout = nil
 		r.textureBindGroupLayout = nil
+		r.lightmapBindGroupLayout = nil
 		r.worldSkyExternalBindGroupLayout = nil
 		r.worldTextureSampler = nil
 		r.worldTextures = nil
@@ -341,7 +382,7 @@ func (r *Renderer) ClearWorld() {
 		r.transparentTextureView = nil
 		r.transparentBindGroup = nil
 		r.worldLightmapSampler = nil
-		r.worldLightmapPages = nil
+		r.worldLightmapArray = nil
 		r.whiteLightmapBindGroup = nil
 		r.worldBindGroup = nil
 		r.worldSkyExternalBindGroup = nil
@@ -363,7 +404,13 @@ func (r *Renderer) ClearWorld() {
 		r.worldLiquidBatchScratch = nil
 		r.resetGoGPUWorldBatchCache()
 		r.brushModelGeometry = make(map[int]*WorldGeometry)
-		r.brushModelLightmaps = make(map[int][]*gpuWorldTexture)
+		r.brushModelLightmaps = make(map[int]*gpuWorldTexture)
+		r.externalBrushTextures = make(map[string]*gpuWorldTexture)
+		r.externalBrushFullbright = make(map[string]*gpuWorldTexture)
+		r.externalBrushAnimations = make(map[string][]*surfacepkg.SurfaceTexture)
+		r.externalBrushBaseMaterials = make(map[string][]WorldMaterialData)
+		r.externalBrushMaterialsBuffers = make(map[string]*wgpu.Buffer)
+		r.externalBrushUniformBindGroups = make(map[string]*wgpu.BindGroup)
 
 		slog.Debug("World geometry cleared")
 	}

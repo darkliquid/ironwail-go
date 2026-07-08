@@ -2,10 +2,13 @@ package renderer
 
 import (
 	"log/slog"
+
 	"time"
+	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/pkg/types"
+	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
@@ -312,12 +315,12 @@ func (r *Renderer) ensureBrushModelGeometry(submodelIndex int) *WorldGeometry {
 	return geom
 }
 
-func (r *Renderer) ensureBrushModelLightmaps(submodelIndex int, geom *WorldGeometry) []*gpuWorldTexture {
+func (r *Renderer) ensureBrushModelLightmaps(submodelIndex int, geom *WorldGeometry) *gpuWorldTexture {
 	if submodelIndex <= 0 || geom == nil || len(geom.Lightmaps) == 0 {
 		return nil
 	}
 	r.mu.RLock()
-	if cached := r.brushModelLightmaps[submodelIndex]; len(cached) > 0 {
+	if cached := r.brushModelLightmaps[submodelIndex]; cached != nil {
 		r.mu.RUnlock()
 		return cached
 	}
@@ -329,25 +332,22 @@ func (r *Renderer) ensureBrushModelLightmaps(submodelIndex int, geom *WorldGeome
 	if device == nil || queue == nil || sampler == nil {
 		return nil
 	}
-	uploaded := r.uploadWorldLightmapPages(device, queue, sampler, geom.Lightmaps, values)
+	uploaded := r.uploadWorldLightmapArray(device, queue, sampler, geom.Lightmaps, values)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.brushModelLightmaps == nil {
-		r.brushModelLightmaps = make(map[int][]*gpuWorldTexture)
+		r.brushModelLightmaps = make(map[int]*gpuWorldTexture)
 	}
-	if existing := r.brushModelLightmaps[submodelIndex]; len(existing) > 0 {
-		for _, page := range uploaded {
-			if page == nil {
-				continue
+	if existing := r.brushModelLightmaps[submodelIndex]; existing != nil {
+		if uploaded != nil {
+			if uploaded.bindGroup != nil {
+				uploaded.bindGroup.Release()
 			}
-			if page.bindGroup != nil {
-				page.bindGroup.Release()
+			if uploaded.view != nil {
+				uploaded.view.Release()
 			}
-			if page.view != nil {
-				page.view.Release()
-			}
-			if page.texture != nil {
-				page.texture.Release()
+			if uploaded.texture != nil {
+				uploaded.texture.Release()
 			}
 		}
 		return existing
@@ -397,54 +397,6 @@ func (r *Renderer) ensureExternalBrushModelGeometry(key string, tree *bsp.Tree) 
 	return geom
 }
 
-// ensureExternalBrushModelLightmaps uploads and caches lightmap pages
-// for an external (standalone) BSP. Unlike world lightmaps these are
-// self-contained inside the external tree's geometry and are not
-// animated by the world's lightstyle values.
-func (r *Renderer) ensureExternalBrushModelLightmaps(key string, geom *WorldGeometry) []*gpuWorldTexture {
-	if key == "" || geom == nil || len(geom.Lightmaps) == 0 {
-		return nil
-	}
-	r.mu.RLock()
-	if cached := r.externalBrushLightmaps[key]; len(cached) > 0 {
-		r.mu.RUnlock()
-		return cached
-	}
-	sampler := r.worldLightmapSampler
-	values := r.worldLightStyleValues
-	r.mu.RUnlock()
-	device := r.getWGPUDevice()
-	queue := r.getWGPUQueue()
-	if device == nil || queue == nil || sampler == nil {
-		return nil
-	}
-	uploaded := r.uploadWorldLightmapPages(device, queue, sampler, geom.Lightmaps, values)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.externalBrushLightmaps == nil {
-		r.externalBrushLightmaps = make(map[string][]*gpuWorldTexture)
-	}
-	if existing := r.externalBrushLightmaps[key]; len(existing) > 0 {
-		for _, page := range uploaded {
-			if page == nil {
-				continue
-			}
-			if page.bindGroup != nil {
-				page.bindGroup.Release()
-			}
-			if page.view != nil {
-				page.view.Release()
-			}
-			if page.texture != nil {
-				page.texture.Release()
-			}
-		}
-		return existing
-	}
-	r.externalBrushLightmaps[key] = uploaded
-	return uploaded
-}
-
 // brushEntityGeometry returns the geometry for a brush entity,
 // dispatching to the external-BSP path when BrushEntity.ExternalKey is set.
 func (r *Renderer) brushEntityGeometry(entity BrushEntity) *WorldGeometry {
@@ -456,67 +408,103 @@ func (r *Renderer) brushEntityGeometry(entity BrushEntity) *WorldGeometry {
 
 // brushEntityLightmaps returns lightmap pages for a brush entity,
 // dispatching to the external-BSP path when BrushEntity.ExternalKey is set.
-func (r *Renderer) brushEntityLightmaps(entity BrushEntity, geom *WorldGeometry) []*gpuWorldTexture {
-	if entity.ExternalKey != "" {
-		return r.ensureExternalBrushModelLightmaps(entity.ExternalKey, geom)
+func (r *Renderer) brushEntityLightmaps(entity BrushEntity, geom *WorldGeometry) *gpuWorldTexture {
+	var lightmap *gpuWorldTexture
+	if entity.ExternalTree != nil {
+		// External entities don't use lightmaps, they are fully lit.
+		lightmap = nil
+	} else {
+		lightmap = r.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
 	}
-	return r.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
+	return lightmap
 }
 
 // ensureExternalBrushModelTextures uploads and caches diffuse + fullbright
 // textures and texture-animation chains for a standalone BSP file. Like
 // the geometry/lightmap caches the entries are keyed by external-model
 // name so repeat entities share the same GPU resources.
-func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*surfacepkg.SurfaceTexture) {
+func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) (*gpuWorldTexture, *gpuWorldTexture, []*surfacepkg.SurfaceTexture, *wgpu.BindGroup) {
 	if key == "" || tree == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	r.mu.RLock()
 	if textures, ok := r.externalBrushTextures[key]; ok {
 		fullbright := r.externalBrushFullbright[key]
 		animations := r.externalBrushAnimations[key]
+		bindGroup := r.externalBrushUniformBindGroups[key]
 		r.mu.RUnlock()
-		return textures, fullbright, animations
+		return textures, fullbright, animations, bindGroup
 	}
 	sampler := r.worldTextureSampler
 	r.mu.RUnlock()
 	device := r.getWGPUDevice()
 	queue := r.getWGPUQueue()
 	if device == nil || queue == nil || sampler == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
-	textures, fullbright, animations := r.uploadWorldMaterialTextures(device, queue, sampler, tree)
+	// Use ClampToEdge atlas sampler to prevent bleeding between atlas sub-rects.
+	atlasSampler, _ := r.createWorldAtlasSampler(device)
+	if atlasSampler == nil {
+		atlasSampler = sampler
+	}
+	textures, fullbright, animations, baseMaterials := r.uploadWorldMaterialTextures(device, queue, atlasSampler, tree)
+
+	// Create materials buffer and bind group for external model
+	var materialsBuffer *wgpu.Buffer
+	var bindGroup *wgpu.BindGroup
+	if len(baseMaterials) > 0 {
+		buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "External Brush Materials Buffer",
+			Size:             uint64(worldMaterialsBufferSize),
+			Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+			MappedAtCreation: false,
+		})
+		if err == nil {
+			materialsBuffer = buf
+			byteLen := len(baseMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
+			byteData := unsafe.Slice((*byte)(unsafe.Pointer(&baseMaterials[0])), byteLen)
+			queue.WriteBuffer(materialsBuffer, 0, byteData)
+
+			if r.uniformBindGroupLayout != nil && r.uniformBuffer != nil {
+				bg, err := r.createWorldUniformBindGroup(device, r.uniformBindGroupLayout, r.uniformBuffer, materialsBuffer)
+				if err == nil {
+					bindGroup = bg
+				}
+			}
+		}
+	}
+
 	r.mu.Lock()
 	if r.externalBrushTextures == nil {
-		r.externalBrushTextures = make(map[string]map[int32]*gpuWorldTexture)
-		r.externalBrushFullbright = make(map[string]map[int32]*gpuWorldTexture)
+		r.externalBrushTextures = make(map[string]*gpuWorldTexture)
+		r.externalBrushFullbright = make(map[string]*gpuWorldTexture)
 		r.externalBrushAnimations = make(map[string][]*surfacepkg.SurfaceTexture)
+		r.externalBrushBaseMaterials = make(map[string][]WorldMaterialData)
+		r.externalBrushMaterialsBuffers = make(map[string]*wgpu.Buffer)
+		r.externalBrushUniformBindGroups = make(map[string]*wgpu.BindGroup)
 	}
 	if existing, ok := r.externalBrushTextures[key]; ok {
 		r.mu.Unlock()
-		return existing, r.externalBrushFullbright[key], r.externalBrushAnimations[key]
+		return existing, r.externalBrushFullbright[key], r.externalBrushAnimations[key], r.externalBrushUniformBindGroups[key]
 	}
 	// Cache even empty results so we don't re-upload on failure.
-	if textures == nil {
-		textures = map[int32]*gpuWorldTexture{}
-	}
-	if fullbright == nil {
-		fullbright = map[int32]*gpuWorldTexture{}
-	}
 	r.externalBrushTextures[key] = textures
 	r.externalBrushFullbright[key] = fullbright
 	r.externalBrushAnimations[key] = animations
+	r.externalBrushBaseMaterials[key] = baseMaterials
+	r.externalBrushMaterialsBuffers[key] = materialsBuffer
+	r.externalBrushUniformBindGroups[key] = bindGroup
 	r.mu.Unlock()
-	return textures, fullbright, animations
+	return textures, fullbright, animations, bindGroup
 }
 
 // brushEntityTextures returns the texture / fullbright / animations
 // triplet appropriate for a brush entity. External-BSP entities get
 // per-key maps uploaded on demand; inline submodels return (nil, nil, nil)
 // and fall back to the world texture tables.
-func (r *Renderer) brushEntityTextures(entity BrushEntity) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*surfacepkg.SurfaceTexture) {
+func (r *Renderer) brushEntityTextures(entity BrushEntity) (*gpuWorldTexture, *gpuWorldTexture, []*surfacepkg.SurfaceTexture, *wgpu.BindGroup) {
 	if entity.ExternalKey == "" || entity.ExternalTree == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	return r.ensureExternalBrushModelTextures(entity.ExternalKey, entity.ExternalTree)
 }

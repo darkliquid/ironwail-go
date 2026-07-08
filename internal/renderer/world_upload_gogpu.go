@@ -3,6 +3,7 @@ package renderer
 import (
 	"fmt"
 	"log/slog"
+	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/gogpu/gputypes"
@@ -277,6 +278,16 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		return fmt.Errorf("create uniform buffer: %w", err)
 	}
 
+	materialsBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "World Materials",
+		Size:             256 * 32, // 256 materials * 32 bytes (vec4 + float + pad)
+		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("create materials buffer: %w", err)
+	}
+
 	dynamicLightsBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "World Dynamic Lights",
 		Size:             gogpuWorldDynamicLightBufferSize,
@@ -290,15 +301,9 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	// Create bind group for world uniform buffer.
 	uniformLayout := r.uniformBindGroupLayout
 	if uniformLayout != nil {
-		uniformBindGroup, bindErr := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
-			Label:  "World Uniform BG",
-			Layout: uniformLayout,
-			Entries: []wgpu.BindGroupEntry{
-				{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: worldUniformBufferSize},
-			},
-		})
-		if bindErr != nil {
-			slog.Warn("Failed to create world uniform bind group", "error", bindErr)
+		uniformBindGroup, err := r.createWorldUniformBindGroup(device, uniformLayout, uniformBuffer, materialsBuffer)
+		if err != nil {
+			return fmt.Errorf("create uniform bind group: %w", err)
 		} else {
 			r.uniformBindGroup = uniformBindGroup
 			r.worldBindGroup = uniformBindGroup
@@ -307,12 +312,16 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 
 	var dynamicLightsBindGroup *wgpu.BindGroup
 	if lightsLayout := r.worldDynamicLightsBindGroupLayout; lightsLayout != nil {
+		entries := []wgpu.BindGroupEntry{
+			{Binding: 1, Buffer: dynamicLightsBuffer, Offset: 0, Size: gogpuWorldDynamicLightBufferSize},
+		}
+		if computeTextureView != nil {
+			entries = append(entries, wgpu.BindGroupEntry{Binding: 0, TextureView: computeTextureView})
+		}
 		dynamicLightsBindGroup, err = device.CreateBindGroup(&wgpu.BindGroupDescriptor{
-			Label:  "World Dynamic Lights BG",
-			Layout: lightsLayout,
-			Entries: []wgpu.BindGroupEntry{
-				{Binding: 0, Buffer: dynamicLightsBuffer, Offset: 0, Size: gogpuWorldDynamicLightBufferSize},
-			},
+			Label:   "World Dynamic Lights BG",
+			Layout:  lightsLayout,
+			Entries: entries,
 		})
 		if err != nil {
 			return fmt.Errorf("create world dynamic lights bind group: %w", err)
@@ -378,7 +387,17 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			}
 		}
 	}
-	worldTextures, worldFullbrightTextures, worldTextureAnimations := r.uploadWorldMaterialTextures(device, queue, worldTextureSampler, tree)
+	// Create a dedicated atlas sampler with ClampToEdge for atlas-packed textures.
+	// Sky textures keep using worldTextureSampler (Repeat mode) for scrolling.
+	var atlasSampler *wgpu.Sampler
+	if r.textureBindGroupLayout != nil {
+		atlasSampler, err = r.createWorldAtlasSampler(device)
+		if err != nil {
+			slog.Warn("Failed to create world atlas sampler", "error", err)
+			atlasSampler = worldTextureSampler
+		}
+	}
+	worldTextures, worldFullbrightTextures, worldTextureAnimations, worldBaseMaterials := r.uploadWorldMaterialTextures(device, queue, atlasSampler, tree)
 	worldSkySolidTextures, worldSkyAlphaTextures := r.uploadWorldEmbeddedSkyTextures(device, queue, worldTextureSampler, tree)
 	lightstyleValues := defaultWorldLightStyleValues()
 	var worldLightmapSampler *wgpu.Sampler
@@ -390,13 +409,13 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		} else if fallbackView := worldLightmapFallbackView(transparentTextureView, whiteTextureView); fallbackView != nil {
 			// Match C brush rendering: faces without valid lightmap data should
 			// sample black, not white, so localized assignment failures stay dark.
-			whiteLightmapBindGroup, err = r.createWorldTextureBindGroup(device, worldLightmapSampler, fallbackView)
+			whiteLightmapBindGroup, err = r.createWorldLightmapBindGroup(device, worldLightmapSampler, fallbackView)
 			if err != nil {
 				slog.Warn("Failed to create world lightmap fallback bind group", "error", err)
 			}
 		}
 	}
-	worldLightmapPages := r.uploadWorldLightmapPages(device, queue, worldLightmapSampler, geom.Lightmaps, lightstyleValues)
+	worldLightmapArray := r.uploadWorldLightmapArray(device, queue, worldLightmapSampler, geom.Lightmaps, lightstyleValues)
 
 	// Create offscreen render target for world rendering
 	if err := r.createWorldRenderTarget(); err != nil {
@@ -441,6 +460,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldClusterComputeTextureView = computeTextureView
 	r.worldShader = vertexShader
 	r.uniformBuffer = uniformBuffer
+	r.worldMaterialsBuffer = materialsBuffer
 	r.whiteTexture = whiteTexture
 	r.whiteTextureView = whiteTextureView
 	r.worldTextureSampler = worldTextureSampler
@@ -449,14 +469,24 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldSkySolidTextures = worldSkySolidTextures
 	r.worldSkyAlphaTextures = worldSkyAlphaTextures
 	r.worldTextureAnimations = worldTextureAnimations
+	r.worldBaseMaterials = worldBaseMaterials
+	// Write base materials to the GPU buffer immediately so the first
+	// render frame has valid material data before updateWorldMaterialsBuffer runs.
+	if len(worldBaseMaterials) > 0 && materialsBuffer != nil {
+		byteLen := len(worldBaseMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
+		byteData := unsafe.Slice((*byte)(unsafe.Pointer(&worldBaseMaterials[0])), byteLen)
+		if err := queue.WriteBuffer(materialsBuffer, 0, byteData); err != nil {
+			slog.Warn("Failed to write initial world materials buffer", "error", err)
+		}
+	}
 	r.worldSkyExternalBindGroupLayout = externalSkyBindGroupLayout
 	r.whiteTextureBindGroup = whiteTextureBindGroup
 	r.transparentTexture = transparentTexture
 	r.transparentTextureView = transparentTextureView
 	r.transparentBindGroup = transparentBindGroup
-	r.worldLightmapSampler = worldLightmapSampler
-	r.worldLightmapPages = worldLightmapPages
 	r.whiteLightmapBindGroup = whiteLightmapBindGroup
+	r.worldLightmapArray = worldLightmapArray
+	r.worldLightmapSampler = worldLightmapSampler
 	r.worldLightStyleValues = lightstyleValues
 	r.worldDepthTexture = depthTexture
 	r.worldDepthTextureView = depthTextureView
@@ -466,8 +496,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 	renderData.VertexBufferUploaded = vertexBuffer != nil
 	renderData.IndexBufferUploaded = indexBuffer != nil
-	renderData.HasDiffuseTextures = len(worldTextures) > 0
-	renderData.HasLightmapTextures = len(worldLightmapPages) > 0
+	renderData.HasDiffuseTextures = worldTextures != nil
+	renderData.HasLightmapTextures = worldLightmapArray != nil
 	renderData.HasDepthBuffer = depthTextureView != nil
 	r.mu.Unlock()
 
@@ -489,7 +519,12 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		"built_triangles", faceStats.TotalTriangles,
 		"vertices", renderData.TotalVertices,
 		"lightmap_pages", len(geom.Lightmaps),
-		"gpu_lightmap_pages", len(worldLightmapPages),
+		"gpu_lightmap_layers", func() int {
+			if worldLightmapArray != nil && worldLightmapArray.view != nil {
+				return len(geom.Lightmaps)
+			}
+			return 0
+		}(),
 		"lightmapped_faces", faceStats.LightmappedFaces,
 		"lit_water_faces", faceStats.LitWaterFaces,
 		"turbulent_faces", faceStats.TurbulentFaces,
@@ -499,8 +534,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		"opaque_liquid_faces", faceStats.OpaqueLiquidFaces,
 		"translucent_liquid_faces", faceStats.TranslucentLiquidFaces,
 		"textures", tree.NumTextures,
-		"gpu_textures", len(worldTextures),
-		"gpu_fullbright_textures", len(worldFullbrightTextures),
+		"gpu_textures", worldTextures != nil,
+		"gpu_fullbright_textures", worldFullbrightTextures != nil,
 		"gpu_sky_solid_textures", len(worldSkySolidTextures),
 		"gpu_sky_alpha_textures", len(worldSkyAlphaTextures),
 		"leafs", len(tree.Leafs),
@@ -512,3 +547,14 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 
 // renderWorldInternal implements world rendering.
 // This records render commands to draw the world geometry with the configured pipeline,
+
+func (r *Renderer) createWorldUniformBindGroup(device *wgpu.Device, layout *wgpu.BindGroupLayout, uniformBuffer, materialsBuffer *wgpu.Buffer) (*wgpu.BindGroup, error) {
+	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:  "World Uniform BG",
+		Layout: layout,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: worldUniformBufferSize},
+			{Binding: 1, Buffer: materialsBuffer, Offset: 0, Size: 256 * 32},
+		},
+	})
+}

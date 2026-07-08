@@ -23,7 +23,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 
 	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Sprite Uniform Buffer",
-		Size:             worldgogpu.SpriteUniformBufferSize,
+		Size:             uint64(aliasInitialDrawCapacity) * worldUniformAlign,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
@@ -68,7 +68,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers: []gputypes.VertexBufferLayout{{
-				ArrayStride: 44,
+				ArrayStride: 48,
 				StepMode:    gputypes.VertexStepModeVertex,
 				Attributes: []gputypes.VertexAttribute{
 					{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
@@ -121,7 +121,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers: []gputypes.VertexBufferLayout{{
-				ArrayStride: 44,
+				ArrayStride: 48,
 				StepMode:    gputypes.VertexStepModeVertex,
 				Attributes: []gputypes.VertexAttribute{
 					{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
@@ -413,7 +413,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	currentPipeline := pipeline
 
 	bulkUniformData := make([]byte, uint64(len(draws))*worldUniformAlign)
-	bulkVertexData := make([]byte, 0, len(draws)*4*44) // 4 vertices per quad, 44 bytes per vertex
+	bulkVertexData := make([]byte, 0, len(draws)*4*48) // 4 vertices per quad, 48 bytes per vertex
 
 	uniformOffsets := make([]uint32, len(draws))
 	vertexCounts := make([]uint32, len(draws))
@@ -449,10 +449,10 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 				TexCoord: vertex.TexCoord,
 			}
 		})
-		
+
 		uOffset := uint32(i) * worldUniformAlign
 		uniformOffsets[i] = uOffset
-		
+
 		// Accumulate uniform data
 		uBytes := worldgogpu.SpriteUniformBytes(vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)
 		copy(bulkUniformData[uOffset:], uBytes)
@@ -460,20 +460,22 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 		// Accumulate vertex data
 		vertexBytes := aliasVertexBytes(worldVertices)
 		bulkVertexData = append(bulkVertexData, vertexBytes...)
-		
+
 		vertexCounts[i] = uint32(len(worldVertices))
 		vertexOffsets[i] = currentVertexOffset
 		currentVertexOffset += uint32(len(worldVertices))
 	}
 
-	// Bulk upload all uniforms
+	// Bulk upload all uniforms (clamped to buffer capacity)
 	if len(draws) > 0 {
-		if err := queue.WriteBuffer(uniformBuffer, 0, bulkUniformData); err != nil {
+		bufSize := int(uint64(aliasInitialDrawCapacity) * worldUniformAlign)
+		writeSize := min(len(bulkUniformData), bufSize)
+		if err := queue.WriteBuffer(uniformBuffer, 0, bulkUniformData[:writeSize]); err != nil {
 			slog.Warn("failed to upload sprite uniform buffer in bulk", "error", err)
 			return
 		}
 	}
-	
+
 	// Bulk upload all vertices
 	if len(bulkVertexData) > 0 {
 		if err := queue.WriteBuffer(scratchBuffer, 0, bulkVertexData); err != nil {

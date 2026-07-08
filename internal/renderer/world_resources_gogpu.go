@@ -16,14 +16,20 @@ import (
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
-// createWorldVertexBuffer uploads vertex data to GPU
+// createWorldVertexBuffer uploads vertex data to GPU.
+//
+// This is one of four vertex-packing functions that must all agree on the byte
+// layout — see docs/VERTEX_LAYOUT.md. The stride (48 bytes) must match the
+// pipeline's ArrayStride. Missing fields cause wrong textures/lighting; a
+// stride that's too small causes the GPU to read into adjacent vertices,
+// scrambling all rendering.
 func (r *Renderer) createWorldVertexBuffer(device *wgpu.Device, queue *wgpu.Queue, vertices []WorldVertex) (*wgpu.Buffer, error) {
 	if len(vertices) == 0 {
 		return nil, fmt.Errorf("no vertices to upload")
 	}
 
-	// Calculate size
-	vertexSize := uint64(len(vertices)) * 44 // sizeof(WorldVertex) = 44 bytes
+	// Calculate size. WorldVertex is 48 bytes: 3+2+2+3 floats + 1 float + 1 uint32.
+	vertexSize := uint64(len(vertices)) * 48
 
 	slog.Debug("Creating world vertex buffer",
 		"vertexCount", len(vertices),
@@ -43,7 +49,7 @@ func (r *Renderer) createWorldVertexBuffer(device *wgpu.Device, queue *wgpu.Queu
 	// Write vertex data to buffer
 	vertexData := make([]byte, vertexSize)
 	for i, v := range vertices {
-		offset := uint64(i) * 44
+		offset := uint64(i) * 48
 
 		// Write position (3 float32 = 12 bytes)
 		posBytes := float32ToBytes(v.Position[:])
@@ -60,6 +66,15 @@ func (r *Renderer) createWorldVertexBuffer(device *wgpu.Device, queue *wgpu.Queu
 		// Write normal (3 float32 = 12 bytes)
 		normBytes := float32ToBytes(v.Normal[:])
 		copy(vertexData[offset+28:offset+40], normBytes)
+
+		// Write lightmapLayer (1 float32 = 4 bytes)
+		layerBytes := float32ToBytes([]float32{v.LightmapLayer})
+		copy(vertexData[offset+40:offset+44], layerBytes)
+
+		// Write materialID (1 uint32 = 4 bytes)
+		matIDBytes := make([]byte, 4)
+		binary.LittleEndian.PutUint32(matIDBytes, v.MaterialID)
+		copy(vertexData[offset+44:offset+48], matIDBytes)
 	}
 
 	_ = queue.WriteBuffer(buffer, 0, vertexData)
@@ -151,423 +166,6 @@ func (r *Renderer) createWorldRenderTarget() error {
 	return r.ensureWorldRenderTargetLocked(device, width, height)
 }
 
-// createWorldPipeline creates the render pipeline for world rendering.
-// Configures all pipeline state: vertex layout, shaders, depth-stencil, primitive topology, etc.
-func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule) (*wgpu.RenderPipeline, *wgpu.PipelineLayout, error) {
-	if device == nil || vertexShader == nil || fragmentShader == nil {
-		return nil, nil, fmt.Errorf("invalid shader modules or device")
-	}
-
-	// Create bind group layout for @group(0) @binding(0) uniform buffer.
-	uniformLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
-		Label: "World Uniform BGL",
-		Entries: []gputypes.BindGroupLayoutEntry{
-			{
-				Binding:    0,
-				Visibility: gputypes.ShaderStageVertex | gputypes.ShaderStageFragment,
-				Buffer: &gputypes.BufferBindingLayout{
-					Type:             gputypes.BufferBindingTypeUniform,
-					HasDynamicOffset: true,
-					MinBindingSize:   worldUniformBufferSize,
-				},
-			},
-		},
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("create uniform bind group layout: %w", err)
-	}
-
-	textureLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
-		Label: "World Texture BGL",
-		Entries: []gputypes.BindGroupLayoutEntry{
-			{
-				Binding:    0,
-				Visibility: gputypes.ShaderStageFragment,
-				Sampler: &gputypes.SamplerBindingLayout{
-					Type: gputypes.SamplerBindingTypeFiltering,
-				},
-			},
-			{
-				Binding:    1,
-				Visibility: gputypes.ShaderStageFragment,
-				Texture: &gputypes.TextureBindingLayout{
-					SampleType:    gputypes.TextureSampleTypeFloat,
-					ViewDimension: gputypes.TextureViewDimension2D,
-					Multisampled:  false,
-				},
-			},
-		},
-	})
-	if err != nil {
-		uniformLayout.Release()
-		return nil, nil, fmt.Errorf("create texture bind group layout: %w", err)
-	}
-
-	lightsLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
-		Label: "World Dynamic Lights BGL",
-		Entries: []gputypes.BindGroupLayoutEntry{
-			{
-				Binding:    0,
-				Visibility: gputypes.ShaderStageFragment,
-				Buffer: &gputypes.BufferBindingLayout{
-					Type:             gputypes.BufferBindingTypeReadOnlyStorage,
-					HasDynamicOffset: false,
-					MinBindingSize:   gogpuWorldDynamicLightBufferSize,
-				},
-			},
-		},
-	})
-	if err != nil {
-		textureLayout.Release()
-		uniformLayout.Release()
-		return nil, nil, fmt.Errorf("create dynamic lights bind group layout: %w", err)
-	}
-
-	// Create pipeline layout with the uniform bind group layout.
-	pipelineLayoutDesc := &wgpu.PipelineLayoutDescriptor{
-		Label:            "World Pipeline Layout",
-		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, textureLayout, textureLayout, textureLayout, lightsLayout},
-	}
-
-	pipelineLayout, err := device.CreatePipelineLayout(pipelineLayoutDesc)
-	if err != nil {
-		lightsLayout.Release()
-		textureLayout.Release()
-		uniformLayout.Release()
-		return nil, nil, fmt.Errorf("create pipeline layout: %w", err)
-	}
-
-	pipeline, err := r.createWorldOpaquePipeline(device, vertexShader, fragmentShader, pipelineLayout)
-	if err != nil {
-		lightsLayout.Release()
-		textureLayout.Release()
-		uniformLayout.Release()
-		pipelineLayout.Release()
-		return nil, nil, fmt.Errorf("create render pipeline: %w", err)
-	}
-
-	r.mu.Lock()
-	r.uniformBindGroupLayout = uniformLayout
-	r.textureBindGroupLayout = textureLayout
-	r.worldDynamicLightsBindGroupLayout = lightsLayout
-	r.mu.Unlock()
-
-	slog.Debug("World render pipeline created")
-	return pipeline, pipelineLayout, nil
-}
-
-func (r *Renderer) createWorldOpaquePipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
-	vertexBufferLayout := gputypes.VertexBufferLayout{
-		ArrayStride: 44,
-		StepMode:    gputypes.VertexStepModeVertex,
-		Attributes: []gputypes.VertexAttribute{
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
-		},
-	}
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
-	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
-		Label:  "World Render Pipeline",
-		Layout: layout,
-		Vertex: wgpu.VertexState{
-			Module:     vertexShader,
-			EntryPoint: "vs_main",
-			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
-		},
-		Primitive: gputypes.PrimitiveState{
-			Topology:  gputypes.PrimitiveTopologyTriangleList,
-			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeFront,
-		},
-		DepthStencil: gogpuNonDecalDepthStencilState(true),
-		Multisample: gputypes.MultisampleState{
-			Count:                  1,
-			Mask:                   0xFFFFFFFF,
-			AlphaToCoverageEnabled: false,
-		},
-		Fragment: &wgpu.FragmentState{
-			Module:     fragmentShader,
-			EntryPoint: "fs_main",
-			Targets: []gputypes.ColorTargetState{{
-				Format: surfaceFormat,
-				Blend: &gputypes.BlendState{
-					Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorZero, Operation: gputypes.BlendOperationAdd},
-					Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorZero, Operation: gputypes.BlendOperationAdd},
-				},
-				WriteMask: gputypes.ColorWriteMaskAll,
-			}},
-		},
-	})
-}
-
-func (r *Renderer) createWorldSkyPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
-	return r.createWorldSkyPipelineWithDepthState(device, vertexShader, fragmentShader, layout, gogpuNonDecalDepthStencilState(false))
-}
-
-func (r *Renderer) createWorldSkyPipelineWithDepthWrite(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout, depthWrite bool) (*wgpu.RenderPipeline, error) {
-	return r.createWorldSkyPipelineWithDepthState(device, vertexShader, fragmentShader, layout, gogpuNonDecalDepthStencilState(depthWrite))
-}
-
-func (r *Renderer) createWorldSkyPipelineWithDepthState(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout, depthStencil *wgpu.DepthStencilState) (*wgpu.RenderPipeline, error) {
-	vertexBufferLayout := gputypes.VertexBufferLayout{
-		ArrayStride: 44,
-		StepMode:    gputypes.VertexStepModeVertex,
-		Attributes: []gputypes.VertexAttribute{
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
-		},
-	}
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
-	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
-		Label:  "World Sky Render Pipeline",
-		Layout: layout,
-		Vertex: wgpu.VertexState{
-			Module:     vertexShader,
-			EntryPoint: "vs_main",
-			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
-		},
-		Primitive: gputypes.PrimitiveState{
-			Topology:  gputypes.PrimitiveTopologyTriangleList,
-			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeFront,
-		},
-		DepthStencil: depthStencil,
-		Multisample: gputypes.MultisampleState{
-			Count:                  1,
-			Mask:                   0xFFFFFFFF,
-			AlphaToCoverageEnabled: false,
-		},
-		Fragment: &wgpu.FragmentState{
-			Module:     fragmentShader,
-			EntryPoint: "fs_main",
-			Targets: []gputypes.ColorTargetState{{
-				Format: surfaceFormat,
-				Blend: &gputypes.BlendState{
-					Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorZero, Operation: gputypes.BlendOperationAdd},
-					Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorZero, Operation: gputypes.BlendOperationAdd},
-				},
-				WriteMask: gputypes.ColorWriteMaskAll,
-			}},
-		},
-	})
-}
-
-func (r *Renderer) createWorldExternalSkyPipeline(device *wgpu.Device, vertexShader, overlayVertexShader, fragmentShader *wgpu.ShaderModule) (*wgpu.RenderPipeline, *wgpu.RenderPipeline, *wgpu.PipelineLayout, *wgpu.BindGroupLayout, error) {
-	if device == nil || vertexShader == nil || overlayVertexShader == nil || fragmentShader == nil || r.uniformBindGroupLayout == nil || r.textureBindGroupLayout == nil || r.worldDynamicLightsBindGroupLayout == nil {
-		return nil, nil, nil, nil, fmt.Errorf("missing external sky pipeline inputs")
-	}
-	textureLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
-		Label: "World External Sky Texture BGL",
-		Entries: []gputypes.BindGroupLayoutEntry{
-			{
-				Binding:    0,
-				Visibility: gputypes.ShaderStageFragment,
-				Sampler: &gputypes.SamplerBindingLayout{
-					Type: gputypes.SamplerBindingTypeFiltering,
-				},
-			},
-			{Binding: 1, Visibility: gputypes.ShaderStageFragment, Texture: &gputypes.TextureBindingLayout{SampleType: gputypes.TextureSampleTypeFloat, ViewDimension: gputypes.TextureViewDimension2D, Multisampled: false}},
-			{Binding: 2, Visibility: gputypes.ShaderStageFragment, Texture: &gputypes.TextureBindingLayout{SampleType: gputypes.TextureSampleTypeFloat, ViewDimension: gputypes.TextureViewDimension2D, Multisampled: false}},
-			{Binding: 3, Visibility: gputypes.ShaderStageFragment, Texture: &gputypes.TextureBindingLayout{SampleType: gputypes.TextureSampleTypeFloat, ViewDimension: gputypes.TextureViewDimension2D, Multisampled: false}},
-			{Binding: 4, Visibility: gputypes.ShaderStageFragment, Texture: &gputypes.TextureBindingLayout{SampleType: gputypes.TextureSampleTypeFloat, ViewDimension: gputypes.TextureViewDimension2D, Multisampled: false}},
-			{Binding: 5, Visibility: gputypes.ShaderStageFragment, Texture: &gputypes.TextureBindingLayout{SampleType: gputypes.TextureSampleTypeFloat, ViewDimension: gputypes.TextureViewDimension2D, Multisampled: false}},
-			{Binding: 6, Visibility: gputypes.ShaderStageFragment, Texture: &gputypes.TextureBindingLayout{SampleType: gputypes.TextureSampleTypeFloat, ViewDimension: gputypes.TextureViewDimension2D, Multisampled: false}},
-		},
-	})
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("create external sky bind group layout: %w", err)
-	}
-	layout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
-		Label:            "World External Sky Pipeline Layout",
-		BindGroupLayouts: []*wgpu.BindGroupLayout{r.uniformBindGroupLayout, textureLayout, r.textureBindGroupLayout, r.textureBindGroupLayout, r.worldDynamicLightsBindGroupLayout},
-	})
-	if err != nil {
-		textureLayout.Release()
-		return nil, nil, nil, nil, fmt.Errorf("create external sky pipeline layout: %w", err)
-	}
-	pipeline, err := r.createWorldSkyPipelineWithDepthWrite(device, vertexShader, fragmentShader, layout, true)
-	if err != nil {
-		layout.Release()
-		textureLayout.Release()
-		return nil, nil, nil, nil, fmt.Errorf("create external sky pipeline: %w", err)
-	}
-	overlayPipeline, err := r.createWorldSkyPipelineWithDepthState(device, overlayVertexShader, fragmentShader, layout, gogpuNonDecalDepthStencilState(false))
-	if err != nil {
-		pipeline.Release()
-		layout.Release()
-		textureLayout.Release()
-		return nil, nil, nil, nil, fmt.Errorf("create external sky overlay pipeline: %w", err)
-	}
-	return pipeline, overlayPipeline, layout, textureLayout, nil
-}
-
-func (r *Renderer) createWorldTurbulentPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
-	vertexBufferLayout := gputypes.VertexBufferLayout{
-		ArrayStride: 44,
-		StepMode:    gputypes.VertexStepModeVertex,
-		Attributes: []gputypes.VertexAttribute{
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
-		},
-	}
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
-	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
-		Label:  "World Turbulent Render Pipeline",
-		Layout: layout,
-		Vertex: wgpu.VertexState{
-			Module:     vertexShader,
-			EntryPoint: "vs_main",
-			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
-		},
-		Primitive: gputypes.PrimitiveState{
-			Topology:  gputypes.PrimitiveTopologyTriangleList,
-			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeFront,
-		},
-		DepthStencil: gogpuNonDecalDepthStencilState(true),
-		Multisample: gputypes.MultisampleState{
-			Count:                  1,
-			Mask:                   0xFFFFFFFF,
-			AlphaToCoverageEnabled: false,
-		},
-		Fragment: &wgpu.FragmentState{
-			Module:     fragmentShader,
-			EntryPoint: "fs_main",
-			Targets: []gputypes.ColorTargetState{{
-				Format: surfaceFormat,
-				Blend: &gputypes.BlendState{
-					Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorZero, Operation: gputypes.BlendOperationAdd},
-					Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorZero, Operation: gputypes.BlendOperationAdd},
-				},
-				WriteMask: gputypes.ColorWriteMaskAll,
-			}},
-		},
-	})
-}
-
-func (r *Renderer) createWorldTranslucentPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
-	vertexBufferLayout := gputypes.VertexBufferLayout{
-		ArrayStride: 44,
-		StepMode:    gputypes.VertexStepModeVertex,
-		Attributes: []gputypes.VertexAttribute{
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
-		},
-	}
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
-	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
-		Label:  "World Translucent Render Pipeline",
-		Layout: layout,
-		Vertex: wgpu.VertexState{
-			Module:     vertexShader,
-			EntryPoint: "vs_main",
-			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
-		},
-		Primitive: gputypes.PrimitiveState{
-			Topology:  gputypes.PrimitiveTopologyTriangleList,
-			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeFront,
-		},
-		DepthStencil: gogpuNonDecalDepthStencilState(false),
-		Multisample: gputypes.MultisampleState{
-			Count:                  1,
-			Mask:                   0xFFFFFFFF,
-			AlphaToCoverageEnabled: false,
-		},
-		Fragment: &wgpu.FragmentState{
-			Module:     fragmentShader,
-			EntryPoint: "fs_main",
-			Targets: []gputypes.ColorTargetState{{
-				Format: surfaceFormat,
-				Blend: &gputypes.BlendState{
-					Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorSrcAlpha, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd},
-					Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd},
-				},
-				WriteMask: gputypes.ColorWriteMaskAll,
-			}},
-		},
-	})
-}
-
-func (r *Renderer) createWorldTranslucentTurbulentPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
-	vertexBufferLayout := gputypes.VertexBufferLayout{
-		ArrayStride: 44,
-		StepMode:    gputypes.VertexStepModeVertex,
-		Attributes: []gputypes.VertexAttribute{
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
-			{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
-		},
-	}
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
-	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
-		Label:  "World Translucent Turbulent Render Pipeline",
-		Layout: layout,
-		Vertex: wgpu.VertexState{
-			Module:     vertexShader,
-			EntryPoint: "vs_main",
-			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
-		},
-		Primitive: gputypes.PrimitiveState{
-			Topology:  gputypes.PrimitiveTopologyTriangleList,
-			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeFront,
-		},
-		DepthStencil: gogpuNonDecalDepthStencilState(false),
-		Multisample: gputypes.MultisampleState{
-			Count:                  1,
-			Mask:                   0xFFFFFFFF,
-			AlphaToCoverageEnabled: false,
-		},
-		Fragment: &wgpu.FragmentState{
-			Module:     fragmentShader,
-			EntryPoint: "fs_main",
-			Targets: []gputypes.ColorTargetState{{
-				Format: surfaceFormat,
-				Blend: &gputypes.BlendState{
-					Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorSrcAlpha, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd},
-					Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd},
-				},
-				WriteMask: gputypes.ColorWriteMaskAll,
-			}},
-		},
-	})
-}
-
 func (r *Renderer) createWorldSolidTexture(device *wgpu.Device, queue *wgpu.Queue, label string, pixel [4]byte) (*wgpu.Texture, *wgpu.TextureView, error) {
 	if device == nil || queue == nil {
 		return nil, nil, fmt.Errorf("invalid device or queue")
@@ -614,7 +212,7 @@ func (r *Renderer) createWorldSolidTexture(device *wgpu.Device, queue *wgpu.Queu
 	textureViewDesc := &wgpu.TextureViewDescriptor{
 		Label:           label + " View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
-		Dimension:       gputypes.TextureViewDimension2D,
+		Dimension:       gputypes.TextureViewDimension2DArray,
 		Aspect:          gputypes.TextureAspectAll,
 		BaseMipLevel:    0,
 		MipLevelCount:   1,
@@ -639,10 +237,13 @@ func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queu
 }
 
 func worldLightmapFallbackView(blackView, whiteView *wgpu.TextureView) *wgpu.TextureView {
-	if blackView != nil {
-		return blackView
+	// World faces without lightmap data should sample white (full-bright)
+	// so they remain visible. The black fallback is only appropriate for
+	// brush entity faces where missing lightmaps should stay dark.
+	if whiteView != nil {
+		return whiteView
 	}
-	return whiteView
+	return blackView
 }
 
 func (r *Renderer) createWorldTextureFromRGBA(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, label string, rgba []byte, width, height int) (*gpuWorldTexture, error) {
@@ -675,7 +276,7 @@ func (r *Renderer) createWorldTextureFromRGBA(device *wgpu.Device, queue *wgpu.Q
 	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
 		Label:           label + " View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
-		Dimension:       gputypes.TextureViewDimension2D,
+		Dimension:       gputypes.TextureViewDimension2DArray,
 		Aspect:          gputypes.TextureAspectAll,
 		BaseMipLevel:    0,
 		MipLevelCount:   1,
@@ -688,11 +289,75 @@ func (r *Renderer) createWorldTextureFromRGBA(device *wgpu.Device, queue *wgpu.Q
 	}
 	bindGroup, err := r.createWorldTextureBindGroup(device, sampler, view)
 	if err != nil {
-		view.Release()
 		texture.Release()
+		view.Release()
 		return nil, fmt.Errorf("create world texture bind group: %w", err)
 	}
-	return &gpuWorldTexture{texture: texture, view: view, bindGroup: bindGroup}, nil
+	return &gpuWorldTexture{
+		texture:   texture,
+		view:      view,
+		bindGroup: bindGroup,
+	}, nil
+}
+
+func (r *Renderer) createWorldTextureArrayFromRGBA(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, label string, images []*stdimage.RGBA, width, height int) (*gpuWorldTexture, error) {
+	if device == nil || queue == nil || sampler == nil {
+		return nil, fmt.Errorf("invalid world texture array upload inputs")
+	}
+	layers := len(images)
+	if width <= 0 || height <= 0 || layers == 0 {
+		return nil, fmt.Errorf("invalid world texture array size %dx%dx%d", width, height, layers)
+	}
+	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
+		Label:         label,
+		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: uint32(layers)},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     gputypes.TextureDimension2D,
+		Format:        gputypes.TextureFormatRGBA8Unorm,
+		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create world texture array: %w", err)
+	}
+
+	for i, img := range images {
+		if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
+			Texture:  texture,
+			MipLevel: 0,
+			Aspect:   gputypes.TextureAspectAll,
+			Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: uint32(i)},
+		}, img.Pix, &wgpu.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+			texture.Release()
+			return nil, fmt.Errorf("write world texture array layer %d: %w", i, err)
+		}
+	}
+
+	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
+		Label:           label + " View",
+		Format:          gputypes.TextureFormatRGBA8Unorm,
+		Dimension:       gputypes.TextureViewDimension2DArray,
+		Aspect:          gputypes.TextureAspectAll,
+		BaseMipLevel:    0,
+		MipLevelCount:   1,
+		BaseArrayLayer:  0,
+		ArrayLayerCount: uint32(layers),
+	})
+	if err != nil {
+		texture.Release()
+		return nil, fmt.Errorf("create world texture array view: %w", err)
+	}
+	bindGroup, err := r.createWorldTextureBindGroup(device, sampler, view)
+	if err != nil {
+		texture.Release()
+		view.Release()
+		return nil, fmt.Errorf("create world texture array bind group: %w", err)
+	}
+	return &gpuWorldTexture{
+		texture:   texture,
+		view:      view,
+		bindGroup: bindGroup,
+	}, nil
 }
 
 func shouldDrawGoGPUOpaqueWorldFace(face WorldFace) bool {
@@ -727,27 +392,45 @@ func (r *Renderer) createWorldTextureSampler(device *wgpu.Device) (*wgpu.Sampler
 		AddressModeU: gputypes.AddressModeRepeat,
 		AddressModeV: gputypes.AddressModeRepeat,
 		AddressModeW: gputypes.AddressModeRepeat,
-		MagFilter:     gputypes.FilterModeLinear,
-		MinFilter:     gputypes.FilterModeLinear,
-		MipmapFilter:  gputypes.FilterModeLinear,
-		Anisotropy:    16,
-		LodMinClamp:   0,
-		LodMaxClamp:   0,
+		MagFilter:    gputypes.FilterModeLinear,
+		MinFilter:    gputypes.FilterModeLinear,
+		MipmapFilter: gputypes.FilterModeLinear,
+		Anisotropy:   16,
+		LodMinClamp:  0,
+		LodMaxClamp:  0,
+	})
+}
+
+// createWorldAtlasSampler creates a sampler for atlas-packed textures.
+// ClampToEdge prevents bleeding between atlas sub-rects; the shader handles
+// UV wrapping via fract() before remapping into the atlas.
+func (r *Renderer) createWorldAtlasSampler(device *wgpu.Device) (*wgpu.Sampler, error) {
+	return device.CreateSampler(&wgpu.SamplerDescriptor{
+		Label:        "World Atlas Sampler",
+		AddressModeU: gputypes.AddressModeClampToEdge,
+		AddressModeV: gputypes.AddressModeClampToEdge,
+		AddressModeW: gputypes.AddressModeClampToEdge,
+		MagFilter:    gputypes.FilterModeLinear,
+		MinFilter:    gputypes.FilterModeLinear,
+		MipmapFilter: gputypes.FilterModeLinear,
+		Anisotropy:   16,
+		LodMinClamp:  0,
+		LodMaxClamp:  0,
 	})
 }
 
 func (r *Renderer) createWorldLightmapSampler(device *wgpu.Device) (*wgpu.Sampler, error) {
 	return device.CreateSampler(&wgpu.SamplerDescriptor{
-		Label:          "World Lightmap Sampler",
-		AddressModeU:   gputypes.AddressModeClampToEdge,
-		AddressModeV:   gputypes.AddressModeClampToEdge,
-		AddressModeW:   gputypes.AddressModeClampToEdge,
-		MagFilter:      gputypes.FilterModeLinear,
-		MinFilter:      gputypes.FilterModeLinear,
-		MipmapFilter:   gputypes.FilterModeLinear,
-		Anisotropy:     16,
-		LodMinClamp:    0,
-		LodMaxClamp:    0,
+		Label:        "World Lightmap Sampler",
+		AddressModeU: gputypes.AddressModeClampToEdge,
+		AddressModeV: gputypes.AddressModeClampToEdge,
+		AddressModeW: gputypes.AddressModeClampToEdge,
+		MagFilter:    gputypes.FilterModeLinear,
+		MinFilter:    gputypes.FilterModeLinear,
+		MipmapFilter: gputypes.FilterModeLinear,
+		Anisotropy:   16,
+		LodMinClamp:  0,
+		LodMaxClamp:  0,
 	})
 }
 
@@ -765,73 +448,156 @@ func (r *Renderer) createWorldTextureBindGroup(device *wgpu.Device, sampler *wgp
 	})
 }
 
-func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, textureType model.TextureType, rgba []byte, width, height int) (*gpuWorldTexture, error) {
-	if device == nil || queue == nil || sampler == nil {
-		return nil, fmt.Errorf("invalid world texture upload inputs")
+func (r *Renderer) createWorldLightmapBindGroup(device *wgpu.Device, sampler *wgpu.Sampler, view *wgpu.TextureView) (*wgpu.BindGroup, error) {
+	if device == nil || sampler == nil || view == nil || r.lightmapBindGroupLayout == nil {
+		return nil, fmt.Errorf("missing world lightmap bind group resources")
 	}
-	if width <= 0 || height <= 0 {
-		return nil, fmt.Errorf("invalid world texture size %dx%d", width, height)
-	}
-	if textureType == model.TexTypeCutout {
-		cutout := &stdimage.RGBA{
-			Pix:    rgba,
-			Stride: width * 4,
-			Rect:   stdimage.Rect(0, 0, width, height),
-		}
-		image.AlphaEdgeFix(cutout)
-	}
-	return r.createWorldTextureFromRGBA(device, queue, sampler, "World Diffuse Texture", rgba, width, height)
+	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:  "World Lightmap Array BG",
+		Layout: r.lightmapBindGroupLayout,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Sampler: sampler},
+			{Binding: 1, TextureView: view},
+		},
+	})
 }
 
-func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*surfacepkg.SurfaceTexture) {
+func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, tree *bsp.Tree) (*gpuWorldTexture, *gpuWorldTexture, []*surfacepkg.SurfaceTexture, []WorldMaterialData) {
 	if tree == nil || device == nil || queue == nil || sampler == nil || len(tree.TextureData) < 4 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	textureCount := int(binary.LittleEndian.Uint32(tree.TextureData[:4]))
 	if textureCount <= 0 || len(tree.TextureData) < 4+textureCount*4 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
-	textures := make(map[int32]*gpuWorldTexture, textureCount+2)
-	fullbright := make(map[int32]*gpuWorldTexture)
+
+	atlas := NewWorldTextureAtlas(2048, 2048)
+	fbAtlas := NewWorldTextureAtlas(2048, 2048)
+
+	baseMaterials := make([]WorldMaterialData, textureCount+2)
 	textureNames := make([]string, textureCount)
+
+	// transparent 1x1 black image used as fullbright placeholder for
+	// textures that have no fullbright pixels.
+	fbBlank := &stdimage.RGBA{Pix: []byte{0, 0, 0, 0}, Stride: 4, Rect: stdimage.Rect(0, 0, 1, 1)}
+
+	// Insert dummy textures first so their atlas positions are known upfront.
+	// Faces with missing/invalid miptex indices are remapped to these slots
+	// by worldFaceTextureIndex (textureCount = white, textureCount+1 = transparent).
+	dummyWhite := &stdimage.RGBA{Pix: []byte{255, 255, 255, 255}, Stride: 4, Rect: stdimage.Rect(0, 0, 1, 1)}
+	dummyTransparent := &stdimage.RGBA{Pix: []byte{0, 0, 0, 0}, Stride: 4, Rect: stdimage.Rect(0, 0, 1, 1)}
+	dummyWhiteIns, du, dv, dw, dh, dErr := atlas.InsertWithRect(dummyWhite)
+	if dErr != nil {
+		slog.Warn("failed to insert dummy white texture into atlas", "error", dErr)
+	} else {
+		baseMaterials[textureCount] = WorldMaterialData{
+			AtlasBounds: [4]float32{du, dv, dw, dh},
+			Layer:       float32(dummyWhiteIns.Layer),
+		}
+		fbAtlas.EnsureLayerCount(len(atlas.layers))
+		fbAtlas.DrawAt(fbBlank, dummyWhiteIns)
+	}
+	dummyTransparentIns, dtu, dtv, dtw, dth, dtErr := atlas.InsertWithRect(dummyTransparent)
+	if dtErr != nil {
+		slog.Warn("failed to insert dummy transparent texture into atlas", "error", dtErr)
+	} else {
+		baseMaterials[textureCount+1] = WorldMaterialData{
+			AtlasBounds: [4]float32{dtu, dtv, dtw, dth},
+			Layer:       float32(dummyTransparentIns.Layer),
+		}
+		fbAtlas.EnsureLayerCount(len(atlas.layers))
+		fbAtlas.DrawAt(fbBlank, dummyTransparentIns)
+	}
+
 	for i := 0; i < textureCount; i++ {
 		offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[4+i*4:])))
 		if offset <= 0 || offset >= len(tree.TextureData) {
+			// Point failed textures at the white dummy so faces still render.
+			baseMaterials[i] = baseMaterials[textureCount]
 			continue
 		}
 		miptex, err := image.ParseMipTex(tree.TextureData[offset:])
 		if err != nil {
+			baseMaterials[i] = baseMaterials[textureCount]
 			continue
 		}
 		textureNames[i] = miptex.Name
 		pixels, width, height, err := miptex.MipLevel(0)
 		if err != nil || width <= 0 || height <= 0 {
+			baseMaterials[i] = baseMaterials[textureCount]
 			continue
 		}
 		textureType := classifyWorldTextureName(miptex.Name)
 		materialRGBA := worldimpl.BuildMaterialTextureRGBA(pixels, r.palette, textureType)
-		worldTexture, err := r.createWorldDiffuseTexture(device, queue, sampler, textureType, materialRGBA.DiffuseRGBA, width, height)
+
+		// Apply alpha edge fix for cutout textures (matching the old
+		// createWorldDiffuseTexture path that called AlphaEdgeFix).
+		if textureType == model.TexTypeCutout {
+			cutout := &stdimage.RGBA{
+				Pix:    materialRGBA.DiffuseRGBA,
+				Stride: int(miptex.Width) * 4,
+				Rect:   stdimage.Rect(0, 0, int(miptex.Width), int(miptex.Height)),
+			}
+			image.AlphaEdgeFix(cutout)
+		}
+
+		diffuseImg := &stdimage.RGBA{
+			Pix:    materialRGBA.DiffuseRGBA,
+			Stride: int(miptex.Width) * 4,
+			Rect:   stdimage.Rect(0, 0, int(miptex.Width), int(miptex.Height)),
+		}
+		ins, u, v, w, h, err := atlas.InsertWithRect(diffuseImg)
 		if err != nil {
-			slog.Warn("failed to upload world diffuse texture", "texture", miptex.Name, "error", err)
+			slog.Warn("failed to insert world diffuse texture into atlas", "texture", miptex.Name, "error", err)
 			continue
 		}
-		textures[int32(i)] = worldTexture
-		if !materialRGBA.HasFullbright {
-			continue
+
+		baseMaterials[i] = WorldMaterialData{
+			AtlasBounds: [4]float32{u, v, w, h},
+			Layer:       float32(ins.Layer),
 		}
-		fullbrightTexture, err := r.createWorldTextureFromRGBA(device, queue, sampler, "World Fullbright Texture", materialRGBA.FullbrightRGBA, width, height)
-		if err != nil {
-			slog.Warn("failed to upload world fullbright texture", "texture", miptex.Name, "error", err)
-			continue
+
+		// Insert the fullbright companion at the same layer/rect so both
+		// atlases have identical layouts. Use a transparent placeholder
+		// for textures without fullbright data so the shader can safely
+		// sample the fullbright atlas at every material's position.
+		fbAtlas.EnsureLayerCount(len(atlas.layers))
+		var fbImg *stdimage.RGBA
+		if materialRGBA.HasFullbright {
+			fbImg = &stdimage.RGBA{
+				Pix:    materialRGBA.FullbrightRGBA,
+				Stride: int(miptex.Width) * 4,
+				Rect:   stdimage.Rect(0, 0, int(miptex.Width), int(miptex.Height)),
+			}
+		} else {
+			fbImg = fbBlank
 		}
-		fullbright[int32(i)] = fullbrightTexture
+		fbAtlas.DrawAt(fbImg, ins)
 	}
+
+	diffuseImages := atlas.Flatten()
+
+	// Ensure the fullbright atlas has the same number of layers so both
+	// texture arrays have matching dimensions.
+	fbAtlas.EnsureLayerCount(len(atlas.layers))
+	fbImages := fbAtlas.Flatten()
+
+	var diffuseWorldTexture *gpuWorldTexture
+	if len(diffuseImages) > 0 {
+		diffuseWorldTexture, _ = r.createWorldTextureArrayFromRGBA(device, queue, sampler, "World Diffuse Atlas", diffuseImages, 2048, 2048)
+	}
+
+	var fbWorldTexture *gpuWorldTexture
+	if len(fbImages) > 0 {
+		fbWorldTexture, _ = r.createWorldTextureArrayFromRGBA(device, queue, sampler, "World Fullbright Atlas", fbImages, 2048, 2048)
+	}
+
 	animations, err := surfacepkg.BuildTextureAnimations(textureNames)
 	if err != nil {
 		slog.Warn("failed to build world texture animations", "error", err)
 	}
-	r.uploadWorldMissingTextureDummies(device, queue, sampler, textures, int32(textureCount))
-	return textures, fullbright, animations
+
+	return diffuseWorldTexture, fbWorldTexture, animations, baseMaterials
 }
 
 func shouldSplitAsQuake64Sky(treeVersion int32, width, height int) bool {
@@ -892,21 +658,4 @@ func (r *Renderer) uploadWorldEmbeddedSkyTextures(device *wgpu.Device, queue *wg
 		alpha[int32(i)] = alphaTexture
 	}
 	return solid, alpha
-}
-
-func gogpuWorldTextureForFace(face WorldFace, textures map[int32]*gpuWorldTexture, textureAnimations []*surfacepkg.SurfaceTexture, fallback *gpuWorldTexture, frame int, timeSeconds float64) *gpuWorldTexture {
-	textureIndex := face.TextureIndex
-	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
-		if animated, err := surfacepkg.TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
-			textureIndex = animated.TextureIndex
-		}
-	}
-	worldTexture := textures[textureIndex]
-	if worldTexture == nil && textureIndex != face.TextureIndex {
-		worldTexture = textures[face.TextureIndex]
-	}
-	if worldTexture == nil {
-		return fallback
-	}
-	return worldTexture
 }
