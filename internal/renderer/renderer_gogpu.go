@@ -157,6 +157,13 @@ type Renderer struct {
 	worldBatchCacheEntries        [gogpuWorldBatchCacheEntryCount]gogpuWorldBatchCacheEntry
 	worldBatchCacheNext           int
 
+	// Scratch buffers for render state
+	brushTexturesScratch           map[int32]*gpuWorldTexture
+	brushFullbrightTexturesScratch map[int32]*gpuWorldTexture
+	brushTextureAnimationsScratch  []*surfacepkg.SurfaceTexture
+	brushLightmapPagesScratch      []*gpuWorldTexture
+	activeDynamicLightsScratch     []DynamicLight
+
 	// GPU resources for world rendering
 	worldVertexBuffer                 *wgpu.Buffer
 	worldIndexBuffer                  *wgpu.Buffer

@@ -95,20 +95,37 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	dynamicLightsBuffer := r.worldDynamicLightsBuffer
 	dynamicLightsBindGroup := r.worldDynamicLightsBindGroup
 	camera := r.cameraState
-	worldTextures := make(map[int32]*gpuWorldTexture, len(r.worldTextures))
+	if r.brushTexturesScratch == nil {
+		r.brushTexturesScratch = make(map[int32]*gpuWorldTexture, len(r.worldTextures))
+	} else {
+		clear(r.brushTexturesScratch)
+	}
 	for k, v := range r.worldTextures {
-		worldTextures[k] = v
+		r.brushTexturesScratch[k] = v
 	}
-	worldFullbrightTextures := make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures))
+	worldTextures := r.brushTexturesScratch
+
+	if r.brushFullbrightTexturesScratch == nil {
+		r.brushFullbrightTexturesScratch = make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures))
+	} else {
+		clear(r.brushFullbrightTexturesScratch)
+	}
 	for k, v := range r.worldFullbrightTextures {
-		worldFullbrightTextures[k] = v
+		r.brushFullbrightTexturesScratch[k] = v
 	}
-	worldTextureAnimations := append([]*surfacepkg.SurfaceTexture(nil), r.worldTextureAnimations...)
-	worldLightmapPages := append([]*gpuWorldTexture(nil), r.worldLightmapPages...)
-	var activeDynamicLights []DynamicLight
+	worldFullbrightTextures := r.brushFullbrightTexturesScratch
+
+	r.brushTextureAnimationsScratch = append(r.brushTextureAnimationsScratch[:0], r.worldTextureAnimations...)
+	worldTextureAnimations := r.brushTextureAnimationsScratch
+
+	r.brushLightmapPagesScratch = append(r.brushLightmapPagesScratch[:0], r.worldLightmapPages...)
+	worldLightmapPages := r.brushLightmapPagesScratch
+
+	r.activeDynamicLightsScratch = r.activeDynamicLightsScratch[:0]
 	if r.lightPool != nil {
-		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
+		r.activeDynamicLightsScratch = append(r.activeDynamicLightsScratch, r.lightPool.ActiveLights()...)
 	}
+	activeDynamicLights := r.activeDynamicLightsScratch
 	r.mu.Unlock()
 	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil || vertexScratchBuffer == nil || indexScratchBuffer == nil {
 		return
@@ -156,8 +173,11 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
-	if err := queue.WriteBuffer(dynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(activeDynamicLights)); err != nil {
-		slog.Warn("failed to upload brush dynamic lights", "error", err)
+	ptr1, lightData1 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
+	err1 := queue.WriteBuffer(dynamicLightsBuffer, 0, lightData1)
+	dynamicLightsBytesPool.Put(ptr1)
+	if err1 != nil {
+		slog.Warn("failed to upload brush dynamic lights", "error", err1)
 		return
 	}
 	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)
@@ -395,8 +415,11 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
-	if err := queue.WriteBuffer(dynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(activeDynamicLights)); err != nil {
-		slog.Warn("failed to upload brush sky dynamic lights", "error", err)
+	ptr3, lightData3 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
+	err3 := queue.WriteBuffer(dynamicLightsBuffer, 0, lightData3)
+	dynamicLightsBytesPool.Put(ptr3)
+	if err3 != nil {
+		slog.Warn("failed to upload brush dynamic lights", "error", err3)
 		_ = renderPass.End()
 		return
 	}
@@ -594,19 +617,37 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	dynamicLightsBuffer := r.worldDynamicLightsBuffer
 	dynamicLightsBindGroup := r.worldDynamicLightsBindGroup
 	camera := r.cameraState
-	worldTextures := make(map[int32]*gpuWorldTexture, len(r.worldTextures))
+	if r.brushTexturesScratch == nil {
+		r.brushTexturesScratch = make(map[int32]*gpuWorldTexture, len(r.worldTextures))
+	} else {
+		clear(r.brushTexturesScratch)
+	}
 	for k, v := range r.worldTextures {
-		worldTextures[k] = v
+		r.brushTexturesScratch[k] = v
 	}
-	worldFullbrightTextures := make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures))
+	worldTextures := r.brushTexturesScratch
+
+	if r.brushFullbrightTexturesScratch == nil {
+		r.brushFullbrightTexturesScratch = make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures))
+	} else {
+		clear(r.brushFullbrightTexturesScratch)
+	}
 	for k, v := range r.worldFullbrightTextures {
-		worldFullbrightTextures[k] = v
+		r.brushFullbrightTexturesScratch[k] = v
 	}
-	worldTextureAnimations := append([]*surfacepkg.SurfaceTexture(nil), r.worldTextureAnimations...)
-	var activeDynamicLights []DynamicLight
+	worldFullbrightTextures := r.brushFullbrightTexturesScratch
+
+	r.brushTextureAnimationsScratch = append(r.brushTextureAnimationsScratch[:0], r.worldTextureAnimations...)
+	worldTextureAnimations := r.brushTextureAnimationsScratch
+
+	r.brushLightmapPagesScratch = append(r.brushLightmapPagesScratch[:0], r.worldLightmapPages...)
+	_ = r.brushLightmapPagesScratch
+
+	r.activeDynamicLightsScratch = r.activeDynamicLightsScratch[:0]
 	if r.lightPool != nil {
-		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
+		r.activeDynamicLightsScratch = append(r.activeDynamicLightsScratch, r.lightPool.ActiveLights()...)
 	}
+	activeDynamicLights := r.activeDynamicLightsScratch
 	r.mu.Unlock()
 	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil || vertexScratchBuffer == nil || indexScratchBuffer == nil {
 		return
@@ -653,8 +694,11 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
-	if err := queue.WriteBuffer(dynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(activeDynamicLights)); err != nil {
-		slog.Warn("failed to upload brush liquid dynamic lights", "error", err)
+	ptr2, lightData2 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
+	err2 := queue.WriteBuffer(dynamicLightsBuffer, 0, lightData2)
+	dynamicLightsBytesPool.Put(ptr2)
+	if err2 != nil {
+		slog.Warn("failed to upload brush dynamic lights", "error", err2)
 		return
 	}
 	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)

@@ -1,10 +1,8 @@
 package renderer
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log/slog"
-	"math"
 	"unsafe"
 
 	"github.com/gogpu/gputypes"
@@ -326,11 +324,10 @@ func recompositeDirtySurfaces(rgba []byte, page WorldLightmapPage, values [256]f
 
 // Helper functions to convert Go types to byte slices
 func float32ToBytes(f []float32) []byte {
-	result := make([]byte, len(f)*4)
-	for i, v := range f {
-		binary.LittleEndian.PutUint32(result[i*4:i*4+4], math.Float32bits(v))
+	if len(f) == 0 {
+		return nil
 	}
-	return result
+	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(f))), len(f)*4)
 }
 
 func uint32SliceToBytes(values []uint32) []byte {

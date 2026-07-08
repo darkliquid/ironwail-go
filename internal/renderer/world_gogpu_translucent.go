@@ -66,20 +66,14 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 		transparentBindGroup:    r.transparentBindGroup,
 		depthView:               r.worldDepthTextureView,
 		camera:                  r.cameraState,
-		worldTextures:           make(map[int32]*gpuWorldTexture, len(r.worldTextures)),
-		worldFullbrightTextures: make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures)),
-		worldTextureAnimations:  append([]*surfacepkg.SurfaceTexture(nil), r.worldTextureAnimations...),
-		worldLightmapPages:      append([]*gpuWorldTexture(nil), r.worldLightmapPages...),
+		worldTextures:           r.worldTextures,
+		worldFullbrightTextures: r.worldFullbrightTextures,
+		worldTextureAnimations:  r.worldTextureAnimations,
+		worldLightmapPages:      r.worldLightmapPages,
 		unlock:                  r.mu.RUnlock,
 	}
-	for k, v := range r.worldTextures {
-		res.worldTextures[k] = v
-	}
-	for k, v := range r.worldFullbrightTextures {
-		res.worldFullbrightTextures[k] = v
-	}
 	if r.lightPool != nil {
-		res.activeDynamicLights = append(res.activeDynamicLights, r.lightPool.ActiveLights()...)
+		res.activeDynamicLights = r.lightPool.ActiveLights()
 	}
 	if res.translucentPipeline == nil || res.liquidPipeline == nil || res.uniformBuffer == nil || res.uniformBindGroup == nil || res.uniformBindGroupLayout == nil || res.dynamicLightsBuffer == nil || res.dynamicLightsBindGroup == nil || res.whiteTextureBindGroup == nil || res.whiteLightmapBindGroup == nil {
 		res.unlock()
@@ -530,7 +524,10 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	// before the first SetBindGroup call in this pass.
 	renderPass.SetPipeline(res.alphaTestPipeline)
 	renderPass.SetBindGroup(0, res.uniformBindGroup, nil)
-	if err := res.queue.WriteBuffer(res.dynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(res.activeDynamicLights)); err != nil {
+	ptr, lightData := encodeGoGPUWorldDynamicLights(res.activeDynamicLights)
+	err = res.queue.WriteBuffer(res.dynamicLightsBuffer, 0, lightData)
+	dynamicLightsBytesPool.Put(ptr)
+	if err != nil {
 		slog.Warn("failed to upload alpha-test brush dynamic lights", "error", err)
 		return
 	}
@@ -613,8 +610,11 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	// before its first SetBindGroup call.
 	renderPass.SetPipeline(res.translucentPipeline)
 	renderPass.SetBindGroup(0, res.uniformBindGroup, nil)
-	if err := res.queue.WriteBuffer(res.dynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(res.activeDynamicLights)); err != nil {
-		slog.Warn("failed to upload late translucent dynamic lights", "error", err)
+	ptr, lightData := encodeGoGPUWorldDynamicLights(res.activeDynamicLights)
+	err = res.queue.WriteBuffer(res.dynamicLightsBuffer, 0, lightData)
+	dynamicLightsBytesPool.Put(ptr)
+	if err != nil {
+		slog.Warn("failed to upload translucent brush dynamic lights", "error", err)
 		return
 	}
 	renderPass.SetBindGroup(4, res.dynamicLightsBindGroup, nil)

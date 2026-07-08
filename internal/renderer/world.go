@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"math"
 	"sort"
+	"sync"
 	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
@@ -226,10 +227,19 @@ type gogpuWorldMaterialBindState struct {
 	fullbright  *wgpu.BindGroup
 }
 
-func encodeGoGPUWorldDynamicLights(lights []DynamicLight) []byte {
-	data := make([]byte, gogpuWorldDynamicLightHeaderSize+len(lights)*gogpuWorldDynamicLightBufferStride)
+var dynamicLightsBytesPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, gogpuWorldDynamicLightHeaderSize+gogpuWorldDynamicLightBufferMax*gogpuWorldDynamicLightBufferStride)
+		return &b
+	},
+}
+
+func encodeGoGPUWorldDynamicLights(lights []DynamicLight) (*[]byte, []byte) {
+	ptr := dynamicLightsBytesPool.Get().(*[]byte)
+	data := *ptr
+	
 	if !dynamicLightsEnabled() || len(lights) == 0 {
-		return data[:gogpuWorldDynamicLightHeaderSize]
+		return ptr, data[:gogpuWorldDynamicLightHeaderSize]
 	}
 	count := 0
 	for _, light := range lights {
@@ -253,7 +263,7 @@ func encodeGoGPUWorldDynamicLights(lights []DynamicLight) []byte {
 		count++
 	}
 	binary.LittleEndian.PutUint32(data[:4], uint32(count))
-	return data[:gogpuWorldDynamicLightHeaderSize+count*gogpuWorldDynamicLightBufferStride]
+	return ptr, data[:gogpuWorldDynamicLightHeaderSize+count*gogpuWorldDynamicLightBufferStride]
 }
 
 func (s *gogpuWorldMaterialBindState) invalidate() {

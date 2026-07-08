@@ -99,7 +99,8 @@ func TestEncodeGoGPUWorldDynamicLights(t *testing.T) {
 		Lifetime:   10,
 		Age:        2.5,
 	}}
-	got := encodeGoGPUWorldDynamicLights(lights)
+	ptr, got := encodeGoGPUWorldDynamicLights(lights)
+	defer dynamicLightsBytesPool.Put(ptr)
 	if len(got) != gogpuWorldDynamicLightHeaderSize+gogpuWorldDynamicLightBufferStride {
 		t.Fatalf("encoded byte length = %d, want %d", len(got), gogpuWorldDynamicLightHeaderSize+gogpuWorldDynamicLightBufferStride)
 	}

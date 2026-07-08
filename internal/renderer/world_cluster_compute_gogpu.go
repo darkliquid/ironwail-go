@@ -78,8 +78,10 @@ func (r *Renderer) dispatchWorldClusterCompute(device *wgpu.Device, queue *wgpu.
 	}
 
 	// 1. Upload dynamic lights (if not already done elsewhere, but we can do it here to ensure it's done before compute)
-	lightData := encodeGoGPUWorldDynamicLights(activeLights)
-	if err := queue.WriteBuffer(r.worldDynamicLightsBuffer, 0, lightData); err != nil {
+	ptr, lightData := encodeGoGPUWorldDynamicLights(activeLights)
+	err := queue.WriteBuffer(r.worldDynamicLightsBuffer, 0, lightData)
+	dynamicLightsBytesPool.Put(ptr)
+	if err != nil {
 		return fmt.Errorf("upload dynamic lights: %w", err)
 	}
 
