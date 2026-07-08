@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/client"
@@ -37,6 +38,55 @@ type RefFrameState struct {
 	Lights     []RefLight  `json:"lights"`
 }
 
+// ParityTolerances defines the configurable thresholds for verifying frame-state match.
+type ParityTolerances struct {
+	ViewOrg               float32
+	ViewAngles            float32
+	ViewMatrixRotation    float32
+	ViewMatrixTranslation float32
+	EntityOrigin          float32
+}
+
+// ParityConfig defines the execution and validation settings for a demo parity run.
+type ParityConfig struct {
+	DemoName       string
+	ReferenceFile  string
+	VidWidth       string
+	VidHeight      string
+	Tolerances     ParityTolerances
+	PrePumpFrames  int
+	CatchUpFrames  int
+}
+
+// DefaultParityTolerances returns standard thresholds allowing for float drift and lack of Go damage kicks.
+func DefaultParityTolerances() ParityTolerances {
+	return ParityTolerances{
+		ViewOrg:               15.0,
+		ViewAngles:            8.0,
+		ViewMatrixRotation:    0.2,
+		ViewMatrixTranslation: 200.0,
+		EntityOrigin:          15.0,
+	}
+}
+
+// DefaultParityConfig returns a configuration pre-populated with standard parameters.
+func DefaultParityConfig(demoName string) ParityConfig {
+	return ParityConfig{
+		DemoName:       demoName,
+		ReferenceFile:  "../../testdata/parity/reference_" + demoName + "_state.json",
+		VidWidth:       "1237",
+		VidHeight:      "1428",
+		Tolerances:     DefaultParityTolerances(),
+		PrePumpFrames:  10,
+		CatchUpFrames:  1,
+	}
+}
+
+// Global registry of customized demo test parameters.
+var parityTestCases = map[string]ParityConfig{
+	"demo1": DefaultParityConfig("demo1"),
+}
+
 func floatEquals(a, b, epsilon float32) bool {
 	return math.Abs(float64(a-b)) <= float64(epsilon)
 }
@@ -50,11 +100,45 @@ func vecEquals(a, b [3]float32, epsilon float32) bool {
 func TestDemoStateParity(t *testing.T) {
 	quakeDir := testutil.SkipIfNoQuakeDir(t)
 
-	// Open the C reference state dump
-	refPath := "../../testdata/parity/reference_demo_state.json"
-	file, err := os.Open(refPath)
+	// Discover all reference dumps in '../../testdata/parity'
+	files, err := os.ReadDir("../../testdata/parity")
 	if err != nil {
-		t.Fatalf("Failed to open C reference state dump file %s: %v", refPath, err)
+		t.Fatalf("Failed to scan parity directory: %v", err)
+	}
+
+	var foundRefFiles bool
+	for _, entry := range files {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasPrefix(name, "reference_") || !strings.HasSuffix(name, "_state.json") {
+			continue
+		}
+		demoName := strings.TrimSuffix(strings.TrimPrefix(name, "reference_"), "_state.json")
+		foundRefFiles = true
+
+		config, ok := parityTestCases[demoName]
+		if !ok {
+			config = DefaultParityConfig(demoName)
+			config.ReferenceFile = "../../testdata/parity/" + name
+		}
+
+		t.Run(demoName, func(t *testing.T) {
+			runParityTest(t, quakeDir, config)
+		})
+	}
+
+	if !foundRefFiles {
+		t.Fatal("No reference files found in testdata/parity")
+	}
+}
+
+func runParityTest(t *testing.T, quakeDir string, config ParityConfig) {
+	// Open the C reference state dump
+	file, err := os.Open(config.ReferenceFile)
+	if err != nil {
+		t.Fatalf("Failed to open C reference state dump file %s: %v", config.ReferenceFile, err)
 	}
 	defer file.Close()
 
@@ -87,8 +171,8 @@ func TestDemoStateParity(t *testing.T) {
 	}
 
 	// Set exact dimensions to match C projection matrix aspect ratio
-	g.Host.CVar.Set("vid_width", "1237")
-	g.Host.CVar.Set("vid_height", "1428")
+	g.Host.CVar.Set("vid_width", config.VidWidth)
+	g.Host.CVar.Set("vid_height", config.VidHeight)
 
 	if err := g.InitSubsystems(false, false, 1, quakeDir, "id1", nil); err != nil {
 		t.Fatalf("InitSubsystems: %v", err)
@@ -99,7 +183,7 @@ func TestDemoStateParity(t *testing.T) {
 	g.Subs.Console = &demoPlaybackConsole{}
 
 	// Start timedemo playback
-	g.Host.CmdTimedemo("demo1", g.Subs)
+	g.Host.CmdTimedemo(config.DemoName, g.Subs)
 
 	demo := g.Host.DemoState()
 	if demo == nil || !demo.Playback {
@@ -114,7 +198,7 @@ func TestDemoStateParity(t *testing.T) {
 	g.Host.SetMaxFPS(72)
 
 	// Pump frames until the client transitions to StateActive (gameplay starts)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < config.PrePumpFrames; i++ {
 		g.RunRuntimeFrame(0.013888, gameCallbacks{g: g})
 		g.ApplyQueuedRendererAssets()
 		g.uploadDeferredRuntimeWorld()
@@ -127,10 +211,12 @@ func TestDemoStateParity(t *testing.T) {
 		t.Fatal("Client did not transition to Active state")
 	}
 
-	// Run one extra frame to catch up and align perfectly with C active frames
-	g.RunRuntimeFrame(0.013888, gameCallbacks{g: g})
-	g.ApplyQueuedRendererAssets()
-	g.uploadDeferredRuntimeWorld()
+	// Run extra frame(s) to catch up and align perfectly with C active frames
+	for i := 0; i < config.CatchUpFrames; i++ {
+		g.RunRuntimeFrame(0.013888, gameCallbacks{g: g})
+		g.ApplyQueuedRendererAssets()
+		g.uploadDeferredRuntimeWorld()
+	}
 
 	// Run the frames and assert parity
 	for frameIdx, ref := range refStates {
@@ -159,14 +245,12 @@ func TestDemoStateParity(t *testing.T) {
 		finalAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
 
 		// 1. Camera Origin & Angles comparison
-		// Tolerance is set to 15.0 units for coordinates and 8.0 degrees for angles
-		// to allow for tiny physics float accumulator drift and missing damage kicks.
-		if !vecEquals(origin, ref.ViewOrg, 15.0) {
+		if !vecEquals(origin, ref.ViewOrg, config.Tolerances.ViewOrg) {
 			t.Errorf("Frame %d (%d): ViewOrg got %v, want %v (diff: %f, %f, %f)",
 				frameIdx, ref.Frame, origin, ref.ViewOrg,
 				origin[0]-ref.ViewOrg[0], origin[1]-ref.ViewOrg[1], origin[2]-ref.ViewOrg[2])
 		}
-		if !vecEquals(finalAngles, ref.ViewAngles, 8.0) {
+		if !vecEquals(finalAngles, ref.ViewAngles, config.Tolerances.ViewAngles) {
 			t.Errorf("Frame %d (%d): ViewAngles got %v, want %v (diff: %f, %f, %f)",
 				frameIdx, ref.Frame, finalAngles, ref.ViewAngles,
 				finalAngles[0]-ref.ViewAngles[0], finalAngles[1]-ref.ViewAngles[1], finalAngles[2]-ref.ViewAngles[2])
@@ -193,15 +277,13 @@ func TestDemoStateParity(t *testing.T) {
 		}
 
 		// 3. View Matrix comparison
-		// Rotation component (indices 0..11 except 3,7,11 which are 0) uses tight 0.2 tolerance.
-		// Translation component (indices 12..14) uses relaxed 200.0 tolerance due to angle-dependent rotation of the coordinate system.
 		if g.Renderer != nil {
 			if r, ok := g.Renderer.(*renderer.Renderer); ok {
 				viewMat := r.ViewMatrix()
 				for i := 0; i < 16; i++ {
-					epsilon := float32(0.2)
+					epsilon := config.Tolerances.ViewMatrixRotation
 					if i >= 12 && i <= 14 {
-						epsilon = 200.0
+						epsilon = config.Tolerances.ViewMatrixTranslation
 					}
 					if !floatEquals(viewMat[i], ref.MatView[i], epsilon) {
 						t.Errorf("Frame %d (%d): ViewMatrix[%d] got %f, want %f", frameIdx, ref.Frame, i, viewMat[i], ref.MatView[i])
@@ -211,7 +293,6 @@ func TestDemoStateParity(t *testing.T) {
 		}
 
 		// 4. Visible Entities matching
-		// Assert that every visible entity in C is present in Go at the same location (with 15.0 tolerance)
 		for _, refEnt := range ref.Visedicts {
 			var found bool
 			var foundState inet.EntityState
@@ -241,8 +322,8 @@ func TestDemoStateParity(t *testing.T) {
 				modelName = clientState.ModelPrecache[int(foundState.ModelIndex)-1]
 			}
 
-			// Log discrepancies exceeding 15.0 units or different models
-			if modelName != refEnt.Model || !vecEquals(foundState.Origin, refEnt.Origin, 15.0) {
+			// Verify entity properties against tolerance
+			if modelName != refEnt.Model || !vecEquals(foundState.Origin, refEnt.Origin, config.Tolerances.EntityOrigin) {
 				t.Errorf("Frame %d (%d): Entity %d model/pos diff. Go Model=%q (index=%d), Want Model=%q. Go Pos=%v, Want Pos=%v",
 					frameIdx, ref.Frame, refEnt.Number, modelName, foundState.ModelIndex, refEnt.Model, foundState.Origin, refEnt.Origin)
 			}

@@ -165,6 +165,21 @@ description = "Capture reference + GoGPU Go screenshots and compare them"
 depends = ["build"]
 run = "go run ./tools/parity_screenshots both"
 
+[tasks.build-parity-generator]
+description = "Build the C-Go frame state reference generator utility"
+run = "go build -o bin/parity_generator ./tools/parity_generator"
+
+[tasks.parity-generate]
+description = "Generate a reference state JSON dump for a specific demo from C Ironwail"
+depends = ["build-parity-generator"]
+run = """
+if [ -z "$1" ]; then
+  echo "Usage: mise run parity-generate <demo_name>" >&2
+  exit 1
+fi
+./bin/parity_generator "$1"
+"""
+
 [tasks.go-generate]
 hide = true
 description = "Run go generate (internal task)"
