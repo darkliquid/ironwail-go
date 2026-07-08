@@ -327,7 +327,7 @@ func (r *Renderer) ensureBrushEntityScratchBuffersLocked(device *wgpu.Device, ve
 // ensureAliasUniformBufferLocked grows the alias uniform buffer and rebuilds
 // the bind group when the current buffer is too small for numDraws draws.
 func (r *Renderer) ensureAliasUniformBufferLocked(device *wgpu.Device, numDraws int) error {
-	needed := uint64(numDraws) * aliasUniformAlign
+	needed := uint64(numDraws) * worldUniformAlign
 	if needed < aliasSceneUniformBufferSize {
 		needed = aliasSceneUniformBufferSize
 	}

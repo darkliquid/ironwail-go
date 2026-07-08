@@ -114,6 +114,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// Skip clear when world rendering is active - the world render pass will handle clearing,
 	// and gogpu will use LoadOpLoad to preserve our world rendering when drawing the overlay.
 	sceneTargetActive := shouldUseSceneRenderTarget(state) && dc.enableSceneRenderTarget()
+	dc.renderer.resetUniformBuffer()
 	phaseBegin()
 	if !state.DrawWorld && !sceneTargetActive {
 		// When the in-game menu is up without an active world pass, preserve the

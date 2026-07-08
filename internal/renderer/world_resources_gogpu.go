@@ -167,7 +167,7 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 				Visibility: gputypes.ShaderStageVertex | gputypes.ShaderStageFragment,
 				Buffer: &gputypes.BufferBindingLayout{
 					Type:             gputypes.BufferBindingTypeUniform,
-					HasDynamicOffset: false,
+					HasDynamicOffset: true,
 					MinBindingSize:   worldUniformBufferSize,
 				},
 			},

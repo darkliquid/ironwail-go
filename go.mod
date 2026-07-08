@@ -4,11 +4,11 @@ go 1.26
 
 require (
 	github.com/ebitengine/oto/v3 v3.5.0-alpha.6
-	github.com/gogpu/gogpu v0.34.0
-	github.com/gogpu/gpucontext v0.18.0
-	github.com/gogpu/gputypes v0.5.0
-	github.com/gogpu/naga v0.17.13
-	github.com/gogpu/wgpu v0.27.1
+	github.com/gogpu/gogpu v0.44.1
+	github.com/gogpu/gpucontext v0.21.0
+	github.com/gogpu/gputypes v0.5.1
+	github.com/gogpu/naga v0.17.15
+	github.com/gogpu/wgpu v0.30.10
 	github.com/gotracker/playback v1.5.0
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jfreymuth/oggvorbis v1.0.5
@@ -19,8 +19,8 @@ require (
 
 require (
 	github.com/ebitengine/purego v0.10.0 // indirect
-	github.com/go-webgpu/goffi v0.5.0 // indirect
-	github.com/go-webgpu/webgpu v0.4.3 // indirect
+	github.com/go-webgpu/goffi v0.5.6 // indirect
+	github.com/go-webgpu/webgpu v0.5.2 // indirect
 	github.com/gotracker/goaudiofile v1.0.16 // indirect
 	github.com/gotracker/opl2 v1.0.2 // indirect
 	github.com/heucuva/comparison v1.0.0 // indirect
@@ -33,7 +33,7 @@ require (
 	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9 // indirect
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 )
 
 tool golang.org/x/tools/cmd/stringer

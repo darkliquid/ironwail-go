@@ -269,7 +269,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	// Create uniform buffer for VP matrix
 	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "World Uniforms",
-		Size:             worldUniformBufferSize,
+		Size:             worldUniformAlign * worldUniformMaxDraws,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})

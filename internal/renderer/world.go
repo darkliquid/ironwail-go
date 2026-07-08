@@ -16,6 +16,8 @@ import (
 
 const (
 	worldUniformBufferSize             = 128
+	worldUniformAlign                  = 256
+	worldUniformMaxDraws               = 8192
 	gogpuWorldDynamicLightBufferMax    = 512
 	gogpuWorldDynamicLightBufferStride = 32
 	gogpuWorldDynamicLightHeaderSize   = 16

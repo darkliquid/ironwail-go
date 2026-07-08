@@ -523,7 +523,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	// currently bound pipeline layout, so a known-good world pipeline must be selected
 	// before the first SetBindGroup call in this pass.
 	renderPass.SetPipeline(res.alphaTestPipeline)
-	renderPass.SetBindGroup(0, res.uniformBindGroup, nil)
+	passStartUniformOffset := dc.renderer.uniformOffset
 	ptr, lightData := encodeGoGPUWorldDynamicLights(res.activeDynamicLights)
 	err = res.queue.WriteBuffer(res.dynamicLightsBuffer, 0, lightData)
 	dynamicLightsBytesPool.Put(ptr)
@@ -536,14 +536,11 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	vpMatrix := dc.renderer.ViewProjectionMatrix()
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
 	timeSeconds := float64(timeValue)
-	var uniformData [worldUniformBufferSize]byte
 	var materialBindState gogpuWorldMaterialBindState
 	for _, draw := range renders {
-		fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, 0)
-		if err := res.queue.WriteBuffer(res.uniformBuffer, 0, uniformData[:]); err != nil {
-			slog.Warn("failed to update alpha-test brush uniform buffer", "error", err)
-			continue
-		}
+		offset, uData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
+		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, 0)
+		renderPass.SetBindGroup(0, res.uniformBindGroup, []uint32{offset})
 		renderPass.SetVertexBuffer(0, draw.bufferPair[0], draw.vertexOffset)
 		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, draw.indexOffset)
 		textureBindGroup, fullbrightBindGroup := gogpuLateTranslucentTextureBindGroups(res, draw, timeSeconds)
@@ -567,6 +564,9 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	if err != nil {
 		slog.Warn("failed to finish alpha-test brush encoding", "error", err)
 		return
+	}
+	if dc.renderer.uniformOffset > passStartUniformOffset {
+		_ = res.queue.WriteBuffer(res.uniformBuffer, uint64(passStartUniformOffset), dc.renderer.uniformDataScratch[passStartUniformOffset:dc.renderer.uniformOffset])
 	}
 	if _, err := res.queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit alpha-test brush commands", "error", err)
@@ -609,7 +609,7 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	// pipeline layout, so the sorted late-translucent pass must select a pipeline
 	// before its first SetBindGroup call.
 	renderPass.SetPipeline(res.translucentPipeline)
-	renderPass.SetBindGroup(0, res.uniformBindGroup, nil)
+	passStartUniformOffset := dc.renderer.uniformOffset
 	ptr, lightData := encodeGoGPUWorldDynamicLights(res.activeDynamicLights)
 	err = res.queue.WriteBuffer(res.dynamicLightsBuffer, 0, lightData)
 	dynamicLightsBytesPool.Put(ptr)
@@ -622,16 +622,13 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	vpMatrix := dc.renderer.ViewProjectionMatrix()
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
 	timeSeconds := float64(timeValue)
-	var uniformData [worldUniformBufferSize]byte
 	currentPipeline := res.translucentPipeline
 	var materialBindState gogpuWorldMaterialBindState
 	for _, draw := range renders {
 		lightmapBindGroup, litWater := gogpuLateTranslucentLightmapBindGroup(res, draw)
-		fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, litWater)
-		if err := res.queue.WriteBuffer(res.uniformBuffer, 0, uniformData[:]); err != nil {
-			slog.Warn("failed to update late translucent uniform buffer", "error", err)
-			continue
-		}
+		offset, uData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
+		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, litWater)
+		renderPass.SetBindGroup(0, res.uniformBindGroup, []uint32{offset})
 		pipeline := res.translucentPipeline
 		if draw.liquid {
 			pipeline = res.liquidPipeline
@@ -663,6 +660,9 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	if err != nil {
 		slog.Warn("failed to finish late translucent encoding", "error", err)
 		return
+	}
+	if dc.renderer.uniformOffset > passStartUniformOffset {
+		_ = res.queue.WriteBuffer(res.uniformBuffer, uint64(passStartUniformOffset), dc.renderer.uniformDataScratch[passStartUniformOffset:dc.renderer.uniformOffset])
 	}
 	if _, err := res.queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit late translucent commands", "error", err)

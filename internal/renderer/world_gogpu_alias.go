@@ -17,7 +17,6 @@ import (
 const (
 	aliasUniformBufferSize      = 80
 	aliasSceneUniformBufferSize = 96
-	aliasUniformAlign           = 256 // minUniformBufferOffsetAlignment
 	aliasInitialDrawCapacity    = 64  // initial capacity for batched draws
 	aliasVertexStride           = 44
 )
@@ -109,7 +108,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 
 	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Uniform Buffer",
-		Size:             uint64(aliasInitialDrawCapacity) * aliasUniformAlign,
+		Size:             uint64(aliasInitialDrawCapacity) * worldUniformAlign,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
@@ -711,7 +710,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		if len(vertexScratch) == 0 {
 			continue
 		}
-		uniformOffsets[i] = uint32(i) * aliasUniformAlign
+		uniformOffsets[i] = uint32(i) * worldUniformAlign
 		vertexOffsets[i] = currentVertexOffset
 		vertexCounts[i] = pd.vertexCount
 

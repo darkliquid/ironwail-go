@@ -163,8 +163,8 @@ type Renderer struct {
 	brushTextureAnimationsScratch  []*surfacepkg.SurfaceTexture
 	brushLightmapPagesScratch      []*gpuWorldTexture
 	activeDynamicLightsScratch     []DynamicLight
-
-	// GPU resources for world rendering
+	uniformDataScratch             []byte
+	uniformOffset                  uint32
 	worldVertexBuffer                 *wgpu.Buffer
 	worldIndexBuffer                  *wgpu.Buffer
 	worldDynamicIndexBuffer           *wgpu.Buffer

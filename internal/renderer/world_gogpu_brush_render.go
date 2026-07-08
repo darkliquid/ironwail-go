@@ -172,7 +172,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
-	renderPass.SetBindGroup(0, uniformBindGroup, nil)
+	passStartUniformOffset := r.uniformOffset
 	ptr1, lightData1 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
 	err1 := queue.WriteBuffer(dynamicLightsBuffer, 0, lightData1)
 	dynamicLightsBytesPool.Put(ptr1)
@@ -185,7 +185,6 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	timeSeconds := float64(camera.Time)
-	var uniformData [worldUniformBufferSize]byte
 	var materialBindState gogpuWorldMaterialBindState
 	for _, preparedDraw := range scratch.classifiedPrepared {
 		draw := scratch.classifiedDraws[preparedDraw.drawIndex]
@@ -205,11 +204,9 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		if len(draw.opaqueFaces) > 0 {
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.opaqueIndexOffset)
 			for _, face := range draw.opaqueFaces {
-				fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
-				if err := queue.WriteBuffer(uniformBuffer, 0, uniformData[:]); err != nil {
-					slog.Warn("failed to update brush uniform buffer", "error", err)
-					continue
-				}
+				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
+				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
+				renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
 				if worldTexture := gogpuWorldTextureForFace(face, drawTextures, drawAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 					textureBindGroup = worldTexture.bindGroup
@@ -244,11 +241,9 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		if len(draw.alphaTestFaces) > 0 {
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.alphaTestIndexOffset)
 			for _, face := range draw.alphaTestFaces {
-				fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
-				if err := queue.WriteBuffer(uniformBuffer, 0, uniformData[:]); err != nil {
-					slog.Warn("failed to update brush uniform buffer", "error", err)
-					continue
-				}
+				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
+				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
+				renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
 				if worldTexture := gogpuWorldTextureForFace(face, drawTextures, drawAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 					textureBindGroup = worldTexture.bindGroup
@@ -288,6 +283,9 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	if err != nil {
 		slog.Warn("failed to finish brush entity encoding", "error", err)
 		return
+	}
+	if r.uniformOffset > passStartUniformOffset {
+		_ = queue.WriteBuffer(uniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
 	}
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush entity commands", "error", err)
@@ -414,7 +412,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
-	renderPass.SetBindGroup(0, uniformBindGroup, nil)
+	passStartUniformOffset := r.uniformOffset
 	ptr3, lightData3 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
 	err3 := queue.WriteBuffer(dynamicLightsBuffer, 0, lightData3)
 	dynamicLightsBytesPool.Put(ptr3)
@@ -454,16 +452,13 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 			continue
 		}
 		buffers = append(buffers, vertexBuffer, indexBuffer)
-		var uniformData [worldUniformBufferSize]byte
+		offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
 		if useExternalSky {
-			fillWorldSceneUniformBytesWithExternalSkyWind(uniformData[:], vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, externalSkyWind, externalSkyWindLoaded)
+			fillWorldSceneUniformBytesWithExternalSkyWind(uData, vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, externalSkyWind, externalSkyWindLoaded)
 		} else {
-			fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, 1, 0)
+			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, 1, 0)
 		}
-		if err := queue.WriteBuffer(uniformBuffer, 0, uniformData[:]); err != nil {
-			slog.Warn("failed to update brush sky uniform buffer", "error", err)
-			continue
-		}
+		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
 		renderPass.SetVertexBuffer(0, vertexBuffer, 0)
 		renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
 		for _, face := range draw.faces {
@@ -510,6 +505,9 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	if logExternalSkyDraw {
 		slog.Info("external sky brush encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
 		slog.Info("external sky brush queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+	}
+	if r.uniformOffset > passStartUniformOffset {
+		_ = queue.WriteBuffer(uniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
 	}
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush sky commands", "error", err)
@@ -693,7 +691,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
-	renderPass.SetBindGroup(0, uniformBindGroup, nil)
+	passStartUniformOffset := r.uniformOffset
 	ptr2, lightData2 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
 	err2 := queue.WriteBuffer(dynamicLightsBuffer, 0, lightData2)
 	dynamicLightsBytesPool.Put(ptr2)
@@ -706,7 +704,6 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	timeSeconds := float64(camera.Time)
-	var uniformData [worldUniformBufferSize]byte
 	var materialBindState gogpuWorldMaterialBindState
 	for _, preparedDraw := range scratch.opaquePrepared {
 		draw := scratch.opaqueDraws[preparedDraw.drawIndex]
@@ -730,11 +727,9 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 				textureBindGroup = worldTexture.bindGroup
 			}
 			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(face, draw.lightmaps, whiteLightmapBindGroup, preparedDraw.hasLitWater)
-			fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1, litWater)
-			if err := queue.WriteBuffer(uniformBuffer, 0, uniformData[:]); err != nil {
-				slog.Warn("failed to update brush liquid uniform buffer", "error", err)
-				continue
-			}
+			offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
+			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1, litWater)
+			renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
 			fullbrightBindGroup := transparentBindGroup
 			if worldTexture := gogpuWorldTextureForFace(face, drawFullbright, drawAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 				fullbrightBindGroup = worldTexture.bindGroup
@@ -759,6 +754,9 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	if err != nil {
 		slog.Warn("failed to finish brush liquid encoding", "error", err)
 		return
+	}
+	if r.uniformOffset > passStartUniformOffset {
+		_ = queue.WriteBuffer(uniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
 	}
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush liquid commands", "error", err)
