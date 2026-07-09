@@ -16,26 +16,15 @@ type WorldMaterialData struct {
 // worldMaterialsBufferSize is the maximum size for the materials uniform buffer.
 const worldMaterialsBufferSize = 256 * int(unsafe.Sizeof(WorldMaterialData{}))
 
-// updateWorldMaterialsBuffer updates the materials uniform buffer with animated
-// texture layers. The caller must already hold r.mu (at least RLock) since this
-// reads r.worldBaseMaterials and r.worldTextureAnimations without locking.
-func (r *Renderer) updateWorldMaterialsBuffer(queue *wgpu.Queue, timeValue float32) error {
-	if r.worldMaterialsBuffer == nil || len(r.worldBaseMaterials) == 0 {
+// animateWorldMaterials returns a copy of baseMaterials with active texture animations applied.
+func animateWorldMaterials(baseMaterials []WorldMaterialData, animations []*surfacepkg.SurfaceTexture, timeValue float32) []WorldMaterialData {
+	if len(baseMaterials) == 0 {
 		return nil
 	}
+	animatedMaterials := make([]WorldMaterialData, len(baseMaterials))
+	copy(animatedMaterials, baseMaterials)
 
-	// Swap atlas layers for animated textures so the shader samples the
-	// correct animation frame. The buffer is small (8KB max), so a full
-	// upload every frame is cheap.
-
-	// Keep a snapshot of original layers so chained animations don't
-	// read already-modified values.
-	originalLayers := make([]float32, len(r.worldBaseMaterials))
-	for i := range r.worldBaseMaterials {
-		originalLayers[i] = r.worldBaseMaterials[i].Layer
-	}
-
-	for i, anim := range r.worldTextureAnimations {
+	for i, anim := range animations {
 		if anim == nil {
 			continue
 		}
@@ -46,31 +35,30 @@ func (r *Renderer) updateWorldMaterialsBuffer(queue *wgpu.Queue, timeValue float
 			continue
 		}
 
-		// An animated texture swaps its atlas layer to point at the
-		// animated frame's layer. The base material at index i gets the
-		// layer from the material at frameTexture.TextureIndex.
+		// An animated texture swaps its entire material configuration (bounds + layer)
+		// to point at the animated frame's location in the atlas.
 		targetIdx := int(frameTexture.TextureIndex)
-		if targetIdx < 0 || targetIdx >= len(originalLayers) {
+		if targetIdx < 0 || targetIdx >= len(baseMaterials) {
 			continue
 		}
-		r.worldBaseMaterials[i].Layer = originalLayers[targetIdx]
+		animatedMaterials[i] = baseMaterials[targetIdx]
 	}
+	return animatedMaterials
+}
 
-	if len(r.worldBaseMaterials) == 0 {
+// updateWorldMaterialsBuffer updates the materials uniform buffer with animated
+// texture layers. The caller must already hold r.mu (at least RLock) since this
+// reads r.worldBaseMaterials and r.worldTextureAnimations without locking.
+func (r *Renderer) updateWorldMaterialsBuffer(queue *wgpu.Queue, timeValue float32) error {
+	if r.worldMaterialsBuffer == nil || len(r.worldBaseMaterials) == 0 {
 		return nil
 	}
 
-	// WorldMaterialData is 32 bytes and tightly packed, so we can
-	// reinterpret the slice as a byte slice for a single buffer upload.
-	byteLen := len(r.worldBaseMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
-	byteData := unsafe.Slice((*byte)(unsafe.Pointer(&r.worldBaseMaterials[0])), byteLen)
+	animatedMaterials := animateWorldMaterials(r.worldBaseMaterials, r.worldTextureAnimations, timeValue)
 
-	err := queue.WriteBuffer(r.worldMaterialsBuffer, 0, byteData)
+	byteLen := len(animatedMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
+	byteData := unsafe.Slice((*byte)(unsafe.Pointer(&animatedMaterials[0])), byteLen)
 
-	// Restore original layers so the next frame starts from the base state.
-	for i := range originalLayers {
-		r.worldBaseMaterials[i].Layer = originalLayers[i]
-	}
-
-	return err
+	return queue.WriteBuffer(r.worldMaterialsBuffer, 0, byteData)
 }
+
