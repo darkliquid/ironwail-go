@@ -145,6 +145,60 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		"faces", len(geom.Faces),
 		"triangles", len(geom.Indices)/3)
 
+	// Lightmap diagnostic: count how many faces got lightmaps vs not,
+	// and log the reasons for non-lightmapped faces.
+	lightmappedCount := 0
+	noLightmapCount := 0
+	noLightOfsCount := 0
+	noLightingDataCount := 0
+	noSamplesCount := 0
+	for _, face := range geom.Faces {
+		if face.LightmapIndex >= 0 {
+			lightmappedCount++
+		} else {
+			noLightmapCount++
+		}
+	}
+	// Sample first N faces to understand why lightmaps are missing.
+	if noLightmapCount > 0 && lightmappedCount == 0 {
+		sampleCount := 0
+		for globalFaceIdx := firstFace; globalFaceIdx < firstFace+numFaces && sampleCount < 20; globalFaceIdx++ {
+			if globalFaceIdx >= len(tree.Faces) {
+				break
+			}
+			face := &tree.Faces[globalFaceIdx]
+			if face.LightOfs < 0 {
+				noLightOfsCount++
+			} else if len(tree.Lighting) == 0 {
+				noLightingDataCount++
+			} else {
+				// Check if expandLightmapSamples returns nil
+				texInfo := worldFaceTexInfo(tree, face)
+				if texInfo == nil {
+					noSamplesCount++
+				}
+			}
+			sampleCount++
+		}
+		slog.Warn("Lightmap diagnostic: no faces received lightmaps",
+			"total_faces", len(geom.Faces),
+			"lightmapped_faces", lightmappedCount,
+			"no_lightmap_faces", noLightmapCount,
+			"no_lightofs_in_sample", noLightOfsCount,
+			"no_lighting_data_in_sample", noLightingDataCount,
+			"no_samples_in_sample", noSamplesCount,
+			"lighting_data_len", len(tree.Lighting),
+			"bsp_version", tree.Version,
+		)
+	} else {
+		slog.Debug("Lightmap diagnostic",
+			"total_faces", len(geom.Faces),
+			"lightmapped_faces", lightmappedCount,
+			"no_lightmap_faces", noLightmapCount,
+			"lightmap_pages", len(lightmapPages),
+		)
+	}
+
 	// Phase 2 diagnostic: validate materialID range against the GPU buffer
 	// capacity. Faces with textureIndex >= 256 will produce out-of-bounds
 	// reads in the WGSL materials[] array.
@@ -494,7 +548,15 @@ func worldLiquidAlphaSettingsForGeometry(geom *WorldGeometry) worldLiquidAlphaSe
 }
 
 func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bsp.TreeFace, tree *bsp.Tree, allocator *surfacepkg.LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
-	if face == nil || tree == nil || allocator == nil || len(vertices) == 0 || len(rawCoords) != len(vertices) || face.LightOfs < 0 || len(tree.Lighting) == 0 {
+	if face == nil || tree == nil || allocator == nil || len(vertices) == 0 || len(rawCoords) != len(vertices) {
+		return nil, nil
+	}
+	if face.LightOfs < 0 || len(tree.Lighting) == 0 {
+		slog.Debug("assignFaceLightmap: skipping face without lightmap data",
+			"light_ofs", face.LightOfs,
+			"lighting_len", len(tree.Lighting),
+			"styles", face.Styles,
+		)
 		return nil, nil
 	}
 
