@@ -41,6 +41,8 @@ func animateWorldMaterials(baseMaterials []WorldMaterialData, animations []*surf
 		if targetIdx < 0 || targetIdx >= len(baseMaterials) {
 			continue
 		}
+		// Phase 4 diagnostic: log animation remap when audit is enabled.
+		diagAnimationRemap(i, targetIdx, baseMaterials[targetIdx])
 		animatedMaterials[i] = baseMaterials[targetIdx]
 	}
 	return animatedMaterials
@@ -55,6 +57,9 @@ func (r *Renderer) updateWorldMaterialsBuffer(queue *wgpu.Queue, timeValue float
 	}
 
 	animatedMaterials := animateWorldMaterials(r.worldBaseMaterials, r.worldTextureAnimations, timeValue)
+
+	// Phase 1 diagnostic: check for buffer overflow before per-frame write.
+	diagMaterialBufferWrite("updateWorldMaterialsBuffer", len(animatedMaterials), worldMaterialsBufferSize)
 
 	byteLen := len(animatedMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
 	byteData := unsafe.Slice((*byte)(unsafe.Pointer(&animatedMaterials[0])), byteLen)

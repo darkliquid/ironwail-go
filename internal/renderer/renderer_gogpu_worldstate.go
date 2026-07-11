@@ -461,6 +461,8 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 		})
 		if err == nil {
 			materialsBuffer = buf
+			// Phase 1 diagnostic: check for buffer overflow before writing.
+			diagMaterialBufferWrite("ensureExternalBrushModelTextures", len(baseMaterials), worldMaterialsBufferSize)
 			byteLen := len(baseMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
 			byteData := unsafe.Slice((*byte)(unsafe.Pointer(&baseMaterials[0])), byteLen)
 			queue.WriteBuffer(materialsBuffer, 0, byteData)

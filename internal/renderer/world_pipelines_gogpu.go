@@ -58,7 +58,7 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 				Visibility: gputypes.ShaderStageFragment,
 				Texture: &gputypes.TextureBindingLayout{
 					SampleType:    gputypes.TextureSampleTypeFloat,
-					ViewDimension: gputypes.TextureViewDimension2DArray,
+					ViewDimension: gputypes.TextureViewDimension2D,
 					Multisampled:  false,
 				},
 			},
@@ -84,7 +84,7 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 				Visibility: gputypes.ShaderStageFragment,
 				Texture: &gputypes.TextureBindingLayout{
 					SampleType:    gputypes.TextureSampleTypeFloat,
-					ViewDimension: gputypes.TextureViewDimension2DArray,
+					ViewDimension: gputypes.TextureViewDimension2D,
 					Multisampled:  false,
 				},
 			},

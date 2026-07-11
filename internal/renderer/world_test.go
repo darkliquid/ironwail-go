@@ -294,7 +294,11 @@ func TestBuildWorldGeometry_DerivesFaceMetadataAndTexcoords(t *testing.T) {
 	if geom.Vertices[1].TexCoord != ([2]float32{16, 0}) {
 		t.Fatalf("TexCoord[1] = %v, want [16 0]", geom.Vertices[1].TexCoord)
 	}
-	wantLightmapCoord := [2]float32{1.5 / worldLightmapPageSize, 0.5 / worldLightmapPageSize}
+	// Lightmap V coordinate is rescaled for the vertically-stacked lightmap
+	// texture with 1px padding. With 1 page: totalHeight = (1024 + 2) = 1026.
+	// V = (0.5 / 1024) * (1024 / 1026) = 0.5 / 1026.
+	// U is unchanged (width is not padded).
+	wantLightmapCoord := [2]float32{1.5 / worldLightmapPageSize, 0.5 / float32(worldLightmapPageSize+2)}
 	gotLightmapCoord := geom.Vertices[1].LightmapCoord
 	if gotLightmapCoord[0] != wantLightmapCoord[0] || gotLightmapCoord[1] != wantLightmapCoord[1] {
 		t.Fatalf("LightmapCoord[1] = %v, want %v", gotLightmapCoord, wantLightmapCoord)

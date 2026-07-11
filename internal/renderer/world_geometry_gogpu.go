@@ -73,6 +73,11 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		"numVertices", len(tree.Vertexes),
 		"numEdges", len(tree.Edges))
 
+	// Debug: Report texture index ranges for large maps if needed
+	if numFaces > 1000 {
+		debugTextureIndexRange(tree, tree.Faces)
+	}
+
 	for faceIdx := 0; faceIdx < numFaces; faceIdx++ {
 		globalFaceIdx := firstFace + faceIdx
 		if globalFaceIdx >= len(tree.Faces) {
@@ -139,6 +144,36 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		"indices", len(geom.Indices),
 		"faces", len(geom.Faces),
 		"triangles", len(geom.Indices)/3)
+
+	// Phase 2 diagnostic: validate materialID range against the GPU buffer
+	// capacity. Faces with textureIndex >= 256 will produce out-of-bounds
+	// reads in the WGSL materials[] array.
+	diagMaterialIDRange(geom)
+	diagMaterialIDFaceAudit(geom, 50)
+
+	// Convert lightmap layer from page index to V-offset for the
+	// vertically-stacked lightmap texture. Each page occupies
+	// (pageSize + 2) rows (1px padding top + 1px padding bottom).
+	// Page i's content starts at row (i * (pageSize + 2) + 1).
+	// The V-offset = (i * (pageSize + 2) + 1) / (numPages * (pageSize + 2)).
+	if len(lightmapPages) > 0 {
+		pageSize := float32(worldLightmapPageSize)
+		rowsPerPage := pageSize + 2
+		totalTallHeight := float32(len(lightmapPages)) * rowsPerPage
+		for i := range geom.Vertices {
+			pageIdx := geom.Vertices[i].LightmapLayer
+			if pageIdx > 0 || geom.Vertices[i].LightmapCoord[0] != 0 || geom.Vertices[i].LightmapCoord[1] != 0 {
+				geom.Vertices[i].LightmapLayer = (pageIdx*rowsPerPage + 1) / totalTallHeight
+				// Also rescale lightmap V coordinate to account for padding.
+				// The lightmap coord was normalized to a single page: v / pageSize.
+				// We need it normalized to the tall texture: v / totalTallHeight.
+				// But the shader adds LightmapLayer as a V-offset, so we need
+				// to rescale the lightmap coordinate's V (and U stays the same
+				// since width is unchanged).
+				geom.Vertices[i].LightmapCoord[1] = geom.Vertices[i].LightmapCoord[1] * pageSize / totalTallHeight
+			}
+		}
+	}
 
 	geom.LeafFaces = buildWorldLeafFaceLookup(tree, faceLookup)
 	geom.Lightmaps = lightmapPages
@@ -274,6 +309,47 @@ func worldFaceTextureIndex(tree *bsp.Tree, face *bsp.TreeFace) int32 {
 		return -1
 	}
 	return texInfo.Miptex
+}
+
+// Debug function to check the range of texture indices we're seeing
+func debugTextureIndexRange(tree *bsp.Tree, faces []bsp.TreeFace) {
+	// Report on min, max, and unique texture indices as a sanity check
+	textureIndices := make(map[int32]bool)
+	maxIndex := int32(-1)
+	minIndex := int32(1000000)
+	
+	// If we have a large set of faces, sample them for showing stats
+	sampleSize := len(faces)
+	if sampleSize > 1000 {
+		sampleSize = 1000
+	}
+	
+	for i := 0; i < sampleSize; i++ {
+		face := &faces[i]
+		texInfo := worldFaceTexInfo(tree, face)
+		if texInfo == nil {
+			continue
+		}
+		index := texInfo.Miptex
+		if index >= 0 {
+			textureIndices[index] = true
+			if index > maxIndex {
+				maxIndex = index
+			}
+			if index < minIndex {
+				minIndex = index
+			}
+		}
+	}
+	
+	if len(textureIndices) > 0 {
+		slog.Debug("Texture index range",
+			"min_index", minIndex,
+			"max_index", maxIndex,
+			"unique_indices", len(textureIndices),
+			"sample_size", sampleSize,
+		)
+	}
 }
 
 func worldMissingTextureFallbackIndex(tree *bsp.Tree, texInfo *bsp.Texinfo) (int32, bool) {

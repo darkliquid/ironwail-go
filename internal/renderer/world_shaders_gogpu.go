@@ -2,6 +2,7 @@ package renderer
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/gogpu/wgpu"
 )
@@ -130,19 +131,19 @@ var<uniform> materials: array<MaterialData, 256>;
 var worldSampler: sampler;
 
 @group(1) @binding(1)
-var worldTexture: texture_2d_array<f32>;
+var worldTexture: texture_2d<f32>;
 
 @group(2) @binding(0)
 var worldLightmapSampler: sampler;
 
 @group(2) @binding(1)
-var worldLightmap: texture_2d_array<f32>;
+var worldLightmap: texture_2d<f32>;
 
 @group(3) @binding(0)
 var worldFullbrightSampler: sampler;
 
 @group(3) @binding(1)
-var worldFullbrightTexture: texture_2d_array<f32>;
+var worldFullbrightTexture: texture_2d<f32>;
 
 @group(4) @binding(0)
 var lightClusters: texture_3d<u32>;
@@ -211,11 +212,12 @@ fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>, clipP
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let mat = materials[input.materialID];
     let localUV = fract(input.texCoord);
-    let atlasUV = localUV * mat.atlasBounds.zw + mat.atlasBounds.xy;
-    let sampled = textureSample(worldTexture, worldSampler, atlasUV, i32(mat.layer));
-    let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, atlasUV, i32(mat.layer));
+    let atlasUV = vec2<f32>(localUV * mat.atlasBounds.zw + mat.atlasBounds.xy);
+    let atlasVOffset = mat.layer;
+    let sampled = textureSample(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + atlasVOffset));
+    let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, vec2<f32>(atlasUV.x, atlasUV.y + atlasVOffset));
 	%s
-    var totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord, i32(input.lightmapLayer)).rgb;
+    var totalLight = textureSample(worldLightmap, worldLightmapSampler, vec2<f32>(input.lightmapCoord.x, input.lightmapCoord.y + input.lightmapLayer)).rgb;
     let dynamicLight = accumulateDynamicLights(input.worldPos, %s, input.clipPos);
     totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
     let lit = %s;
@@ -230,6 +232,176 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 var worldFragmentShaderWGSL = buildWorldFragmentShaderWGSL("cross(dpdx(input.worldPos), dpdy(input.worldPos))", false)
 
 var worldAlphaTestFragmentShaderWGSL = buildWorldFragmentShaderWGSL("input.normal", true)
+
+// buildWorldDebugFragmentShaderWGSL builds a fragment shader that outputs
+// diagnostic colors instead of sampled textures, so the operator can see
+// material assignment problems without pixel comparisons.
+//
+// mode 1: encodes materialID as R=(id%256)/255, G=(id/256)/255, B=0
+//   - Each material gets a distinct color. Out-of-range IDs (>256) will
+//     show as varying green intensities instead of the expected low-R range.
+// mode 2: encodes atlas layer as grayscale layer/maxLayers
+//   - Faces on the wrong layer will have wrong brightness.
+// mode 3: encodes atlas UV as R=u, G=v, B=layer/maxLayers
+//   - Shows the atlas remapping. Wrong atlas bounds produce wrong colors.
+// mode 4: samples the texture array at the material's layer (mat.layer)
+//   - Shows the actual texture the shader would sample. If this looks
+//     wrong compared to the atlas dump PNGs, the texture array data is
+//     corrupted or the wrong layer is being sampled.
+// mode 5: samples the texture array at layer 0 regardless of mat.layer
+//   - Forces all faces to sample layer 0. If this looks the same as the
+//     normal render, it means the layer value is being ignored or is
+//     always 0. If this looks different (some textures correct), it
+//     confirms the layer selection is the problem.
+// mode 6: samples the texture array at layer 1 regardless of mat.layer
+//   - Forces all faces to sample layer 1. Comparison with mode 5 reveals
+//     whether multi-layer sampling works at all.
+func buildWorldDebugFragmentShaderWGSL(mode int) string {
+	var body string
+	switch mode {
+	case 1:
+		body = `
+    let mat = materials[input.materialID];
+    let id = f32(input.materialID);
+    return vec4<f32>(fract(id / 256.0), floor(id / 256.0) / 256.0, 0.0, 1.0);
+`
+	case 2:
+		body = `
+    let mat = materials[input.materialID];
+    let maxLayer = 16.0;
+    return vec4<f32>(vec3<f32>(mat.layer / maxLayer), 1.0);
+`
+	case 3:
+		body = `
+    let mat = materials[input.materialID];
+    let localUV = fract(input.texCoord);
+    let atlasUV = localUV * mat.atlasBounds.zw + mat.atlasBounds.xy;
+    let maxLayer = 16.0;
+    return vec4<f32>(atlasUV.x, atlasUV.y, mat.layer / maxLayer, 1.0);
+`
+	case 4:
+		body = `
+    let mat = materials[input.materialID];
+    let localUV = fract(input.texCoord);
+    let atlasUV = localUV * mat.atlasBounds.zw + mat.atlasBounds.xy;
+    let sampled = textureSampleLevel(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer), 0.0);
+    return vec4<f32>(sampled.rgb, 1.0);
+`
+	case 5:
+		body = `
+    let mat = materials[input.materialID];
+    let localUV = fract(input.texCoord);
+    let atlasUV = localUV * mat.atlasBounds.zw + mat.atlasBounds.xy;
+    let sampled = textureSampleLevel(worldTexture, worldSampler, atlasUV, 0.0);
+    return vec4<f32>(sampled.rgb, 1.0);
+`
+	case 6:
+		body = `
+    let mat = materials[input.materialID];
+    let localUV = fract(input.texCoord);
+    let atlasUV = localUV * mat.atlasBounds.zw + mat.atlasBounds.xy;
+    let sampled = textureSampleLevel(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + 1.0 / 3.0), 0.0);
+    return vec4<f32>(sampled.rgb, 1.0);
+`
+	default:
+		body = `
+    return vec4<f32>(1.0, 0.0, 1.0, 1.0);
+`
+	}
+	return fmt.Sprintf(`
+%s
+struct VertexOutput {
+    @builtin(position) clipPosition: vec4<f32>,
+    @location(0) texCoord: vec2<f32>,
+    @location(1) lightmapCoord: vec2<f32>,
+    @location(2) worldPos: vec3<f32>,
+    @location(3) normal: vec3<f32>,
+    @location(4) lightmapLayer: f32,
+    @location(5) materialID: u32,
+    @location(6) clipPos: vec4<f32>,
+}
+
+struct MaterialData {
+    atlasBounds: vec4<f32>,
+    layer: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
+}
+
+@group(0) @binding(0)
+var<uniform> uniforms: Uniforms;
+
+@group(0) @binding(1)
+var<uniform> materials: array<MaterialData, 256>;
+
+@group(1) @binding(0)
+var worldSampler: sampler;
+
+@group(1) @binding(1)
+var worldTexture: texture_2d<f32>;
+
+@group(2) @binding(0)
+var worldLightmapSampler: sampler;
+
+@group(2) @binding(1)
+var worldLightmap: texture_2d<f32>;
+
+@group(3) @binding(0)
+var worldFullbrightSampler: sampler;
+
+@group(3) @binding(1)
+var worldFullbrightTexture: texture_2d<f32>;
+
+@fragment
+fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+%s
+}
+`, worldUniformsWGSL, body)
+}
+
+// worldDebugFragmentShaderWGSL is the debug viz fragment shader, rebuilt
+// when the viz mode env var is read. nil when debug viz is off.
+var worldDebugFragmentShaderWGSL string
+
+// shouldUseDebugFragmentShader returns true when IRONWAIL_DEBUG_MATERIAL_VIZ
+// is set to a nonzero mode, indicating that debug shader variants should be
+// used instead of the normal texture-sampling fragment shaders.
+func shouldUseDebugFragmentShader() bool {
+	return debugMaterialVizMode() != 0
+}
+
+// initDebugShaders builds the debug fragment shader WGSL if the env var is
+// set. Called from world_upload_gogpu.go during UploadWorld.
+func initDebugShaders() {
+	mode := debugMaterialVizMode()
+	if mode != 0 {
+		worldDebugFragmentShaderWGSL = buildWorldDebugFragmentShaderWGSL(mode)
+		slog.Info("Debug material visualization shader enabled",
+			"viz_mode", mode,
+			"description", debugVizModeDescription(mode),
+		)
+	}
+}
+
+func debugVizModeDescription(mode int) string {
+	switch mode {
+	case 1:
+		return "materialID as color (R=id%256, G=id/256)"
+	case 2:
+		return "atlas layer as grayscale"
+	case 3:
+		return "atlas UV as color (R=u, G=v, B=layer)"
+	case 4:
+		return "sample texture at mat.layer (shows actual sampled texture)"
+	case 5:
+		return "sample texture at layer 0 (forces layer 0 for all faces)"
+	case 6:
+		return "sample texture at layer 1 (forces layer 1 for all faces)"
+	default:
+		return "unknown"
+	}
+}
 
 const worldSkyVertexShaderWGSL = `
 struct VertexInput {
@@ -339,19 +511,19 @@ var<uniform> materials: array<MaterialData, 256>;
 var worldSampler: sampler;
 
 @group(1) @binding(1)
-var worldTexture: texture_2d_array<f32>;
+var worldTexture: texture_2d<f32>;
 
 @group(2) @binding(0)
 var worldLightmapSampler: sampler;
 
 @group(2) @binding(1)
-var worldLightmap: texture_2d_array<f32>;
+var worldLightmap: texture_2d<f32>;
 
 @group(3) @binding(0)
 var worldFullbrightSampler: sampler;
 
 @group(3) @binding(1)
-var worldFullbrightTexture: texture_2d_array<f32>;
+var worldFullbrightTexture: texture_2d<f32>;
 
 @group(4) @binding(0)
 var<storage, read> dynamicLights: DynamicLights;
@@ -385,11 +557,11 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let mat = materials[input.materialID];
     let uv = fract(input.texCoord * 2.0 + 0.125 * sin(input.texCoord.yx * (3.14159265 * 2.0) + vec2<f32>(uniforms.time, uniforms.time)));
     let atlasUV = uv * mat.atlasBounds.zw + mat.atlasBounds.xy;
-    let sampled = textureSample(worldTexture, worldSampler, atlasUV, i32(mat.layer));
-    let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, atlasUV, i32(mat.layer));
+    let sampled = textureSample(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer));
+    let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer));
     var totalLight = vec3<f32>(0.5);
     if (uniforms.litWater > 0.5) {
-        totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord, i32(input.lightmapLayer)).rgb;
+        totalLight = textureSample(worldLightmap, worldLightmapSampler, vec2<f32>(input.lightmapCoord.x, input.lightmapCoord.y + input.lightmapLayer)).rgb;
     }
     let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)));
     totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
@@ -416,20 +588,20 @@ var<uniform> uniforms: Uniforms;
 var skySolidSampler: sampler;
 
 @group(1) @binding(1)
-var skySolidTexture: texture_2d_array<f32>;
+var skySolidTexture: texture_2d<f32>;
 
 @group(2) @binding(0)
 var skyAlphaSampler: sampler;
 
 @group(2) @binding(1)
-var skyAlphaTexture: texture_2d_array<f32>;
+var skyAlphaTexture: texture_2d<f32>;
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let dir = normalize(input.dir);
     let uv = dir.xy * (189.0 / 64.0);
-    var result = textureSample(skySolidTexture, skySolidSampler, uv + vec2<f32>(uniforms.time / 16.0, uniforms.time / 16.0), 0);
-    let layer = textureSample(skyAlphaTexture, skyAlphaSampler, uv + vec2<f32>(uniforms.time / 8.0, uniforms.time / 8.0), 0);
+    var result = textureSample(skySolidTexture, skySolidSampler, uv + vec2<f32>(uniforms.time / 16.0, uniforms.time / 16.0));
+    let layer = textureSample(skyAlphaTexture, skyAlphaSampler, uv + vec2<f32>(uniforms.time / 8.0, uniforms.time / 8.0));
     result = vec4<f32>(mix(result.rgb, layer.rgb, vec3<f32>(layer.a)), 1.0);
     result = vec4<f32>(mix(result.rgb, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), 1.0);
     return result;

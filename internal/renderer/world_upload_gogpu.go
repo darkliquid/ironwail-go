@@ -120,18 +120,39 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	// Create shader modules (WGSL is compiled by HAL internally)
+	// Phase 6 diagnostic: build debug shader variants if
+	// IRONWAIL_DEBUG_MATERIAL_VIZ is set to a nonzero mode.
+	initDebugShaders()
+
 	vertexShader, err := createWorldShaderModule(device, worldVertexShaderWGSL, "World Vertex Shader")
 	if err != nil {
 		slog.Warn("Failed to create vertex shader", "error", err)
 		vertexShader = nil
 	}
 
-	fragmentShader, err := createWorldShaderModule(device, worldFragmentShaderWGSL, "World Fragment Shader")
+	// When debug viz is active, use the debug fragment shader for all
+	// world passes (opaque, alpha-test, translucent, turbulent) so the
+	// entire scene shows the diagnostic visualization.
+	fragShaderSource := worldFragmentShaderWGSL
+	fragShaderLabel := "World Fragment Shader"
+	if shouldUseDebugFragmentShader() {
+		fragShaderSource = worldDebugFragmentShaderWGSL
+		fragShaderLabel = "World Debug Fragment Shader"
+	}
+	fragmentShader, err := createWorldShaderModule(device, fragShaderSource, fragShaderLabel)
 	if err != nil {
 		slog.Warn("Failed to create fragment shader", "error", err)
 		fragmentShader = nil
 	}
-	alphaTestFragmentShader, err := createWorldShaderModule(device, worldAlphaTestFragmentShaderWGSL, "World Alpha Test Fragment Shader")
+	// Alpha-test, translucent, and turbulent pipelines also use the debug
+	// shader when active, since they share the same fragment shader structure.
+	alphaTestFragSource := worldAlphaTestFragmentShaderWGSL
+	alphaTestFragLabel := "World Alpha Test Fragment Shader"
+	if shouldUseDebugFragmentShader() {
+		alphaTestFragSource = worldDebugFragmentShaderWGSL
+		alphaTestFragLabel = "World Debug Alpha Test Fragment Shader"
+	}
+	alphaTestFragmentShader, err := createWorldShaderModule(device, alphaTestFragSource, alphaTestFragLabel)
 	if err != nil {
 		slog.Warn("Failed to create alpha-test fragment shader", "error", err)
 		alphaTestFragmentShader = nil
@@ -156,7 +177,13 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		slog.Warn("Failed to create external sky fragment shader", "error", err)
 		externalSkyFragmentShader = nil
 	}
-	turbulentFragmentShader, err := createWorldShaderModule(device, worldTurbulentFragmentShaderWGSL, "World Turbulent Fragment Shader")
+	turbulentFragSource := worldTurbulentFragmentShaderWGSL
+	turbulentFragLabel := "World Turbulent Fragment Shader"
+	if shouldUseDebugFragmentShader() {
+		turbulentFragSource = worldDebugFragmentShaderWGSL
+		turbulentFragLabel = "World Debug Turbulent Fragment Shader"
+	}
+	turbulentFragmentShader, err := createWorldShaderModule(device, turbulentFragSource, turbulentFragLabel)
 	if err != nil {
 		slog.Warn("Failed to create turbulent fragment shader", "error", err)
 		turbulentFragmentShader = nil
@@ -398,6 +425,23 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		}
 	}
 	worldTextures, worldFullbrightTextures, worldTextureAnimations, worldBaseMaterials := r.uploadWorldMaterialTextures(device, queue, atlasSampler, tree)
+
+	// Phase 3 diagnostic: check atlas layer count against GPU limits.
+	if worldTextures != nil && device != nil {
+		limits := device.Limits()
+		// Count atlas layers from the base materials' max layer value.
+		maxLayer := 0
+		for _, mat := range worldBaseMaterials {
+			if int(mat.Layer) > maxLayer {
+				maxLayer = int(mat.Layer)
+			}
+		}
+		diagAtlasLayerLimit(maxLayer+1, int(limits.MaxTextureArrayLayers))
+	}
+
+	// Phase 5 diagnostic: dump materialID histogram to CSV when enabled.
+	diagMaterialIDHistogramDump(geom, fmt.Sprintf("bsp_v%d", tree.Version))
+
 	worldSkySolidTextures, worldSkyAlphaTextures := r.uploadWorldEmbeddedSkyTextures(device, queue, worldTextureSampler, tree)
 	lightstyleValues := defaultWorldLightStyleValues()
 	var worldLightmapSampler *wgpu.Sampler
@@ -407,8 +451,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		if err != nil {
 			slog.Warn("Failed to create world lightmap sampler", "error", err)
 		} else if fallbackView := worldLightmapFallbackView(transparentTextureView, whiteTextureView); fallbackView != nil {
-			// Match C brush rendering: faces without valid lightmap data should
-			// sample black, not white, so localized assignment failures stay dark.
+			// World faces without lightmap data sample white (full-bright) so
+			// they remain visible rather than rendering as solid black.
 			whiteLightmapBindGroup, err = r.createWorldLightmapBindGroup(device, worldLightmapSampler, fallbackView)
 			if err != nil {
 				slog.Warn("Failed to create world lightmap fallback bind group", "error", err)
@@ -473,6 +517,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	// Write base materials to the GPU buffer immediately so the first
 	// render frame has valid material data before updateWorldMaterialsBuffer runs.
 	if len(worldBaseMaterials) > 0 && materialsBuffer != nil {
+		// Phase 1 diagnostic: check for buffer overflow before writing.
+		diagMaterialBufferWrite("UploadWorld initial write", len(worldBaseMaterials), 256*32)
 		byteLen := len(worldBaseMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
 		byteData := unsafe.Slice((*byte)(unsafe.Pointer(&worldBaseMaterials[0])), byteLen)
 		if err := queue.WriteBuffer(materialsBuffer, 0, byteData); err != nil {
@@ -490,6 +536,12 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldLightStyleValues = lightstyleValues
 	r.worldDepthTexture = depthTexture
 	r.worldDepthTextureView = depthTextureView
+
+	// Phase 3 diagnostic: log actual GPU resource dimensions after upload
+	// to verify texture array layer counts and buffer sizes match expectations.
+	diagWorldUploadSummary(worldTextures, worldFullbrightTextures, worldLightmapArray,
+		materialsBuffer, len(worldBaseMaterials), len(worldSkySolidTextures))
+
 	if depthTexture != nil {
 		r.worldDepthWidth = width
 		r.worldDepthHeight = height
@@ -508,7 +560,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		"triangles", renderData.TotalIndices/3,
 		"boundsMin", renderData.BoundsMin,
 		"boundsMax", renderData.BoundsMax,
-		"vertexBufferSize", uint64(len(geom.Vertices))*44,
+		"vertexBufferSize", uint64(len(geom.Vertices))*48,
 		"indexBufferSize", uint64(len(geom.Indices))*4)
 	slog.Debug("GoGPU world upload stats",
 		"gpu_upload", true,

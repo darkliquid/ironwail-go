@@ -213,6 +213,11 @@ type gpuWorldTexture struct {
 	texture   *wgpu.Texture
 	view      *wgpu.TextureView
 	bindGroup *wgpu.BindGroup
+	// width, height, and layers record the GPU texture dimensions for
+	// diagnostic verification. They are set at creation time.
+	width  uint32
+	height uint32
+	layers uint32
 }
 
 type WorldLightmapSurface = worldimpl.WorldLightmapSurface
