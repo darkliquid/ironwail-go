@@ -83,6 +83,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		return
 	}
 	pipeline := r.worldPipeline
+	alphaTestPipeline := r.worldAlphaTestPipeline
 	uniformBuffer := r.uniformBuffer
 	uniformBindGroup := r.uniformBindGroup
 	whiteTextureBindGroup := r.whiteTextureBindGroup
@@ -178,6 +179,10 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		}
 
 		if len(draw.opaqueFaces) > 0 {
+			// Ensure the opaque pipeline is active (may have been
+			// switched to alpha-test by a previous draw).
+			renderPass.SetPipeline(pipeline)
+			materialBindState.invalidate()
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.opaqueIndexOffset)
 			for _, face := range draw.opaqueFaces {
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
@@ -221,6 +226,13 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			}
 		}
 		if len(draw.alphaTestFaces) > 0 {
+			// Switch to the alpha-test pipeline for cutout/fence faces.
+			// The opaque pipeline doesn't have the discard logic, so
+			// transparent pixels would render as solid black.
+			if alphaTestPipeline != nil {
+				renderPass.SetPipeline(alphaTestPipeline)
+				materialBindState.invalidate()
+			}
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.alphaTestIndexOffset)
 			for _, face := range draw.alphaTestFaces {
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)

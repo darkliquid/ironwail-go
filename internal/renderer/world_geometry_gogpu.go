@@ -145,6 +145,46 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		"faces", len(geom.Faces),
 		"triangles", len(geom.Indices)/3)
 
+	// Diagnostic: count faces by render pass classification.
+	fenceCount := 0
+	skyCount := 0
+	turbCount := 0
+	opaqueCount := 0
+	for _, face := range geom.Faces {
+		if face.NumIndices == 0 {
+			continue
+		}
+		if face.Flags&model.SurfDrawSky != 0 {
+			skyCount++
+		} else if face.Flags&model.SurfDrawFence != 0 {
+			fenceCount++
+		} else if face.Flags&model.SurfDrawTurb != 0 {
+			turbCount++
+		} else {
+			opaqueCount++
+		}
+		// Dump flags for dopefish texture (miptex 37)
+		if face.TextureIndex == 37 {
+			slog.Info("Dopefish face flags",
+				"texture_index", face.TextureIndex,
+				"flags", face.Flags,
+				"has_fence", face.Flags&model.SurfDrawFence != 0,
+				"has_sky", face.Flags&model.SurfDrawSky != 0,
+				"has_turb", face.Flags&model.SurfDrawTurb != 0,
+				"has_tiled", face.Flags&model.SurfDrawTiled != 0,
+				"num_indices", face.NumIndices,
+				"lightmap_index", face.LightmapIndex,
+			)
+		}
+	}
+	slog.Info("Face classification",
+		"total_faces", len(geom.Faces),
+		"opaque", opaqueCount,
+		"fence", fenceCount,
+		"sky", skyCount,
+		"turb", turbCount,
+	)
+
 	// Lightmap diagnostic: count how many faces got lightmaps vs not,
 	// and log the reasons for non-lightmapped faces.
 	lightmappedCount := 0
