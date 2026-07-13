@@ -191,11 +191,51 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 			"bsp_version", tree.Version,
 		)
 	} else {
-		slog.Debug("Lightmap diagnostic",
+		// Count how many faces in the BSP have LightOfs < 0 (no lightmap data).
+		noLightOfsTotal := 0
+		noLightOfsSky := 0
+		noLightOfsTurb := 0
+		noLightOfsTiled := 0
+		noLightOfsOther := 0
+		for globalFaceIdx := firstFace; globalFaceIdx < firstFace+numFaces && globalFaceIdx < len(tree.Faces); globalFaceIdx++ {
+			bface := &tree.Faces[globalFaceIdx]
+			if bface.LightOfs < 0 {
+				noLightOfsTotal++
+				// Check if the face is sky/turb/tiled (expected to have no lightmap)
+				texInfo := worldFaceTexInfo(tree, bface)
+				if texInfo != nil {
+					if texInfo.Flags&bsp.TexSpecial != 0 {
+						noLightOfsTiled++
+					}
+					textureMeta := parseWorldTextureMeta(tree)
+					textureType := classifyWorldTextureName("")
+					if int(texInfo.Miptex) >= 0 && int(texInfo.Miptex) < len(textureMeta) {
+						textureType = textureMeta[texInfo.Miptex].Type
+					}
+					flags := deriveWorldFaceFlags(textureType, texInfo.Flags)
+					if flags&model.SurfDrawSky != 0 {
+						noLightOfsSky++
+					} else if flags&model.SurfDrawTurb != 0 {
+						noLightOfsTurb++
+					} else if noLightOfsTiled == 0 || (flags&(model.SurfDrawSky|model.SurfDrawTurb) == 0 && texInfo.Flags&bsp.TexSpecial == 0) {
+						noLightOfsOther++
+					}
+				} else {
+					noLightOfsOther++
+				}
+			}
+		}
+		slog.Info("Lightmap diagnostic",
 			"total_faces", len(geom.Faces),
 			"lightmapped_faces", lightmappedCount,
 			"no_lightmap_faces", noLightmapCount,
+			"no_lightofs_total", noLightOfsTotal,
+			"no_lightofs_sky", noLightOfsSky,
+			"no_lightofs_turb", noLightOfsTurb,
+			"no_lightofs_tiled", noLightOfsTiled,
+			"no_lightofs_other", noLightOfsOther,
 			"lightmap_pages", len(lightmapPages),
+			"bsp_version", tree.Version,
 		)
 	}
 
@@ -218,12 +258,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 			pageIdx := geom.Vertices[i].LightmapLayer
 			if pageIdx > 0 || geom.Vertices[i].LightmapCoord[0] != 0 || geom.Vertices[i].LightmapCoord[1] != 0 {
 				geom.Vertices[i].LightmapLayer = (pageIdx*rowsPerPage + 1) / totalTallHeight
-				// Also rescale lightmap V coordinate to account for padding.
-				// The lightmap coord was normalized to a single page: v / pageSize.
-				// We need it normalized to the tall texture: v / totalTallHeight.
-				// But the shader adds LightmapLayer as a V-offset, so we need
-				// to rescale the lightmap coordinate's V (and U stays the same
-				// since width is unchanged).
+				// Rescale lightmap V to account for vertical stacking.
 				geom.Vertices[i].LightmapCoord[1] = geom.Vertices[i].LightmapCoord[1] * pageSize / totalTallHeight
 			}
 		}
@@ -630,6 +665,27 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bs
 	for i := range vertices {
 		lightS := float32((rawCoords[i][0]-textureMinU)/16.0 + float64(x) + 0.5)
 		lightT := float32((rawCoords[i][1]-textureMinV)/16.0 + float64(y) + 0.5)
+		// Clamp lightmap coordinates to the interior of the allocated block
+		// to prevent linear filtering from bleeding into adjacent blocks.
+		// The block spans [x, x+smax] x [y, y+tmax] in page pixels.
+		// Inset by 0.5 pixels on each side so the sample never reaches
+		// the block edge.
+		blockMinS := float32(x) + 0.5
+		blockMaxS := float32(x + smax) - 0.5
+		blockMinT := float32(y) + 0.5
+		blockMaxT := float32(y + tmax) - 0.5
+		if lightS < blockMinS {
+			lightS = blockMinS
+		}
+		if lightS > blockMaxS {
+			lightS = blockMaxS
+		}
+		if lightT < blockMinT {
+			lightT = blockMinT
+		}
+		if lightT > blockMaxT {
+			lightT = blockMaxT
+		}
 		vertices[i].LightmapCoord = [2]float32{
 			lightS / float32(worldLightmapPageSize),
 			lightT / float32(worldLightmapPageSize),

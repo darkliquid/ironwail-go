@@ -469,16 +469,20 @@ func (r *Renderer) createWorldTextureSampler(device *wgpu.Device) (*wgpu.Sampler
 // createWorldAtlasSampler creates a sampler for atlas-packed textures.
 // ClampToEdge prevents bleeding between atlas sub-rects; the shader handles
 // UV wrapping via fract() before remapping into the atlas.
+// Nearest filtering is used because Quake's alpha-as-lighting-mask trick
+// (diffuse.a=0 for fullbright pixels, 255 for lit pixels) produces wrong
+// results under linear interpolation — partial alpha creates faces that
+// appear brighter than either the lit or unlit value.
 func (r *Renderer) createWorldAtlasSampler(device *wgpu.Device) (*wgpu.Sampler, error) {
 	return device.CreateSampler(&wgpu.SamplerDescriptor{
 		Label:        "World Atlas Sampler",
 		AddressModeU: gputypes.AddressModeClampToEdge,
 		AddressModeV: gputypes.AddressModeClampToEdge,
 		AddressModeW: gputypes.AddressModeClampToEdge,
-		MagFilter:    gputypes.FilterModeLinear,
-		MinFilter:    gputypes.FilterModeLinear,
-		MipmapFilter: gputypes.FilterModeLinear,
-		Anisotropy:   16,
+		MagFilter:    gputypes.FilterModeNearest,
+		MinFilter:    gputypes.FilterModeNearest,
+		MipmapFilter: gputypes.FilterModeNearest,
+		Anisotropy:   0,
 		LodMinClamp:  0,
 		LodMaxClamp:  0,
 	})
@@ -728,14 +732,31 @@ func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.
 	// which maps the wrapped texture coordinate into the correct sub-rect
 	// of the correct layer within the tall texture.
 	atlasHeight := 2048
+	atlasWidth := 2048
 	rowsPerLayer := atlasHeight + 2
 	totalTallHeight := atlasLayerCount * rowsPerLayer
+
+	// Half-texel inset to prevent linear filtering from bleeding across
+	// texture boundaries within the atlas. The shader computes:
+	//   atlasUV = fract(texCoord) * bounds.zw + bounds.xy + layer
+	// By insetting bounds by half a texel on each side, the sampled point
+	// never reaches the exact edge of the texture sub-rect, so linear
+	// filtering always samples within the correct texture.
+	halfTexelU := 0.5 / float32(atlasWidth)
+	halfTexelV := 0.5 / float32(totalTallHeight)
+
 	for i := range baseMaterials {
 		layerIdx := int(baseMaterials[i].Layer)
 		if atlasLayerCount > 0 {
 			baseMaterials[i].Layer = float32(layerIdx*rowsPerLayer+1) / float32(totalTallHeight)
+			// Rescale V and H from single-layer normalization to full tall texture.
 			baseMaterials[i].AtlasBounds[1] = baseMaterials[i].AtlasBounds[1] * float32(atlasHeight) / float32(totalTallHeight) // V
 			baseMaterials[i].AtlasBounds[3] = baseMaterials[i].AtlasBounds[3] * float32(atlasHeight) / float32(totalTallHeight) // H
+			// Apply half-texel inset to prevent inter-texture bleeding.
+			baseMaterials[i].AtlasBounds[0] += halfTexelU              // U: shift right by half texel
+			baseMaterials[i].AtlasBounds[1] += halfTexelV              // V: shift down by half texel
+			baseMaterials[i].AtlasBounds[2] -= 2 * halfTexelU          // W: shrink by one texel
+			baseMaterials[i].AtlasBounds[3] -= 2 * halfTexelV          // H: shrink by one texel
 		}
 	}
 

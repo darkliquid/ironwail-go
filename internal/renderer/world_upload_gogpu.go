@@ -450,12 +450,30 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		worldLightmapSampler, err = r.createWorldLightmapSampler(device)
 		if err != nil {
 			slog.Warn("Failed to create world lightmap sampler", "error", err)
-		} else if fallbackView := worldLightmapFallbackView(transparentTextureView, whiteTextureView); fallbackView != nil {
-			// World faces without lightmap data sample white (full-bright) so
-			// they remain visible rather than rendering as solid black.
-			whiteLightmapBindGroup, err = r.createWorldLightmapBindGroup(device, worldLightmapSampler, fallbackView)
-			if err != nil {
-				slog.Warn("Failed to create world lightmap fallback bind group", "error", err)
+		} else {
+			// Create a black fallback lightmap for faces without lightmap
+			// data (lightofs = -1). The C Ironwail engine allocates a
+			// black lightmap block for these faces (GL_PackLitSurfaces
+			// assigns them to a reserved black block, and
+			// GL_FillSurfaceLightmap skips them, leaving the block black).
+			// The shader multiplies texture color by totalLight * 2.0,
+			// so black (0) gives 0 brightness, matching C behavior.
+			_, blackLightmapView, blackErr := r.createWorldSolidTexture(device, queue, "World Black Lightmap", [4]byte{0, 0, 0, 255})
+			if blackErr != nil || blackLightmapView == nil {
+				slog.Warn("Failed to create black lightmap fallback texture", "error", blackErr)
+				// Fall back to white if black creation failed.
+				fallbackView := worldLightmapFallbackView(transparentTextureView, whiteTextureView)
+				if fallbackView != nil {
+					whiteLightmapBindGroup, err = r.createWorldLightmapBindGroup(device, worldLightmapSampler, fallbackView)
+					if err != nil {
+						slog.Warn("Failed to create world lightmap fallback bind group", "error", err)
+					}
+				}
+			} else {
+				whiteLightmapBindGroup, err = r.createWorldLightmapBindGroup(device, worldLightmapSampler, blackLightmapView)
+				if err != nil {
+					slog.Warn("Failed to create world lightmap fallback bind group", "error", err)
+				}
 			}
 		}
 	}

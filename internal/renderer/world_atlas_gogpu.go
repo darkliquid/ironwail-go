@@ -153,8 +153,6 @@ func (a *WorldTextureAtlas) EnsureLayerCount(n int) {
 func (a *WorldTextureAtlas) Flatten() []*image.RGBA {
 	results := make([]*image.RGBA, len(a.layers))
 	for i, layer := range a.layers {
-		// If a flat image was allocated (e.g. by DrawAt for companion data),
-		// composite the tree-inserted textures onto it, otherwise start fresh.
 		img := layer.flat
 		if img == nil {
 			img = image.NewRGBA(image.Rect(0, 0, layer.width, layer.height))
@@ -170,38 +168,25 @@ func (a *WorldTextureAtlas) Flatten() []*image.RGBA {
 // backend bug where WriteTexture hardcodes BaseArrayLayer=0, making it
 // impossible to write to anything other than layer 0 of a 2D array texture.
 //
-// The resulting image has dimensions (width, height * numLayers). Each
-// layer's content is placed at vertical offset (layerIndex * height).
-// The caller must adjust V coordinates to account for this stacking.
-//
-// To prevent linear filtering from bleeding across layer boundaries,
-// each layer's top and bottom edge rows are replicated into 1-pixel
-// padding bands above and below the layer content. This means the
-// effective per-layer height in the tall texture is (height + 2) and
-// the caller must account for this when computing V offsets and bounds.
+// The resulting image has dimensions (width, rowsPerLayer * numLayers).
+// Each layer's content is placed at vertical offset (layerIndex * rowsPerLayer)
+// with 1-pixel padding above and below to prevent inter-layer bleeding.
 func (a *WorldTextureAtlas) FlattenVertical() *image.RGBA {
 	if len(a.layers) == 0 {
 		return nil
 	}
-	// Use 2 extra rows per layer: 1 above and 1 below for edge padding.
-	// This prevents linear filter bleeding between adjacent layers.
 	rowsPerLayer := a.maxHeight + 2
 	totalHeight := rowsPerLayer * len(a.layers)
 	result := image.NewRGBA(image.Rect(0, 0, a.maxWidth, totalHeight))
 	for i, layer := range a.layers {
-		// Start with the flat image if it exists (companion data), else fresh.
 		layerImg := layer.flat
 		if layerImg == nil {
 			layerImg = image.NewRGBA(image.Rect(0, 0, layer.width, layer.height))
 		}
-		// Composite tree-inserted textures onto the layer image.
 		flattenNode(layer.root, layerImg)
-		// The layer content starts at yOffset + 1 (skip 1 padding row).
 		yOffset := i * rowsPerLayer
 		contentY := yOffset + 1
-		// Copy the completed layer into the result.
 		draw.Draw(result, image.Rect(0, contentY, a.maxWidth, contentY+a.maxHeight), layerImg, layerImg.Bounds().Min, draw.Src)
-		// Replicate the top edge row into the padding row above.
 		for x := 0; x < a.maxWidth; x++ {
 			off := layerImg.PixOffset(x, 0)
 			dstOff := result.PixOffset(x, yOffset)
@@ -209,7 +194,6 @@ func (a *WorldTextureAtlas) FlattenVertical() *image.RGBA {
 				copy(result.Pix[dstOff:dstOff+4], layerImg.Pix[off:off+4])
 			}
 		}
-		// Replicate the bottom edge row into the padding row below.
 		for x := 0; x < a.maxWidth; x++ {
 			off := layerImg.PixOffset(x, a.maxHeight-1)
 			dstOff := result.PixOffset(x, contentY+a.maxHeight)
