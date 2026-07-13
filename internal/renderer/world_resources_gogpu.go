@@ -469,19 +469,17 @@ func (r *Renderer) createWorldTextureSampler(device *wgpu.Device) (*wgpu.Sampler
 // createWorldAtlasSampler creates a sampler for atlas-packed textures.
 // ClampToEdge prevents bleeding between atlas sub-rects; the shader handles
 // UV wrapping via fract() before remapping into the atlas.
-// Nearest filtering is used because Quake's alpha-as-lighting-mask trick
-// (diffuse.a=0 for fullbright pixels, 255 for lit pixels) produces wrong
-// results under linear interpolation — partial alpha creates faces that
-// appear brighter than either the lit or unlit value.
+// Linear filtering is used with textureSampleLevel in the shader; the
+// half-texel UV inset on atlas bounds prevents inter-texture bleeding.
 func (r *Renderer) createWorldAtlasSampler(device *wgpu.Device) (*wgpu.Sampler, error) {
 	return device.CreateSampler(&wgpu.SamplerDescriptor{
 		Label:        "World Atlas Sampler",
 		AddressModeU: gputypes.AddressModeClampToEdge,
 		AddressModeV: gputypes.AddressModeClampToEdge,
 		AddressModeW: gputypes.AddressModeClampToEdge,
-		MagFilter:    gputypes.FilterModeNearest,
-		MinFilter:    gputypes.FilterModeNearest,
-		MipmapFilter: gputypes.FilterModeNearest,
+		MagFilter:    gputypes.FilterModeLinear,
+		MinFilter:    gputypes.FilterModeLinear,
+		MipmapFilter: gputypes.FilterModeLinear,
 		Anisotropy:   0,
 		LodMinClamp:  0,
 		LodMaxClamp:  0,
