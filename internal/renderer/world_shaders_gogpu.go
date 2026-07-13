@@ -303,6 +303,14 @@ func buildWorldDebugFragmentShaderWGSL(mode int) string {
     let sampled = textureSampleLevel(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + 1.0 / 3.0), 0.0);
     return vec4<f32>(sampled.rgb, 1.0);
 `
+	case 7:
+		body = `
+    let mat = materials[input.materialID];
+    let localUV = fract(input.texCoord);
+    let atlasUV = localUV * mat.atlasBounds.zw + mat.atlasBounds.xy;
+    let sampled = textureSampleLevel(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer), 0.0);
+    return vec4<f32>(sampled.a, sampled.a, sampled.a, 1.0);
+`
 	default:
 		body = `
     return vec4<f32>(1.0, 0.0, 1.0, 1.0);
@@ -398,6 +406,8 @@ func debugVizModeDescription(mode int) string {
 		return "sample texture at layer 0 (forces layer 0 for all faces)"
 	case 6:
 		return "sample texture at layer 1 (forces layer 1 for all faces)"
+	case 7:
+		return "sampled alpha as grayscale (white=opaque, black=transparent)"
 	default:
 		return "unknown"
 	}

@@ -55,7 +55,8 @@ func debugMaterialDumpEnabled() bool {
 
 // debugMaterialVizMode returns the debug visualization mode:
 // 0 = off, 1 = materialID, 2 = layer, 3 = atlasUV,
-// 4 = sample at mat.layer, 5 = sample at layer 0, 6 = sample at layer 1.
+// 4 = sample at mat.layer, 5 = sample at layer 0, 6 = sample at layer 1,
+// 7 = sampled alpha as grayscale.
 func debugMaterialVizMode() int {
 	v := os.Getenv("IRONWAIL_DEBUG_MATERIAL_VIZ")
 	switch v {
@@ -71,6 +72,8 @@ func debugMaterialVizMode() int {
 		return 5
 	case "6":
 		return 6
+	case "7":
+		return 7
 	default:
 		return 0
 	}

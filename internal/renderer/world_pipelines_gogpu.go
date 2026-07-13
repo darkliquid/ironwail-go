@@ -50,7 +50,7 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 				Binding:    0,
 				Visibility: gputypes.ShaderStageFragment,
 				Sampler: &gputypes.SamplerBindingLayout{
-					Type: gputypes.SamplerBindingTypeFiltering,
+					Type: gputypes.SamplerBindingTypeNonFiltering,
 				},
 			},
 			{

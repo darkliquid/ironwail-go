@@ -463,6 +463,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
 			alphaTestDrawnIndices += batch.numIndices
 		}
+	} else if len(alphaTestBatches) > 0 {
+		slog.Warn("renderWorldInternal: alpha-test faces exist but alpha-test pipeline is nil",
+			"alpha_test_batches", len(alphaTestBatches))
 	}
 	if dc.renderer.worldTurbulentPipeline != nil {
 		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
@@ -500,7 +503,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("GoGPU world sky rendered", "indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
 	}
 	if alphaTestDrawnIndices > 0 {
-		slog.Debug("GoGPU alpha-test world faces rendered", "indices", alphaTestDrawnIndices, "triangles", alphaTestDrawnIndices/3)
+		slog.Info("GoGPU alpha-test world faces rendered", "indices", alphaTestDrawnIndices, "triangles", alphaTestDrawnIndices/3, "batches", len(alphaTestBatches))
+	} else if len(alphaTestBatches) > 0 {
+		slog.Warn("GoGPU alpha-test batches exist but no indices drawn", "batches", len(alphaTestBatches))
 	}
 	if liquidDrawnIndices > 0 {
 		slog.Debug("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)
