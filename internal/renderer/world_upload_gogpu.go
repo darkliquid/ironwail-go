@@ -451,15 +451,16 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		if err != nil {
 			slog.Warn("Failed to create world lightmap sampler", "error", err)
 		} else {
-			// Create a gray fallback lightmap for faces without lightmap
-			// data (lightofs = -1). The shader multiplies texture color by
-			// totalLight * 2.0, so gray (128) gives 128/255 * 2.0 ≈ 1.0,
-			// which is full brightness without overexposure. This matches
-			// the C Ironwail's reserved texel (0xff808080) used for
-			// SURF_DRAWTILED faces and the "unlit map" fallback.
-			_, grayLightmapView, grayErr := r.createWorldSolidTexture(device, queue, "World Gray Lightmap", [4]byte{128, 128, 128, 255})
-			if grayErr != nil || grayLightmapView == nil {
-				slog.Warn("Failed to create gray lightmap fallback texture", "error", grayErr)
+			// Create a black fallback lightmap for faces without lightmap
+			// data (lightofs = -1). The C Ironwail engine allocates a
+			// black lightmap block for these faces (GL_PackLitSurfaces
+			// assigns them to a reserved black block, and
+			// GL_FillSurfaceLightmap skips them, leaving the block black).
+			// The shader multiplies texture color by totalLight * 2.0,
+			// so black (0) gives 0 brightness, matching C behavior.
+			_, blackLightmapView, blackErr := r.createWorldSolidTexture(device, queue, "World Black Lightmap", [4]byte{0, 0, 0, 255})
+			if blackErr != nil || blackLightmapView == nil {
+				slog.Warn("Failed to create black lightmap fallback texture", "error", blackErr)
 				fallbackView := worldLightmapFallbackView(transparentTextureView, whiteTextureView)
 				if fallbackView != nil {
 					whiteLightmapBindGroup, err = r.createWorldLightmapBindGroup(device, worldLightmapSampler, fallbackView)
@@ -468,7 +469,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 					}
 				}
 			} else {
-				whiteLightmapBindGroup, err = r.createWorldLightmapBindGroup(device, worldLightmapSampler, grayLightmapView)
+				whiteLightmapBindGroup, err = r.createWorldLightmapBindGroup(device, worldLightmapSampler, blackLightmapView)
 				if err != nil {
 					slog.Warn("Failed to create world lightmap fallback bind group", "error", err)
 				}

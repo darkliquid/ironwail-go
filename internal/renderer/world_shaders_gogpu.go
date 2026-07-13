@@ -214,8 +214,8 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let localUV = fract(input.texCoord);
     let atlasUV = vec2<f32>(localUV * mat.atlasBounds.zw + mat.atlasBounds.xy);
     let atlasVOffset = mat.layer;
-    let sampled = textureSample(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + atlasVOffset));
-    let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, vec2<f32>(atlasUV.x, atlasUV.y + atlasVOffset));
+    let sampled = textureSampleLevel(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + atlasVOffset), 0.0);
+    let fullbright = textureSampleLevel(worldFullbrightTexture, worldFullbrightSampler, vec2<f32>(atlasUV.x, atlasUV.y + atlasVOffset), 0.0);
 	%s
     var totalLight = textureSample(worldLightmap, worldLightmapSampler, vec2<f32>(input.lightmapCoord.x, input.lightmapCoord.y + input.lightmapLayer)).rgb;
     let dynamicLight = accumulateDynamicLights(input.worldPos, %s, input.clipPos);
@@ -557,8 +557,8 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let mat = materials[input.materialID];
     let uv = fract(input.texCoord * 2.0 + 0.125 * sin(input.texCoord.yx * (3.14159265 * 2.0) + vec2<f32>(uniforms.time, uniforms.time)));
     let atlasUV = uv * mat.atlasBounds.zw + mat.atlasBounds.xy;
-    let sampled = textureSample(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer));
-    let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer));
+    let sampled = textureSampleLevel(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer), 0.0);
+    let fullbright = textureSampleLevel(worldFullbrightTexture, worldFullbrightSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer), 0.0);
     var totalLight = vec3<f32>(0.5);
     if (uniforms.litWater > 0.5) {
         totalLight = textureSample(worldLightmap, worldLightmapSampler, vec2<f32>(input.lightmapCoord.x, input.lightmapCoord.y + input.lightmapLayer)).rgb;
