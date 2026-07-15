@@ -682,3 +682,157 @@ func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
 		t.Fatalf("pusher nextthink = %v, want 0.6", got)
 	}
 }
+
+// TestImpactSyncsPusherMutationsFromQCVM verifies that when a touch callback
+// executed via Impact mutates a MOVETYPE_PUSH entity's fields (velocity,
+// nextthink, think) in QCVM storage, those mutations are synced back to the
+// Go server edict. Without this sync, a trigger that targets a pusher (e.g.,
+// a button that activates a func_train) would have its effect silently lost
+// when the touch dispatch path is through Impact (direct collision) rather
+// than touchLinks (area trigger).
+func TestImpactSyncsPusherMutationsFromQCVM(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	// The touch callback writes velocity, nextthink, and think on the pusher
+	// entity (entity 3) using QCVM field offsets. This simulates a QC
+	// function like button_fire → SUB_CalcMove that sets up movement on a
+	// MOVETYPE_PUSH entity.
+	const setPusherVelocityBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		pusherNum := 3
+		vm.SetEVector(pusherNum, qc.EntFieldVelocity, [3]float32{0, 0, -100})
+		vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 1.5)
+		vm.SetEInt(pusherNum, qc.EntFieldThink, 42)
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_set_pusher_velocity"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(setPusherVelocityBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(setPusherVelocityBuiltinOfs, -1)
+
+	e1 := &Edict{Vars: &EntVars{}}
+	e1.Vars.Touch = 1
+	e1.Vars.Solid = float32(SolidTrigger)
+	e2 := &Edict{Vars: &EntVars{}}
+	e2.Vars.Solid = float32(SolidBSP)
+	pusher := &Edict{Vars: &EntVars{}}
+	pusher.Vars.MoveType = float32(MoveTypePush)
+	pusher.Vars.Origin = [3]float32{32, 0, 0}
+	pusher.Vars.LTime = 0.3
+	s.Edicts = append(s.Edicts, e1, e2, pusher)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	// Initialize pusher QCVM fields to zero so mutations are detectable
+	pusherNum := s.NumForEdict(pusher)
+	vm.SetEVector(pusherNum, qc.EntFieldVelocity, [3]float32{0, 0, 0})
+	vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 0)
+	vm.SetEInt(pusherNum, qc.EntFieldThink, 0)
+
+	s.Impact(e1, e2)
+
+	// After Impact, the pusher's mutated fields should be synced back to Go
+	if got := pusher.Vars.Velocity; got != [3]float32{0, 0, -100} {
+		t.Fatalf("pusher velocity = %v, want [0 0 -100]", got)
+	}
+	if got := pusher.Vars.NextThink; got != 1.5 {
+		t.Fatalf("pusher nextthink = %v, want 1.5", got)
+	}
+	if got := pusher.Vars.Think; got != 42 {
+		t.Fatalf("pusher think = %v, want 42", got)
+	}
+}
+
+// TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink verifies that
+// when a non-pusher entity's think function (e.g. DelayedUse) calls
+// SUB_UseTargets which targets a MOVETYPE_PUSH entity (e.g. func_train),
+// the pusher's mutated fields (velocity, nextthink, think) are synced back
+// to the Go server edict. Without this sync, the pusher would never move
+// because the Go-side PhysicsPusher would never see the velocity/nextthink
+// set by the QC callback.
+func TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	// The think callback writes velocity, nextthink, and think on a pusher
+	// entity (entity 2) using QCVM field offsets. This simulates a
+	// DelayedUse think → SUB_UseTargets → train_use → train_next →
+	// SUB_CalcMove that sets up movement on a MOVETYPE_PUSH entity.
+	const setPusherVelocityBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		pusherNum := 2
+		vm.SetEVector(pusherNum, qc.EntFieldVelocity, [3]float32{0, 0, -600})
+		vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 7.78)
+		vm.SetEInt(pusherNum, qc.EntFieldThink, 99)
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("delayed_use_set_pusher_velocity"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(setPusherVelocityBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(setPusherVelocityBuiltinOfs, -1)
+
+	// Entity 1: non-pusher (thinker, e.g. DelayedUse)
+	thinker := &Edict{Vars: &EntVars{}}
+	thinker.Vars.MoveType = float32(MoveTypeNone)
+	thinker.Vars.Think = 1
+	thinker.Vars.NextThink = 0.05
+
+	// Entity 2: pusher (e.g. func_train)
+	pusher := &Edict{Vars: &EntVars{}}
+	pusher.Vars.MoveType = float32(MoveTypePush)
+	pusher.Vars.Origin = [3]float32{100, 200, 300}
+	pusher.Vars.LTime = 0.1
+
+	s.Edicts = append(s.Edicts, thinker, pusher)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	// Initialize pusher QCVM fields to zero so mutations are detectable
+	pusherNum := s.NumForEdict(pusher)
+	vm.SetEVector(pusherNum, qc.EntFieldVelocity, [3]float32{0, 0, 0})
+	vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 0)
+	vm.SetEInt(pusherNum, qc.EntFieldThink, 0)
+
+	// Execute the thinker's think function via executeQCFunction (the same
+	// path used by RunThink for non-pusher entities).
+	thinkerNum := s.NumForEdict(thinker)
+	s.QCVM.SetGlobal("self", thinkerNum)
+	s.setQCTimeGlobal(1.0)
+	err := s.executeQCFunction(int(thinker.Vars.Think))
+	if err != nil {
+		t.Fatalf("executeQCFunction error: %v", err)
+	}
+
+	// After executeQCFunction, the pusher's mutated fields should be synced
+	// back to Go so PhysicsPusher can move it on subsequent frames.
+	if got := pusher.Vars.Velocity; got != [3]float32{0, 0, -600} {
+		t.Fatalf("pusher velocity = %v, want [0 0 -600]", got)
+	}
+	if got := pusher.Vars.NextThink; got != 7.78 {
+		t.Fatalf("pusher nextthink = %v, want 7.78", got)
+	}
+	if got := pusher.Vars.Think; got != 99 {
+		t.Fatalf("pusher think = %v, want 99", got)
+	}
+}

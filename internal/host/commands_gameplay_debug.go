@@ -143,7 +143,8 @@ func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
 		return
 	}
 
-	// Auto-enable noclip
+	// Auto-enable noclip so the player doesn't fall through the world
+	// when teleporting to arbitrary positions.
 	if server.MoveType(ent.Vars.MoveType) != server.MoveTypeNoClip {
 		ent.Vars.MoveType = float32(server.MoveTypeNoClip)
 		if subs.Console != nil {

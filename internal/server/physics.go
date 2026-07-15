@@ -51,9 +51,7 @@ func (s *Server) RunThink(ent *Edict) bool {
 	s.QCVM.SetGlobal("other", 0)
 	if ent.Vars.Think != 0 {
 		prevNumEdicts := s.NumEdicts
-		s.syncEdictToQCVM(entNum, ent)
 		if err := s.executeQCFunction(int(ent.Vars.Think)); err == nil {
-			s.syncEdictFromQCVM(entNum, ent)
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 	}
@@ -84,13 +82,10 @@ func (s *Server) Impact(e1, e2 *Edict) {
 			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
 				"impact touch begin other=%d fn=%d", e2Num, e1.Vars.Touch)
 		}
-		s.syncEdictToQCVM(e1Num, e1)
-		s.syncEdictToQCVM(e2Num, e2)
+		s.debugTriggerTouch("impact", e1, e2)
 		s.QCVM.SetGlobal("self", e1Num)
 		s.QCVM.SetGlobal("other", e2Num)
 		if err := s.executeQCFunction(int(e1.Vars.Touch)); err == nil {
-			s.syncEdictFromQCVM(e1Num, e1)
-			s.syncEdictFromQCVM(e2Num, e2)
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		if telemetryEnabled {
@@ -105,13 +100,10 @@ func (s *Server) Impact(e1, e2 *Edict) {
 			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
 				"impact touch begin other=%d fn=%d", e1Num, e2.Vars.Touch)
 		}
-		s.syncEdictToQCVM(e2Num, e2)
-		s.syncEdictToQCVM(e1Num, e1)
+		s.debugTriggerTouch("impact", e2, e1)
 		s.QCVM.SetGlobal("self", e2Num)
 		s.QCVM.SetGlobal("other", e1Num)
 		if err := s.executeQCFunction(int(e2.Vars.Touch)); err == nil {
-			s.syncEdictFromQCVM(e2Num, e2)
-			s.syncEdictFromQCVM(e1Num, e1)
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		if telemetryEnabled {
@@ -453,13 +445,9 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 					"pushmove blocked by=%d callback=%d movetime=%.3f", checkNum, pusher.Vars.Blocked, movetime)
 			}
 			prevNumEdicts := s.NumEdicts
-			pusherSnapshots := s.capturePusherSnapshots()
-			s.syncPushersToQCVM()
-			s.syncEdictToQCVM(checkNum, check)
 			s.QCVM.SetGlobal("self", pusherNum)
 			s.QCVM.SetGlobal("other", checkNum)
 			if err := s.executeQCFunction(int(pusher.Vars.Blocked)); err == nil {
-				s.syncMutatedPushersFromQCVM(pusherSnapshots)
 				s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 			}
 			restoreQCExecutionContext(s.QCVM, ctx)
@@ -528,9 +516,7 @@ func (s *Server) PhysicsPusher(ent *Edict) {
 			s.QCVM.SetGlobal("self", entNum)
 			s.QCVM.SetGlobal("other", 0)
 			prevNumEdicts := s.NumEdicts
-			s.syncPushersToQCVM()
 			if err := s.executeQCFunction(int(ent.Vars.Think)); err == nil {
-				s.syncPushersFromQCVM()
 				s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 			}
 			if telemetryEnabled {

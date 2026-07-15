@@ -503,7 +503,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("GoGPU world sky rendered", "indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
 	}
 	if alphaTestDrawnIndices > 0 {
-		slog.Info("GoGPU alpha-test world faces rendered", "indices", alphaTestDrawnIndices, "triangles", alphaTestDrawnIndices/3, "batches", len(alphaTestBatches))
+		slog.Debug("GoGPU alpha-test world faces rendered", "indices", alphaTestDrawnIndices, "triangles", alphaTestDrawnIndices/3, "batches", len(alphaTestBatches))
 	} else if len(alphaTestBatches) > 0 {
 		slog.Warn("GoGPU alpha-test batches exist but no indices drawn", "batches", len(alphaTestBatches))
 	}

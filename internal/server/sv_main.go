@@ -387,15 +387,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	// these globals to decide behavior.
 	s.syncQCVMState()
 
-	// Cache QC field offsets for alpha/scale (used every frame in entity updates).
-	if s.QCVM != nil {
-		s.QCFieldAlpha = s.QCVM.FindField("alpha")
-		s.QCFieldScale = s.QCVM.FindField("scale")
-		s.QCFieldGravity = s.QCVM.FindField("gravity")
-		s.EffectsMask = s.detectEffectsMaskFromQC()
-	} else {
-		s.EffectsMask = defaultEffectsMask
-	}
+	s.cacheQCFieldOffsets()
 
 	s.suppressTouchQC = true
 	defer func() {

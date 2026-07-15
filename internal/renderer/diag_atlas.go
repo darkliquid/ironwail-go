@@ -738,14 +738,14 @@ func sanitizeMapName(name string) string {
 // texture arrays have matching layer counts and that the material buffer
 // is correctly sized.
 func diagWorldUploadSummary(diffuse, fullbright, lightmap *gpuWorldTexture, materialsBuffer *wgpu.Buffer, materialCount int, skyTextureCount int) {
-	slog.Info("World GPU resource summary",
+	slog.Debug("World GPU resource summary",
 		"material_count", materialCount,
 		"material_buffer_capacity", worldMaterialsBufferCapacity,
 		"sky_texture_count", skyTextureCount,
 	)
 
 	if diffuse != nil {
-		slog.Info("Diffuse texture array",
+		slog.Debug("Diffuse texture array",
 			"width", diffuse.width,
 			"height", diffuse.height,
 			"layers", diffuse.layers,
@@ -755,17 +755,17 @@ func diagWorldUploadSummary(diffuse, fullbright, lightmap *gpuWorldTexture, mate
 	}
 
 	if fullbright != nil {
-		slog.Info("Fullbright texture array",
+		slog.Debug("Fullbright texture array",
 			"width", fullbright.width,
 			"height", fullbright.height,
 			"layers", fullbright.layers,
 		)
 	} else {
-		slog.Info("Fullbright texture array is nil (no fullbright data)")
+		slog.Debug("Fullbright texture array is nil (no fullbright data)")
 	}
 
 	if lightmap != nil {
-		slog.Info("Lightmap texture array",
+		slog.Debug("Lightmap texture array",
 			"width", lightmap.width,
 			"height", lightmap.height,
 			"layers", lightmap.layers,
@@ -786,7 +786,7 @@ func diagWorldUploadSummary(diffuse, fullbright, lightmap *gpuWorldTexture, mate
 
 	// Check material buffer
 	if materialsBuffer != nil {
-		slog.Info("Materials buffer",
+		slog.Debug("Materials buffer",
 			"material_count", materialCount,
 			"buffer_capacity", worldMaterialsBufferCapacity,
 			"over_capacity", materialCount > worldMaterialsBufferCapacity,

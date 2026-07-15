@@ -108,6 +108,14 @@ type Server struct {
 	QCFieldGravity int
 	QCFieldItems2  int
 
+	// Cached extension field offsets from progs.dat FieldDefs. -1 = not found.
+	// These are Copper/mod extension fields not in the standard entvars_t.
+	QCFieldState         int
+	QCFieldWait          int
+	QCFieldSpeed         int
+	QCFieldCustomFlags   int
+	QCFieldThCheckAttack int
+
 	// EffectsMask filters EntVars.Effects before serializing entity updates.
 	// Defaults to 0xFF (all low 8 bits allowed) and can be narrowed when loaded
 	// progs.dat does not define specific effect bits (e.g. QEX-only bits).
@@ -261,10 +269,15 @@ func NewServer() *Server {
 		StopSpeed:       100,
 		MaxEdicts:       MaxEdicts,
 		Protocol:        ProtocolFitzQuake,
-		QCFieldAlpha:    -1,
-		QCFieldScale:    -1,
-		QCFieldGravity:  -1,
-		EffectsMask:     defaultEffectsMask,
+		QCFieldAlpha:         -1,
+		QCFieldScale:         -1,
+		QCFieldGravity:       -1,
+		QCFieldState:         -1,
+		QCFieldWait:          -1,
+		QCFieldSpeed:         -1,
+		QCFieldCustomFlags:   -1,
+		QCFieldThCheckAttack: -1,
+		EffectsMask:          defaultEffectsMask,
 		QCVM:            vm,
 		DebugTelemetry:  NewDebugTelemetry(),
 		impactFrameSeen: make(map[impactTouchKey]struct{}),
@@ -279,7 +292,7 @@ func NewServer() *Server {
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations
 	// return entity indices starting at 1, matching the VM's
 	// expectations where entity 0 is the level itself.
-	world := &Edict{Vars: &EntVars{}}
+	world := &Edict{Num: 0, Vars: &EntVars{}}
 	s.Edicts = append(s.Edicts, world)
 	s.NumEdicts = 1
 
@@ -385,8 +398,12 @@ func NewServer() *Server {
 					continue
 				}
 				if vm.String(vm.EString(entNum, fieldOfs)) == match {
+					s.debugTriggerFind(fieldOfs, match, entNum)
 					return entNum
 				}
+			}
+			if startEnt == 0 {
+				s.debugTriggerFind(fieldOfs, match, 0)
 			}
 			return 0
 		},

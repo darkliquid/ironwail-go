@@ -82,7 +82,7 @@ func (s *Server) AllocEdict() *Edict {
 	for i, e := range s.Edicts {
 		if e.Free && (e.FreeTime < 2 || s.Time-e.FreeTime > 0.5) {
 			UnlinkEdict(e)
-			*e = Edict{Vars: &EntVars{}}
+			*e = Edict{Num: i, Vars: &EntVars{}}
 			s.NumEdicts = max(s.NumEdicts, i+1)
 			s.ensureQCVMEdictStorage()
 			clearQCVMEdictData(s.QCVM, i)
@@ -95,7 +95,7 @@ func (s *Server) AllocEdict() *Edict {
 		return nil
 	}
 
-	e := &Edict{Vars: &EntVars{}}
+	e := &Edict{Num: len(s.Edicts), Vars: &EntVars{}}
 	s.Edicts = append(s.Edicts, e)
 	s.NumEdicts = len(s.Edicts)
 	s.ensureQCVMEdictStorage()
@@ -134,8 +134,18 @@ func (s *Server) EdictNum(n int) *Edict {
 
 // NumForEdict returns the index for the given entity.
 func (s *Server) NumForEdict(e *Edict) int {
+	if e == nil {
+		return -1
+	}
+	// Fast path: the Num field is set during AllocEdict and is stable.
+	// Verify it's in range as a safety check.
+	if e.Num >= 0 && e.Num < len(s.Edicts) && s.Edicts[e.Num] == e {
+		return e.Num
+	}
+	// Fallback: linear scan for manually-created edicts (tests, etc.)
 	for i, ent := range s.Edicts {
 		if ent == e {
+			e.Num = i
 			return i
 		}
 	}

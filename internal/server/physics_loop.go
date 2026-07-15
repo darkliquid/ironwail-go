@@ -165,7 +165,17 @@ func (s *Server) Physics() {
 			continue
 		}
 
+		// C's SV_Physics_Client unconditionally calls SV_LinkEdict(ent, true)
+		// after the movetype switch, before PlayerPostThink. PhysicsWalk
+		// handles this internally, but non-WALK client paths (e.g.
+		// MOVETYPE_NONE during intermission) need it here so trigger touches
+		// fire even for stationary clients.
 		if clientForPostThink != nil && !ent.Free {
+			if MoveType(ent.Vars.MoveType) != MoveTypeWalk {
+				phaseBegin()
+				s.LinkEdict(ent, true)
+				phaseEnd(&forceRetouchMS)
+			}
 			phaseBegin()
 			s.runClientQCThinkWithMode(clientForPostThink, "PlayerPostThink", false)
 			phaseEnd(&postThinkMS)

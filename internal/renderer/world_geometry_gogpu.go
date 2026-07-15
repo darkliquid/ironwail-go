@@ -165,7 +165,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		}
 		// Dump flags for dopefish texture (miptex 37)
 		if face.TextureIndex == 37 {
-			slog.Info("Dopefish face flags",
+			slog.Debug("Dopefish face flags",
 				"texture_index", face.TextureIndex,
 				"flags", face.Flags,
 				"has_fence", face.Flags&model.SurfDrawFence != 0,
@@ -177,7 +177,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 			)
 		}
 	}
-	slog.Info("Face classification",
+	slog.Debug("Face classification",
 		"total_faces", len(geom.Faces),
 		"opaque", opaqueCount,
 		"fence", fenceCount,
@@ -265,7 +265,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 				}
 			}
 		}
-		slog.Info("Lightmap diagnostic",
+		slog.Debug("Lightmap diagnostic",
 			"total_faces", len(geom.Faces),
 			"lightmapped_faces", lightmappedCount,
 			"no_lightmap_faces", noLightmapCount,

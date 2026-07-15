@@ -72,6 +72,10 @@ type StaticSound struct {
 // clients during the signon phase. Subsequent updates only transmit fields
 // that differ from this baseline, saving bandwidth.
 type Edict struct {
+	// Num is the entity number (index into s.Edicts and s.QCVM.Edicts).
+	// Set during allocation, stable for the entity's lifetime.
+	Num int
+
 	// Free indicates this edict slot is available for reuse. When true, the
 	// entity has been removed from the game world but the slot hasn't been
 	// recycled yet (waiting for FreeTime delay to expire).

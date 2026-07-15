@@ -19,6 +19,7 @@ const (
 	debugTelemetrySummaryCVarName     = "sv_debug_telemetry_summary"
 	debugTelemetryQCTraceCVarName     = "sv_debug_qc_trace"
 	debugTelemetryQCVerbosityCVarName = "sv_debug_qc_trace_verbosity"
+	debugTriggerCVarName              = "sv_debug_trigger"
 )
 
 var (
@@ -29,6 +30,7 @@ var (
 	debugTelemetrySummaryCVar     *cvar.CVar
 	debugTelemetryQCTraceCVar     *cvar.CVar
 	debugTelemetryQCVerbosityCVar *cvar.CVar
+	debugTriggerCVar              *cvar.CVar
 	debugTelemetryEmit            = func(line string) {
 		fmt.Fprintln(os.Stderr, line)
 	}
@@ -45,6 +47,7 @@ func RegisterDebugTelemetryCVars(cv *cvar.CVarSystem) {
 	debugTelemetrySummaryCVar = cv.Register(debugTelemetrySummaryCVarName, "1", cvar.FlagNone, "Per-frame summary mode (0=off, 1=frames with events, 2=all frames)")
 	debugTelemetryQCTraceCVar = cv.Register(debugTelemetryQCTraceCVarName, "0", cvar.FlagNone, "Enable QuakeC debug trace output")
 	debugTelemetryQCVerbosityCVar = cv.Register(debugTelemetryQCVerbosityCVarName, "1", cvar.FlagNone, "QuakeC trace verbosity ceiling")
+	debugTriggerCVar = cv.Register(debugTriggerCVarName, "0", cvar.FlagNone, "Print trigger/entity activation info to console")
 }
 
 type DebugEventKind string
