@@ -1,8 +1,8 @@
 package quakego
 
 import (
-	"github.com/darkliquid/ironwail-go/pkg/qgo/quake"
-	"github.com/darkliquid/ironwail-go/pkg/qgo/quake/engine"
+	"quake"
+	"quake/engine"
 )
 
 func key_touch() {

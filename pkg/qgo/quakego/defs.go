@@ -1,6 +1,6 @@
 package quakego
 
-import "github.com/darkliquid/ironwail-go/pkg/qgo/quake"
+import "quake"
 
 const (
 	FALSE = 0

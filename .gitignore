@@ -10,18 +10,20 @@
 # Keep license/readme files
 !/LICENSE.*
 !/README.*
+!/AGENTS.md
 
 # Keep core module/task files at repo root
 !/mise.toml
 !/go.mod
 !/go.sum
 !/.golangci.yml
+!/pkg/qgo/quake/go.mod
+!/pkg/qgo/quakego/go.mod
 
 # Keep this file
 !.gitignore
 !/docs/**/*.md
 !/docs/**/*.txt
-!/.github/copilot-instructions.md
 
 # Parity tooling files
 !/tasks/*.sh

@@ -3,7 +3,7 @@ package engine
 import (
 	"sync"
 
-	"github.com/darkliquid/ironwail-go/pkg/qgo/quake"
+	"quake"
 )
 
 // Backend provides optional runtime hooks for selected engine builtins.

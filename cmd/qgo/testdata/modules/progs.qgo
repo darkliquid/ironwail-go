@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/ironwail/ironwail-go/pkg/qgo/quake"
-	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
+	"quake"
+	"quake/engine"
 )
 
 func main() {

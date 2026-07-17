@@ -3,7 +3,7 @@ package quakego
 import (
 	"testing"
 
-	"github.com/darkliquid/ironwail-go/pkg/qgo/quake"
+	"quake"
 )
 
 func TestWSetCurrentAmmoSelectsBestWeaponWhenUnset(t *testing.T) {

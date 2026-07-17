@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/darkliquid/ironwail-go/pkg/qgo/quake"
+	"quake"
 )
 
 func TestBackendHooks(t *testing.T) {

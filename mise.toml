@@ -6,6 +6,7 @@ go = "1.26"
 golangci-lint = "latest"
 "go:golang.org/x/vuln/cmd/govulncheck" = "latest"
 "go:golang.org/x/tools/cmd/stringer" = "latest"
+"go:golang.org/x/tools/gopls" = "latest"
 "go:github.com/kolkov/racedetector/cmd/racedetector" = "latest"
 
 # Helper task - not meant to be run directly
@@ -75,45 +76,6 @@ grep "client active" smoke-map-start.log
 [tasks.smoke-all]
 description = "Run all smoke tests"
 depends = ["smoke-menu", "smoke-headless", "smoke-map-start"]
-
-[tasks.ralph-analyze-log]
-description = "Analyze a telemetry log into Ralph task records"
-run = """
-mkdir -p .ralph
-go run ./tools/ralph analyze-log \
-  --log "${RALPH_LOG:-test.log}" \
-  --summary "${RALPH_SUMMARY:-.ralph/latest-summary.json}" \
-  --tasks "${RALPH_TASKS:-.ralph/latest-task-records.json}" \
-  --state "${RALPH_STATE:-.ralph/state.json}" \
-  --beads-sync "${RALPH_BEADS_SYNC:-.ralph/latest-beads-sync.json}" \
-  $(if [ "${RALPH_APPLY_BEADS:-0}" = "1" ]; then printf '%s' '--apply-beads'; fi) \
-  --beads-binary "${RALPH_BEADS_BIN:-bd}"
-"""
-
-[tasks.ralph-build-prompt]
-interactive = true
-description = "Build a Copilot prompt from Ralph summary/task artifacts"
-run = """
-mkdir -p .ralph
-go run ./tools/ralph build-prompt \
-  --summary "${RALPH_SUMMARY:-.ralph/latest-summary.json}" \
-  --tasks "${RALPH_TASKS:-.ralph/latest-task-records.json}" \
-  --log "${RALPH_LOG:-.ralph/latest.log}" \
-  --output "${RALPH_PROMPT_PATH:-.ralph/latest-copilot-prompt.txt}" \
-  --max-tasks "${RALPH_COPILOT_MAX_TASKS:-5}"
-"""
-
-[tasks.ralph-loop-once]
-interactive = true
-description = "Run one telemetry/analyze/fix Ralph iteration"
-depends = ["build"]
-run = "go run ./tools/ralph loop once"
-
-[tasks.ralph-loop]
-interactive = true
-description = "Continuously run the telemetry-driven Ralph parity/fix loop"
-depends = ["build"]
-run = "go run ./tools/ralph loop continuous"
 
 [tasks.test]
 description = "Run Go tests"
@@ -197,3 +159,73 @@ TMPDIR=/tmp govulncheck ./...
 [tasks.fmt]
 description = "Format Go code"
 run = "golangci-lint fmt ./..."
+
+[tasks.setup-symlinks]
+description = "Check/create symlinks for the C Ironwail repo and Quake data"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+ok=0
+
+check_link() {
+  local name="$1" target="$2"
+  if [ -L "$name" ]; then
+    if [ -e "$name" ]; then
+      echo "OK: $name -> $(readlink "$name")"
+    else
+      echo "BROKEN: $name -> $(readlink "$name") (target missing)"
+      ok=1
+    fi
+  elif [ -e "$name" ]; then
+    echo "NOT A SYMLINK: $name exists but is not a symlink"
+    ok=1
+  else
+    echo "MISSING: $name (expected to symlink to $target)"
+    ok=1
+  fi
+}
+
+create_link() {
+  local name="$1" target="$2"
+  if [ -d "$target" ] || [ -f "$target" ]; then
+    ln -s "$target" "$name"
+    echo "CREATED: $name -> $target"
+  else
+    echo "CANNOT CREATE: $name -> $target (target does not exist)"
+    ok=1
+  fi
+}
+
+# Expected symlinks:
+#   ./ironwail    -> ../ironwail      (C Ironwail source repo + binary)
+#   ./quake-data  -> ../quake-data    (Quake game data: id1/pak0.pak, etc.)
+
+# Allow override via env vars
+IRONWAIL_SRC="${IRONWAIL_SRC:-../ironwail}"
+QUAKE_DATA_SRC="${QUAKE_DATA_SRC:-../quake-data}"
+
+for pair in "ironwail:${IRONWAIL_SRC}" "quake-data:${QUAKE_DATA_SRC}"; do
+  name="${pair%%:*}"
+  target="${pair##*:}"
+  if [ -L "$name" ] || [ -e "$name" ]; then
+    check_link "$name" "$target"
+  else
+    create_link "$name" "$target"
+  fi
+done
+
+if [ "$ok" -ne 0 ]; then
+  echo ""
+  echo "Some symlinks are missing or broken."
+  echo "Create them manually, e.g.:"
+  echo "  ln -s /path/to/ironwail ironwail"
+  echo "  ln -s /path/to/quake-data quake-data"
+  echo ""
+  echo "Or set IRONWAIL_SRC and QUAKE_DATA_SRC env vars and re-run."
+  exit 1
+fi
+
+echo ""
+echo "All symlinks OK. QUAKE_DIR can point at ./quake-data"
+"""

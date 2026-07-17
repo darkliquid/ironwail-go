@@ -70,7 +70,8 @@ The repo also exposes this via `mise` tasks.
 
 ### Compile the real QuakeGo gameplay package
 
-The canonical example in this repository is `pkg/qgo/quakego`, which is a nested Go module.
+The canonical example in this repository is `pkg/qgo/quakego`, which is a
+separate Go module (module name `progs`, see its `go.mod`).
 
 From the repository root:
 
@@ -197,8 +198,8 @@ QuakeGo code should primarily import:
 
 ```go
 import (
-    "github.com/ironwail/ironwail-go/pkg/qgo/quake"
-    "github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
+    "quake"
+    "quake/engine"
 )
 ```
 
@@ -530,8 +531,8 @@ A good starting workflow is:
 package progs
 
 import (
-    "github.com/ironwail/ironwail-go/pkg/qgo/quake"
-    "github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
+    "quake"
+    "quake/engine"
 )
 
 var Counter float32
