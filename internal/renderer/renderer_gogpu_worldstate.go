@@ -452,6 +452,8 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 	// Create materials buffer and bind group for external model
 	var materialsBuffer *wgpu.Buffer
 	var bindGroup *wgpu.BindGroup
+	var frame1Buffer *wgpu.Buffer
+	var frame1BindGroup *wgpu.BindGroup
 	if len(baseMaterials) > 0 {
 		buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 			Label:            "External Brush Materials Buffer",
@@ -473,6 +475,26 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 					bindGroup = bg
 				}
 			}
+
+			// Create a second materials buffer + bind group for frame-1
+			// (alternate texture chains) so external BSP brush entities with
+			// frame != 0 can select pressed/activated textures.
+			f1buf, f1err := device.CreateBuffer(&wgpu.BufferDescriptor{
+				Label:            "External Brush Materials Buffer Frame1",
+				Size:             uint64(worldMaterialsBufferSize),
+				Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+				MappedAtCreation: false,
+			})
+			if f1err == nil && f1buf != nil {
+				frame1Buffer = f1buf
+				queue.WriteBuffer(frame1Buffer, 0, byteData)
+				if r.uniformBindGroupLayout != nil && r.uniformBuffer != nil {
+					f1bg, bgErr := r.createWorldUniformBindGroup(device, r.uniformBindGroupLayout, r.uniformBuffer, frame1Buffer)
+					if bgErr == nil && f1bg != nil {
+						frame1BindGroup = f1bg
+					}
+				}
+			}
 		}
 	}
 
@@ -483,7 +505,9 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 		r.externalBrushAnimations = make(map[string][]*surfacepkg.SurfaceTexture)
 		r.externalBrushBaseMaterials = make(map[string][]WorldMaterialData)
 		r.externalBrushMaterialsBuffers = make(map[string]*wgpu.Buffer)
+		r.externalBrushMaterialsBuffersFrame1 = make(map[string]*wgpu.Buffer)
 		r.externalBrushUniformBindGroups = make(map[string]*wgpu.BindGroup)
+		r.externalBrushUniformBindGroupsFrame1 = make(map[string]*wgpu.BindGroup)
 	}
 	if existing, ok := r.externalBrushTextures[key]; ok {
 		r.mu.Unlock()
@@ -495,7 +519,9 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 	r.externalBrushAnimations[key] = animations
 	r.externalBrushBaseMaterials[key] = baseMaterials
 	r.externalBrushMaterialsBuffers[key] = materialsBuffer
+	r.externalBrushMaterialsBuffersFrame1[key] = frame1Buffer
 	r.externalBrushUniformBindGroups[key] = bindGroup
+	r.externalBrushUniformBindGroupsFrame1[key] = frame1BindGroup
 	r.mu.Unlock()
 	return textures, fullbright, animations, bindGroup
 }
@@ -509,4 +535,20 @@ func (r *Renderer) brushEntityTextures(entity BrushEntity) (*gpuWorldTexture, *g
 		return nil, nil, nil, nil
 	}
 	return r.ensureExternalBrushModelTextures(entity.ExternalKey, entity.ExternalTree)
+}
+
+// brushEntityUniformBindGroupFrame1 returns the frame-1 uniform bind group
+// for a brush entity. For inline submodels this is the world-level
+// worldUniformBindGroupFrame1 (which binds the world frame-1 materials
+// buffer). For external BSP models it is the per-key frame-1 bind group
+// cached in externalBrushUniformBindGroupsFrame1. Returns nil if no
+// frame-1 buffer was created.
+func (r *Renderer) brushEntityUniformBindGroupFrame1(entity BrushEntity) *wgpu.BindGroup {
+	if entity.ExternalKey == "" || entity.ExternalTree == nil {
+		return r.worldUniformBindGroupFrame1
+	}
+	r.mu.RLock()
+	bg := r.externalBrushUniformBindGroupsFrame1[entity.ExternalKey]
+	r.mu.RUnlock()
+	return bg
 }

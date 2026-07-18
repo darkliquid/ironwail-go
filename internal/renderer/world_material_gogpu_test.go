@@ -46,7 +46,7 @@ func TestAnimateWorldMaterials_SwapsLayerAndBounds(t *testing.T) {
 
 	// 3. We animate at a timeValue that resolves to frame 1.
 	// timeValue=0.3 -> relative = int(0.3 * 10) % 4 = 3, which lands on anim1's window [2, 4).
-	animated := animateWorldMaterials(baseMaterials, animations, 0.3)
+	animated := animateWorldMaterials(baseMaterials, animations, 0, 0.3)
 
 	if len(animated) != len(baseMaterials) {
 		t.Fatalf("Expected %d animated materials, got %d", len(baseMaterials), len(animated))

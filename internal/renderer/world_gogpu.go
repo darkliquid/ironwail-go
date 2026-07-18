@@ -26,23 +26,29 @@ type gogpuOpaqueBrushEntityDraw struct {
 	fullbrightTextures *gpuWorldTexture
 	textureAnimations  []*surfacepkg.SurfaceTexture
 	uniformBindGroup   *wgpu.BindGroup
+	// uniformBindGroupFrame1 is a bind group that points at the frame-1
+	// materials buffer. When the entity's frame != 0, the render loop
+	// selects this bind group so the shader reads alternate texture
+	// atlas bounds/layer (pressed button, activated switch textures).
+	uniformBindGroupFrame1 *wgpu.BindGroup
 }
 
 type gogpuClassifiedBrushEntityDraw struct {
-	alpha              float32
-	frame              int
-	vertices           []WorldVertex
-	opaqueIndices      []uint32
-	opaqueFaces        []WorldFace
-	opaqueCenters      [][3]float32
-	alphaTestIndices   []uint32
-	alphaTestFaces     []WorldFace
-	alphaTestCenters   [][3]float32
-	lightmapArray      *gpuWorldTexture
-	textures           *gpuWorldTexture
-	fullbrightTextures *gpuWorldTexture
-	textureAnimations  []*surfacepkg.SurfaceTexture
-	uniformBindGroup   *wgpu.BindGroup
+	alpha                  float32
+	frame                  int
+	vertices               []WorldVertex
+	opaqueIndices          []uint32
+	opaqueFaces            []WorldFace
+	opaqueCenters          [][3]float32
+	alphaTestIndices       []uint32
+	alphaTestFaces         []WorldFace
+	alphaTestCenters       [][3]float32
+	lightmapArray          *gpuWorldTexture
+	textures               *gpuWorldTexture
+	fullbrightTextures     *gpuWorldTexture
+	textureAnimations      []*surfacepkg.SurfaceTexture
+	uniformBindGroup       *wgpu.BindGroup
+	uniformBindGroupFrame1 *wgpu.BindGroup
 }
 
 type gogpuPreparedClassifiedBrushDraw struct {
@@ -211,15 +217,16 @@ func buildGoGPUSkyBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogp
 }
 
 type gogpuTranslucentLiquidBrushEntityDraw struct {
-	frame              int
-	vertices           []WorldVertex
-	indices            []uint32
-	faces              []gogpuTranslucentLiquidFaceDraw
-	lightmapArray      *gpuWorldTexture
-	textures           *gpuWorldTexture
-	fullbrightTextures *gpuWorldTexture
-	textureAnimations  []*surfacepkg.SurfaceTexture
-	uniformBindGroup   *wgpu.BindGroup
+	frame                  int
+	vertices               []WorldVertex
+	indices                []uint32
+	faces                  []gogpuTranslucentLiquidFaceDraw
+	lightmapArray          *gpuWorldTexture
+	textures               *gpuWorldTexture
+	fullbrightTextures     *gpuWorldTexture
+	textureAnimations      []*surfacepkg.SurfaceTexture
+	uniformBindGroup       *wgpu.BindGroup
+	uniformBindGroupFrame1 *wgpu.BindGroup
 }
 
 func convertGoGPUTranslucentFaceDraws(src []worldgogpu.TranslucentFaceDraw) []gogpuTranslucentLiquidFaceDraw {
@@ -256,18 +263,19 @@ func buildGoGPUTranslucentLiquidBrushEntityDraw(entity BrushEntity, geom *WorldG
 }
 
 type gogpuTranslucentBrushEntityDraw struct {
-	frame              int
-	vertices           []WorldVertex
-	indices            []uint32
-	alphaTestFaces     []WorldFace
-	alphaTestCenters   [][3]float32
-	translucentFaces   []gogpuTranslucentLiquidFaceDraw
-	liquidFaces        []gogpuTranslucentLiquidFaceDraw
-	lightmapArray      *gpuWorldTexture
-	textures           *gpuWorldTexture
-	fullbrightTextures *gpuWorldTexture
-	textureAnimations  []*surfacepkg.SurfaceTexture
-	uniformBindGroup   *wgpu.BindGroup
+	frame                  int
+	vertices               []WorldVertex
+	indices                []uint32
+	alphaTestFaces         []WorldFace
+	alphaTestCenters       [][3]float32
+	translucentFaces       []gogpuTranslucentLiquidFaceDraw
+	liquidFaces            []gogpuTranslucentLiquidFaceDraw
+	lightmapArray          *gpuWorldTexture
+	textures               *gpuWorldTexture
+	fullbrightTextures     *gpuWorldTexture
+	textureAnimations      []*surfacepkg.SurfaceTexture
+	uniformBindGroup       *wgpu.BindGroup
+	uniformBindGroupFrame1 *wgpu.BindGroup
 }
 
 func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, liquidAlpha worldLiquidAlphaSettings, camera CameraState) *gogpuTranslucentBrushEntityDraw {

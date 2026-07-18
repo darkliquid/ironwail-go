@@ -287,12 +287,28 @@ func (r *Renderer) ClearWorld() {
 		if r.worldMaterialsBuffer != nil {
 			r.worldMaterialsBuffer.Release()
 		}
+		if r.worldMaterialsBufferFrame1 != nil {
+			r.worldMaterialsBufferFrame1.Release()
+		}
+		if r.worldUniformBindGroupFrame1 != nil {
+			r.worldUniformBindGroupFrame1.Release()
+		}
 		for _, buf := range r.externalBrushMaterialsBuffers {
 			if buf != nil {
 				buf.Release()
 			}
 		}
+		for _, buf := range r.externalBrushMaterialsBuffersFrame1 {
+			if buf != nil {
+				buf.Release()
+			}
+		}
 		for _, bg := range r.externalBrushUniformBindGroups {
+			if bg != nil {
+				bg.Release()
+			}
+		}
+		for _, bg := range r.externalBrushUniformBindGroupsFrame1 {
 			if bg != nil {
 				bg.Release()
 			}
@@ -359,6 +375,8 @@ func (r *Renderer) ClearWorld() {
 		r.worldShader = nil
 		r.uniformBuffer = nil
 		r.worldMaterialsBuffer = nil
+		r.worldMaterialsBufferFrame1 = nil
+		r.worldUniformBindGroupFrame1 = nil
 		r.worldBaseMaterials = nil
 		r.worldDynamicLightsBuffer = nil
 		r.uniformBindGroup = nil
@@ -410,7 +428,9 @@ func (r *Renderer) ClearWorld() {
 		r.externalBrushAnimations = make(map[string][]*surfacepkg.SurfaceTexture)
 		r.externalBrushBaseMaterials = make(map[string][]WorldMaterialData)
 		r.externalBrushMaterialsBuffers = make(map[string]*wgpu.Buffer)
+		r.externalBrushMaterialsBuffersFrame1 = make(map[string]*wgpu.Buffer)
 		r.externalBrushUniformBindGroups = make(map[string]*wgpu.BindGroup)
+		r.externalBrushUniformBindGroupsFrame1 = make(map[string]*wgpu.BindGroup)
 
 		slog.Debug("World geometry cleared")
 	}

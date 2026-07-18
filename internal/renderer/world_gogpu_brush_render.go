@@ -39,20 +39,21 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		}
 		extTextures, extFullbright, extAnimations, extBindGroup := dc.renderer.brushEntityTextures(entity)
 		scratch.classifiedDraws = append(scratch.classifiedDraws, gogpuClassifiedBrushEntityDraw{
-			alpha:              buildDraw.Alpha,
-			frame:              buildDraw.Frame,
-			vertices:           buildDraw.Vertices,
-			opaqueIndices:      buildDraw.OpaqueIndices,
-			opaqueFaces:        buildDraw.OpaqueFaces,
-			opaqueCenters:      buildDraw.OpaqueCenters,
-			alphaTestIndices:   buildDraw.AlphaTestIndices,
-			alphaTestFaces:     buildDraw.AlphaTestFaces,
-			alphaTestCenters:   buildDraw.AlphaTestCenters,
-			lightmapArray:      dc.renderer.brushEntityLightmaps(entity, geom),
-			textures:           extTextures,
-			fullbrightTextures: extFullbright,
-			textureAnimations:  extAnimations,
-			uniformBindGroup:   extBindGroup,
+			alpha:                  buildDraw.Alpha,
+			frame:                  buildDraw.Frame,
+			vertices:               buildDraw.Vertices,
+			opaqueIndices:          buildDraw.OpaqueIndices,
+			opaqueFaces:            buildDraw.OpaqueFaces,
+			opaqueCenters:          buildDraw.OpaqueCenters,
+			alphaTestIndices:       buildDraw.AlphaTestIndices,
+			alphaTestFaces:         buildDraw.AlphaTestFaces,
+			alphaTestCenters:       buildDraw.AlphaTestCenters,
+			lightmapArray:          dc.renderer.brushEntityLightmaps(entity, geom),
+			textures:               extTextures,
+			fullbrightTextures:     extFullbright,
+			textureAnimations:      extAnimations,
+			uniformBindGroup:       extBindGroup,
+			uniformBindGroupFrame1: dc.renderer.brushEntityUniformBindGroupFrame1(entity),
 		})
 		drawIndex := len(scratch.classifiedDraws) - 1
 		draw := &scratch.classifiedDraws[drawIndex]
@@ -178,6 +179,16 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			drawFullbright = draw.fullbrightTextures
 		}
 
+		// Select the frame-1 uniform bind group when the entity's frame != 0
+		// so the shader reads alternate texture atlas bounds/layer (pressed
+		// button, activated switch textures) from the frame-1 materials buffer.
+		frameUniformBindGroup := uniformBindGroup
+		if draw.frame != 0 && draw.uniformBindGroupFrame1 != nil {
+			frameUniformBindGroup = draw.uniformBindGroupFrame1
+		} else if draw.uniformBindGroup != nil {
+			frameUniformBindGroup = draw.uniformBindGroup
+		}
+
 		if len(draw.opaqueFaces) > 0 {
 			// Ensure the opaque pipeline is active (may have been
 			// switched to alpha-test by a previous draw).
@@ -188,12 +199,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
 				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
 
-				activeUniformBindGroup := uniformBindGroup
-				if draw.uniformBindGroup != nil {
-					activeUniformBindGroup = draw.uniformBindGroup
-				}
-
-				renderPass.SetBindGroup(0, activeUniformBindGroup, []uint32{offset})
+				renderPass.SetBindGroup(0, frameUniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
 				if drawTextures != nil && drawTextures.bindGroup != nil {
 					textureBindGroup = drawTextures.bindGroup
@@ -238,12 +244,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
 				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
 
-				activeUniformBindGroup := uniformBindGroup
-				if draw.uniformBindGroup != nil {
-					activeUniformBindGroup = draw.uniformBindGroup
-				}
-
-				renderPass.SetBindGroup(0, activeUniformBindGroup, []uint32{offset})
+				renderPass.SetBindGroup(0, frameUniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
 				if drawTextures != nil && drawTextures.bindGroup != nil {
 					textureBindGroup = drawTextures.bindGroup
@@ -558,18 +559,19 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		}
 		extTextures, extFullbright, extAnimations, extBindGroup := dc.renderer.brushEntityTextures(entity)
 		scratch.opaqueDraws = append(scratch.opaqueDraws, gogpuOpaqueBrushEntityDraw{
-			hasLitWater:        buildDraw.HasLitWater,
-			alpha:              buildDraw.Alpha,
-			frame:              buildDraw.Frame,
-			vertices:           buildDraw.Vertices,
-			indices:            buildDraw.Indices,
-			faces:              buildDraw.Faces,
-			centers:            buildDraw.Centers,
-			lightmapArray:      dc.renderer.brushEntityLightmaps(entity, geom),
-			textures:           extTextures,
-			fullbrightTextures: extFullbright,
-			textureAnimations:  extAnimations,
-			uniformBindGroup:   extBindGroup,
+			hasLitWater:            buildDraw.HasLitWater,
+			alpha:                  buildDraw.Alpha,
+			frame:                  buildDraw.Frame,
+			vertices:               buildDraw.Vertices,
+			indices:                buildDraw.Indices,
+			faces:                  buildDraw.Faces,
+			centers:                buildDraw.Centers,
+			lightmapArray:          dc.renderer.brushEntityLightmaps(entity, geom),
+			textures:               extTextures,
+			fullbrightTextures:     extFullbright,
+			textureAnimations:      extAnimations,
+			uniformBindGroup:       extBindGroup,
+			uniformBindGroupFrame1: dc.renderer.brushEntityUniformBindGroupFrame1(entity),
 		})
 		drawIndex := len(scratch.opaqueDraws) - 1
 		draw := &scratch.opaqueDraws[drawIndex]
@@ -688,6 +690,15 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		if draw.fullbrightTextures != nil {
 			drawFullbright = draw.fullbrightTextures
 		}
+
+		// Select the frame-1 uniform bind group when the entity's frame != 0.
+		frameUniformBindGroup := uniformBindGroup
+		if draw.frame != 0 && draw.uniformBindGroupFrame1 != nil {
+			frameUniformBindGroup = draw.uniformBindGroupFrame1
+		} else if draw.uniformBindGroup != nil {
+			frameUniformBindGroup = draw.uniformBindGroup
+		}
+
 		for _, face := range draw.faces {
 			textureBindGroup := whiteTextureBindGroup
 			if drawTextures != nil && drawTextures.bindGroup != nil {
@@ -697,12 +708,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
 			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, litWater)
 
-			activeUniformBindGroup := uniformBindGroup
-			if draw.uniformBindGroup != nil {
-				activeUniformBindGroup = draw.uniformBindGroup
-			}
-
-			renderPass.SetBindGroup(0, activeUniformBindGroup, []uint32{offset})
+			renderPass.SetBindGroup(0, frameUniformBindGroup, []uint32{offset})
 			fullbrightBindGroup := transparentBindGroup
 			if drawFullbright != nil && drawFullbright.bindGroup != nil {
 				fullbrightBindGroup = drawFullbright.bindGroup

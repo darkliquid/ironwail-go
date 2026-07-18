@@ -194,6 +194,8 @@ type Renderer struct {
 	worldShader                        *wgpu.ShaderModule
 	uniformBuffer                      *wgpu.Buffer
 	worldMaterialsBuffer               *wgpu.Buffer
+	worldMaterialsBufferFrame1         *wgpu.Buffer
+	worldUniformBindGroupFrame1        *wgpu.BindGroup
 	uniformBindGroup                   *wgpu.BindGroup
 	uniformBindGroupLayout             *wgpu.BindGroupLayout
 	textureBindGroupLayout             *wgpu.BindGroupLayout
@@ -259,68 +261,70 @@ type Renderer struct {
 	overlayCompositeTextureView     *wgpu.TextureView
 
 	// Alias-model resources for the gogpu backend.
-	lightPool                      *glLightPool
-	brushModelGeometry             map[int]*WorldGeometry
-	brushModelLightmaps            map[int]*gpuWorldTexture
-	externalBrushGeometry          map[string]*WorldGeometry
-	externalBrushTextures          map[string]*gpuWorldTexture
-	externalBrushFullbright        map[string]*gpuWorldTexture
-	externalBrushAnimations        map[string][]*surfacepkg.SurfaceTexture
-	externalBrushBaseMaterials     map[string][]WorldMaterialData
-	externalBrushMaterialsBuffers  map[string]*wgpu.Buffer
-	externalBrushUniformBindGroups map[string]*wgpu.BindGroup
-	externalBrushClusterTexture    map[string]*wgpu.Texture
-	externalBrushClusterView       map[string]*wgpu.TextureView
-	aliasModels                    map[string]*gpuAliasModel
-	spriteModels                   map[string]*gpuSpriteModel
-	aliasEntityStates              map[int]*AliasEntity
-	viewModelAliasState            *AliasEntity
-	aliasScratchBuffer             *wgpu.Buffer
-	aliasScratchBufferSize         uint64
-	brushEntityScratchVertexBuffer *wgpu.Buffer
-	brushEntityScratchVertexSize   uint64
-	brushEntityScratchIndexBuffer  *wgpu.Buffer
-	brushEntityScratchIndexSize    uint64
-	aliasPipeline                  *wgpu.RenderPipeline
-	aliasPipelineLayout            *wgpu.PipelineLayout
-	aliasVertexShader              *wgpu.ShaderModule
-	aliasFragmentShader            *wgpu.ShaderModule
-	aliasUniformBuffer             *wgpu.Buffer
-	aliasUniformBindGroup          *wgpu.BindGroup
-	aliasUniformBindGroupLayout    *wgpu.BindGroupLayout
-	aliasTextureBindGroupLayout    *wgpu.BindGroupLayout
-	aliasSampler                   *wgpu.Sampler
-	spriteUniformBuffer            *wgpu.Buffer
-	spriteUniformBindGroup         *wgpu.BindGroup
-	spritePipeline                 *wgpu.RenderPipeline
-	spriteDepthOffsetPipeline      *wgpu.RenderPipeline
-	spriteVertexShader             *wgpu.ShaderModule
-	spriteFragmentShader           *wgpu.ShaderModule
-	particleOpaquePipeline         *wgpu.RenderPipeline
-	particleTranslucentPipeline    *wgpu.RenderPipeline
-	particlePipelineLayout         *wgpu.PipelineLayout
-	particleVertexShader           *wgpu.ShaderModule
-	particleFragmentShader         *wgpu.ShaderModule
-	particleUniformBuffer          *wgpu.Buffer
-	particleUniformBindGroup       *wgpu.BindGroup
-	particleUniformBindGroupLayout *wgpu.BindGroupLayout
-	decalPipeline                  *wgpu.RenderPipeline
-	decalPipelineLayout            *wgpu.PipelineLayout
-	decalVertexShader              *wgpu.ShaderModule
-	decalFragmentShader            *wgpu.ShaderModule
-	decalUniformBuffer             *wgpu.Buffer
-	decalUniformBindGroup          *wgpu.BindGroup
-	decalUniformLayout             *wgpu.BindGroupLayout
-	decalAtlasTextureHAL           *wgpu.Texture
-	decalAtlasView                 *wgpu.TextureView
-	decalBindGroup                 *wgpu.BindGroup
-	polyBlendPipeline              *wgpu.RenderPipeline
-	polyBlendPipelineLayout        *wgpu.PipelineLayout
-	polyBlendVertexShader          *wgpu.ShaderModule
-	polyBlendFragmentShader        *wgpu.ShaderModule
-	polyBlendUniformBuffer         *wgpu.Buffer
-	polyBlendBindGroupLayout       *wgpu.BindGroupLayout
-	polyBlendBindGroup             *wgpu.BindGroup
+	lightPool                            *glLightPool
+	brushModelGeometry                   map[int]*WorldGeometry
+	brushModelLightmaps                  map[int]*gpuWorldTexture
+	externalBrushGeometry                map[string]*WorldGeometry
+	externalBrushTextures                map[string]*gpuWorldTexture
+	externalBrushFullbright              map[string]*gpuWorldTexture
+	externalBrushAnimations              map[string][]*surfacepkg.SurfaceTexture
+	externalBrushBaseMaterials           map[string][]WorldMaterialData
+	externalBrushMaterialsBuffers        map[string]*wgpu.Buffer
+	externalBrushMaterialsBuffersFrame1  map[string]*wgpu.Buffer
+	externalBrushUniformBindGroups       map[string]*wgpu.BindGroup
+	externalBrushUniformBindGroupsFrame1 map[string]*wgpu.BindGroup
+	externalBrushClusterTexture          map[string]*wgpu.Texture
+	externalBrushClusterView             map[string]*wgpu.TextureView
+	aliasModels                          map[string]*gpuAliasModel
+	spriteModels                         map[string]*gpuSpriteModel
+	aliasEntityStates                    map[int]*AliasEntity
+	viewModelAliasState                  *AliasEntity
+	aliasScratchBuffer                   *wgpu.Buffer
+	aliasScratchBufferSize               uint64
+	brushEntityScratchVertexBuffer       *wgpu.Buffer
+	brushEntityScratchVertexSize         uint64
+	brushEntityScratchIndexBuffer        *wgpu.Buffer
+	brushEntityScratchIndexSize          uint64
+	aliasPipeline                        *wgpu.RenderPipeline
+	aliasPipelineLayout                  *wgpu.PipelineLayout
+	aliasVertexShader                    *wgpu.ShaderModule
+	aliasFragmentShader                  *wgpu.ShaderModule
+	aliasUniformBuffer                   *wgpu.Buffer
+	aliasUniformBindGroup                *wgpu.BindGroup
+	aliasUniformBindGroupLayout          *wgpu.BindGroupLayout
+	aliasTextureBindGroupLayout          *wgpu.BindGroupLayout
+	aliasSampler                         *wgpu.Sampler
+	spriteUniformBuffer                  *wgpu.Buffer
+	spriteUniformBindGroup               *wgpu.BindGroup
+	spritePipeline                       *wgpu.RenderPipeline
+	spriteDepthOffsetPipeline            *wgpu.RenderPipeline
+	spriteVertexShader                   *wgpu.ShaderModule
+	spriteFragmentShader                 *wgpu.ShaderModule
+	particleOpaquePipeline               *wgpu.RenderPipeline
+	particleTranslucentPipeline          *wgpu.RenderPipeline
+	particlePipelineLayout               *wgpu.PipelineLayout
+	particleVertexShader                 *wgpu.ShaderModule
+	particleFragmentShader               *wgpu.ShaderModule
+	particleUniformBuffer                *wgpu.Buffer
+	particleUniformBindGroup             *wgpu.BindGroup
+	particleUniformBindGroupLayout       *wgpu.BindGroupLayout
+	decalPipeline                        *wgpu.RenderPipeline
+	decalPipelineLayout                  *wgpu.PipelineLayout
+	decalVertexShader                    *wgpu.ShaderModule
+	decalFragmentShader                  *wgpu.ShaderModule
+	decalUniformBuffer                   *wgpu.Buffer
+	decalUniformBindGroup                *wgpu.BindGroup
+	decalUniformLayout                   *wgpu.BindGroupLayout
+	decalAtlasTextureHAL                 *wgpu.Texture
+	decalAtlasView                       *wgpu.TextureView
+	decalBindGroup                       *wgpu.BindGroup
+	polyBlendPipeline                    *wgpu.RenderPipeline
+	polyBlendPipelineLayout              *wgpu.PipelineLayout
+	polyBlendVertexShader                *wgpu.ShaderModule
+	polyBlendFragmentShader              *wgpu.ShaderModule
+	polyBlendUniformBuffer               *wgpu.Buffer
+	polyBlendBindGroupLayout             *wgpu.BindGroupLayout
+	polyBlendBindGroup                   *wgpu.BindGroup
 
 	// Cached overlay texture for 2D compositing — avoids creating a new
 	// GPU texture every frame. Recreated only when screen dimensions change.

@@ -154,18 +154,19 @@ func appendGoGPUTranslucentLiquidBrushFaceRenders(dst []gogpuTranslucentBrushFac
 	hasLitWater := gogpuTranslucentFacesHaveLitWater(draw.faces)
 	for _, face := range draw.faces {
 		dst = append(dst, gogpuTranslucentBrushFaceRender{
-			bufferPair:         bufferPair,
-			vertexOffset:       vertexOffset,
-			indexOffset:        indexOffset,
-			frame:              draw.frame,
-			face:               face,
-			liquid:             true,
-			hasLitWater:        hasLitWater,
-			lightmapArray:      draw.lightmapArray,
-			textures:           draw.textures,
-			fullbrightTextures: draw.fullbrightTextures,
-			textureAnimations:  draw.textureAnimations,
-			uniformBindGroup:   draw.uniformBindGroup,
+			bufferPair:             bufferPair,
+			vertexOffset:           vertexOffset,
+			indexOffset:            indexOffset,
+			frame:                  draw.frame,
+			face:                   face,
+			liquid:                 true,
+			hasLitWater:            hasLitWater,
+			lightmapArray:          draw.lightmapArray,
+			textures:               draw.textures,
+			fullbrightTextures:     draw.fullbrightTextures,
+			textureAnimations:      draw.textureAnimations,
+			uniformBindGroup:       draw.uniformBindGroup,
+			uniformBindGroupFrame1: draw.uniformBindGroupFrame1,
 		})
 	}
 	return dst
@@ -196,42 +197,45 @@ func appendGoGPUTranslucentBrushEntityFaceRenders(alphaTestDst, translucentDst [
 				face:  face,
 				alpha: 1,
 			},
-			center:             center,
-			lightmapArray:      draw.lightmapArray,
-			textures:           draw.textures,
-			fullbrightTextures: draw.fullbrightTextures,
-			textureAnimations:  draw.textureAnimations,
-			uniformBindGroup:   draw.uniformBindGroup,
+			center:                 center,
+			lightmapArray:          draw.lightmapArray,
+			textures:               draw.textures,
+			fullbrightTextures:     draw.fullbrightTextures,
+			textureAnimations:      draw.textureAnimations,
+			uniformBindGroup:       draw.uniformBindGroup,
+			uniformBindGroupFrame1: draw.uniformBindGroupFrame1,
 		})
 	}
 	for _, face := range draw.translucentFaces {
 		translucentDst = append(translucentDst, gogpuTranslucentBrushFaceRender{
-			bufferPair:         bufferPair,
-			vertexOffset:       vertexOffset,
-			indexOffset:        indexOffset,
-			frame:              draw.frame,
-			face:               face,
-			lightmapArray:      draw.lightmapArray,
-			textures:           draw.textures,
-			fullbrightTextures: draw.fullbrightTextures,
-			textureAnimations:  draw.textureAnimations,
-			uniformBindGroup:   draw.uniformBindGroup,
+			bufferPair:             bufferPair,
+			vertexOffset:           vertexOffset,
+			indexOffset:            indexOffset,
+			frame:                  draw.frame,
+			face:                   face,
+			lightmapArray:          draw.lightmapArray,
+			textures:               draw.textures,
+			fullbrightTextures:     draw.fullbrightTextures,
+			textureAnimations:      draw.textureAnimations,
+			uniformBindGroup:       draw.uniformBindGroup,
+			uniformBindGroupFrame1: draw.uniformBindGroupFrame1,
 		})
 	}
 	for _, face := range draw.liquidFaces {
 		translucentDst = append(translucentDst, gogpuTranslucentBrushFaceRender{
-			bufferPair:         bufferPair,
-			vertexOffset:       vertexOffset,
-			indexOffset:        indexOffset,
-			frame:              draw.frame,
-			face:               face,
-			liquid:             true,
-			hasLitWater:        hasLitWater,
-			lightmapArray:      draw.lightmapArray,
-			textures:           draw.textures,
-			fullbrightTextures: draw.fullbrightTextures,
-			textureAnimations:  draw.textureAnimations,
-			uniformBindGroup:   draw.uniformBindGroup,
+			bufferPair:             bufferPair,
+			vertexOffset:           vertexOffset,
+			indexOffset:            indexOffset,
+			frame:                  draw.frame,
+			face:                   face,
+			liquid:                 true,
+			hasLitWater:            hasLitWater,
+			lightmapArray:          draw.lightmapArray,
+			textures:               draw.textures,
+			fullbrightTextures:     draw.fullbrightTextures,
+			textureAnimations:      draw.textureAnimations,
+			uniformBindGroup:       draw.uniformBindGroup,
+			uniformBindGroupFrame1: draw.uniformBindGroupFrame1,
 		})
 	}
 	return alphaTestDst, translucentDst
@@ -372,6 +376,7 @@ func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []
 		if draw := buildGoGPUTranslucentLiquidBrushEntityDraw(entity, geom, state.liquidAlpha, state.camera); draw != nil {
 			draw.lightmapArray = dc.renderer.brushEntityLightmaps(entity, geom)
 			draw.textures, draw.fullbrightTextures, draw.textureAnimations, draw.uniformBindGroup = dc.renderer.brushEntityTextures(entity)
+			draw.uniformBindGroupFrame1 = dc.renderer.brushEntityUniformBindGroupFrame1(entity)
 			draws = append(draws, *draw)
 		}
 	}
@@ -436,6 +441,7 @@ func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []
 		if draw := buildGoGPUTranslucentBrushEntityDraw(entity, geom, state.liquidAlpha, state.camera); draw != nil {
 			draw.lightmapArray = dc.renderer.brushEntityLightmaps(entity, geom)
 			draw.textures, draw.fullbrightTextures, draw.textureAnimations, draw.uniformBindGroup = dc.renderer.brushEntityTextures(entity)
+			draw.uniformBindGroupFrame1 = dc.renderer.brushEntityUniformBindGroupFrame1(entity)
 			draws = append(draws, *draw)
 		}
 	}
@@ -541,7 +547,16 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	for _, draw := range renders {
 		offset, uData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
 		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, 0)
-		renderPass.SetBindGroup(0, res.uniformBindGroup, []uint32{offset})
+
+		// Select the frame-1 uniform bind group when the entity's frame != 0.
+		activeUniformBindGroup := res.uniformBindGroup
+		if draw.frame != 0 && draw.uniformBindGroupFrame1 != nil {
+			activeUniformBindGroup = draw.uniformBindGroupFrame1
+		} else if draw.uniformBindGroup != nil {
+			activeUniformBindGroup = draw.uniformBindGroup
+		}
+
+		renderPass.SetBindGroup(0, activeUniformBindGroup, []uint32{offset})
 		renderPass.SetVertexBuffer(0, draw.bufferPair[0], draw.vertexOffset)
 		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, draw.indexOffset)
 		textureBindGroup, fullbrightBindGroup := gogpuLateTranslucentTextureBindGroups(res, draw, timeSeconds)
@@ -630,8 +645,11 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		offset, uData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
 		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, res.camera.Time, draw.face.alpha, litWater)
 
+		// Select the frame-1 uniform bind group when the entity's frame != 0.
 		activeUniformBindGroup := res.uniformBindGroup
-		if draw.uniformBindGroup != nil {
+		if draw.frame != 0 && draw.uniformBindGroupFrame1 != nil {
+			activeUniformBindGroup = draw.uniformBindGroupFrame1
+		} else if draw.uniformBindGroup != nil {
 			activeUniformBindGroup = draw.uniformBindGroup
 		}
 
@@ -679,19 +697,20 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 // ---- merged from world_alias_shadow_gogpu_root.go ----
 
 type gogpuTranslucentBrushFaceRender struct {
-	bufferPair         [2]*wgpu.Buffer
-	vertexOffset       uint64
-	indexOffset        uint64
-	frame              int
-	face               gogpuTranslucentLiquidFaceDraw
-	liquid             bool
-	hasLitWater        bool
-	center             [3]float32
-	lightmapArray      *gpuWorldTexture
-	textures           *gpuWorldTexture
-	fullbrightTextures *gpuWorldTexture
-	textureAnimations  []*surfacepkg.SurfaceTexture
-	uniformBindGroup   *wgpu.BindGroup
+	bufferPair             [2]*wgpu.Buffer
+	vertexOffset           uint64
+	indexOffset            uint64
+	frame                  int
+	face                   gogpuTranslucentLiquidFaceDraw
+	liquid                 bool
+	hasLitWater            bool
+	center                 [3]float32
+	lightmapArray          *gpuWorldTexture
+	textures               *gpuWorldTexture
+	fullbrightTextures     *gpuWorldTexture
+	textureAnimations      []*surfacepkg.SurfaceTexture
+	uniformBindGroup       *wgpu.BindGroup
+	uniformBindGroupFrame1 *wgpu.BindGroup
 }
 
 func sortGoGPUTranslucentBrushFaceRenders(mode AlphaMode, renders []gogpuTranslucentBrushFaceRender) {

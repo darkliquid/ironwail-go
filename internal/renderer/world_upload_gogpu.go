@@ -335,6 +335,26 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			r.uniformBindGroup = uniformBindGroup
 			r.worldBindGroup = uniformBindGroup
 		}
+
+		// Create a second materials buffer + bind group for frame-1 (alternate
+		// texture chains). Brush entities with frame != 0 (pressed buttons,
+		// activated switches) bind this group so the shader reads alternate
+		// texture atlas bounds/layer via materials[MaterialID]. The buffer is
+		// updated each frame in updateWorldMaterialsBuffer with frame=1
+		// animations. Only textures with AlternateAnims (+0/+A pairs) differ.
+		frame1Buffer, f1err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "World Materials Buffer Frame1",
+			Size:             uint64(worldMaterialsBufferSize),
+			Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+			MappedAtCreation: false,
+		})
+		if f1err == nil && frame1Buffer != nil {
+			r.worldMaterialsBufferFrame1 = frame1Buffer
+			frame1BG, bgErr := r.createWorldUniformBindGroup(device, uniformLayout, uniformBuffer, frame1Buffer)
+			if bgErr == nil && frame1BG != nil {
+				r.worldUniformBindGroupFrame1 = frame1BG
+			}
+		}
 	}
 
 	var dynamicLightsBindGroup *wgpu.BindGroup
