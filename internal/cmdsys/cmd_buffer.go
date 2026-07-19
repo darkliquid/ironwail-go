@@ -291,12 +291,42 @@ fallback:
 	c.listAllContaining(args[0])
 }
 
+// splitCommands splits command-buffer text into individual command lines.
+//
+// This mirrors the line-splitting loop in C Quake's Cbuf_Execute (cmd.c):
+//
+//	quotes = 0;
+//	for (i = 0; i < cursize; i++) {
+//	    if (text[i] == '"') quotes++;
+//	    if ((!(quotes&1) && text[i] == ';') || text[i] == '\n')
+//	        break;
+//	}
+//
+// Two properties of the C version are critical for robustness against malformed
+// config files (e.g. a line with an unterminated quote from a buggy config writer):
+//
+//  1. Newlines ALWAYS terminate a command, even inside quotes. The C code checks
+//     text[i] == '\n' unconditionally — there is no quotes&1 guard on newlines.
+//     This prevents a single broken line from swallowing every subsequent line,
+//     which was the root cause of a config-parse bug where a malformed
+//     `bind "\" "+mlook"` line (an unescaped backslash before the closing
+//     quote) merged dozens of following bind lines into one giant command.
+//
+//  2. There is NO backslash-escape handling in Cbuf_Execute. A backslash before a
+//     quote does not suppress the quote toggle. Escape interpretation belongs to
+//     Cmd_TokenizeString (our parseCommand), not to the line splitter.
+//
+// Semicolons, by contrast, only split when outside a quoted region (the
+// !(quotes&1) guard), which lets a binding like
+//
+//	bind F6 "echo Quicksaving...; wait; save quick"
+//
+// keep its embedded semicolons as part of the single command line.
 func splitCommands(text string) []string {
 	var (
 		commands       []string
 		current        strings.Builder
 		inQuote        bool
-		escaped        bool
 		inLineComment  bool
 		inBlockComment bool
 	)
@@ -312,11 +342,6 @@ func splitCommands(text string) []string {
 	for i := 0; i < len(text); i++ {
 		ch := text[i]
 
-		if escaped {
-			current.WriteByte(ch)
-			escaped = false
-			continue
-		}
 		if inLineComment {
 			switch ch {
 			case '\n':
@@ -336,11 +361,6 @@ func splitCommands(text string) []string {
 				inBlockComment = false
 				i++
 			}
-			continue
-		}
-		if ch == '\\' && inQuote {
-			current.WriteByte(ch)
-			escaped = true
 			continue
 		}
 		if ch == '/' && !inQuote && i+1 < len(text) {
@@ -367,16 +387,11 @@ func splitCommands(text string) []string {
 			}
 			flush()
 		case '\n':
-			if inQuote {
-				current.WriteByte(ch)
-				continue
-			}
+			// Newlines always terminate a command, matching C Cbuf_Execute.
+			// Unlike semicolons, there is no inQuote guard: a broken line with
+			// an unterminated quote must not swallow subsequent lines.
 			flush()
 		case '\r':
-			if inQuote {
-				current.WriteByte(ch)
-				continue
-			}
 			flush()
 			if i+1 < len(text) && text[i+1] == '\n' {
 				i++

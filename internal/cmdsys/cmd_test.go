@@ -150,6 +150,74 @@ func TestExecuteTextPreservesSemicolonsInsideQuotedArguments(t *testing.T) {
 	}
 }
 
+// TestSplitCommandsTerminatesOnNewlineInsideUnterminatedQuote verifies that a
+// malformed config line with an unterminated quote does not swallow subsequent
+// lines into one giant command. This was the root cause of a real bug where a
+// config file containing `bind "\" "+mlook"` (an unescaped backslash before the
+// closing quote, written by an older buggy config writer) caused splitCommands
+// to merge every following bind line into a single command. The result was
+// errors like:
+//
+//	bind: "F6 echo" is not a valid key
+//	invalid save name "quick\nbind F10 quit\nbind F11 zoom_in\n..."
+//
+// The fix mirrors C Quake's Cbuf_Execute: newlines always terminate a command
+// (no inQuote guard), and the line splitter does not interpret backslash escapes.
+// Where in C: Cbuf_Execute in cmd.c
+func TestSplitCommandsTerminatesOnNewlineInsideUnterminatedQuote(t *testing.T) {
+	// Simulate the exact malformed config that triggered the bug. The backslash
+	// key binding has an unescaped `\` before the closing quote, so the quote
+	// never closes on that line. With the old code, splitCommands swallowed all
+	// following lines because newlines were preserved inside quotes.
+	const malformedConfig = "unbindall\n" +
+		"bind \"TAB\" \"+showscores\"\n" +
+		// The broken line: `bind "\" "+mlook"` — the `\` is not escaped to `\\`,
+		// so the `"` after it does not close the opened quote.
+		"bind \"\\\" \"+mlook\"\n" +
+		"bind \"F6\" \"echo Quicksaving...; wait; save quick\"\n" +
+		"bind \"F10\" \"quit\"\n" +
+		"bind \"F11\" \"zoom_in\"\n"
+
+	lines := splitCommands(malformedConfig)
+
+	// Every physical line must become its own command. The broken backslash line
+	// must NOT merge the F6/F10/F11 lines into itself.
+	//
+	// We expect 6 entries (one per non-empty line). If the bug is present, the
+	// broken line absorbs the following lines and we get far fewer entries with
+	// embedded newlines in their text.
+	wantCount := 6
+	if len(lines) != wantCount {
+		t.Fatalf("splitCommands returned %d lines, want %d (broken line merged subsequent lines):\n%v",
+			len(lines), wantCount, lines)
+	}
+
+	// The F6 binding must be its own line, with its embedded semicolons intact
+	// (the inQuote guard on semicolons is still correct and must be preserved).
+	var f6Line string
+	for _, line := range lines {
+		if strings.HasPrefix(line, "bind \"F6\"") {
+			f6Line = line
+			break
+		}
+	}
+	if f6Line == "" {
+		t.Fatalf("F6 bind line not found among %d lines: %v", len(lines), lines)
+	}
+	wantF6 := `bind "F6" "echo Quicksaving...; wait; save quick"`
+	if f6Line != wantF6 {
+		t.Fatalf("F6 line = %q, want %q", f6Line, wantF6)
+	}
+
+	// No line should contain a literal newline — that would indicate line
+	// merging across newlines.
+	for i, line := range lines {
+		if strings.Contains(line, "\n") {
+			t.Fatalf("line %d contains embedded newline (lines were merged): %q", i, line)
+		}
+	}
+}
+
 // TestAliasExecutesSemicolonSeparatedCommandText tests that aliases containing multiple semicolon-separated commands are executed correctly.
 // It supports complex multi-command aliases.
 // Where in C: Cmd_ExecuteString in cmd.c
