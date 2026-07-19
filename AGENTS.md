@@ -324,6 +324,7 @@ Use `bspdiag` (`cmd/bspdiag`, build with `mise run build-bspdiag`) to inspect BS
 - `bspdiag point <x> <y> <z> <quake_dir> <map.bsp> [gamedir]` — Query BSP leaf index and contents (`CONTENTS_EMPTY`, `CONTENTS_WATER`, `CONTENTS_SLIME`, etc.) at 3D coordinates.
 - `bspdiag face <face_id> <quake_dir> <map.bsp> [gamedir]` — Detailed face attributes (`PlaneNum`, `Texinfo`, `LightOfs`, vertex UVs, lightmap grid size, first lightmap sample bytes).
 - `bspdiag texture <name> <quake_dir> <map.bsp> [gamedir]` — Texture dimensions, classification (`TexTypeWater`, etc.), MipLevel(0) palette indices, and converted RGBA colors.
+- `bspdiag liquids <quake_dir> <map.bsp> [gamedir]` — Liquid face analysis: applies the `.lit` sidecar, enumerates every `SURF_DRAWTURB` face, reports texinfo flags (`TEX_SPECIAL`), `LightOfs`, lightmap sample statistics (`VARIED`/`UNIFORM`/`NONE`), and the resolved per-liquid alpha settings (worldspawn overrides + `TransparentWaterSafe`). Use this to diagnose lit-water and water-translucency issues.
 
 
 ## Reference docs to read before broad changes

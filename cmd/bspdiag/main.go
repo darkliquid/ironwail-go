@@ -66,6 +66,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  bspdiag point <x> <y> <z> <quake_dir> <maps/mapname.bsp> [gamedir]")
 	fmt.Fprintln(os.Stderr, "  bspdiag face <face_index> <quake_dir> <maps/mapname.bsp> [gamedir]")
 	fmt.Fprintln(os.Stderr, "  bspdiag texture <texture_name> <quake_dir> <maps/mapname.bsp> [gamedir]")
+	fmt.Fprintln(os.Stderr, "  bspdiag liquids <quake_dir> <maps/mapname.bsp> [gamedir]")
 }
 
 func main() {
@@ -135,6 +136,16 @@ func main() {
 		if len(os.Args) >= 6 {
 			gamedir = os.Args[5]
 		}
+	case "liquids":
+		if len(os.Args) < 4 {
+			printUsage()
+			os.Exit(1)
+		}
+		quakeDir = os.Args[2]
+		mapPath = os.Args[3]
+		if len(os.Args) >= 5 {
+			gamedir = os.Args[4]
+		}
 	default:
 		// Backward compatibility: default to info mode where arg 1 is quakeDir
 		subcommand = "info"
@@ -190,6 +201,8 @@ func main() {
 		runFace(tree, faceIdx)
 	case "texture":
 		runTexture(fsys, tree, extraArgs[0])
+	case "liquids":
+		runLiquids(fsys, tree, mapPath, gamedir)
 	}
 }
 
