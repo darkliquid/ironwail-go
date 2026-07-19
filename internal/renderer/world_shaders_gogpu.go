@@ -593,7 +593,14 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
     let fogged = mix(uniforms.fogColor, lit, fog);
-    return vec4<f32>(fogged, sampled.a * uniforms.alpha);
+    // Match C Ironwail alpha behavior:
+    // Lit water (gl_shaders.h:725): result.a = in_alpha (replaces texture alpha)
+    // Unlit water (gl_shaders.h:810): result.a *= in_alpha (multiplies texture alpha)
+    var finalAlpha = sampled.a * uniforms.alpha;
+    if (uniforms.litWater > 0.5) {
+        finalAlpha = uniforms.alpha;
+    }
+    return vec4<f32>(fogged, finalAlpha);
 }
 `, worldUniformsWGSL, gogpuWorldDynamicLightBufferMax)
 

@@ -217,7 +217,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	cameraOriginWorld := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	cameraLeafIndex := worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
-	cacheEntry := dc.renderer.gogpuWorldBatchCacheEntry(cameraLeafIndex)
+	cacheEntry := dc.renderer.gogpuWorldBatchCacheEntry(cameraLeafIndex, liquidAlpha)
 	cacheHit := cacheEntry != nil
 	visibleFaceCount := 0
 	var skyFaces []WorldFace
@@ -315,7 +315,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		batchedIndices, alphaTestBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, alphaTestBatches, alphaTestDraws, worldData.Geometry.Indices)
 		batchedIndices, opaqueLiquidBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, opaqueLiquidBatches, opaqueLiquidDraws, worldData.Geometry.Indices)
 		batchBuildMS = float64(time.Since(batchBuildStart)) / float64(time.Millisecond)
-		dc.renderer.storeGoGPUWorldBatchCacheEntry(cameraLeafIndex, visibleFaceCount, skyFaces, translucentLiquidFaces, batchedIndices, opaqueBatches, alphaTestBatches, opaqueLiquidBatches)
+		dc.renderer.storeGoGPUWorldBatchCacheEntry(cameraLeafIndex, liquidAlpha, visibleFaceCount, skyFaces, translucentLiquidFaces, batchedIndices, opaqueBatches, alphaTestBatches, opaqueLiquidBatches)
 	}
 	var opaqueBatchBuffer *wgpu.Buffer
 	if len(batchedIndices) > 0 {
@@ -723,27 +723,28 @@ func (r *Renderer) resetGoGPUWorldBatchCache() {
 	r.worldBatchCacheNext = 0
 }
 
-func (r *Renderer) gogpuWorldBatchCacheEntry(leaf int) *gogpuWorldBatchCacheEntry {
+func (r *Renderer) gogpuWorldBatchCacheEntry(leaf int, liquidAlpha worldLiquidAlphaSettings) *gogpuWorldBatchCacheEntry {
 	for i := range r.worldBatchCacheEntries {
 		entry := &r.worldBatchCacheEntries[i]
-		if entry.valid && entry.leaf == leaf {
+		if entry.valid && entry.leaf == leaf && entry.liquidAlpha == liquidAlpha {
 			return entry
 		}
 	}
 	return nil
 }
 
-func (r *Renderer) storeGoGPUWorldBatchCacheEntry(leaf int, faceCount int, skyFaces, translucentLiquid []WorldFace, batchedIndices []uint32, opaqueBatches, alphaTestBatches, opaqueLiquidBatches []gogpuWorldFaceBatch) {
+func (r *Renderer) storeGoGPUWorldBatchCacheEntry(leaf int, liquidAlpha worldLiquidAlphaSettings, faceCount int, skyFaces, translucentLiquid []WorldFace, batchedIndices []uint32, opaqueBatches, alphaTestBatches, opaqueLiquidBatches []gogpuWorldFaceBatch) {
 	if leaf < 0 {
 		return
 	}
-	entry := r.gogpuWorldBatchCacheEntry(leaf)
+	entry := r.gogpuWorldBatchCacheEntry(leaf, liquidAlpha)
 	if entry == nil {
 		entry = &r.worldBatchCacheEntries[r.worldBatchCacheNext]
 		r.worldBatchCacheNext = (r.worldBatchCacheNext + 1) % len(r.worldBatchCacheEntries)
 	}
 	entry.valid = true
 	entry.leaf = leaf
+	entry.liquidAlpha = liquidAlpha
 	entry.faceCount = faceCount
 	entry.skyFaces = append(entry.skyFaces[:0], skyFaces...)
 	entry.translucentLiquid = append(entry.translucentLiquid[:0], translucentLiquid...)

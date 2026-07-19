@@ -331,8 +331,10 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 		cameraLeafIndex = worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
 	}
 	var cachedFaces []WorldFace
+	var liquidAlpha worldLiquidAlphaSettings
 	if worldData != nil && worldData.Geometry != nil {
-		if cacheEntry := r.gogpuWorldBatchCacheEntry(cameraLeafIndex); cacheEntry != nil {
+		liquidAlpha = worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
+		if cacheEntry := r.gogpuWorldBatchCacheEntry(cameraLeafIndex, liquidAlpha); cacheEntry != nil {
 			cachedFaces = cacheEntry.translucentLiquid
 		}
 	}
@@ -341,7 +343,6 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 	if worldData == nil || worldData.Geometry == nil || worldVertexBuffer == nil || worldIndexBuffer == nil {
 		return nil
 	}
-	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
 	if cachedFaces != nil {
 		return gogpuWorldTranslucentLiquidFaceRenders(cachedFaces, camera, worldVertexBuffer, worldIndexBuffer, worldLightmapArray, liquidAlpha, worldHasLitWater)
 	}

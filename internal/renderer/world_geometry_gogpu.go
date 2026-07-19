@@ -117,8 +117,6 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 			slog.Debug("lit water face detected",
 				"face_index", globalFaceIdx,
 				"flags", faceData.Flags,
-				"has_lightmap_surface", lightmapSurface != nil,
-				"has_valid_lighting", lightmapSurface != nil && lightmapSurface.hasValidLighting,
 				"lightmap_index", faceData.LightmapIndex,
 			)
 		} else if faceData.Flags&model.SurfDrawTurb != 0 && faceData.Flags&model.SurfDrawSky == 0 {
@@ -127,7 +125,6 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 				"flags", faceData.Flags,
 				"has_tiled", faceData.Flags&model.SurfDrawTiled != 0,
 				"has_lightmap_surface", lightmapSurface != nil,
-				"has_valid_lighting", lightmapSurface != nil && lightmapSurface.hasValidLighting,
 				"lightmap_index", faceData.LightmapIndex,
 			)
 		}
@@ -709,13 +706,6 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bs
 		return nil, nil
 	}
 
-	// Check whether the lightmap samples contain meaningful lighting
-	// variation. Many Quake maps have LightOfs >= 0 for SURF_DRAWTURB
-	// (liquid) faces, but the C engine never allocates lightmaps for
-	// turbulent surfaces, so the data is degenerate (all the same value,
-	// typically 0 or 128). When the samples are degenerate, the face
-	// should be rendered fullbright (unlit) to match C behavior.
-	hasValidLighting := lightmapSamplesHaveVariation(samples)
 
 	(*pages)[texNum].Surfaces = append((*pages)[texNum].Surfaces, WorldLightmapSurface{
 		X:       x,
@@ -757,28 +747,10 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bs
 		vertices[i].LightmapLayer = float32(texNum)
 	}
 
-	return &faceLightmapSurface{pageIndex: texNum, hasValidLighting: hasValidLighting}, nil
+	return &faceLightmapSurface{pageIndex: texNum}, nil
 }
 
-// lightmapSamplesHaveVariation returns true when the lightmap sample bytes
-// contain at least two distinct values, indicating meaningful lighting data.
-// Degenerate lightmaps (all-zero, all-128, or any single repeated value)
-// return false. This is used to detect liquid (SURF_DRAWTURB) faces that
-// have LightOfs >= 0 in the BSP but whose lightmap data is meaningless —
-// the C engine never allocates lightmaps for turbulent surfaces, so such
-// data should be ignored in favor of fullbright rendering.
-func lightmapSamplesHaveVariation(samples []byte) bool {
-	if len(samples) < 2 {
-		return false
-	}
-	first := samples[0]
-	for i := 1; i < len(samples); i++ {
-		if samples[i] != first {
-			return true
-		}
-	}
-	return false
-}
+
 
 func worldTexCoordDouble(position [3]float32, vec [4]float32) float64 {
 	return float64(position[0])*float64(vec[0]) +

@@ -72,6 +72,7 @@ const gogpuWorldBatchCacheEntryCount = 4
 type gogpuWorldBatchCacheEntry struct {
 	valid             bool
 	leaf              int
+	liquidAlpha       worldLiquidAlphaSettings
 	faceCount         int
 	skyFaces          []WorldFace
 	translucentLiquid []WorldFace

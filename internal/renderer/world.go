@@ -225,13 +225,6 @@ type WorldLightmapPage = worldimpl.WorldLightmapPage
 
 type faceLightmapSurface struct {
 	pageIndex int
-	// hasValidLighting is false when the lightmap samples are degenerate
-	// (all the same value). This happens for SURF_DRAWTURB (liquid) faces
-	// in many Quake maps: the BSP compiler writes lightmap data but the
-	// C engine never allocates lightmaps for turbulent surfaces, so the
-	// data is meaningless. When false, the renderer should treat the face
-	// as unlit (fullbright) rather than using the degenerate lightmap.
-	hasValidLighting bool
 }
 
 type gogpuWorldMaterialBindState struct {
