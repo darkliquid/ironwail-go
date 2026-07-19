@@ -82,6 +82,7 @@ All canonical tasks are defined in `mise.toml`. `mise tasks` lists them. Key one
 | `mise run parity-ref` / `parity-go` / `parity-compare` / `parity-all` | Parity screenshot harness |
 | `mise run build-qgo` | Build the QGo compiler (`cmd/qgo`) |
 | `mise run build-progs` | Compile QuakeGo sources into `progs.dat` |
+| `mise run build-bspdiag` | Build the BSP diagnostic inspection CLI (`cmd/bspdiag`) |
 
 ### Running a single package test
 
@@ -313,6 +314,17 @@ condition being protected — read them before changing the corresponding code.
   pprof captures through the in-game console.
 
 Telemetry lines emit with `[svdbg ...]` prefixes.
+
+### Offline BSP Diagnostic Tool (`bspdiag`)
+
+Use `bspdiag` (`cmd/bspdiag`, build with `mise run build-bspdiag`) to inspect BSP file lumps, entity definitions, leaf contents, face attributes, lightmaps, and textures offline without writing scratch scripts:
+
+- `bspdiag [info] <quake_dir> <map.bsp> [gamedir]` — General BSP summary, texture table, texinfo flags, atlas simulation, and lightmap page estimates.
+- `bspdiag entities <quake_dir> <map.bsp> [gamedir] [classname_filter]` — Parsed entity lump key-value fields (e.g., `worldspawn` fields like `wateralpha`, `fog_color`, `fog_density`, `sky`).
+- `bspdiag point <x> <y> <z> <quake_dir> <map.bsp> [gamedir]` — Query BSP leaf index and contents (`CONTENTS_EMPTY`, `CONTENTS_WATER`, `CONTENTS_SLIME`, etc.) at 3D coordinates.
+- `bspdiag face <face_id> <quake_dir> <map.bsp> [gamedir]` — Detailed face attributes (`PlaneNum`, `Texinfo`, `LightOfs`, vertex UVs, lightmap grid size, first lightmap sample bytes).
+- `bspdiag texture <name> <quake_dir> <map.bsp> [gamedir]` — Texture dimensions, classification (`TexTypeWater`, etc.), MipLevel(0) palette indices, and converted RGBA colors.
+
 
 ## Reference docs to read before broad changes
 
