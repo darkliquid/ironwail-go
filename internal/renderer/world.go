@@ -225,6 +225,13 @@ type WorldLightmapPage = worldimpl.WorldLightmapPage
 
 type faceLightmapSurface struct {
 	pageIndex int
+	// hasValidLighting is false when the lightmap samples are degenerate
+	// (all the same value). This happens for SURF_DRAWTURB (liquid) faces
+	// in many Quake maps: the BSP compiler writes lightmap data but the
+	// C engine never allocates lightmaps for turbulent surfaces, so the
+	// data is meaningless. When false, the renderer should treat the face
+	// as unlit (fullbright) rather than using the degenerate lightmap.
+	hasValidLighting bool
 }
 
 type gogpuWorldMaterialBindState struct {
@@ -350,8 +357,13 @@ func appendGoGPUOpaqueWorldFaceBatches(dstIndices []uint32, dstBatches []gogpuWo
 }
 
 func worldFaceHasLitWater(textureFlags int32, lightmapSurface *faceLightmapSurface) bool {
+	// Match C Ironwail (gl_model.c:1359-1368): lit water is enabled for
+	// turbulent (liquid) surfaces that are NOT tiled (TEX_SPECIAL) and have
+	// valid lightmap sample data. Tiled surfaces (TEX_SPECIAL) are always
+	// unlit, matching C behavior where SURF_DRAWTILED skips lightmap allocation.
 	return textureFlags&model.SurfDrawTurb != 0 &&
 		textureFlags&model.SurfDrawSky == 0 &&
+		textureFlags&model.SurfDrawTiled == 0 &&
 		lightmapSurface != nil
 }
 
@@ -368,14 +380,23 @@ func worldLitWaterCvarEnabled() bool {
 
 func gogpuWorldLightmapArrayBindGroupForFace(face WorldFace, lightmapArray *gpuWorldTexture, fallback *wgpu.BindGroup, hasLitWater bool) (*wgpu.BindGroup, float32) {
 	bindGroup := fallback
+	isLiquid := face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0
+	useLitWater := worldLitWaterCvarEnabled() && hasLitWater && isLiquid
+
 	if face.LightmapIndex < 0 {
+		if useLitWater {
+			return bindGroup, 1
+		}
 		return bindGroup, 0
 	}
 	if lightmapArray == nil || lightmapArray.bindGroup == nil {
+		if useLitWater {
+			return bindGroup, 1
+		}
 		return bindGroup, 0
 	}
 	bindGroup = lightmapArray.bindGroup
-	if worldLitWaterCvarEnabled() && hasLitWater && face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0 {
+	if useLitWater {
 		return bindGroup, 1
 	}
 	return bindGroup, 0

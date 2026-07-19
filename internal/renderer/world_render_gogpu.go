@@ -146,7 +146,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	cameraOrigin, fogDensity, timeValue := gogpuWorldUniformInputs(state, camera)
 	currentLitWater := float32(0)
 	var uniformBytes [worldUniformBufferSize]byte
-	fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, fogDensity, timeValue, 1, currentLitWater)
+	fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, worldFogUniformDensity(fogDensity), timeValue, 1, currentLitWater)
 	slog.Debug("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Debug("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
@@ -194,7 +194,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	worldHasLitWater := worldData.Geometry.HasLitWater
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
 	currentAlpha := float32(1)
-	currentFogDensity := fogDensity
+	currentFogDensity := worldFogUniformDensity(fogDensity)
 	writeWorldUniformWithFog := func(alpha float32, litWater float32, activeFogDensity float32) bool {
 		if currentAlpha == alpha && currentLitWater == litWater && currentFogDensity == activeFogDensity {
 			return true
@@ -206,7 +206,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:]) == nil
 	}
 	writeWorldUniform := func(alpha float32, litWater float32) bool {
-		return writeWorldUniformWithFog(alpha, litWater, fogDensity)
+		return writeWorldUniformWithFog(alpha, litWater, worldFogUniformDensity(fogDensity))
 	}
 	writeExternalSkyUniform := func(activeFogDensity float32) bool {
 		currentAlpha = 1
@@ -758,7 +758,7 @@ func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float
 	matrixBytes := matrixToBytes(vp)
 	copy(dst[:64], matrixBytes)
 	putFloat32s(dst[64:76], cameraOrigin[:])
-	binary.LittleEndian.PutUint32(dst[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
+	binary.LittleEndian.PutUint32(dst[76:80], math.Float32bits(fogDensity))
 	putFloat32s(dst[80:92], fogColor[:])
 	binary.LittleEndian.PutUint32(dst[92:96], math.Float32bits(time))
 	binary.LittleEndian.PutUint32(dst[96:100], math.Float32bits(alpha))

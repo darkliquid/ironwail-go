@@ -326,7 +326,9 @@ func (s *Server) PushEntity(ent *Edict, push [3]float32) TraceResult {
 }
 
 func (s *Server) PushMove(pusher *Edict, movetime float32) {
+	pusherNum := s.NumForEdict(pusher)
 	if pusher.Vars.Velocity[0] == 0 && pusher.Vars.Velocity[1] == 0 && pusher.Vars.Velocity[2] == 0 {
+		SvdbgPushLogf("pusher=%d velocity=0 — early return (ltime += %.4f), no entities pushed", pusherNum, movetime)
 		pusher.Vars.LTime += movetime
 		return
 	}
@@ -374,12 +376,17 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 				check.Vars.AbsMax[0] <= mins[0] ||
 				check.Vars.AbsMax[1] <= mins[1] ||
 				check.Vars.AbsMax[2] <= mins[2] {
+				SvdbgPushLogfAt(2, "pusher=%d check=%d riding=false aabb_miss=true — skipped", pusherNum, e)
 				continue
 			}
 
 			if s.TestEntityPosition(check) == nil {
+				SvdbgPushLogfAt(2, "pusher=%d check=%d riding=false aabb_hit=true testpos=nil — skipped (not stuck)", pusherNum, e)
 				continue
 			}
+			SvdbgPushLogf("pusher=%d check=%d riding=false aabb_hit=true testpos=stuck — pushing (overlapping non-rider)", pusherNum, e)
+		} else {
+			SvdbgPushLogf("pusher=%d check=%d riding=true — pushing (groundentity=%d onground=1)", pusherNum, e, int(check.Vars.GroundEntity))
 		}
 
 		if MoveType(check.Vars.MoveType) != MoveTypeWalk {
@@ -399,8 +406,17 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 			s.PushEntity(check, move)
 		}
 
+		// sv_debug_push: log post-push position so we can see where the player
+		// ended up after being pushed by the lift, and whether they're blocked.
+		SvdbgPushLogfAt(2, "pusher=%d check=%d post-push origin=(%.1f %.1f %.1f) absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
+			pusherNum, e,
+			check.Vars.Origin[0], check.Vars.Origin[1], check.Vars.Origin[2],
+			check.Vars.AbsMin[0], check.Vars.AbsMin[1], check.Vars.AbsMin[2],
+			check.Vars.AbsMax[0], check.Vars.AbsMax[1], check.Vars.AbsMax[2])
+
 		block := s.TestEntityPosition(check)
 		if block == nil {
+			SvdbgPushLogfAt(2, "pusher=%d check=%d post-push testpos=nil (not blocked)", pusherNum, e)
 			continue
 		}
 

@@ -791,3 +791,28 @@ func TestUploadWorld(t *testing.T) {
 		t.Error("World data not cleared")
 	}
 }
+
+func TestGogpuWorldLightmapArrayBindGroupForFaceLitWaterFallback(t *testing.T) {
+	fallbackBG := &wgpu.BindGroup{}
+	liquidFaceNoLightmap := WorldFace{
+		LightmapIndex: -1,
+		Flags:         model.SurfDrawTurb | model.SurfDrawWater,
+	}
+
+	bg, litWater := gogpuWorldLightmapArrayBindGroupForFace(liquidFaceNoLightmap, nil, fallbackBG, true)
+	if bg != fallbackBG {
+		t.Errorf("got bind group %v, want fallbackBG %v", bg, fallbackBG)
+	}
+	if litWater != 1 {
+		t.Errorf("got litWater = %v, want 1 for lit water liquid face without lightmap", litWater)
+	}
+
+	bgDisabled, litWaterDisabled := gogpuWorldLightmapArrayBindGroupForFace(liquidFaceNoLightmap, nil, fallbackBG, false)
+	if bgDisabled != fallbackBG {
+		t.Errorf("got bind group %v, want fallbackBG %v", bgDisabled, fallbackBG)
+	}
+	if litWaterDisabled != 0 {
+		t.Errorf("got litWater = %v, want 0 when hasLitWater is false", litWaterDisabled)
+	}
+}
+

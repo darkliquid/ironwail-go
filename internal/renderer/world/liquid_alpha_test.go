@@ -12,3 +12,14 @@ func TestReadLiquidAlphaSettingsDefaultsTeleportersOpaque(t *testing.T) {
 		t.Fatalf("liquid alpha = %+v, want water 0.5 and tele 1", got)
 	}
 }
+
+func TestParseWorldspawnLiquidAlphaOverrides_WithUnderscores(t *testing.T) {
+	ents := []byte(`{
+"classname" "worldspawn"
+"_wateralpha" "0.6"
+}`)
+	got := ParseWorldspawnLiquidAlphaOverrides(ents)
+	if !got.HasWater || got.Water != 0.6 {
+		t.Fatalf("ParseWorldspawnLiquidAlphaOverrides failed: got %+v, want Water=0.6", got)
+	}
+}

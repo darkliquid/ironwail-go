@@ -245,7 +245,7 @@ func (c *CmdSystem) executeLine(line string, expanding map[string]struct{}) {
 	}
 
 fallback:
-	if c.Source() != SrcCommand {
+	if c.Source() != SrcCommand && c.Source() != SrcServer {
 		return
 	}
 

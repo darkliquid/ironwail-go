@@ -8,6 +8,7 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/cmdsys"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
@@ -301,5 +302,21 @@ func TestDispatchLoopbackStuffTextDoesNotDrainLocalCommandBufferAsServer(t *test
 	cs.Execute()
 	if got, want := seen, []string{"server:2", "local:0"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("seen after draining local buffer = %v, want %v", got, want)
+	}
+}
+
+func TestDispatchLoopbackStuffTextCanSetCvar(t *testing.T) {
+	cs := cmdsys.NewCmdSystem()
+	cs.CVar = cvar.NewCVarSystem()
+	cs.CVar.Register("test_loopback_cvar", "0", cvar.FlagNone, "")
+
+	lc := newLocalLoopbackClient()
+	lc.inner.StuffCmdBuf = "test_loopback_cvar 42\n"
+	subs := &Subsystems{Client: lc, Commands: cs}
+
+	DispatchLoopbackStuffText(subs)
+
+	if got := cs.CVar.Get("test_loopback_cvar").String; got != "42" {
+		t.Fatalf("test_loopback_cvar = %q, want %q", got, "42")
 	}
 }

@@ -859,3 +859,54 @@ func TestSVIsLocalClientTreatsLoopbackAndLocalAddressesAsLocal(t *testing.T) {
 		t.Fatal("remote address should not be treated as local")
 	}
 }
+
+func TestLoadMapEntitiesParsesAlphaHack(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.ClearWorld()
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSWorld), Name: vm.AllocString("world")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("worldspawn"), FirstStatement: 1},
+		{Name: vm.AllocString("func_wall"), FirstStatement: 1},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "func_wall"
+"alpha" "0.6"
+}`
+	if err := s.loadMapEntities(raw); err != nil {
+		t.Fatalf("loadMapEntities() error = %v", err)
+	}
+
+	edict := s.EdictNum(1)
+	if edict == nil {
+		t.Fatal("expected entity 1 to be spawned")
+	}
+
+	expectedAlpha := inet.ENTALPHA_ENCODE(0.6)
+	if edict.Alpha != expectedAlpha {
+		t.Fatalf("expected edict.Alpha to be %d, got %d", expectedAlpha, edict.Alpha)
+	}
+
+	state, ok := s.entityStateForClient(1, edict)
+	if !ok {
+		t.Fatal("entityStateForClient failed")
+	}
+	if state.Alpha != expectedAlpha {
+		t.Fatalf("expected state.Alpha to be %d, got %d", expectedAlpha, state.Alpha)
+	}
+}
+

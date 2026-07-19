@@ -8,7 +8,6 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 
-	"math"
 	"math/rand"
 	"path/filepath"
 	"strconv"
@@ -238,11 +237,7 @@ func (h *Host) CmdFog(args []string, subs *Subsystems) {
 		}
 	}
 
-	state.SetFogState(
-		fogByte(targetDensity),
-		[3]byte{fogByte(targetColor[0]), fogByte(targetColor[1]), fogByte(targetColor[2])},
-		fadeTime,
-	)
+	state.SetFogStateFloat(targetDensity, targetColor, fadeTime)
 }
 
 func fogRuntimeState(subs *Subsystems) *cl.Client {
@@ -264,15 +259,6 @@ func parseFogFloat(s string) float32 {
 	return float32(value)
 }
 
-func fogByte(value float32) byte {
-	if value <= 0 {
-		return 0
-	}
-	if value >= 1 {
-		return 255
-	}
-	return byte(math.Round(float64(value * 255)))
-}
 
 func (h *Host) CmdMaps(subs *Subsystems) {
 	if subs == nil || subs.Files == nil || subs.Console == nil {

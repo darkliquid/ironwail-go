@@ -69,6 +69,7 @@ func ParseEntityFields(data string) map[string]string {
 		if !ok {
 			break
 		}
+		key = strings.TrimPrefix(key, "_")
 		fields[strings.ToLower(key)] = value
 		pos = nextValue
 	}

@@ -277,9 +277,7 @@ func gogpuLateTranslucentLightmapBindGroup(res gogpuLateTranslucentFaceResources
 	if draw.face.face.LightmapIndex >= 0 {
 		if draw.lightmapArray != nil && draw.lightmapArray.bindGroup != nil {
 			lightmapBindGroup = draw.lightmapArray.bindGroup
-		}
-	} else if draw.face.face.LightmapIndex >= 0 {
-		if res.worldLightmapArray != nil && res.worldLightmapArray.bindGroup != nil {
+		} else if res.worldLightmapArray != nil && res.worldLightmapArray.bindGroup != nil {
 			lightmapBindGroup = res.worldLightmapArray.bindGroup
 		}
 	}
@@ -546,7 +544,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	var materialBindState gogpuWorldMaterialBindState
 	for _, draw := range renders {
 		offset, uData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
-		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, 0)
+		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), timeValue, draw.face.alpha, 0)
 
 		// Select the frame-1 uniform bind group when the entity's frame != 0.
 		activeUniformBindGroup := res.uniformBindGroup
@@ -643,7 +641,8 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	for _, draw := range renders {
 		lightmapBindGroup, litWater := gogpuLateTranslucentLightmapBindGroup(res, draw)
 		offset, uData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
-		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, res.camera.Time, draw.face.alpha, litWater)
+		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), res.camera.Time, draw.face.alpha, litWater)
+
 
 		// Select the frame-1 uniform bind group when the entity's frame != 0.
 		activeUniformBindGroup := res.uniformBindGroup

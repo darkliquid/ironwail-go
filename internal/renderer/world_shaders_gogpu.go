@@ -240,19 +240,24 @@ var worldAlphaTestFragmentShaderWGSL = buildWorldFragmentShaderWGSL("input.norma
 // mode 1: encodes materialID as R=(id%256)/255, G=(id/256)/255, B=0
 //   - Each material gets a distinct color. Out-of-range IDs (>256) will
 //     show as varying green intensities instead of the expected low-R range.
+//
 // mode 2: encodes atlas layer as grayscale layer/maxLayers
 //   - Faces on the wrong layer will have wrong brightness.
+//
 // mode 3: encodes atlas UV as R=u, G=v, B=layer/maxLayers
 //   - Shows the atlas remapping. Wrong atlas bounds produce wrong colors.
+//
 // mode 4: samples the texture array at the material's layer (mat.layer)
 //   - Shows the actual texture the shader would sample. If this looks
 //     wrong compared to the atlas dump PNGs, the texture array data is
 //     corrupted or the wrong layer is being sampled.
+//
 // mode 5: samples the texture array at layer 0 regardless of mat.layer
 //   - Forces all faces to sample layer 0. If this looks the same as the
 //     normal render, it means the layer value is being ignored or is
 //     always 0. If this looks different (some textures correct), it
 //     confirms the layer selection is the problem.
+//
 // mode 6: samples the texture array at layer 1 regardless of mat.layer
 //   - Forces all faces to sample layer 1. Comparison with mode 5 reveals
 //     whether multi-layer sampling works at all.
@@ -536,6 +541,9 @@ var worldFullbrightSampler: sampler;
 var worldFullbrightTexture: texture_2d<f32>;
 
 @group(4) @binding(0)
+var lightClusters: texture_3d<u32>;
+
+@group(4) @binding(1)
 var<storage, read> dynamicLights: DynamicLights;
 
 fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>) -> vec3<f32> {
@@ -568,14 +576,20 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = fract(input.texCoord * 2.0 + 0.125 * sin(input.texCoord.yx * (3.14159265 * 2.0) + vec2<f32>(uniforms.time, uniforms.time)));
     let atlasUV = uv * mat.atlasBounds.zw + mat.atlasBounds.xy;
     let sampled = textureSampleLevel(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer), 0.0);
-    let fullbright = textureSampleLevel(worldFullbrightTexture, worldFullbrightSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer), 0.0);
-    var totalLight = vec3<f32>(0.5);
+
+    // Match C Ironwail: unlit water (litWater=0) uses only texture + fog,
+    // matching the water_fragment_shader (no lightmap, no dynamic lights,
+    // no fullbright). Lit water (litWater=1) uses the world shader in
+    // WORLDSHADER_WATER mode (lightmap + dynamic lights + fullbright).
+    var lit = sampled.rgb;
     if (uniforms.litWater > 0.5) {
-        totalLight = textureSample(worldLightmap, worldLightmapSampler, vec2<f32>(input.lightmapCoord.x, input.lightmapCoord.y + input.lightmapLayer)).rgb;
+        var totalLight = textureSample(worldLightmap, worldLightmapSampler, vec2<f32>(input.lightmapCoord.x, input.lightmapCoord.y + input.lightmapLayer)).rgb;
+        let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)));
+        totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
+        let fullbright = textureSampleLevel(worldFullbrightTexture, worldFullbrightSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer), 0.0);
+        let fullbrightColor = fullbright.rgb * fullbright.a;
+        lit = mix(sampled.rgb, sampled.rgb * totalLight * 2.0, sampled.a) + fullbrightColor;
     }
-    let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)));
-    totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
-    let lit = sampled.rgb * totalLight * 2.0 + fullbright.rgb * fullbright.a;
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
     let fogged = mix(uniforms.fogColor, lit, fog);

@@ -76,8 +76,8 @@ func TestEntityStateForClient_AlphaScaleDefaultsWhenFieldsMissing(t *testing.T) 
 	if !ok {
 		t.Fatal("entityStateForClient returned ok=false")
 	}
-	if state.Alpha != 0 {
-		t.Fatalf("state.Alpha = %d, want 0", state.Alpha)
+	if state.Alpha != 77 {
+		t.Fatalf("state.Alpha = %d, want 77", state.Alpha)
 	}
 	if state.Scale != 16 {
 		t.Fatalf("state.Scale = %d, want 16", state.Scale)

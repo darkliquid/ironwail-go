@@ -47,6 +47,14 @@
       "pos": [643.20, -3422.24, 2072.03],
       "angles": [-28.29, 52.23, 0.0],
       "description": "qbj3 start map viewpos 5"
+    },
+    {
+      "id": "qbj2-start-spawn",
+      "game": "qbj2",
+      "map": "start",
+      "pos": [-256.0, -2576.0, -2120.0],
+      "angles": [0.0, 90.0, 0.0],
+      "description": "qbj2 start map spawn viewpoint"
     }
   ]
 }

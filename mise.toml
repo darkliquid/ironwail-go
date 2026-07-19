@@ -131,6 +131,10 @@ run = "go run ./tools/parity_screenshots both"
 description = "Build the C-Go frame state reference generator utility"
 run = "go build -o bin/parity_generator ./tools/parity_generator"
 
+[tasks.build-bspdiag]
+description = "Build the BSP diagnostic inspection CLI tool"
+run = "go build -o bin/bspdiag ./cmd/bspdiag"
+
 [tasks.parity-generate]
 description = "Generate a reference state JSON dump for a specific demo from C Ironwail"
 depends = ["build-parity-generator"]

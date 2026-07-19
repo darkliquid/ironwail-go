@@ -414,8 +414,8 @@ func TestBuildRuntimeRenderFrameStateAppliesWorldspawnFogDefaults(t *testing.T) 
 
 	state := g.buildRuntimeRenderFrameState(nil, nil, nil, nil)
 
-	if math.Abs(float64(state.FogDensity-float32(128)/255.0)) > 0.0001 {
-		t.Fatalf("FogDensity = %v, want %v", state.FogDensity, float32(128)/255.0)
+	if math.Abs(float64(state.FogDensity-0.5)) > 0.0001 {
+		t.Fatalf("FogDensity = %v, want 0.5", state.FogDensity)
 	}
 	wantColor := [3]float32{64.0 / 255.0, 128.0 / 255.0, 191.0 / 255.0}
 	if state.FogColor != wantColor {

@@ -56,6 +56,7 @@ import (
 	"strconv"
 	"strings"
 
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
@@ -466,6 +467,12 @@ func (em *EntityManager) ED_ParseEdict(data string, entNum int) (string, error) 
 		pos++ // Skip closing quote
 
 		hasData = true
+
+		if keyName == "alpha" {
+			if f, err := parseFloat32(value); err == nil {
+				edict.Alpha = inet.ENTALPHA_ENCODE(f)
+			}
+		}
 
 		// QuakeEd compatibility hacks — early map editors used slightly
 		// different key names than the engine's EntVars fields:

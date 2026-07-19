@@ -571,11 +571,11 @@ func TestApplyWorldspawnFogDefaultsParsesFogKey(t *testing.T) {
 	if got := c.FogColor; got != [3]byte{64, 128, 191} {
 		t.Fatalf("FogColor = %v, want [64 128 191]", got)
 	}
-	if got := c.fogOldDensity; math.Abs(float64(got-float32(128)/255.0)) > 0.0001 {
-		t.Fatalf("fogOldDensity = %v, want %v", got, float32(128)/255.0)
+	if got := c.fogOldDensity; math.Abs(float64(got-0.5)) > 0.0001 {
+		t.Fatalf("fogOldDensity = %v, want 0.5", got)
 	}
-	if got := c.fogOldColor; got != [3]float32{64.0 / 255.0, 128.0 / 255.0, 191.0 / 255.0} {
-		t.Fatalf("fogOldColor = %v, want [64/255 128/255 191/255]", got)
+	if got := c.fogOldColor; got != [3]float32{0.25, 0.5, 0.75} {
+		t.Fatalf("fogOldColor = %v, want [0.25 0.5 0.75]", got)
 	}
 	if !c.fogConfigured {
 		t.Fatal("fogConfigured = false, want true")
@@ -604,6 +604,18 @@ func TestApplyWorldspawnFogDefaultsUsesCGrayWhenFogMissing(t *testing.T) {
 	}
 	if got := c.FogColor; got != [3]byte{77, 77, 77} {
 		t.Fatalf("FogColor = %v, want [77 77 77]", got)
+	}
+}
+
+func TestApplyWorldspawnFogDefaultsParsesFogKeyWithUnderscore(t *testing.T) {
+	c := NewClient()
+	c.ApplyWorldspawnFogDefaults([]byte(`{"classname" "worldspawn" "_fog" "0.5 0.25 0.5 0.75"}`))
+
+	if got := c.FogDensity; got != 128 {
+		t.Fatalf("FogDensity = %d, want 128", got)
+	}
+	if got := c.FogColor; got != [3]byte{64, 128, 191} {
+		t.Fatalf("FogColor = %v, want [64 128 191]", got)
 	}
 }
 

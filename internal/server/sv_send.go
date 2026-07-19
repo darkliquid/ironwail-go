@@ -446,8 +446,6 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 	if s.QCVM != nil {
 		if s.QCFieldAlpha >= 0 {
 			ent.Alpha = inet.ENTALPHA_ENCODE(s.QCVM.EFloat(entNum, s.QCFieldAlpha))
-		} else {
-			ent.Alpha = inet.ENTALPHA_DEFAULT
 		}
 		if s.QCFieldScale >= 0 {
 			ent.Scale = encodeScale(s.QCVM.EFloat(entNum, s.QCFieldScale))

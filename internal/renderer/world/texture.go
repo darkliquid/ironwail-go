@@ -76,6 +76,13 @@ func ClassifyTextureName(name string) model.TextureType {
 }
 
 // DeriveFaceFlags converts texture type and texinfo flags into surface flags.
+// This mirrors the C Ironwail Mod_LoadFaces logic (gl_model.c:1359-1368):
+//   - All liquid textures get SURF_DRAWTURB.
+//   - SURF_DRAWTILED (unlit, no lightmap) is set ONLY when TEX_SPECIAL is
+//     present on the texinfo. Liquid faces without TEX_SPECIAL can have
+//     valid lightmap data (lit water maps), so they must NOT be marked
+//     tiled — otherwise lit water would be disabled for all liquids.
+//   - Sky always gets SURF_DRAWTILED regardless of TEX_SPECIAL.
 func DeriveFaceFlags(textureType model.TextureType, texinfoFlags int32) int32 {
 	flags := int32(0)
 	if texinfoFlags&bsp.TexMissing != 0 {
@@ -91,13 +98,13 @@ func DeriveFaceFlags(textureType model.TextureType, texinfoFlags int32) int32 {
 	case model.TexTypeSky:
 		flags |= model.SurfDrawSky | model.SurfDrawTiled
 	case model.TexTypeLava:
-		flags |= model.SurfDrawTurb | model.SurfDrawLava | model.SurfDrawTiled
+		flags |= model.SurfDrawTurb | model.SurfDrawLava
 	case model.TexTypeSlime:
-		flags |= model.SurfDrawTurb | model.SurfDrawSlime | model.SurfDrawTiled
+		flags |= model.SurfDrawTurb | model.SurfDrawSlime
 	case model.TexTypeTele:
-		flags |= model.SurfDrawTurb | model.SurfDrawTele | model.SurfDrawTiled
+		flags |= model.SurfDrawTurb | model.SurfDrawTele
 	case model.TexTypeWater:
-		flags |= model.SurfDrawTurb | model.SurfDrawWater | model.SurfDrawTiled
+		flags |= model.SurfDrawTurb | model.SurfDrawWater
 	}
 
 	return flags

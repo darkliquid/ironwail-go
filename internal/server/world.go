@@ -673,9 +673,13 @@ func (s *Server) touchLinks(ent *Edict) {
 		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 			"touchlinks candidates=%d mover_classname=%q", len(touches), moverClassName)
 	}
-
-
-
+	if svDebugPushLevel() >= 1 {
+		svDebugPushDumpTriggersOnce(s)
+		SvdbgPushLogf("touchlinks ent=%d classname=%q candidates=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
+			entNum, moverClassName, len(touches),
+			ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
+			ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2])
+	}
 	for _, touch := range touches {
 		touchNum := s.NumForEdict(touch)
 		touchClassName := qcString(s.QCVM, touch.Vars.ClassName)
@@ -743,6 +747,10 @@ func (s *Server) touchLinks(ent *Edict) {
 		}
 
 		s.debugTriggerTouch("touchlinks", touch, ent)
+
+		// sv_debug_push: log when a trigger callback is about to fire
+		SvdbgPushLogf("touchlinks ent=%d candidate=%d classname=%q FIRING touchfn=%d",
+			entNum, touchNum, touchClassName, touch.Vars.Touch)
 
 		ctx := captureQCExecutionContext(s.QCVM)
 

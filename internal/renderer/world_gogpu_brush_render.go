@@ -197,7 +197,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.opaqueIndexOffset)
 			for _, face := range draw.opaqueFaces {
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
-				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
+				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), camera.Time, draw.alpha, 0)
 
 				renderPass.SetBindGroup(0, frameUniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
@@ -208,9 +208,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 				if face.LightmapIndex >= 0 {
 					if draw.lightmapArray != nil && draw.lightmapArray.bindGroup != nil {
 						lightmapBindGroup = draw.lightmapArray.bindGroup
-					}
-				} else if face.LightmapIndex >= 0 {
-					if worldLightmapArray != nil && worldLightmapArray.bindGroup != nil {
+					} else if worldLightmapArray != nil && worldLightmapArray.bindGroup != nil {
 						lightmapBindGroup = worldLightmapArray.bindGroup
 					}
 				}
@@ -242,7 +240,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.alphaTestIndexOffset)
 			for _, face := range draw.alphaTestFaces {
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
-				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, 0)
+				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), camera.Time, draw.alpha, 0)
 
 				renderPass.SetBindGroup(0, frameUniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
@@ -253,9 +251,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 				if face.LightmapIndex >= 0 {
 					if draw.lightmapArray != nil && draw.lightmapArray.bindGroup != nil {
 						lightmapBindGroup = draw.lightmapArray.bindGroup
-					}
-				} else if face.LightmapIndex >= 0 {
-					if worldLightmapArray != nil && worldLightmapArray.bindGroup != nil {
+					} else if worldLightmapArray != nil && worldLightmapArray.bindGroup != nil {
 						lightmapBindGroup = worldLightmapArray.bindGroup
 					}
 				}
@@ -706,7 +702,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			}
 			lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, draw.lightmapArray, whiteLightmapBindGroup, preparedDraw.hasLitWater)
 			offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
-			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, litWater)
+			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), camera.Time, draw.alpha, litWater)
 
 			renderPass.SetBindGroup(0, frameUniformBindGroup, []uint32{offset})
 			fullbrightBindGroup := transparentBindGroup

@@ -191,6 +191,9 @@ type Client struct {
 	SkyboxName    string
 	FogDensity    byte
 	FogColor      [3]byte
+	FogDensityVal float32
+	FogColorVal   [3]float32
+	fogFloatValid bool
 	FogTime       float32
 	fogOldDensity float32
 	fogOldColor   [3]float32
@@ -396,6 +399,9 @@ func (c *Client) ClearState() {
 	c.SkyboxName = ""
 	c.FogDensity = 0
 	c.FogColor = [3]byte{}
+	c.FogDensityVal = 0
+	c.FogColorVal = [3]float32{}
+	c.fogFloatValid = false
 	c.FogTime = 0
 	c.fogOldDensity = 0
 	c.fogOldColor = [3]float32{}
