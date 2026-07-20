@@ -469,35 +469,54 @@ opaque. Not the cause.
 
 ---
 
-## Refined Root Cause Hypothesis
+## Prior Fix Attempt #2 (Commit 2fbb58a)
 
-After thorough analysis, the logic appears correct on paper:
-- Alpha resolution: water=0.6 ✓
-- Face classification: alpha < 1 → PassTranslucent ✓
-- Translucent pipeline: alpha blend, no depth write ✓
-- Shader: litWater=1 for lit-water maps, lightmap sampled ✓
+A second fix attempt targeted static code hypotheses:
+1. **Batch Cache Alpha Tracking**: Added `liquidAlpha` to `gogpuWorldBatchCacheEntry` and updated lookup/store to prevent stale classification when alpha settings change.
+2. **Shader Alpha Formula Parity**: Updated `world_shaders_gogpu.go` so lit water uses `uniforms.alpha` directly (`result.a = in_alpha`) matching C `gl_shaders.h:725`.
+3. **Dead Code Cleanup**: Removed `hasValidLighting` and `lightmapSamplesHaveVariation`.
 
-**The most likely remaining cause is that the water faces are being classified as
-opaque at runtime despite the alpha settings appearing correct.** This could be
-due to:
+**Outcome**: User verification confirmed **the water on qbj2 start.bsp is STILL too bright and fully opaque**.
 
-1. **A subtle bug in `worldLiquidAlphaSettingsForGeometry`** where the cvar read
-   or override application produces water=1 instead of 0.6 under certain
-   conditions (e.g., cvar not yet registered, pkgCVars nil).
+---
 
-2. **A bug in the batch cache interaction** where the opaque liquid batches from
-   a cache entry built with different settings are being used.
+## Why Static Analysis Failed & Expanded Diagnostic Matrix
 
-3. **A render pass ordering issue** where the translucent liquid faces are
-   rendered but then overwritten by a subsequent opaque pass (e.g., brush entity
-   water rendered opaquely on top).
+Static paper analysis assumed the logic was correct on paper and blamed subtle state cache invalidation. However, without actual empirical runtime measurement, the true break in the rendering pipeline remains unverified.
 
-4. **The `worldTurbulentPipeline` (opaque) being used for translucent faces**
-   due to a pipeline selection bug in `renderGoGPUSortedTranslucentFaceRendersHAL`.
+The candidate root cause matrix must be expanded to cover every potential failure point across the entire GPU rendering pipeline:
 
-**The analysis strongly suggests adding runtime telemetry is necessary before
-making further code changes**, as the static analysis shows the logic should be
-correct but the symptom persists.
+| Candidate Root Cause | Description & Failure Mechanism | Instrumentation / Verification Method |
+|---|---|---|
+| **1. `MapVisTransparentWaterSafe` returns `false` at runtime** | If `MapVisTransparentWaterSafe` computes `false` at runtime due to leaf PVS decompression or leaf contents lookup, `ResolveLiquidAlphaSettings` forces `Water = 1.0` (opaque). | Log `MapVisTransparentWaterSafe` result and `liquidAlpha.Water` in `r_debug_water` telemetry; expand `bspdiag liquids` offline check. |
+| **2. Water faces classified into Opaque World Pass** | If `shouldDrawGoGPUOpaqueLiquidFace` evaluates `true` during `renderWorldInternal`, water faces are drawn with `worldTurbulentPipeline` (opaque blend `One, Zero`, depth write `true`, `alpha = 1.0`). | Log face counts in `opaqueLiquidDraws` vs `translucentLiquidFaces` per frame via `[rwater]`. |
+| **3. WebGPU Pipeline Blend State Mismatch** | `worldTranslucentTurbulentPipeline` or `worldTranslucentPipeline` in `world_pipelines_gogpu.go` may be misconfigured with opaque blend factors (`BlendFactorOne`, `BlendFactorZero`) or incorrect color format / alpha channels in `wgpu.RenderPipelineDescriptor`. | Inspect `world_pipelines_gogpu.go` pipeline creation and log active pipeline pointer / label in `renderGoGPUSortedTranslucentFaceRendersHAL`. |
+| **4. Depth Stencil State / Write Conflict** | If translucent liquid pipeline accidentally has `DepthWriteEnabled = true` or `DepthCompare` fails, or if depth buffer clear/load ops overwrite earlier draws, water faces may obscure underlying geometry or fail depth tests. | Inspect `DepthStencilState` in `world_pipelines_gogpu.go` and log depth attachment load/store ops in late translucent pass. |
+| **5. Uniform Buffer Dynamic Offset / Overwrite** | In `renderGoGPUSortedTranslucentFaceRendersHAL`, `fillWorldSceneUniformBytes` writes to dynamic offset `offset`. If offset alignment is incorrect or buffer data in `uniformDataScratch` gets overwritten before queue submission, GPU reads stale or zero/one `alpha` uniform values. | Log allocated dynamic uniform `offset`, written `alpha`, and `litWater` uniform values; verify `queue.WriteBuffer` offset range. |
+| **6. Lightmap Overbrighting & Additive Fullbright** | In `world_shaders_gogpu.go`, `lit = mix(sampled.rgb, sampled.rgb * totalLight * 2.0, sampled.a) + fullbrightColor`. If `totalLight` from `.lit` lightmap sidecar is very bright or `2.0` overbrighting blows out color values, water appears solid white/bright. If `fullbrightColor` is non-zero, it adds unwanted brightness. | Add `r_litwater 0` toggle test; inspect lightmap values on water faces via `bspdiag face` and `bspdiag liquids`. |
+| **7. Brush Entity Water Overriding World Water** | If the water in `qbj2 start.bsp` is actually part of a `func_water` or `func_illusionary` brush entity rather than `worldspawn` (model 0), brush entity rendering logic in `world_gogpu_brush_render.go` may be using opaque pipeline paths. | Log entity classname and model index for all liquid faces; check `bspdiag entities`. |
+| **8. Render Pass Execution & Order** | Translucent water faces are collected into `pendingTranslucentRenders` and rendered during `flushPendingTranslucency`. If an opaque pass (e.g. decals, particles, or sky overlay) executes AFTER translucency flush or clears the render target, visual rendering breaks. | Trace exact phase execution order in `renderer_gogpu_frame.go`. |
 
-**Next step**: Add runtime telemetry (Phase 1) to confirm which render path and
-alpha values the water faces actually take at runtime.
+---
+
+## Action Plan for Empirical Verification
+
+1. **Implement In-Engine `r_debug_water` Telemetry**:
+   - Add `r_debug_water` cvar (default 0).
+   - Log `[rwater]` structured slog lines for alpha settings, face classification, dynamic uniform bytes, lightmap bind groups, and pipeline selection.
+2. **Enhance Offline `bspdiag` Tooling**:
+   - Add `bspdiag liquids` detailed diagnostic dump to report map vis safety, leaf contents, lightmap variation, texinfo flags, and worldspawn alpha overrides.
+3. **Execute Engine under Telemetry**:
+   - Run `ironwailgo` on `qbj2 start.bsp` with `+r_debug_water 1`.
+   - Analyze log output against the Candidate Root Cause Matrix to pinpoint the exact broken pipeline component.
+4. **Apply Verified Targeted## Status: RESOLVED (Empirically Verified & Cross-Validated)
+
+Both root causes preventing correct water translucency and lighting on `qbj2 start.bsp` have been isolated via in-engine telemetry (`r_debug_water`), cross-validated against canonical C Ironwail source (`ironwail/Quake/`), fixed, and verified via engine multi-frame runtime execution.
+
+### Root Causes & Fixes Applied:
+1. **Fallback Lightmap Dimension Mismatch (Fixed Overbright White Water)**:
+   - **Bug**: Fallback lightmaps were created as `TextureViewDimension2D`, but WGSL shader declared `@group(2) @binding(1) var worldLightmap: texture_2d_array<f32>;`. WebGPU rejected the texture dimension mismatch and defaulted to fullbright white (`1.0, 1.0, 1.0`), multiplying texture RGB by 2.0x white light.
+   - **Fix**: Updated fallback lightmap creation to use `createWorldSolidTextureArray` (`TextureViewDimension2DArray`, 1 layer) and stored `blackLightmapTexture` & `blackLightmapView` on `Renderer` to prevent early texture destruction.
+2. **Teleporter Alpha Cvar Default (`r_telealpha`)**:
+   - **Bug**: `r_telealpha` default was registered as `"1"` with `FlagArchive`, forcing teleporters (`*tele128_blu1`) to `alpha = 1.0` (opaque) and rendering them into the depth buffer.
+   - **Fix**: Updated `r_telealpha` default to `"0"` and registered liquid alpha cvars (`r_lavaalpha`, `r_slimealpha`, `r_telealpha`) with `FlagNone` (matching C Ironwail `CVAR_NONE`), correctly falling back to map `wateralpha` (`0.6`).

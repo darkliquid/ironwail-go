@@ -191,6 +191,12 @@ func (r *Renderer) ClearWorld() {
 		if r.whiteLightmapBindGroup != nil {
 			r.whiteLightmapBindGroup.Release()
 		}
+		if r.blackLightmapView != nil {
+			r.blackLightmapView.Release()
+		}
+		if r.blackLightmapTexture != nil {
+			r.blackLightmapTexture.Release()
+		}
 		if r.worldTextureSampler != nil {
 			r.worldTextureSampler.Release()
 		}
@@ -402,6 +408,8 @@ func (r *Renderer) ClearWorld() {
 		r.worldLightmapSampler = nil
 		r.worldLightmapArray = nil
 		r.whiteLightmapBindGroup = nil
+		r.blackLightmapTexture = nil
+		r.blackLightmapView = nil
 		r.worldBindGroup = nil
 		r.worldSkyExternalBindGroup = nil
 		r.whiteTexture = nil

@@ -157,9 +157,9 @@ func (g *Game) initGameHost() error {
 	g.Host.CVar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
 	g.Host.CVar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
 	g.Host.CVar.Register(renderer.CvarRWaterAlpha, "1", cvar.FlagArchive, "Water alpha (0..1)")
-	g.Host.CVar.Register(renderer.CvarRLavaAlpha, "0", cvar.FlagArchive, "Lava alpha (0 uses water alpha)")
-	g.Host.CVar.Register(renderer.CvarRSlimeAlpha, "0", cvar.FlagArchive, "Slime alpha (0 uses water alpha)")
-	g.Host.CVar.Register(renderer.CvarRTeleAlpha, "1", cvar.FlagArchive, "Teleporter alpha (0..1)")
+	g.Host.CVar.Register(renderer.CvarRLavaAlpha, "0", cvar.FlagNone, "Lava alpha (0 uses water alpha)")
+	g.Host.CVar.Register(renderer.CvarRSlimeAlpha, "0", cvar.FlagNone, "Slime alpha (0 uses water alpha)")
+	g.Host.CVar.Register(renderer.CvarRTeleAlpha, "0", cvar.FlagNone, "Teleporter alpha (0 uses water alpha)")
 	g.Host.CVar.Register("r_drawentities", "1", 0, "Draw entities")
 	renderer.RegisterRendbgCVars(g.Host.CVar)
 	g.registerRendererLightingAndParticleCvars(g.Host.CVar.Register)
@@ -175,6 +175,7 @@ func (g *Game) initGameHost() error {
 	// Mirrors C Ironwail r_waterwarp. Default 1 (screen-space warp).
 	g.Host.CVar.Register(renderer.CvarRWaterwarp, "1", cvar.FlagArchive, "Underwater warp effect (0=off, 1=screen warp, 2=FOV warp)")
 	g.Host.CVar.Register(renderer.CvarRLitWater, "1", cvar.FlagArchive, "Enable lightmapped water when map has lit water data (0=off, 1=on)")
+	g.Host.CVar.Register(renderer.CvarRDebugWater, "0", cvar.FlagNone, "Log water render decision points per frame (0=off, 1=on)")
 	// gl_polyblend: enable/disable the v_blend polyblend screen-tint pass.
 	// Mirrors C Ironwail gl_polyblend. Default 1 (enabled).
 	g.Host.CVar.Register("gl_polyblend", "1", cvar.FlagArchive, "Enable polyblend screen-tint overlay (damage flash, powerups, etc.)")

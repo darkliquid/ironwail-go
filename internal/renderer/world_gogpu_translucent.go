@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"fmt"
 	"log/slog"
 	"sort"
 
@@ -358,7 +359,16 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 			translucentFaces = append(translucentFaces, face)
 		}
 	}
-	return gogpuWorldTranslucentLiquidFaceRenders(translucentFaces, camera, worldVertexBuffer, worldIndexBuffer, worldLightmapArray, liquidAlpha, worldHasLitWater)
+	renders := gogpuWorldTranslucentLiquidFaceRenders(translucentFaces, camera, worldVertexBuffer, worldIndexBuffer, worldLightmapArray, liquidAlpha, worldHasLitWater)
+	if rDebugWaterEnabled() {
+		slog.Debug("[rwater] collected translucent liquid renders",
+			"count", len(renders),
+			"cached", cachedFaces != nil,
+			"world_has_lit_water", worldHasLitWater,
+			"liquid_alpha_water", liquidAlpha.water,
+		)
+	}
+	return renders
 }
 
 func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []BrushEntity) ([]gogpuTranslucentBrushFaceRender, []*wgpu.Buffer) {
@@ -666,6 +676,23 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		renderPass.SetVertexBuffer(0, draw.bufferPair[0], draw.vertexOffset)
 		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, draw.indexOffset)
 		textureBindGroup, fullbrightBindGroup := gogpuLateTranslucentTextureBindGroups(res, draw, timeSeconds)
+		if rDebugWaterEnabled() && draw.liquid {
+			slog.Debug("[rwater] late translucent gpu draw",
+				"face_idx", draw.face.face.FirstIndex,
+				"num_indices", draw.face.face.NumIndices,
+				"alpha", draw.face.alpha,
+				"lit_water", litWater,
+				"has_lit_water", draw.hasLitWater,
+				"dynamic_uniform_offset", offset,
+				"uniform_alpha_bytes", fmt.Sprintf("%x", uData[96:100]),
+				"uniform_litwater_bytes", fmt.Sprintf("%x", uData[100:104]),
+				"pipeline_ptr", fmt.Sprintf("%p", pipeline),
+				"liquid_pipeline_ptr", fmt.Sprintf("%p", res.liquidPipeline),
+				"translucent_pipeline_ptr", fmt.Sprintf("%p", res.translucentPipeline),
+				"texture_bg", fmt.Sprintf("%p", textureBindGroup),
+				"lightmap_bg", fmt.Sprintf("%p", lightmapBindGroup),
+			)
+		}
 		setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
 		if setTexture {
 			renderPass.SetBindGroup(1, textureBindGroup, nil)

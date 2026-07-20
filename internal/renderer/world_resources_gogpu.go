@@ -228,6 +228,72 @@ func (r *Renderer) createWorldSolidTexture(device *wgpu.Device, queue *wgpu.Queu
 	return texture, textureView, nil
 }
 
+func (r *Renderer) createWorldSolidTextureArray(device *wgpu.Device, queue *wgpu.Queue, label string, pixel [4]byte, layers int) (*wgpu.Texture, *wgpu.TextureView, error) {
+	if device == nil || queue == nil {
+		return nil, nil, fmt.Errorf("invalid device or queue")
+	}
+	if layers <= 0 {
+		layers = 1
+	}
+
+	textureDesc := &wgpu.TextureDescriptor{
+		Label:         label,
+		Size:          wgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: uint32(layers)},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     gputypes.TextureDimension2D,
+		Format:        gputypes.TextureFormatRGBA8Unorm,
+		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
+	}
+
+	texture, err := device.CreateTexture(textureDesc)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create %s: %w", label, err)
+	}
+
+	for i := 0; i < layers; i++ {
+		err = queue.WriteTexture(
+			&wgpu.ImageCopyTexture{
+				Texture:  texture,
+				MipLevel: 0,
+				Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: uint32(i)},
+				Aspect:   gputypes.TextureAspectAll,
+			},
+			pixel[:],
+			&wgpu.ImageDataLayout{
+				Offset:       0,
+				BytesPerRow:  4,
+				RowsPerImage: 1,
+			},
+			&wgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		)
+		if err != nil {
+			texture.Release()
+			return nil, nil, fmt.Errorf("write %s data layer %d: %w", label, i, err)
+		}
+	}
+
+	textureViewDesc := &wgpu.TextureViewDescriptor{
+		Label:           label + " View",
+		Format:          gputypes.TextureFormatRGBA8Unorm,
+		Dimension:       gputypes.TextureViewDimension2DArray,
+		Aspect:          gputypes.TextureAspectAll,
+		BaseMipLevel:    0,
+		MipLevelCount:   1,
+		BaseArrayLayer:  0,
+		ArrayLayerCount: uint32(layers),
+	}
+
+	textureView, err := device.CreateTextureView(texture, textureViewDesc)
+	if err != nil {
+		texture.Release()
+		return nil, nil, fmt.Errorf("create %s view: %w", label, err)
+	}
+
+	slog.Debug("World solid texture array created", "label", label, "layers", layers)
+	return texture, textureView, nil
+}
+
 // createWorldWhiteTexture creates a simple 1x1 white texture for fallback.
 // Used when actual textures are not yet available for rendering.
 func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queue) (*wgpu.Texture, *wgpu.TextureView, error) {

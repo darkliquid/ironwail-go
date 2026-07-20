@@ -284,36 +284,90 @@ returning `litWater=0` when it should return `litWater=1`. Check:
 
 ---
 
-## Implementation Order
+## 7. WebGPU Pipeline & Dynamic Uniform Offset Telemetry
 
-1. **Register `r_debug_water` cvar** — add to `types.go`, `game_init.go`, and create `water_debug.go` with `rDebugWaterEnabled()`.
+**File**: `internal/renderer/world_gogpu_translucent.go`
+**Location**: `renderGoGPUSortedTranslucentFaceRendersHAL`, inside draw loop (lines ~640-675)
 
-2. **Add telemetry point #6** (upload-time) — this runs once at map load and shows the earliest classification.
+```go
+if rDebugWaterEnabled() && draw.liquid {
+    slog.Debug("[rwater] late translucent gpu draw",
+        "face_idx", draw.face.face.FirstIndex,
+        "num_indices", draw.face.face.NumIndices,
+        "alpha", draw.face.alpha,
+        "lit_water", litWater,
+        "dynamic_uniform_offset", offset,
+        "uniform_buffer_slice_bytes", fmt.Sprintf("%x", uData[:32]),
+        "pipeline_ptr", fmt.Sprintf("%p", pipeline),
+        "texture_bg", fmt.Sprintf("%p", textureBindGroup),
+        "lightmap_bg", fmt.Sprintf("%p", lightmapBindGroup),
+    )
+}
+```
 
-3. **Add telemetry point #1** (per-frame alpha settings) — shows runtime alpha resolution.
+**What this tells us**:
+- Whether `offset` (dynamic uniform offset) is validly aligned (256-byte aligned in WebGPU).
+- Whether `uData` contains the expected float32 bits for `alpha` (e.g. 0.6) and `litWater` (e.g. 1.0) at offsets 96 and 100.
+- Whether `pipeline` points to `res.liquidPipeline` (`worldTranslucentTurbulentPipeline`) or accidentally `worldTranslucentPipeline` / `worldTurbulentPipeline`.
 
-4. **Add telemetry point #2** (face classification counts) — shows whether faces go to opaque or translucent.
+---
 
-5. **Add telemetry point #3** (opaque liquid batches) — shows if any opaque liquid batches exist (should be 0).
+## Tooling Extensions: Offline `bspdiag liquids` Diagnostic Command
 
-6. **Add telemetry point #5** (translucent collection) — shows if translucent renders are collected.
+**File**: `cmd/bspdiag/liquids.go`
 
-7. **Add telemetry point #4** (translucent draw values) — shows the actual GPU uniform values.
+Expand `bspdiag liquids <quake_dir> <map.bsp> [gamedir]` to print:
+1. **Map-level Water Vis Safety**: `TransparentWaterSafe` boolean, `worldspawn` entity fields (`wateralpha`, `watervis`, `transwater`), and leaf-level visibility mask calculation details (`contentTransparent`, `contentFound`).
+2. **Liquid Surface Breakdown**: Enumerates every liquid face and prints face index, texture name, `Texinfo` flags (`TEX_SPECIAL`), `SurfDrawTiled` flag, `LightOfs`, lightmap index, and sample variation.
+3. **Resolved Alpha Settings**: Prints the exact outputs of `ResolveLiquidAlphaSettings` for `water`, `lava`, `slime`, `tele`.
 
-8. **Run the engine** with `r_debug_water 1` on qbj2 start, capture the log output, and match against the interpretation guide to identify the root cause.
+---
+
+## Comprehensive Execution Plan
+
+### Step 1: Implement Telemetry Instrumentation & `bspdiag` Extensions
+1. Register `r_debug_water` cvar in `internal/renderer/types.go` and `internal/game/game_init.go`.
+2. Add `internal/renderer/water_debug.go` helper `rDebugWaterEnabled()`.
+3. Add Telemetry Points #1 through #7 across `world_render_gogpu.go`, `world_upload_gogpu.go`, and `world_gogpu_translucent.go`.
+4. Extend `cmd/bspdiag` with enhanced `liquids` inspection output.
+
+### Step 2: Run Offline Diagnostics (`bspdiag`)
+```bash
+mise run build-bspdiag
+./bspdiag liquids quake-data/id1 start.bsp qbj2
+```
+Verify whether `MapVisTransparentWaterSafe` evaluates to `true` or `false` on `qbj2 start.bsp`.
+
+### Step 3: Run Engine with Telemetry
+```bash
+mise run run -- -basedir ./quake-data -game qbj2 +map start +r_debug_water 1 2>&1 | grep '\[rwater\]' > water_telemetry.log
+```
+
+### Step 4: Analyze Log Output against Candidate Root Causes
+- If `[rwater] world alpha settings` shows `water=1.0` → **Vis Safety Override bug** in `MapVisTransparentWaterSafe` or entity lump parsing.
+- If `[rwater] face classification` shows `opaque_liquid_draws > 0` → **Classification bug** in `shouldDrawGoGPUOpaqueLiquidFace`.
+- If `[rwater] late translucent gpu draw` shows `alpha=0.6` but pipeline is opaque → **Pipeline selection bug** in `renderGoGPUSortedTranslucentFaceRendersHAL`.
+- If `[rwater] late translucent gpu draw` shows `dynamic_uniform_offset` data byte mismatch → **Uniform buffer offset / alignment bug**.
+- If `[rwater] late translucent gpu draw` shows correct pipeline and alpha 0.6 → **WebGPU Blend State or Shader Lightmap Overbrighting bug** (`worldTranslucentTurbulentPipeline` creation in `world_pipelines_gogpu.go`).
+
+### Step 5: Parity Screenshot Comparison
+```bash
+mise run parity-ref
+mise run parity-go
+mise run parity-compare
+```
+Compare rendered outputs against C Ironwail reference screenshots to verify transparency and lighting levels.
 
 ---
 
 ## Verification Checklist
 
-After implementing the telemetry:
-
 - [ ] `r_debug_water 0` produces no `[rwater]` log lines (zero overhead when disabled)
 - [ ] `r_debug_water 1` produces `[rwater]` log lines on every frame
-- [ ] Log lines can be filtered with `grep '\[rwater'`
+- [ ] Log lines can be filtered with `grep '\[rwater\]'`
+- [ ] Offline `bspdiag liquids` inspects map vis safety and liquid face flags
 - [ ] Telemetry does not change any render logic or control flow
 - [ ] Build passes: `TMPDIR=.../.tmp CGO_ENABLED=0 go build ./...`
 - [ ] Tests pass: `TMPDIR=.../.tmp CGO_ENABLED=0 go test ./internal/renderer/... -count=1`
-- [ ] Run engine: `mise run run -- -game qbj2 +map start +r_debug_water 1` and capture logs
-- [ ] Match log output against the interpretation guide to identify the scenario
-- [ ] Document findings in `docs/diagnoses/qbj2_water_lighting_translucency.md`
+- [ ] Run engine with telemetry on `qbj2 start.bsp` and analyze `water_telemetry.log`
+- [ ] Document empirical findings in `docs/diagnoses/qbj2_water_lighting_translucency.md`

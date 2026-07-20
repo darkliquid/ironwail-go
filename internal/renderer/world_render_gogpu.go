@@ -192,6 +192,18 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
 	worldHasLitWater := worldData.Geometry.HasLitWater
+	if rDebugWaterEnabled() {
+		slog.Debug("[rwater] world alpha settings",
+			"water", liquidAlpha.water,
+			"lava", liquidAlpha.lava,
+			"slime", liquidAlpha.slime,
+			"tele", liquidAlpha.tele,
+			"has_lit_water", worldHasLitWater,
+			"geom_transparent_water_safe", worldData.Geometry.TransparentWaterSafe,
+			"geom_has_water_override", worldData.Geometry.LiquidAlphaOverrides.HasWater,
+			"geom_water_override", worldData.Geometry.LiquidAlphaOverrides.Water,
+		)
+	}
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
 	currentAlpha := float32(1)
 	currentFogDensity := worldFogUniformDensity(fogDensity)
@@ -280,6 +292,15 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				litWater := float32(0)
 				if shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha) {
 					lightmapBindGroup, litWater = gogpuWorldLightmapArrayBindGroupForFace(face, dc.renderer.worldLightmapArray, dc.renderer.whiteLightmapBindGroup, worldHasLitWater)
+					if rDebugWaterEnabled() {
+						slog.Debug("[rwater] face classified as OPAQUE liquid",
+							"face_idx", face.FirstIndex,
+							"flags", face.Flags,
+							"texture_idx", face.TextureIndex,
+							"lightmap_idx", face.LightmapIndex,
+							"face_alpha", worldFaceAlpha(face.Flags, liquidAlpha),
+						)
+					}
 				} else if face.LightmapIndex >= 0 {
 					if dc.renderer.worldLightmapArray != nil && dc.renderer.worldLightmapArray.bindGroup != nil {
 						lightmapBindGroup = dc.renderer.worldLightmapArray.bindGroup
@@ -316,6 +337,14 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		batchedIndices, opaqueLiquidBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, opaqueLiquidBatches, opaqueLiquidDraws, worldData.Geometry.Indices)
 		batchBuildMS = float64(time.Since(batchBuildStart)) / float64(time.Millisecond)
 		dc.renderer.storeGoGPUWorldBatchCacheEntry(cameraLeafIndex, liquidAlpha, visibleFaceCount, skyFaces, translucentLiquidFaces, batchedIndices, opaqueBatches, alphaTestBatches, opaqueLiquidBatches)
+	}
+	if rDebugWaterEnabled() {
+		slog.Debug("[rwater] face classification",
+			"visible_faces", visibleFaceCount,
+			"translucent_liquid_faces", len(translucentLiquidFaces),
+			"opaque_liquid_batches", len(opaqueLiquidBatches),
+			"cache_hit", cacheHit,
+		)
 	}
 	var opaqueBatchBuffer *wgpu.Buffer
 	if len(batchedIndices) > 0 {
@@ -470,7 +499,17 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	if dc.renderer.worldTurbulentPipeline != nil {
 		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
 		materialBindState.invalidate()
-		for _, batch := range opaqueLiquidBatches {
+		for i, batch := range opaqueLiquidBatches {
+			if rDebugWaterEnabled() {
+				slog.Debug("[rwater] opaque liquid batch",
+					"batch_idx", i,
+					"num_indices", batch.numIndices,
+					"lit_water", batch.key.litWater,
+					"alpha_uniform", 1,
+					"texture_bind_group", fmt.Sprintf("%p", batch.key.textureBindGroup),
+					"lightmap_bind_group", fmt.Sprintf("%p", batch.key.lightmapBindGroup),
+				)
+			}
 			if !writeWorldUniform(1, batch.key.litWater) {
 				slog.Error("renderWorldInternal: Failed to update liquid lighting uniform")
 				_ = renderPass.End()

@@ -5,7 +5,7 @@
 !*/
 
 # Keep Go source files
-!*.go
+!**/*.go
 
 # Keep license/readme files
 !/LICENSE.*

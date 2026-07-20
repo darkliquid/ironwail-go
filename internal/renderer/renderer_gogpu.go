@@ -230,6 +230,8 @@ type Renderer struct {
 	worldLightmapSampler               *wgpu.Sampler
 	worldLightmapArray                 *gpuWorldTexture
 	whiteLightmapBindGroup             *wgpu.BindGroup
+	blackLightmapTexture               *wgpu.Texture
+	blackLightmapView                  *wgpu.TextureView
 	worldLightStyleValues              [256]float32
 
 	// 1x1 white texture for fallback

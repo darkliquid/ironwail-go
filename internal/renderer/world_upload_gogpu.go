@@ -35,6 +35,19 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 	liquidAlpha := worldLiquidAlphaSettingsForGeometry(geom)
 	faceStats := summarizeGoGPUWorldFaceStats(geom.Faces, liquidAlpha)
+	if rDebugWaterEnabled() {
+		slog.Debug("[rwater] upload-time alpha settings",
+			"water", liquidAlpha.water,
+			"lava", liquidAlpha.lava,
+			"slime", liquidAlpha.slime,
+			"tele", liquidAlpha.tele,
+			"has_lit_water", geom.HasLitWater,
+			"transparent_water_safe", geom.TransparentWaterSafe,
+			"liquid_face_types", geom.LiquidFaceTypes,
+			"face_stats_opaque_liquid", faceStats.OpaqueLiquidFaces,
+			"face_stats_translucent_liquid", faceStats.TranslucentLiquidFaces,
+		)
+	}
 
 	// Create render data
 	renderData := &WorldRenderData{
@@ -466,6 +479,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	lightstyleValues := defaultWorldLightStyleValues()
 	var worldLightmapSampler *wgpu.Sampler
 	var whiteLightmapBindGroup *wgpu.BindGroup
+	var blackTexture *wgpu.Texture
+	var blackLightmapView *wgpu.TextureView
 	if r.textureBindGroupLayout != nil {
 		worldLightmapSampler, err = r.createWorldLightmapSampler(device)
 		if err != nil {
@@ -478,7 +493,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			// GL_FillSurfaceLightmap skips them, leaving the block black).
 			// The shader multiplies texture color by totalLight * 2.0,
 			// so black (0) gives 0 brightness, matching C behavior.
-			_, blackLightmapView, blackErr := r.createWorldSolidTexture(device, queue, "World Black Lightmap", [4]byte{0, 0, 0, 255})
+			var blackErr error
+			blackTexture, blackLightmapView, blackErr = r.createWorldSolidTextureArray(device, queue, "World Black Lightmap Array", [4]byte{0, 0, 0, 255}, 1)
 			if blackErr != nil || blackLightmapView == nil {
 				slog.Warn("Failed to create black lightmap fallback texture", "error", blackErr)
 				fallbackView := worldLightmapFallbackView(transparentTextureView, whiteTextureView)
@@ -568,6 +584,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.transparentTextureView = transparentTextureView
 	r.transparentBindGroup = transparentBindGroup
 	r.whiteLightmapBindGroup = whiteLightmapBindGroup
+	r.blackLightmapTexture = blackTexture
+	r.blackLightmapView = blackLightmapView
 	r.worldLightmapArray = worldLightmapArray
 	r.worldLightmapSampler = worldLightmapSampler
 	r.worldLightStyleValues = lightstyleValues
