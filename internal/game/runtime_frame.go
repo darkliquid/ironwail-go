@@ -91,19 +91,24 @@ func (g *Game) prepareRuntimeRendererScreenshot(screenshotMode bool) {
 
 func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeRendererLoopState) {
 	var paritySetupDone bool
+	var paritySettleCountdown int = 15
 	g.Renderer.OnUpdate(func(dt float64) {
-		if os.Getenv("PARITY_RUN") == "1" && !paritySetupDone && g.Client != nil && g.Client.State == cl.StateActive && g.Host.SignOns() == 4 {
-			if g.Menu != nil && g.Menu.IsActive() {
-				g.Menu.HideMenu()
+		if os.Getenv("PARITY_RUN") == "1" && g.Client != nil && g.Client.State == cl.StateActive && g.Host.SignOns() == 4 {
+			if !paritySetupDone {
+				if g.Menu != nil && g.Menu.IsActive() {
+					g.Menu.HideMenu()
+				}
+				if g.Input != nil && g.Input.KeyDest() == input.KeyConsole {
+					g.Input.SetKeyDest(input.KeyGame)
+				}
+				g.Host.Cmd.AddText("noclip\n")
+				// Wait a few command frames so server fixangle reaches the local client
+				// before signaling readiness to the external screenshot harness.
+				g.Host.Cmd.AddText(fmt.Sprintf("setpos %s %s\nwait\nwait\nwait\nwait\nwait\nviewpos\necho PARITY_READY\n", os.Getenv("PARITY_POS"), os.Getenv("PARITY_ANGLES")))
+				paritySetupDone = true
+			} else if paritySettleCountdown > 0 {
+				paritySettleCountdown--
 			}
-			if g.Input != nil && g.Input.KeyDest() == input.KeyConsole {
-				g.Input.SetKeyDest(input.KeyGame)
-			}
-			g.Host.Cmd.AddText("noclip\n")
-			// Wait a few command frames so server fixangle reaches the local client
-			// before signaling readiness to the external screenshot harness.
-			g.Host.Cmd.AddText(fmt.Sprintf("setpos %s %s\nwait\nwait\nwait\nwait\nwait\nviewpos\necho PARITY_READY\n", os.Getenv("PARITY_POS"), os.Getenv("PARITY_ANGLES")))
-			paritySetupDone = true
 		}
 
 		g.pollRuntimeInputEvents()
@@ -134,7 +139,9 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 		defer g.runtimeMu.Unlock()
 
 		if state.screenshotMode && !state.screenshotCaptured {
-			defer g.captureRuntimeRendererScreenshot(state)
+			if os.Getenv("PARITY_RUN") != "1" || (paritySetupDone && paritySettleCountdown == 0) {
+				defer g.captureRuntimeRendererScreenshot(state)
+			}
 		}
 
 		g.applyRuntimeRendererState(state)

@@ -2,10 +2,13 @@ package renderer
 
 import (
 	"encoding/binary"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/testutil"
 	"github.com/gogpu/wgpu"
 
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
@@ -815,4 +818,49 @@ func TestGogpuWorldLightmapArrayBindGroupForFaceLitWaterFallback(t *testing.T) {
 		t.Errorf("got litWater = %v, want 0 when hasLitWater is false", litWaterDisabled)
 	}
 }
+
+func TestQbj2StartWaterVisibility(t *testing.T) {
+	quakeDir, err := testutil.LocateQuakeDir()
+	if err != nil || quakeDir == "" {
+		t.Skip("QUAKE_DIR not set")
+	}
+	bspPath := filepath.Join(quakeDir, "qbj2", "maps", "start.bsp")
+	f, err := os.Open(bspPath)
+	if err != nil {
+		t.Skipf("qbj2 start.bsp not found: %v", err)
+	}
+	defer f.Close()
+
+	tree, err := bsp.LoadTree(f)
+	testutil.AssertNoError(t, err)
+
+	geom, err := BuildWorldGeometry(tree)
+	testutil.AssertNoError(t, err)
+
+	spawnPos := [3]float32{-256.0, -2576.0, -2120.0}
+	visibleFaces := selectVisibleWorldFaces(geom.Tree, geom.Faces, geom.LeafFaces, spawnPos)
+	t.Logf("Total faces: %d, Visible faces at spawn %v: %d", len(geom.Faces), spawnPos, len(visibleFaces))
+
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(geom)
+	t.Logf("Liquid alpha settings: water=%.2f lava=%.2f slime=%.2f tele=%.2f", liquidAlpha.water, liquidAlpha.lava, liquidAlpha.slime, liquidAlpha.tele)
+
+	var skyCount, translucentLiquidCount, opaqueCount, opaqueLiquidCount, alphaTestCount int
+	for _, face := range visibleFaces {
+		switch {
+		case shouldDrawGoGPUSkyWorldFace(face):
+			skyCount++
+		case shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha):
+			translucentLiquidCount++
+		case shouldDrawGoGPUOpaqueWorldFace(face):
+			opaqueCount++
+		case shouldDrawGoGPUAlphaTestWorldFace(face):
+			alphaTestCount++
+		case shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha):
+			opaqueLiquidCount++
+		}
+	}
+	t.Logf("Classification: sky=%d, translucentLiquid=%d, opaque=%d, opaqueLiquid=%d, alphaTest=%d",
+		skyCount, translucentLiquidCount, opaqueCount, opaqueLiquidCount, alphaTestCount)
+}
+
 

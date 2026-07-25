@@ -341,9 +341,10 @@ func TestWorldLiquidAlphaSettingsForGeometryUsesCachedWorldFacts(t *testing.T) {
 	}
 
 	geom.TransparentWaterSafe = false
+	geom.LiquidAlphaOverrides = worldimpl.LiquidAlphaOverrides{}
 	got = worldLiquidAlphaSettingsForGeometry(geom)
 	if got.water != 1 || got.lava != 1 || got.slime != 1 || got.tele != 1 {
-		t.Fatalf("unsafe transparent-water map should force opaque liquids, got %+v", got)
+		t.Fatalf("unsafe transparent-water map without explicit override should force opaque liquids, got %+v", got)
 	}
 }
 

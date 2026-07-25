@@ -30,6 +30,17 @@ type overlayDirtyRect struct {
 // draws it onto the current surface in one submit. Reuses a cached GPU
 // texture when dimensions match to avoid per-frame CreateTexture overhead.
 func (dc *DrawContext) flush2DOverlay() {
+	dc.flush2DOverlayWithDraw(true)
+}
+
+// flush2DOverlayWithoutDraw uploads the overlay texture to the GPU and creates
+// the overlay bind group, but does not draw the overlay. The caller is
+// responsible for drawing the overlay (e.g., inside a composite render pass).
+func (dc *DrawContext) flush2DOverlayWithoutDraw() {
+	dc.flush2DOverlayWithDraw(false)
+}
+
+func (dc *DrawContext) flush2DOverlayWithDraw(doDraw bool) {
 	ov := dc.overlay
 	if ov == nil || !ov.dirty {
 		dc.overlay = nil
@@ -68,10 +79,14 @@ func (dc *DrawContext) flush2DOverlay() {
 			dc.overlay = nil
 			return
 		}
-		if !dc.renderOverlayTextureHAL(tex) {
-			slog.Error("flush2DOverlay: HAL overlay composite failed")
-			dc.overlay = nil
-			return
+		if doDraw {
+			if !dc.renderOverlayTextureHAL(tex) {
+				slog.Error("flush2DOverlay: HAL overlay composite failed")
+				dc.overlay = nil
+				return
+			}
+		} else {
+			dc.ensureOverlayTextureBindGroup(tex)
 		}
 	} else {
 		// Dimensions changed or first frame — create new texture.
@@ -96,10 +111,14 @@ func (dc *DrawContext) flush2DOverlay() {
 		r.overlayTextureWidth = ov.width
 		r.overlayTextureHeight = ov.height
 		r.mu.Unlock()
-		if !dc.renderOverlayTextureHAL(tex) {
-			slog.Error("flush2DOverlay: HAL overlay composite failed")
-			dc.overlay = nil
-			return
+		if doDraw {
+			if !dc.renderOverlayTextureHAL(tex) {
+				slog.Error("flush2DOverlay: HAL overlay composite failed")
+				dc.overlay = nil
+				return
+			}
+		} else {
+			dc.ensureOverlayTextureBindGroup(tex)
 		}
 	}
 	dc.overlay = nil

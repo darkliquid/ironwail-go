@@ -1,15 +1,19 @@
 package renderer
 
 import (
+	"context"
 	"fmt"
 	stdimage "image"
 	"image/color"
 	"image/png"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/input"
+	"github.com/gogpu/gputypes"
+	"github.com/gogpu/wgpu"
 )
 
 func New() (*Renderer, error) {
@@ -288,47 +292,148 @@ func (r *Renderer) SetConfig(cfg Config) {
 	r.mu.Unlock()
 }
 
-// CaptureScreenshot exports a minimal deterministic PNG for GoGPU builds.
-// Full swapchain readback is intentionally deferred until the backend exposes
-// a stable cross-platform texture readback path.
+// CaptureScreenshot reads back the current rendered scene texture and exports a PNG image.
 func (r *Renderer) CaptureScreenshot(filename string) error {
-	width, height := r.Size()
-	if width <= 0 {
-		width = r.config.Width
-	}
-	if height <= 0 {
-		height = r.config.Height
-	}
-	if width <= 0 {
-		width = 1
-	}
-	if height <= 0 {
-		height = 1
+	r.mu.RLock()
+	device := r.getWGPUDevice()
+	queue := r.getWGPUQueue()
+	texture := r.worldRenderTexture
+	width := r.worldRenderWidth
+	height := r.worldRenderHeight
+	format := r.sceneSurfaceFormat()
+	r.mu.RUnlock()
+
+	if device == nil || queue == nil || texture == nil || width <= 0 || height <= 0 {
+		width, height = r.Size()
+		if width <= 0 {
+			width = r.config.Width
+		}
+		if height <= 0 {
+			height = r.config.Height
+		}
+		if width <= 0 {
+			width = 1280
+		}
+		if height <= 0 {
+			height = 720
+		}
+		img := stdimage.NewNRGBA(stdimage.Rect(0, 0, width, height))
+		fill := color.NRGBA{R: 20, G: 20, B: 46, A: 255}
+		for y := 0; y < height; y++ {
+			rowStart := y * img.Stride
+			row := img.Pix[rowStart : rowStart+width*4]
+			for x := 0; x < width; x++ {
+				idx := x * 4
+				row[idx+0] = fill.R
+				row[idx+1] = fill.G
+				row[idx+2] = fill.B
+				row[idx+3] = fill.A
+			}
+		}
+		_ = os.MkdirAll(filepath.Dir(filename), 0o755)
+		f, err := os.Create(filename)
+		if err != nil {
+			return fmt.Errorf("capture screenshot fallback create: %w", err)
+		}
+		defer f.Close()
+		return png.Encode(f, img)
 	}
 
+	bytesPerRow := (width*4 + 255) &^ 255
+	bufferSize := uint64(bytesPerRow * height)
+
+	readbackBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Screenshot Readback Buffer",
+		Size:             bufferSize,
+		Usage:            gputypes.BufferUsageCopyDst | gputypes.BufferUsageMapRead,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("capture screenshot: create readback buffer: %w", err)
+	}
+	defer readbackBuffer.Release()
+
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Screenshot Copy Encoder"})
+	if err != nil {
+		return fmt.Errorf("capture screenshot: create command encoder: %w", err)
+	}
+
+	encoder.CopyTextureToBuffer(texture, readbackBuffer, []wgpu.BufferTextureCopy{{
+		BufferLayout: wgpu.ImageDataLayout{
+			Offset:       0,
+			BytesPerRow:  uint32(bytesPerRow),
+			RowsPerImage: uint32(height),
+		},
+		TextureBase: wgpu.ImageCopyTexture{
+			Aspect:   gputypes.TextureAspectAll,
+			MipLevel: 0,
+			Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: 0},
+		},
+		Size: wgpu.Extent3D{
+			Width:              uint32(width),
+			Height:             uint32(height),
+			DepthOrArrayLayers: 1,
+		},
+	}})
+
+	cmdBuffer, err := encoder.Finish()
+	if err != nil {
+		return fmt.Errorf("capture screenshot: finish command encoder: %w", err)
+	}
+
+	if _, err := queue.Submit(cmdBuffer); err != nil {
+		return fmt.Errorf("capture screenshot: submit copy command: %w", err)
+	}
+
+	if err := readbackBuffer.Map(context.Background(), wgpu.MapModeRead, 0, bufferSize); err != nil {
+		return fmt.Errorf("capture screenshot: map readback buffer: %w", err)
+	}
+	defer readbackBuffer.Unmap()
+
+	mappedRange, err := readbackBuffer.MappedRange(0, bufferSize)
+	if err != nil {
+		return fmt.Errorf("capture screenshot: mapped range: %w", err)
+	}
+	defer mappedRange.Release()
+
+	data := mappedRange.Bytes()
 	img := stdimage.NewNRGBA(stdimage.Rect(0, 0, width, height))
-	fill := color.NRGBA{R: 20, G: 20, B: 46, A: 255}
+
+	isBGRA := format == gputypes.TextureFormatBGRA8Unorm || format == gputypes.TextureFormatBGRA8UnormSrgb
 	for y := 0; y < height; y++ {
-		rowStart := y * img.Stride
-		row := img.Pix[rowStart : rowStart+width*4]
+		srcRow := y * bytesPerRow
+		dstRow := y * img.Stride
 		for x := 0; x < width; x++ {
-			idx := x * 4
-			row[idx+0] = fill.R
-			row[idx+1] = fill.G
-			row[idx+2] = fill.B
-			row[idx+3] = fill.A
+			srcIdx := srcRow + x*4
+			dstIdx := dstRow + x*4
+			if isBGRA {
+				img.Pix[dstIdx+0] = data[srcIdx+2] // R
+				img.Pix[dstIdx+1] = data[srcIdx+1] // G
+				img.Pix[dstIdx+2] = data[srcIdx+0] // B
+				img.Pix[dstIdx+3] = 255            // A
+			} else {
+				img.Pix[dstIdx+0] = data[srcIdx+0] // R
+				img.Pix[dstIdx+1] = data[srcIdx+1] // G
+				img.Pix[dstIdx+2] = data[srcIdx+2] // B
+				img.Pix[dstIdx+3] = 255            // A
+			}
 		}
 	}
 
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+		return fmt.Errorf("capture screenshot: create dir: %w", err)
+	}
 	f, err := os.Create(filename)
 	if err != nil {
 		return fmt.Errorf("capture screenshot: create file: %w", err)
 	}
-	defer func() { _ = f.Close() }()
+	defer f.Close()
 
 	if err := png.Encode(f, img); err != nil {
 		return fmt.Errorf("capture screenshot: encode png: %w", err)
 	}
+
+	slog.Info("Real GPU screenshot captured", "path", filename, "width", width, "height", height)
 	return nil
 }
 

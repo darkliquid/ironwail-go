@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
@@ -107,7 +108,31 @@ func (s *worldVisibilityScratch) selectVisibleWorldFaces(tree *bsp.Tree, allFace
 			break
 		}
 	}
-	pvs := tree.LeafPVS(cameraLeaf)
+	nearWaterPortal := false
+	if cameraLeafIndex >= 0 && cameraLeafIndex < len(leafFaces) {
+		for _, faceIdx := range leafFaces[cameraLeafIndex] {
+			if faceIdx >= 0 && faceIdx < len(allFaces) {
+				if allFaces[faceIdx].Flags&model.SurfDrawTurb != 0 {
+					nearWaterPortal = true
+					break
+				}
+			}
+		}
+	}
+
+	var pvs []byte
+	if nearWaterPortal {
+		pvs = tree.FatPVS(cameraOrigin)
+	} else {
+		pvs = tree.LeafPVS(cameraLeaf)
+	}
+	if rDebugWaterEnabled() {
+		slog.Debug("[rwater] PVS selection",
+			"near_water_portal", nearWaterPortal,
+			"camera_leaf_index", cameraLeafIndex,
+			"pvs_len", len(pvs),
+		)
+	}
 	if len(pvs) == 0 {
 		s.faces = s.faces[:0]
 		return allFaces

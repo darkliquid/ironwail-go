@@ -1,6 +1,9 @@
 package renderer
 
-import "github.com/darkliquid/ironwail-go/internal/cvar"
+import (
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+)
 
 // pkgCVars is the cvar system consulted by renderer free functions that
 // render-pipeline code paths (warp scaling, shadow resources, world dispatch,
@@ -17,6 +20,7 @@ var pkgCVars *cvar.CVarSystem
 // cvar reads default to zero/empty and writes are no-ops).
 func SetCVarSystem(cv *cvar.CVarSystem) {
 	pkgCVars = cv
+	worldimpl.SetCVarSystem(cv)
 }
 
 // CVarSystem returns the currently installed package-level cvar system,

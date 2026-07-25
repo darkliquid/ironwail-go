@@ -618,15 +618,17 @@ func worldLiquidAlphaSettingsForGeometry(geom *WorldGeometry) worldLiquidAlphaSe
 	if geom == nil {
 		return worldLiquidAlphaSettingsFromCvars(worldLiquidAlphaOverrides{}, nil)
 	}
+	cvarWater := worldimpl.ReadAlphaCvar(CvarRWaterAlpha, 1)
+	overrides := worldLiquidAlphaOverridesFromWorld(geom.LiquidAlphaOverrides)
 	settings := resolveWorldLiquidAlphaSettings(
-		worldimpl.ReadAlphaCvar(CvarRWaterAlpha, 1),
+		cvarWater,
 		worldimpl.ReadAlphaCvar(CvarRLavaAlpha, 0),
 		worldimpl.ReadAlphaCvar(CvarRSlimeAlpha, 0),
 		worldimpl.ReadAlphaCvar(CvarRTeleAlpha, 0),
-		worldLiquidAlphaOverridesFromWorld(geom.LiquidAlphaOverrides),
+		overrides,
 		nil,
 	)
-	if !geom.TransparentWaterSafe {
+	if !geom.TransparentWaterSafe && !overrides.hasWater && cvarWater >= 1 {
 		settings.water = 1
 		settings.lava = 1
 		settings.slime = 1

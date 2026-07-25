@@ -146,6 +146,16 @@ func main() {
 		if len(os.Args) >= 5 {
 			gamedir = os.Args[4]
 		}
+	case "waterpools":
+		if len(os.Args) < 4 {
+			printUsage()
+			os.Exit(1)
+		}
+		quakeDir = os.Args[2]
+		mapPath = os.Args[3]
+		if len(os.Args) >= 5 {
+			gamedir = os.Args[4]
+		}
 	default:
 		// Backward compatibility: default to info mode where arg 1 is quakeDir
 		subcommand = "info"
@@ -203,6 +213,8 @@ func main() {
 		runTexture(fsys, tree, extraArgs[0])
 	case "liquids":
 		runLiquids(fsys, tree, mapPath, gamedir)
+	case "waterpools":
+		runWaterpools(tree)
 	}
 }
 
@@ -507,6 +519,31 @@ func runPoint(tree *bsp.Tree, x, y, z float32) {
 	if leafIdx >= 0 {
 		fmt.Printf("Leaf index: %d\n", leafIdx)
 	}
+}
+
+func runWaterpools(tree *bsp.Tree) {
+	fmt.Println("=== Deep Water Leaf Analysis ===")
+	waterLeaves := 0
+	for i, leaf := range tree.Leafs {
+		if leaf.Contents == -3 { // CONTENTS_WATER
+			waterLeaves++
+			dz := float32(leaf.BoundsMax[2] - leaf.BoundsMin[2])
+			if dz > 32 {
+				cx := float32(leaf.BoundsMin[0]+leaf.BoundsMax[0]) * 0.5
+				cy := float32(leaf.BoundsMin[1]+leaf.BoundsMax[1]) * 0.5
+				czAir := float32(leaf.BoundsMax[2]) + 40.0
+				czFloor := float32(leaf.BoundsMin[2]) - 10.0
+				floorLeaf := tree.PointInLeaf([3]float32{cx, cy, czFloor})
+				floorContents := int32(-1)
+				if floorLeaf != nil {
+					floorContents = floorLeaf.Contents
+				}
+				fmt.Printf("Water Leaf #%d: Mins=(%.1f, %.1f, %.1f) Maxs=(%.1f, %.1f, %.1f) Height=%.1f | AirCam=(%.1f, %.1f, %.1f) FloorLeafContents=%d\n",
+					i, leaf.BoundsMin[0], leaf.BoundsMin[1], leaf.BoundsMin[2], leaf.BoundsMax[0], leaf.BoundsMax[1], leaf.BoundsMax[2], dz, cx, cy, czAir, floorContents)
+			}
+		}
+	}
+	fmt.Printf("Total water leaves: %d\n", waterLeaves)
 }
 
 func contentsToString(contents int32) string {

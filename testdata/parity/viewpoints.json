@@ -55,6 +55,23 @@
       "pos": [-256.0, -2576.0, -2120.0],
       "angles": [0.0, 90.0, 0.0],
       "description": "qbj2 start map spawn viewpoint"
+    },
+    {
+      "id": "qbj2-water-room",
+      "game": "qbj2",
+      "map": "start",
+      "pos": [-800.0, 400.0, -1950.0],
+      "angles": [90.0, 0.0, 0.0],
+      "description": "qbj2 start map water room looking straight down at water"
+    },
+    {
+      "id": "qbj2-water-room-side",
+      "game": "qbj2",
+      "map": "start",
+      "pos": [-800.0, 0.0, -2000.0],
+      "angles": [15.0, 90.0, 0.0],
+      "description": "qbj2 start map water room side view looking at water pool"
     }
   ]
 }
+

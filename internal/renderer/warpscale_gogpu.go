@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"os"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
@@ -310,7 +311,7 @@ func (r *Renderer) ensureWorldRenderTargetLocked(device *wgpu.Device, width, hei
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
 		Format:        r.sceneSurfaceFormat(),
-		Usage:         gputypes.TextureUsageRenderAttachment | gputypes.TextureUsageTextureBinding,
+		Usage:         gputypes.TextureUsageRenderAttachment | gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopySrc,
 	})
 	if err != nil {
 		return fmt.Errorf("create world scene texture: %w", err)
@@ -371,8 +372,22 @@ func (dc *DrawContext) currentWGPURenderTargetView() *wgpu.TextureView {
 	return dc.surfaceTextureView()
 }
 
+func (dc *DrawContext) shouldUseSceneRenderTarget(state *RenderFrameState) bool {
+	if dc != nil && dc.renderer != nil && dc.renderer.hasTranslucentWorldLiquidFacesGoGPU() && state != nil && (state.DrawWorld || state.DrawEntities) {
+		slog.Debug("[rwater] scene render target enabled for translucent liquid")
+		return true
+	}
+	return shouldUseSceneRenderTarget(state)
+}
+
 func shouldUseSceneRenderTarget(state *RenderFrameState) bool {
-	if state == nil || !state.WaterWarp {
+	if state == nil {
+		return false
+	}
+	if os.Getenv("PARITY_RUN") == "1" {
+		return state.DrawWorld || state.DrawEntities
+	}
+	if !state.WaterWarp {
 		return false
 	}
 	if state.DrawWorld || state.DrawEntities || len(state.DecalMarks) > 0 || state.ViewModel != nil {
@@ -502,6 +517,7 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
 	if err := queue.WriteBuffer(uniformBuffer, 0, sceneCompositeUniformBytes(warpActive, warpTime)); err != nil {
+		renderPass.End()
 		return false
 	}
 	renderPass.Draw(3, 1, 0, 0)

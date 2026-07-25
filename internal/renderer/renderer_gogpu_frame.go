@@ -113,7 +113,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// Phase 1: Clear screen
 	// Skip clear when world rendering is active - the world render pass will handle clearing,
 	// and gogpu will use LoadOpLoad to preserve our world rendering when drawing the overlay.
-	sceneTargetActive := shouldUseSceneRenderTarget(state) && dc.enableSceneRenderTarget()
+	sceneTargetActive := dc.shouldUseSceneRenderTarget(state) && dc.enableSceneRenderTarget()
 	dc.renderer.resetUniformBuffer()
 	phaseBegin()
 	if !state.DrawWorld && !sceneTargetActive {
@@ -220,11 +220,6 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
-	// Re-enable to show menu + fallback dots
-	// IMPORTANT: When we skip dc.Clear() above (because state.DrawWorld=true),
-	// gogpu should use LoadOpLoad for its internal 2D render pass, preserving
-	// the world rendering we just submitted via HAL. This relies on gogpu's
-	// internal behavior to detect that Clear() was not called.
 	if state.Draw2DOverlay && draw2DOverlay != nil {
 		if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
 			slog.Debug("RenderFrame: gogpu frame state (pre-overlay)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)

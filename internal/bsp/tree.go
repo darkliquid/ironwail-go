@@ -767,6 +767,63 @@ func (t *Tree) LeafPVS(leaf *TreeLeaf) []byte {
 	return t.DecompressVis(t.Visibility[leaf.VisOfs:])
 }
 
+// FatPVS returns the union of PVS visibility masks for all leaves near org.
+// Where in C: SV_FatPVS in sv_user.c / r_world.c
+func (t *Tree) FatPVS(org [3]float32) []byte {
+	if t == nil || len(t.Nodes) == 0 {
+		return t.LeafPVS(nil)
+	}
+	numVisLeafs := t.numVisLeafs()
+	out := make([]byte, (numVisLeafs+7)/8)
+	headNode := 0
+	if len(t.Models) > 0 {
+		headNode = int(t.Models[0].HeadNode[0])
+	}
+	t.fatPVSRecursive(org, TreeChild{Index: headNode, IsLeaf: false}, out)
+	return out
+}
+
+func (t *Tree) fatPVSRecursive(org [3]float32, child TreeChild, out []byte) {
+	for {
+		if child.IsLeaf {
+			if int(child.Index) < len(t.Leafs) {
+				leaf := &t.Leafs[child.Index]
+				if leaf.Contents != ContentsSolid {
+					pvs := t.LeafPVS(leaf)
+					for i := 0; i < len(out) && i < len(pvs); i++ {
+						out[i] |= pvs[i]
+					}
+				}
+			}
+			return
+		}
+
+		if int(child.Index) >= len(t.Nodes) {
+			return
+		}
+		node := &t.Nodes[child.Index]
+		if int(node.PlaneNum) >= len(t.Planes) {
+			return
+		}
+		plane := &t.Planes[node.PlaneNum]
+		var d float32
+		if plane.Type < 3 {
+			d = org[plane.Type] - plane.Dist
+		} else {
+			d = org[0]*plane.Normal[0] + org[1]*plane.Normal[1] + org[2]*plane.Normal[2] - plane.Dist
+		}
+
+		if d > 8 {
+			child = node.Children[0]
+		} else if d < -8 {
+			child = node.Children[1]
+		} else {
+			t.fatPVSRecursive(org, node.Children[0], out)
+			child = node.Children[1]
+		}
+	}
+}
+
 func (t *Tree) DecompressVis(in []byte) []byte {
 	numVisLeafs := t.numVisLeafs()
 	out := make([]byte, (numVisLeafs+7)/8)
@@ -821,6 +878,9 @@ func (t *Tree) PointInLeaf(p [3]float32) *TreeLeaf {
 	}
 
 	nodeIdx := 0
+	if len(t.Models) > 0 {
+		nodeIdx = int(t.Models[0].HeadNode[0])
+	}
 	for {
 		node := &t.Nodes[nodeIdx]
 		plane := &t.Planes[node.PlaneNum]

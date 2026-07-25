@@ -174,6 +174,10 @@ func (g *Game) initGameHost() error {
 	// r_waterwarp: 0=off, 1=screen-space sinusoidal warp, 2=FOV oscillation.
 	// Mirrors C Ironwail r_waterwarp. Default 1 (screen-space warp).
 	g.Host.CVar.Register(renderer.CvarRWaterwarp, "1", cvar.FlagArchive, "Underwater warp effect (0=off, 1=screen warp, 2=FOV warp)")
+	g.Host.CVar.Register(renderer.CvarRWaterAlpha, "1", cvar.FlagArchive, "Water transparency alpha (0..1)")
+	g.Host.CVar.Register(renderer.CvarRLavaAlpha, "0", cvar.FlagNone, "Lava transparency alpha (0..1, 0=use water alpha)")
+	g.Host.CVar.Register(renderer.CvarRSlimeAlpha, "0", cvar.FlagNone, "Slime transparency alpha (0..1, 0=use water alpha)")
+	g.Host.CVar.Register(renderer.CvarRTeleAlpha, "0", cvar.FlagNone, "Teleporter transparency alpha (0..1, 0=use water alpha)")
 	g.Host.CVar.Register(renderer.CvarRLitWater, "1", cvar.FlagArchive, "Enable lightmapped water when map has lit water data (0=off, 1=on)")
 	g.Host.CVar.Register(renderer.CvarRDebugWater, "0", cvar.FlagNone, "Log water render decision points per frame (0=off, 1=on)")
 	// gl_polyblend: enable/disable the v_blend polyblend screen-tint pass.

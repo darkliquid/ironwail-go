@@ -214,6 +214,29 @@ func (r *Renderer) ensureOverlayCompositeBindGroupLocked(device *wgpu.Device, te
 	return nil
 }
 
+// ensureOverlayTextureBindGroup creates the overlay composite pipeline and
+// bind group for the given texture, without drawing. This allows the caller
+// to draw the overlay in the same render pass as other content.
+func (dc *DrawContext) ensureOverlayTextureBindGroup(tex *gogpu.Texture) bool {
+	if dc == nil || dc.renderer == nil || tex == nil {
+		return false
+	}
+	device := dc.renderer.getWGPUDevice()
+	if device == nil {
+		return false
+	}
+	r := dc.renderer
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.ensureOverlayCompositeResourcesLocked(device); err != nil {
+		return false
+	}
+	if err := r.ensureOverlayCompositeBindGroupLocked(device, tex); err != nil {
+		return false
+	}
+	return r.overlayCompositePipeline != nil && r.overlayCompositeBindGroup != nil
+}
+
 func (dc *DrawContext) renderOverlayTextureHAL(tex *gogpu.Texture) bool {
 	if dc == nil || dc.renderer == nil || tex == nil {
 		return false
@@ -225,19 +248,15 @@ func (dc *DrawContext) renderOverlayTextureHAL(tex *gogpu.Texture) bool {
 		return false
 	}
 
+	if !dc.ensureOverlayTextureBindGroup(tex) {
+		return false
+	}
+
 	r := dc.renderer
-	r.mu.Lock()
-	if err := r.ensureOverlayCompositeResourcesLocked(device); err != nil {
-		r.mu.Unlock()
-		return false
-	}
-	if err := r.ensureOverlayCompositeBindGroupLocked(device, tex); err != nil {
-		r.mu.Unlock()
-		return false
-	}
+	r.mu.RLock()
 	pipeline := r.overlayCompositePipeline
 	bindGroup := r.overlayCompositeBindGroup
-	r.mu.Unlock()
+	r.mu.RUnlock()
 	if pipeline == nil || bindGroup == nil {
 		return false
 	}
