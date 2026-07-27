@@ -551,6 +551,82 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)
 	}
 
+	// Draw translucent liquid faces within the same render pass.
+	// This matches C Ironwail's R_DrawWater(true) which runs in the same
+	// framebuffer as R_DrawWater(false), using inline state changes
+	// (blend=ALPHA, depth write=OFF) without a separate command buffer submit.
+	if dc.renderer.worldTranslucentTurbulentPipeline != nil && len(translucentLiquidFaces) > 0 {
+		// Use the dynamic uniform buffer for translucent draws so they
+		// don't overwrite the opaque uniform at offset 0.
+		dynUniformStart := dc.renderer.uniformOffset
+		translucentLiquidDraws := dc.renderer.worldLiquidDrawsScratch[:0]
+		for _, face := range translucentLiquidFaces {
+			textureBindGroup := dc.renderer.whiteTextureBindGroup
+			if dc.renderer.worldTextures != nil && dc.renderer.worldTextures.bindGroup != nil {
+				textureBindGroup = dc.renderer.worldTextures.bindGroup
+			}
+			lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, dc.renderer.worldLightmapArray, dc.renderer.whiteLightmapBindGroup, worldHasLitWater)
+			fullbrightBindGroup := dc.renderer.transparentBindGroup
+			if fullbrightBindGroup == nil {
+				fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+			}
+			if dc.renderer.worldFullbrightTextures != nil && dc.renderer.worldFullbrightTextures.bindGroup != nil {
+				fullbrightBindGroup = dc.renderer.worldFullbrightTextures.bindGroup
+			}
+			translucentLiquidDraws = append(translucentLiquidDraws, gogpuWorldFaceDraw{
+				face:                face,
+				textureBindGroup:    textureBindGroup,
+				lightmapBindGroup:   lightmapBindGroup,
+				fullbrightBindGroup: fullbrightBindGroup,
+				litWater:            litWater,
+			})
+		}
+		translucentLiquidBatches := dc.renderer.worldLiquidBatchScratch[:0]
+		batchedIndices, translucentLiquidBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, translucentLiquidBatches, translucentLiquidDraws, worldData.Geometry.Indices)
+
+		// Upload all dynamic uniform data to GPU before encoding draw commands
+		translucentAlpha := liquidAlpha.water
+		for _, batch := range translucentLiquidBatches {
+			tOffset, tUData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
+			fillWorldSceneUniformBytes(tUData, vpMatrix, cameraOrigin, state.FogColor, worldFogUniformDensity(fogDensity), timeValue, translucentAlpha, batch.key.litWater)
+			_ = tOffset
+		}
+		// Upload the dynamic uniform range to GPU
+		if dc.renderer.uniformOffset > dynUniformStart {
+			dynData := dc.renderer.uniformDataScratch[dynUniformStart:dc.renderer.uniformOffset]
+			_ = queue.WriteBuffer(dc.renderer.uniformBuffer, uint64(dynUniformStart), dynData)
+		}
+
+		renderPass.SetPipeline(dc.renderer.worldTranslucentTurbulentPipeline)
+		materialBindState.invalidate()
+		tOffset := dynUniformStart
+		for i, batch := range translucentLiquidBatches {
+			if rDebugWaterEnabled() {
+				slog.Debug("[rwater] translucent liquid batch (in-world-pass)",
+					"batch_idx", i,
+					"num_indices", batch.numIndices,
+					"lit_water", batch.key.litWater,
+					"alpha", translucentAlpha,
+					"uniform_offset", tOffset,
+				)
+			}
+			renderPass.SetBindGroup(0, dc.renderer.uniformBindGroup, []uint32{tOffset})
+			tOffset += worldUniformAlign
+			setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
+			if setTexture {
+				renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
+			}
+			if setLightmap {
+				renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
+			}
+			if setFullbright {
+				renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
+			}
+			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+		}
+		// Don't collect these faces for the late translucent pass
+		translucentLiquidFaces = nil
+	}
 	// End render pass
 	slog.Debug("renderWorldInternal: ending render pass")
 	logExternalSkySubmit := skyDrawnIndices > 0 &&
