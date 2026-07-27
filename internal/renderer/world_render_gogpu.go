@@ -529,7 +529,6 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			liquidDrawnIndices += batch.numIndices
 		}
 	}
-	// Skip drawing translucent liquid faces to test background floor color
 	opaqueDrawMS = float64(time.Since(opaqueDrawStart)) / float64(time.Millisecond)
 	if drawnIndices > 0 {
 		slog.Debug("World rendered",

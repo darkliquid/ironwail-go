@@ -33,13 +33,6 @@ func (dc *DrawContext) flush2DOverlay() {
 	dc.flush2DOverlayWithDraw(true)
 }
 
-// flush2DOverlayWithoutDraw uploads the overlay texture to the GPU and creates
-// the overlay bind group, but does not draw the overlay. The caller is
-// responsible for drawing the overlay (e.g., inside a composite render pass).
-func (dc *DrawContext) flush2DOverlayWithoutDraw() {
-	dc.flush2DOverlayWithDraw(false)
-}
-
 func (dc *DrawContext) flush2DOverlayWithDraw(doDraw bool) {
 	ov := dc.overlay
 	if ov == nil || !ov.dirty {
