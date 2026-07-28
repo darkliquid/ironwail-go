@@ -190,7 +190,7 @@ This is a nice example of parser code feeding multiple later consumers instead o
 
 ### 14. Per-frame client update turns parsed events into visuals and audio
 
-During `runRuntimeFrame(...)` in `cmd/ironwailgo/game_loop.go`, the client:
+During `runRuntimeFrame(...)` in `internal/game/game_loop.go`, the client:
 
 - updates color blends
 - updates temp entities and beam segments
@@ -326,4 +326,4 @@ The most relevant files for this walkthrough are:
 - `internal/client/parse.go`
 - `internal/client/tent.go`
 - `internal/client/viewblend.go`
-- `cmd/ironwailgo/game_loop.go`
+- `internal/game/game_loop.go`

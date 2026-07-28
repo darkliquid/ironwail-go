@@ -6,7 +6,7 @@ The key theme is that Ironwail-Go does not treat the menu, demo playback, render
 
 ## Big picture
 
-At startup, `cmd/ironwailgo/main.go` creates the process-level configuration, then `cmd/ironwailgo/game_init.go` builds the runtime graph:
+At startup, `cmd/ironwailgo/main.go` creates the process-level configuration, then `internal/game/game_init.go` builds the runtime graph:
 
 - input
 - menu and draw manager
@@ -33,7 +33,7 @@ This is where the real engine graph gets constructed.
 
 ### 2. `initSubsystems(...)` builds the dependency graph
 
-`cmd/ironwailgo/game_init.go` creates the runtime in a deliberate order:
+`internal/game/game_init.go` creates the runtime in a deliberate order:
 
 1. `input.System`
 2. `draw.Manager` and `menu.Manager` for non-dedicated runs
@@ -84,7 +84,7 @@ This is a recurring engine pattern: rather than inventing a separate demo repres
 
 ### 6. `initSubsystems(...)` still forces the menu visible
 
-After host initialization, `cmd/ironwailgo/game_init.go` finishes wiring menu integrations and then unconditionally does:
+After host initialization, `internal/game/game_init.go` finishes wiring menu integrations and then unconditionally does:
 
 ```go
 g.Menu.ShowMenu()
@@ -118,7 +118,7 @@ That ordering is the direct explanation for “demo behind menu”.
 
 ## What happens during demo playback
 
-The demo path lives in `cmd/ironwailgo/game_loop.go`, inside the host frame callbacks.
+The demo path lives in `internal/game/game_loop.go`, inside the host frame callbacks.
 
 During `ProcessClient()`, the runtime checks whether the host is in demo playback. If it is:
 
@@ -219,7 +219,7 @@ Instead of making every package a singleton, `cmd/ironwailgo/main.go` uses a `Ga
 
 ### The host is a scheduler, not a monolith
 
-`internal/host/frame.go` defines the host’s frame orchestration through callbacks. The host owns frame order and state transitions, but the runtime-specific work lives in `cmd/ironwailgo/game_loop.go`.
+`internal/host/frame.go` defines the host’s frame orchestration through callbacks. The host owns frame order and state transitions, but the runtime-specific work lives in `internal/game/game_loop.go`.
 
 ### Demos reuse the real parser
 
@@ -234,8 +234,8 @@ The renderer draws the 3D scene and then the menu. That is conceptually simpler 
 The most relevant files for this walkthrough are:
 
 - `cmd/ironwailgo/main.go`
-- `cmd/ironwailgo/game_init.go`
-- `cmd/ironwailgo/game_loop.go`
+- `internal/game/game_init.go`
+- `internal/game/game_loop.go`
 - `internal/host/init.go`
 - `internal/host/commands_demo.go`
 - `internal/menu/manager.go`

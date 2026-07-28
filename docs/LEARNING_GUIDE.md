@@ -67,10 +67,12 @@ Many people are surprised to find that "how the shotgun works" isn't in the Go c
 - **Where to look:** `internal/qc/vm.go` for the interpreter, and `internal/qc/builtins.go` for the functions Go provides to the scripts.
 
 ### 3. Rendering with WebGPU (`internal/renderer`)
-Ironwail Go uses modern WebGPU primitives. Unlike older engines that might draw things one-by-one, modern renderers try to "batch" work to the GPU.
+Ironwail Go uses modern WebGPU primitives (via the `gogpu` library). Unlike older engines that might draw things one-by-one, modern renderers try to "batch" work to the GPU.
 
 - **Key concept: The BSP.** Quake uses Binary Space Partitioning to quickly figure out which parts of a map are visible so it doesn't waste time drawing what you can't see.
-- **Where to look:** `internal/renderer/renderer_gogpu.go` for the main pipeline, and `internal/bsp` for map loading logic.
+- **Where to look:** `internal/renderer/renderer_gogpu_frame.go` for the frame orchestrator (`RenderFrame`), `internal/renderer/world_render_gogpu.go` for the world BSP render pass, and `internal/bsp` for map loading logic.
+- **Learning the renderer from scratch:** If you are new to graphics programming or WebGPU, see `docs/RENDERER_LEARNING_PLAN.md` — a stage-by-stage curriculum with external citations and build-it-yourself milestones.
+- **Note:** The renderer is unfinished and has known bugs (texture atlas overflow on large maps). See the "State of the Renderer" section of the learning plan and `docs/diagnoses/` for current status.
 
 ---
 

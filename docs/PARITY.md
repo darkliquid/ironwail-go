@@ -24,9 +24,8 @@ or harness data.
 
 `qbj3_stickflip` is the current priority community-map stress case. The latest
 local sweep collected Go-side startup, trigger, renderer, C reference, window
-capture, and CPU profile evidence. Automated harness comparison remains blocked
-by missing viewpoint data and by the current GoGPU `-screenshot` path producing a
-placeholder image instead of reading back the swapchain.
+capture, and CPU profile evidence. The GoGPU `-screenshot` path now performs real
+GPU texture readback (previously produced a placeholder clear-color image).
 
 | Area | Status | Primary Go surfaces | C reference surfaces | Evidence needed |
 | --- | --- | --- | --- | --- |
@@ -260,16 +259,10 @@ Do not treat these generated images as golden assets to commit casually.
 ### Current harness gap
 
 `tools/parity_screenshots/main.go` requires
-`testdata/parity/viewpoints.json`, but that file is not present in this
-checkout. Restoring the generic viewpoint file and adding local qbj3 viewpoints
-is a separate harness/data follow-up, not part of the current documentation-only
-scope.
-
-The Go capture side of the same harness currently invokes `ironwailgo
--screenshot`, but the GoGPU runtime implementation writes a deterministic
-clear-color placeholder PNG instead of capturing the rendered swapchain. Until
-that is fixed, use the harness for C reference coverage only and collect GoGPU
-visual evidence with an explicitly documented external window capture method.
+`testdata/parity/viewpoints.json`, which is present in the checkout. The Go
+capture side invokes `ironwailgo -screenshot`, which now performs real GPU
+texture readback. For window-capture evidence, use an external screen capture
+method as a cross-check.
 
 ## Scene matrix
 

@@ -27,7 +27,7 @@ Once the map is running, pressing `W` also does not directly move the player. Th
 
 ### 1. Menu input is routed to the menu manager
 
-Input enters through the input backend and is normalized by `internal/input`. `cmd/ironwailgo/game_input.go` then dispatches keys according to the current `KeyDest`.
+Input enters through the input backend and is normalized by `internal/input`. `internal/game/game_input.go` then dispatches keys according to the current `KeyDest`.
 
 While the menu is active, the key goes to `g.Menu.M_Key(...)`.
 
@@ -106,7 +106,7 @@ Default bindings are installed during initialization. When the player presses `W
 
 1. looks up the binding text
 2. executes the bound command
-3. lands in `cmd/ironwailgo/game_commands.go`
+3. lands in `internal/game/game_commands.go`
 4. updates the client’s `InputForward` `KButton`
 
 That means the immediate result of `W` is not movement. It is a change in button state.
@@ -313,8 +313,8 @@ Gameplay and engine responsibilities are intentionally interleaved. The server o
 The best companion files for this walkthrough are:
 
 - `internal/menu/menu_main.go`
-- `cmd/ironwailgo/game_input.go`
-- `cmd/ironwailgo/game_commands.go`
+- `internal/game/game_input.go`
+- `internal/game/game_commands.go`
 - `internal/client/input.go`
 - `internal/host/commands_map.go`
 - `internal/host/init.go`
