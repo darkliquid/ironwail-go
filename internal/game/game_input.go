@@ -48,6 +48,23 @@ func (g *Game) handleGameKeyEvent(event input.KeyEvent) {
 		return
 	}
 
+	if g.CSQC != nil && g.CSQC.IsLoaded() && g.CSQC.HasInputEvent() {
+		evType := 0
+		if !event.Down {
+			evType = 1
+		}
+		ascii := event.Key
+		if ascii > 255 {
+			ascii = 0
+		}
+		handled, err := g.CSQC.CallInputEvent(evType, event.Key, ascii)
+		if err != nil {
+			slog.Error("CSQC_InputEvent failed", "error", err)
+		} else if handled {
+			return
+		}
+	}
+
 	switch g.Input.KeyDest() {
 	case input.KeyConsole:
 		g.handleConsoleKeyEvent(event)

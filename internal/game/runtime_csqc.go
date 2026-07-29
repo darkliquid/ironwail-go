@@ -434,3 +434,44 @@ func (g *Game) drawRuntimeHUDLayer(rc renderer.RenderContext, w, h int, telemetr
 		g.HUD.Draw(rc)
 	}
 }
+
+type gameCSQCHandler struct {
+	game *Game
+}
+
+func (h *gameCSQCHandler) Init() error {
+	if h.game == nil || h.game.CSQC == nil || !h.game.CSQC.IsLoaded() {
+		return nil
+	}
+	engineVersion := float32(10000*VersionMajor + 100*VersionMinor + VersionPatch)
+	return h.game.CSQC.CallInit("Ironwail", engineVersion)
+}
+
+func (h *gameCSQCHandler) Shutdown() error {
+	if h.game == nil || h.game.CSQC == nil || !h.game.CSQC.IsLoaded() {
+		return nil
+	}
+	return h.game.CSQC.CallShutdown()
+}
+
+func (h *gameCSQCHandler) ParseStuffCmd(cmd string) bool {
+	if h.game == nil || h.game.CSQC == nil || !h.game.CSQC.IsLoaded() {
+		return false
+	}
+	handled, err := h.game.CSQC.CallParseStuffCmd(cmd)
+	if err != nil {
+		slog.Error("CSQC_Parse_StuffCmd failed", "error", err)
+		return false
+	}
+	return handled
+}
+
+func (h *gameCSQCHandler) EntUpdate(isNew bool) {
+	if h.game == nil || h.game.CSQC == nil || !h.game.CSQC.IsLoaded() {
+		return
+	}
+	if err := h.game.CSQC.CallEntUpdate(isNew); err != nil {
+		slog.Error("CSQC_Ent_Update failed", "error", err)
+	}
+}
+

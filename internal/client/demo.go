@@ -927,6 +927,7 @@ func (d *DemoState) indexFrames() ([]DemoFrame, error) {
 // Client demo helper methods
 
 func (c *Client) ClearSignons() {
+	c.handleCSQCShutdown()
 	c.Signon = 0
 }
 

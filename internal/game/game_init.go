@@ -360,6 +360,10 @@ func (g *Game) initGameQC() error {
 	qc.RegisterBuiltins(g.CSQC.VM)
 	qc.SetCSQCClientHooks(g.buildCSQCClientHooks())
 
+	if g.Client != nil {
+		g.Client.SetCSQCHandler(&gameCSQCHandler{game: g})
+	}
+
 	return nil
 }
 

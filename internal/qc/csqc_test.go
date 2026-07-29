@@ -250,3 +250,67 @@ func TestCSQCCallDrawHudClearsStaleReturnBeforeExecute(t *testing.T) {
 		t.Fatal("CallDrawHud() = true from stale OFSReturn, want false")
 	}
 }
+
+func TestCSQCCallInputEvent(t *testing.T) {
+	csqc := NewCSQC()
+	csqc.loaded = true
+	csqc.inputEventFunc = 0
+	csqc.VM.Globals = make([]float32, 64)
+	csqc.VM.Functions = []DFunction{
+		{FirstStatement: 0},
+	}
+	csqc.VM.SetGFloat(10, 1)
+	csqc.VM.Statements = []DStatement{
+		{Op: uint16(OPDone), A: 10},
+	}
+
+	handled, err := csqc.CallInputEvent(0, 32, 32)
+	if err != nil {
+		t.Fatalf("CallInputEvent() error = %v", err)
+	}
+	if !handled {
+		t.Fatal("CallInputEvent() = false, want true")
+	}
+}
+
+func TestCSQCCallParseStuffCmd(t *testing.T) {
+	csqc := NewCSQC()
+	csqc.loaded = true
+	csqc.stuffCmdFunc = 0
+	csqc.VM.Globals = make([]float32, 64)
+	csqc.VM.Functions = []DFunction{
+		{FirstStatement: 0},
+	}
+	csqc.VM.SetGFloat(10, 1)
+	csqc.VM.Statements = []DStatement{
+		{Op: uint16(OPDone), A: 10},
+	}
+
+	handled, err := csqc.CallParseStuffCmd("echo hello")
+	if err != nil {
+		t.Fatalf("CallParseStuffCmd() error = %v", err)
+	}
+	if !handled {
+		t.Fatal("CallParseStuffCmd() = false, want true")
+	}
+}
+
+
+func TestCSQCCallEntUpdate(t *testing.T) {
+	csqc := NewCSQC()
+	csqc.loaded = true
+	csqc.entUpdateFunc = 0
+	csqc.VM.Globals = make([]float32, 64)
+	csqc.VM.Functions = []DFunction{
+		{FirstStatement: 0},
+	}
+	csqc.VM.Statements = []DStatement{
+		{Op: uint16(OPDone)},
+	}
+
+	err := csqc.CallEntUpdate(true)
+	if err != nil {
+		t.Fatalf("CallEntUpdate() error = %v", err)
+	}
+}
+

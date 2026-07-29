@@ -126,6 +126,7 @@ type TransientEvents struct {
 type Client struct {
 	State  ClientState
 	Signon int
+	CSQC   CSQCHandler
 
 	Protocol      int32
 	ProtocolFlags uint32
@@ -722,6 +723,7 @@ func (c *Client) HandleSignonReply(command string) error {
 			return fmt.Errorf("prespawn requires signon 0, got %d", c.Signon)
 		}
 		c.Signon = 1
+		c.handleCSQCInit()
 	case "spawn":
 		if c.Signon != 1 {
 			return fmt.Errorf("spawn requires signon 1, got %d", c.Signon)

@@ -62,6 +62,9 @@ type CSQC struct {
 	shutdownFunc   int
 	drawHudFunc    int
 	drawScoresFunc int
+	inputEventFunc int
+	stuffCmdFunc   int
+	entUpdateFunc  int
 
 	// Cached CSQC global variable offsets.
 	globals csqcGlobals
@@ -83,6 +86,9 @@ func NewCSQC() *CSQC {
 		shutdownFunc:    -1,
 		drawHudFunc:     -1,
 		drawScoresFunc:  -1,
+		inputEventFunc:  -1,
+		stuffCmdFunc:    -1,
+		entUpdateFunc:   -1,
 		globals:         newCSQCGlobals(),
 		precachedModels: make(map[string]int),
 		precachedSounds: make(map[string]int),
@@ -98,6 +104,9 @@ func (c *CSQC) Load(r io.ReadSeeker) error {
 	c.shutdownFunc = -1
 	c.drawHudFunc = -1
 	c.drawScoresFunc = -1
+	c.inputEventFunc = -1
+	c.stuffCmdFunc = -1
+	c.entUpdateFunc = -1
 	c.globals = newCSQCGlobals()
 	c.precachedModels = make(map[string]int)
 	c.precachedSounds = make(map[string]int)
@@ -111,6 +120,9 @@ func (c *CSQC) Load(r io.ReadSeeker) error {
 	c.shutdownFunc = c.VM.FindFunction("CSQC_Shutdown")
 	c.drawHudFunc = c.VM.FindFunction("CSQC_DrawHud")
 	c.drawScoresFunc = c.VM.FindFunction("CSQC_DrawScores")
+	c.inputEventFunc = c.VM.FindFunction("CSQC_InputEvent")
+	c.stuffCmdFunc = c.VM.FindFunction("CSQC_Parse_StuffCmd")
+	c.entUpdateFunc = c.VM.FindFunction("CSQC_Ent_Update")
 
 	c.globals.cltime = c.VM.FindGlobal("cltime")
 	c.globals.clframetime = c.VM.FindGlobal("clframetime")
@@ -139,6 +151,21 @@ func (c *CSQC) IsLoaded() bool {
 // HasDrawScores reports whether the optional CSQC_DrawScores entry point exists.
 func (c *CSQC) HasDrawScores() bool {
 	return c.loaded && c.drawScoresFunc >= 0
+}
+
+// HasInputEvent reports whether the optional CSQC_InputEvent entry point exists.
+func (c *CSQC) HasInputEvent() bool {
+	return c.loaded && c.inputEventFunc >= 0
+}
+
+// HasParseStuffCmd reports whether the optional CSQC_Parse_StuffCmd entry point exists.
+func (c *CSQC) HasParseStuffCmd() bool {
+	return c.loaded && c.stuffCmdFunc >= 0
+}
+
+// HasEntUpdate reports whether the optional CSQC_Ent_Update entry point exists.
+func (c *CSQC) HasEntUpdate() bool {
+	return c.loaded && c.entUpdateFunc >= 0
 }
 
 // SyncGlobals writes per-frame CSQC state to globals before entry point calls.
@@ -267,6 +294,70 @@ func (c *CSQC) CallDrawScores(state CSQCFrameState, virtSizeX, virtSizeY float32
 	return nil
 }
 
+// CallInputEvent calls CSQC_InputEvent when available.
+// Parameters: (float evtype, float key, float ascii).
+// Returns true if CSQC handled the event (returned non-zero).
+func (c *CSQC) CallInputEvent(evType, key, ascii int) (bool, error) {
+	if !c.loaded {
+		return false, fmt.Errorf("csqc: not loaded")
+	}
+	if c.inputEventFunc < 0 {
+		return false, nil
+	}
+
+	c.VM.SetGFloat(OFSReturn, 0)
+	c.VM.SetGFloat(OFSParm0, float32(evType))
+	c.VM.SetGFloat(OFSParm1, float32(key))
+	c.VM.SetGFloat(OFSParm2, float32(ascii))
+
+	if err := c.VM.ExecuteProgram(c.inputEventFunc); err != nil {
+		return false, fmt.Errorf("csqc: call CSQC_InputEvent: %w", err)
+	}
+	return c.VM.GFloat(OFSReturn) != 0, nil
+}
+
+// CallParseStuffCmd calls CSQC_Parse_StuffCmd when available.
+// Parameters: (string cmd).
+// Returns true if CSQC handled the command (returned non-zero).
+func (c *CSQC) CallParseStuffCmd(cmd string) (bool, error) {
+	if !c.loaded {
+		return false, fmt.Errorf("csqc: not loaded")
+	}
+	if c.stuffCmdFunc < 0 {
+		return false, nil
+	}
+
+	c.VM.SetGFloat(OFSReturn, 0)
+	c.VM.SetGInt(OFSParm0, c.VM.AllocString(cmd))
+
+	if err := c.VM.ExecuteProgram(c.stuffCmdFunc); err != nil {
+		return false, fmt.Errorf("csqc: call CSQC_Parse_StuffCmd: %w", err)
+	}
+	return c.VM.GFloat(OFSReturn) != 0, nil
+}
+
+// CallEntUpdate calls CSQC_Ent_Update when available.
+// Parameters: (float isnew).
+func (c *CSQC) CallEntUpdate(isNew bool) error {
+	if !c.loaded {
+		return fmt.Errorf("csqc: not loaded")
+	}
+	if c.entUpdateFunc < 0 {
+		return nil
+	}
+
+	if isNew {
+		c.VM.SetGFloat(OFSParm0, 1)
+	} else {
+		c.VM.SetGFloat(OFSParm0, 0)
+	}
+
+	if err := c.VM.ExecuteProgram(c.entUpdateFunc); err != nil {
+		return fmt.Errorf("csqc: call CSQC_Ent_Update: %w", err)
+	}
+	return nil
+}
+
 // PrecacheModel registers a model for CSQC use.
 // Returns the model index.
 func (c *CSQC) PrecacheModel(name string) int {
@@ -333,9 +424,13 @@ func (c *CSQC) Unload() {
 	c.shutdownFunc = -1
 	c.drawHudFunc = -1
 	c.drawScoresFunc = -1
+	c.inputEventFunc = -1
+	c.stuffCmdFunc = -1
+	c.entUpdateFunc = -1
 	c.globals = newCSQCGlobals()
 	c.precachedModels = make(map[string]int)
 	c.precachedSounds = make(map[string]int)
 	c.precachedPics = make(map[string]int)
 	c.loaded = false
 }
+

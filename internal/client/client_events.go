@@ -70,5 +70,8 @@ func (c *Client) ConsumeStuffCommands() string {
 	}
 	cmds := c.StuffCmdBuf[:idx+1]
 	c.StuffCmdBuf = c.StuffCmdBuf[idx+1:]
+	if c.CSQC != nil && c.CSQC.ParseStuffCmd(cmds) {
+		return ""
+	}
 	return cmds
 }
