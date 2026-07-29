@@ -2,7 +2,7 @@
 
 This document defines the step-by-step implementation strategy for the major engine projects in **ironwail-go**, ordered strictly according to the priority sequence:
 
-1. **Phase 1 (Item 2)**: Direct-VM Accessors & Zero-Sync QCVM (Steps 3–5)
+1. **Phase 1 (Item 2)**: Direct-VM Accessors & Zero-Sync QCVM (Steps 3–5) — **COMPLETED** (commit `570e806556cc614d9cec0ea6d2c967dd0cb3a241`)
 2. **Phase 2 (Item 3)**: Texture Atlas Storage Buffer Upgrade (BSP2 Large Map Fix)
 3. **Phase 3 (Item 5)**: Arena / Region Allocators for Level Lifetimes
 4. **Phase 4 (Item 4)**: CSQC (Client-Side QuakeC) Host/Client Runtime Integration
@@ -12,7 +12,9 @@ This document defines the step-by-step implementation strategy for the major eng
 
 ---
 
-## Phase 1: Direct-VM Accessors & Zero-Sync QCVM (Steps 3–5)
+## Phase 1: Direct-VM Accessors & Zero-Sync QCVM (Steps 3–5) [COMPLETED]
+
+**Status**: Completed (Merged in commit `570e806556cc614d9cec0ea6d2c967dd0cb3a241`)
 
 ### Objective
 Complete the migration of server entity state from dual-storage (`EntVars` struct + `QCVM.Edicts []byte`) to direct-VM accessor methods, and delete the reflection-based synchronization layer.

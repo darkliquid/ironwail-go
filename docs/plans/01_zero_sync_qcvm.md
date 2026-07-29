@@ -1,7 +1,7 @@
 # Implementation Plan: Direct-VM Accessors & Zero-Sync QCVM
 
 **Priority**: #1 (Item 2 from Roadmap)  
-**Status**: Planned  
+**Status**: Completed (Merged in commit `570e806556cc614d9cec0ea6d2c967dd0cb3a241`)  
 **Target Milestone**: Phase 1  
 
 ---
