@@ -14,10 +14,12 @@ func newSyntheticClientServer(t *testing.T) (*Server, *Client, *Edict) {
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
+	s.MaxVelocity = 2000
+	s.QCVM = newServerTestVM(s, 64)
 
 	s.Active = true
 	s.WorldModel = CreateSyntheticWorldModel()
-	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	s.ClearWorld()
 
 	client := s.Static.Clients[0]
@@ -27,15 +29,15 @@ func newSyntheticClientServer(t *testing.T) (*Server, *Client, *Edict) {
 
 	ent := client.Edict
 	ent.Free = false
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.Health = 100
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Size = [3]float32{32, 32, 56}
-	ent.Vars.Origin = [3]float32{0, 0, 24}
-	ent.Vars.Velocity = [3]float32{}
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetHealth(s, 100)
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSize(s, [3]float32{32, 32, 56})
+	ent.SetOrigin(s, [3]float32{0, 0, 24})
+	ent.SetVelocity(s, [3]float32{})
+	ent.SetFlags(s, float32(FlagOnGround))
 	s.LinkEdict(ent, true)
 
 	return s, client, ent
@@ -86,19 +88,19 @@ func TestFrameAdvancesTimeOnce(t *testing.T) {
 
 func TestPhysicsWalkAppliesGravityAirborne(t *testing.T) {
 	s, _, ent := newSyntheticClientServer(t)
-	ent.Vars.Flags = 0
-	ent.Vars.Origin = [3]float32{0, 0, 128}
-	ent.Vars.Velocity = [3]float32{}
+	ent.SetFlags(s, 0)
+	ent.SetOrigin(s, [3]float32{0, 0, 128})
+	ent.SetVelocity(s, [3]float32{})
 	s.LinkEdict(ent, true)
 
-	beforeZ := ent.Vars.Origin[2]
+	beforeZ := ent.Origin(s)[2]
 	s.PhysicsWalk(ent)
 
-	if ent.Vars.Velocity[2] >= 0 {
-		t.Fatalf("expected downward velocity after gravity, got %v", ent.Vars.Velocity[2])
+	if ent.Velocity(s)[2] >= 0 {
+		t.Fatalf("expected downward velocity after gravity, got %v", ent.Velocity(s)[2])
 	}
-	if ent.Vars.Origin[2] >= beforeZ {
-		t.Fatalf("expected airborne entity to descend, before=%v after=%v", beforeZ, ent.Vars.Origin[2])
+	if ent.Origin(s)[2] >= beforeZ {
+		t.Fatalf("expected airborne entity to descend, before=%v after=%v", beforeZ, ent.Origin(s)[2])
 	}
 }
 
@@ -127,12 +129,12 @@ func TestAddGravityUsesQCGravityFieldWhenPresent(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ent.Vars.Velocity = [3]float32{}
+			ent.SetVelocity(s, [3]float32{})
 			vm.SetEFloat(entNum, s.QCFieldGravity, tc.gravity)
 
 			s.AddGravity(ent)
 
-			if got := ent.Vars.Velocity[2]; got < tc.wantZ-0.001 || got > tc.wantZ+0.001 {
+			if got := ent.Velocity(s)[2]; got < tc.wantZ-0.001 || got > tc.wantZ+0.001 {
 				t.Fatalf("velocity[2] = %v, want %v", got, tc.wantZ)
 			}
 		})

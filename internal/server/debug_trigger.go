@@ -113,30 +113,4 @@ func (s *Server) debugTriggerFind(fieldOfs int, match string, result int) {
 	}
 }
 
-// debugTriggerPusherSync logs when a pusher entity's state is synced back
-// from QCVM after a touch/use callback, showing the velocity/nextthink/think
-// that were set.
-func (s *Server) debugTriggerPusherSync(pusherNum int, before, after *EntVars) {
-	if !s.debugTriggerEnabled() {
-		return
-	}
-	changed := false
-	if before.Velocity != after.Velocity {
-		changed = true
-	}
-	if before.NextThink != after.NextThink {
-		changed = true
-	}
-	if before.Think != after.Think {
-		changed = true
-	}
-	if !changed {
-		return
-	}
-	cls := s.qcEntString(pusherNum, qc.EntFieldClassName)
-	thinkFn := s.qcFuncName(after.Think)
-	console.Printf("  pusher ent=%d classname=%q synced: velocity=(%.1f %.1f %.1f) nextthink=%.3f think=%s\n",
-		pusherNum, cls,
-		after.Velocity[0], after.Velocity[1], after.Velocity[2],
-		after.NextThink, thinkFn)
-}
+

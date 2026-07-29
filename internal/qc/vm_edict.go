@@ -40,7 +40,7 @@ type Edict struct {
 // EdictData returns a slice of the entity's private data area.
 // This is the raw byte storage for EntVars fields.
 func (vm *VM) EdictData(edictNum int) []byte {
-	if edictNum < 0 || edictNum >= vm.NumEdicts {
+	if vm == nil || edictNum < 0 || edictNum >= vm.NumEdicts || vm.EdictSize <= 28 {
 		return nil
 	}
 	offset := edictNum * vm.EdictSize
