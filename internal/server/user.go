@@ -448,13 +448,15 @@ func (s *Server) runClientQCThinkWithMode(client *Client, funcName string, fullS
 	s.QCVM.SetGlobal("other", 0)
 	s.QCVM.SetGlobal("msg_entity", entNum)
 	if svDebugMoveLevel() >= 1 {
-		v := client.Edict.Vars
+		org := client.Edict.Origin(s)
+		vel := client.Edict.Velocity(s)
+		ang := client.Edict.VAngle(s)
 		SvdbgMoveLogf("%s/pre ent=%d origin=[%.3f %.3f %.3f] velocity=[%.3f %.3f %.3f] angles=[%.3f %.3f %.3f] flags=%d movetype=%d",
 			funcName, entNum,
-			v.Origin[0], v.Origin[1], v.Origin[2],
-			v.Velocity[0], v.Velocity[1], v.Velocity[2],
-			v.VAngle[0], v.VAngle[1], v.VAngle[2],
-			int(v.Flags), int(v.MoveType))
+			org[0], org[1], org[2],
+			vel[0], vel[1], vel[2],
+			ang[0], ang[1], ang[2],
+			int(client.Edict.Flags(s)), int(client.Edict.MoveType(s)))
 	}
 	if err := s.executeQCFunction(funcIdx); err != nil {
 		slog.Warn("client think QC failed", "function", funcName, "entity", entNum, "error", err)
@@ -462,13 +464,15 @@ func (s *Server) runClientQCThinkWithMode(client *Client, funcName string, fullS
 	}
 	s.syncEdictFromQCVM(entNum, client.Edict)
 	if svDebugMoveLevel() >= 1 {
-		v := client.Edict.Vars
+		org := client.Edict.Origin(s)
+		vel := client.Edict.Velocity(s)
+		ang := client.Edict.VAngle(s)
 		SvdbgMoveLogf("%s/post ent=%d origin=[%.3f %.3f %.3f] velocity=[%.3f %.3f %.3f] angles=[%.3f %.3f %.3f] flags=%d movetype=%d",
 			funcName, entNum,
-			v.Origin[0], v.Origin[1], v.Origin[2],
-			v.Velocity[0], v.Velocity[1], v.Velocity[2],
-			v.VAngle[0], v.VAngle[1], v.VAngle[2],
-			int(v.Flags), int(v.MoveType))
+			org[0], org[1], org[2],
+			vel[0], vel[1], vel[2],
+			ang[0], ang[1], ang[2],
+			int(client.Edict.Flags(s)), int(client.Edict.MoveType(s)))
 	}
 }
 

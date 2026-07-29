@@ -391,14 +391,22 @@ func (t *DebugTelemetry) coalesceQCEventKey(depth int, phase, fn, snapshot, msg 
 
 func (t *DebugTelemetry) EntitySnapshot(vm *qc.VM, entNum int, ent *Edict) DebugEntitySnapshot {
 	snapshot := DebugEntitySnapshot{EntNum: entNum}
-	if ent == nil || ent.Vars == nil {
+	if ent == nil {
 		return snapshot
 	}
-	snapshot.ClassName = qcString(vm, ent.Vars.ClassName)
-	snapshot.TargetName = qcString(vm, ent.Vars.TargetName)
-	snapshot.Target = qcString(vm, ent.Vars.Target)
-	snapshot.Model = qcString(vm, ent.Vars.Model)
-	snapshot.Origin = ent.Vars.Origin
+	if vm != nil && vm.EdictSize > 28 {
+		snapshot.ClassName = qcString(vm, vm.EInt(entNum, qc.EntFieldClassName))
+		snapshot.TargetName = qcString(vm, vm.EInt(entNum, qc.EntFieldTargetName))
+		snapshot.Target = qcString(vm, vm.EInt(entNum, qc.EntFieldTarget))
+		snapshot.Model = qcString(vm, vm.EInt(entNum, qc.EntFieldModel))
+		snapshot.Origin = vm.EVector(entNum, qc.EntFieldOrigin)
+	} else if ent.Vars != nil {
+		snapshot.ClassName = qcString(vm, ent.Vars.ClassName)
+		snapshot.TargetName = qcString(vm, ent.Vars.TargetName)
+		snapshot.Target = qcString(vm, ent.Vars.Target)
+		snapshot.Model = qcString(vm, ent.Vars.Model)
+		snapshot.Origin = ent.Vars.Origin
+	}
 	return snapshot
 }
 
@@ -606,10 +614,16 @@ func splitDebugFilterTokens(raw string) []string {
 }
 
 func entityClassname(vm *qc.VM, ent *Edict) string {
-	if ent == nil || ent.Vars == nil {
+	if ent == nil {
 		return ""
 	}
-	return qcString(vm, ent.Vars.ClassName)
+	if vm != nil && vm.EdictSize > 28 {
+		return qcString(vm, vm.EInt(ent.Num, qc.EntFieldClassName))
+	}
+	if ent.Vars != nil {
+		return qcString(vm, ent.Vars.ClassName)
+	}
+	return ""
 }
 
 func qcString(vm *qc.VM, idx int32) string {

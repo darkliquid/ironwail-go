@@ -188,14 +188,24 @@ func (em *EntityManager) ED_Free(entNum int) error {
 	// Don't add client slots (0 to maxClients-1) to free list
 	if entNum >= em.maxClients {
 		// Clear key fields
-		edict.Vars = &EntVars{}
-		edict.Vars.Model = 0
-		edict.Vars.TakeDamage = 0
-		edict.Vars.Frame = 0
-		edict.Vars.Origin = [3]float32{}
-		edict.Vars.Angles = [3]float32{}
-		edict.Vars.NextThink = -1
-		edict.Vars.Solid = 0
+		if edict.Vars != nil {
+			edict.Vars.Model = 0
+			edict.Vars.TakeDamage = 0
+			edict.Vars.Frame = 0
+			edict.Vars.Origin = [3]float32{}
+			edict.Vars.Angles = [3]float32{}
+			edict.Vars.NextThink = -1
+			edict.Vars.Solid = 0
+		}
+		if em.vm != nil && em.vm.EdictSize > 28 {
+			em.vm.SetEInt(entNum, qc.EntFieldModel, 0)
+			em.vm.SetEFloat(entNum, qc.EntFieldTakeDamage, 0)
+			em.vm.SetEFloat(entNum, qc.EntFieldFrame, 0)
+			em.vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{})
+			em.vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{})
+			em.vm.SetEFloat(entNum, qc.EntFieldNextThink, -1)
+			em.vm.SetEFloat(entNum, qc.EntFieldSolid, 0)
+		}
 
 		// Reset alpha and scale to defaults
 		edict.Alpha = 0  // ENTALPHA_DEFAULT
@@ -769,9 +779,16 @@ func (em *EntityManager) parseEdictFieldValue(edict *Edict, entNum int, keyName,
 	// The physics code (SV_Physics, SV_ClipMoveToEntity) relies on Size
 	// being the delta (Maxs − Mins) and does not recompute it on the fly.
 	if normalizeFieldName(keyName) == "mins" || normalizeFieldName(keyName) == "maxs" {
-		edict.Vars.Size[0] = edict.Vars.Maxs[0] - edict.Vars.Mins[0]
-		edict.Vars.Size[1] = edict.Vars.Maxs[1] - edict.Vars.Mins[1]
-		edict.Vars.Size[2] = edict.Vars.Maxs[2] - edict.Vars.Mins[2]
+		if edict.Vars != nil {
+			edict.Vars.Size[0] = edict.Vars.Maxs[0] - edict.Vars.Mins[0]
+			edict.Vars.Size[1] = edict.Vars.Maxs[1] - edict.Vars.Mins[1]
+			edict.Vars.Size[2] = edict.Vars.Maxs[2] - edict.Vars.Mins[2]
+		}
+		if em.vm != nil && em.vm.EdictSize > 28 {
+			mins := em.vm.EVector(edict.Num, qc.EntFieldMins)
+			maxs := em.vm.EVector(edict.Num, qc.EntFieldMaxs)
+			em.vm.SetEVector(edict.Num, qc.EntFieldSize, [3]float32{maxs[0] - mins[0], maxs[1] - mins[1], maxs[2] - mins[2]})
+		}
 	}
 
 	return nil
