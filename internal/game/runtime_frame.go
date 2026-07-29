@@ -238,6 +238,8 @@ func (g *Game) drawRuntimeRendererFrame(dc renderer.RenderContext) {
 	spriteEntities := g.collectSpriteEntities()
 	viewModel := g.collectViewModelEntity()
 
+	g.Renderer.PreloadBrushEntities(brushEntities)
+
 	if drawCtx, ok := dc.(*renderer.DrawContext); ok {
 		state := g.buildRuntimeRenderFrameState(brushEntities, aliasEntities, spriteEntities, viewModel)
 		drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {

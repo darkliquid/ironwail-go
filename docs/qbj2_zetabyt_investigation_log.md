@@ -167,3 +167,44 @@ This document records the investigative steps, hypotheses, implementations, and 
     lightmap uploads into fewer, larger textures, (3) investigate the
     texture swirling regression in `qbj2_start` which may be a separate
     lightmap page conflict issue.
+
+---
+
+### Attempt 9: Targeted PreloadBrushEntities + pprof Diagnosis (Hang Fixed, Performance Identified)
+
+* **Hypothesis**: Instead of pre-loading all 288 submodels during
+  `UploadWorld`, only pre-load the submodels actually referenced by visible
+  brush entities. This reduces GPU memory pressure and avoids loading
+  unused models.
+* **Changes Made**:
+  - Replaced `preloadBrushModelResources(tree)` (which iterated all models
+    1..N) with `PreloadBrushEntities(entities []BrushEntity)` (which only
+    loads submodels referenced by the given entity list).
+  - Moved the preload call from `UploadWorld` to
+    `drawRuntimeRendererFrame`, right after `collectBrushEntities` and
+    before `RenderFrame`. This ensures only entities that will actually be
+    rendered are pre-loaded, and all GPU uploads complete before any render
+    pass begins.
+  - Added `PreloadBrushEntities` to the `RendererWorld` interface.
+  - Fixed pprof HTTP server to register handlers via `net/http/pprof`.
+* **Result**:
+  - **Hang Fixed**: `qbj2_zetabyt` loads and renders without freezing.
+  - **qbj2_start swirling**: Investigation shows this is likely a
+    pre-existing issue, not caused by the preload changes. The preload code
+    only touches independent per-submodel geometry/lightmap caches and does
+    not modify world-level state.
+  - **qbj2_zetabyt performance**: Still severely slow (audio stutter,
+    barely rendered). pprof CPU profile (10s) reveals the bottleneck is
+    **not in the renderer** but in the **server physics/QCVM sync layer**:
+    - 96% of CPU time is in `Server.Frame` → `Physics` → `executeQCFunction`
+    - 52% in `syncAllFromQCVM` (reflection-based, 1127 edicts × ~105 fields)
+    - 43% in `syncAllToQCVM` (reflection-based, same)
+    - The reflection-based `syncEntVarsFromQC`/`syncEntVarsToQC` use
+      `reflect.Value.Field` and `reflect.Value.SetFloat` for every field of
+      every edict on every QC function call
+    - This is a pre-existing performance issue exacerbated by qbj2_zetabyt's
+      high edict count (1127 vs standard limit of 600)
+  - **Action Needed**: The QCVM sync layer needs to be replaced with direct
+    field assignments (eliminating reflection), as described in AGENTS.md
+    Phase 1 (Zero-Sync QCVM). This is a separate, larger effort. The
+    renderer-side hang fix is complete and working.

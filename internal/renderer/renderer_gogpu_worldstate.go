@@ -373,16 +373,30 @@ func (r *Renderer) ensureBrushModelGeometry(submodelIndex int) *WorldGeometry {
 	return geom
 }
 
-func (r *Renderer) preloadBrushModelResources(tree *bsp.Tree) {
-	if tree == nil || len(tree.Models) <= 1 {
-		return
-	}
-	for i := 1; i < len(tree.Models); i++ {
-		geom := r.ensureBrushModelGeometry(i)
-		if geom == nil {
+// PreloadBrushEntities builds and uploads geometry and lightmaps for the
+// given brush entities before frame rendering begins. This prevents GPU
+// upload operations (queue.WriteTexture) from blocking during renderEntities,
+// which would deadlock the render thread if a render pass has already been
+// submitted to the GPU queue.
+func (r *Renderer) PreloadBrushEntities(entities []BrushEntity) {
+	seen := make(map[int]bool, len(entities))
+	for _, entity := range entities {
+		if entity.ExternalKey != "" {
+			if entity.ExternalTree != nil {
+				r.ensureExternalBrushModelGeometry(entity.ExternalKey, entity.ExternalTree)
+				r.ensureExternalBrushModelTextures(entity.ExternalKey, entity.ExternalTree)
+			}
 			continue
 		}
-		r.ensureBrushModelLightmaps(i, geom)
+		idx := entity.SubmodelIndex
+		if idx <= 0 || seen[idx] {
+			continue
+		}
+		seen[idx] = true
+		geom := r.ensureBrushModelGeometry(idx)
+		if geom != nil {
+			r.ensureBrushModelLightmaps(idx, geom)
+		}
 	}
 }
 

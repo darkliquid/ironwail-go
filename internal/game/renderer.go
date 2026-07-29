@@ -31,6 +31,7 @@ type RendererWorld interface {
 	UploadWorld(*bsp.Tree) error
 	HasWorldData() bool
 	WorldBounds() (min [3]float32, max [3]float32, ok bool)
+	PreloadBrushEntities([]renderer.BrushEntity)
 }
 
 // RendererLights defines dynamic light methods.

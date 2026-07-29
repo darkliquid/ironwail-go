@@ -9,6 +9,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
 
@@ -84,7 +85,13 @@ func main() {
 	if addr := strings.TrimSpace(*pprofAddr); addr != "" {
 		go func(addr string) {
 			slog.Info("pprof listener starting", "addr", addr, "hint", "curl http://"+addr+"/debug/pprof/goroutine?debug=2 while hung")
-			srv := &http.Server{Addr: addr}
+			mux := http.NewServeMux()
+			mux.HandleFunc("/debug/pprof/", pprof.Index)
+			mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+			mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+			srv := &http.Server{Addr: addr, Handler: mux}
 			if err := srv.ListenAndServe(); err != nil {
 				slog.Warn("pprof listener exited", "err", err)
 			}

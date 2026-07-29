@@ -470,6 +470,7 @@ func (reloadTestRenderer) HasWorldData() bool                                   
 func (reloadTestRenderer) WorldBounds() (min [3]float32, max [3]float32, ok bool) {
 	return [3]float32{}, [3]float32{}, false
 }
+func (reloadTestRenderer) PreloadBrushEntities([]renderer.BrushEntity) {}
 func (reloadTestRenderer) SpawnDynamicLight(renderer.DynamicLight) bool      { return false }
 func (reloadTestRenderer) SpawnKeyedDynamicLight(renderer.DynamicLight) bool { return false }
 func (reloadTestRenderer) UpdateLights(float32)                              {}

@@ -645,8 +645,6 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		"models", len(tree.Models),
 	)
 
-	slog.Debug("UploadWorld: pre-loading brush entity geometry and lightmaps")
-	r.preloadBrushModelResources(tree)
 	slog.Debug("UploadWorld: complete")
 	return nil
 }

@@ -105,7 +105,7 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 	err := vm.ExecuteFunction(funcIdx)
 	if err == nil {
 		s.syncAllFromQCVM()
-			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
+		s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 	}
 	return err
 }
