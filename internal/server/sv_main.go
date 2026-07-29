@@ -329,12 +329,11 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	}
 	world := s.Edicts[0]
 	world.Free = false
-	world.Vars = &EntVars{}
-	world.Vars.ModelIndex = 1
-	world.Vars.Solid = float32(SolidBSP)
-	world.Vars.MoveType = float32(MoveTypePush)
-	world.Vars.ClassName = 0
-	world.Vars.Model = 0
+	world.SetModelIndex(s, 1)
+	world.SetSolid(s, float32(SolidBSP))
+	world.SetMoveType(s, float32(MoveTypePush))
+	world.SetClassName(s, 0)
+	world.SetModel(s, 0)
 
 	s.ModelPrecache[0] = ""
 	s.ModelPrecache[1] = s.ModelName
@@ -370,11 +369,11 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	}
 
 	if s.QCVM != nil {
-		if world.Vars.Model == 0 {
-			world.Vars.Model = s.QCVM.AllocString(s.ModelName)
+		if world.Model(s) == 0 {
+			world.SetModel(s, s.QCVM.AllocString(s.ModelName))
 		}
-		if world.Vars.ClassName == 0 {
-			world.Vars.ClassName = s.QCVM.AllocString("worldspawn")
+		if world.ClassName(s) == 0 {
+			world.SetClassName(s, s.QCVM.AllocString("worldspawn"))
 		}
 	}
 
@@ -577,7 +576,7 @@ func (s *Server) loadMapEntities(raw string) error {
 		}
 
 		// Resolve the classname string from the QC string table.
-		className := s.QCVM.String(ent.Vars.ClassName)
+		className := ent.ClassNameString(s)
 		if className == "" {
 			if entNum == 0 {
 				return fmt.Errorf("worldspawn has no classname")
@@ -589,7 +588,7 @@ func (s *Server) loadMapEntities(raw string) error {
 
 		// Filter entities by skill level and deathmatch flags, matching
 		// C Ironwail's ED_LoadFromFile (pr_edict.c:1527-1549).
-		spawnFlags := int(ent.Vars.SpawnFlags)
+		spawnFlags := int(ent.SpawnFlags(s))
 		if isDeathmatch {
 			if spawnFlags&spawnFlagNotDeathmatch != 0 {
 				s.FreeEdict(ent)
@@ -645,14 +644,15 @@ func (s *Server) loadMapEntities(raw string) error {
 			return fmt.Errorf("reserve signon space for %q: %w", className, err)
 		}
 		if telemetryEnabled && strings.HasPrefix(className, "trigger_") {
+			org := ent.Origin(s)
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 				"spawn trigger qc begin classname=%q targetname=%q target=%q touch=%d solid=%d origin=(%.1f %.1f %.1f)",
 				className,
-				s.QCVM.String(ent.Vars.TargetName),
-				s.QCVM.String(ent.Vars.Target),
-				ent.Vars.Touch,
-				int(ent.Vars.Solid),
-				ent.Vars.Origin[0], ent.Vars.Origin[1], ent.Vars.Origin[2],
+				ent.TargetNameString(s),
+				ent.TargetString(s),
+				ent.Touch(s),
+				int(ent.Solid(s)),
+				org[0], org[1], org[2],
 			)
 		}
 		s.QCVM.SetGlobal("self", entNum)
@@ -669,15 +669,17 @@ func (s *Server) loadMapEntities(raw string) error {
 		// Pull QC-modified fields back to Go (solid, touch, think, etc.).
 		s.syncEdictFromQCVM(entNum, ent)
 		if telemetryEnabled && strings.HasPrefix(className, "trigger_") {
+			absMin := ent.AbsMin(s)
+			absMax := ent.AbsMax(s)
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 				"spawn trigger qc end classname=%q targetname=%q target=%q touch=%d solid=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
 				className,
-				s.QCVM.String(ent.Vars.TargetName),
-				s.QCVM.String(ent.Vars.Target),
-				ent.Vars.Touch,
-				int(ent.Vars.Solid),
-				ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
-				ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2],
+				ent.TargetNameString(s),
+				ent.TargetString(s),
+				ent.Touch(s),
+				int(ent.Solid(s)),
+				absMin[0], absMin[1], absMin[2],
+				absMax[0], absMax[1], absMax[2],
 			)
 		}
 		s.LinkEdict(ent, false)
@@ -686,11 +688,13 @@ func (s *Server) loadMapEntities(raw string) error {
 			if ent.AreaPrev == nil {
 				linkState = "unlinked"
 			}
+			absMin := ent.AbsMin(s)
+			absMax := ent.AbsMax(s)
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 				"spawn trigger relink classname=%q link=%s solid=%d touch=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
-				className, linkState, int(ent.Vars.Solid), ent.Vars.Touch,
-				ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
-				ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2],
+				className, linkState, int(ent.Solid(s)), ent.Touch(s),
+				absMin[0], absMin[1], absMin[2],
+				absMax[0], absMax[1], absMax[2],
 			)
 		}
 	}

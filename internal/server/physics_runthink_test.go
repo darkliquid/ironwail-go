@@ -408,26 +408,23 @@ func TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink(t *testing.T) {
 	}
 	vm.SetGInt(mutateBuiltinOfs, -1)
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.MoveType = float32(MoveTypePush)
-	ent.Vars.LTime = 0
-	ent.Vars.NextThink = 0.05
-	ent.Vars.Think = 1
-	ent.Vars.Solid = float32(SolidNot)
+	ent := &Edict{Num: 1, Vars: &EntVars{}}
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
 
-	entNum := s.NumForEdict(ent)
-	vm.SetEFloat(entNum, qc.EntFieldNextThink, 123)
-	vm.SetEInt(entNum, qc.EntFieldThink, 1)
+	ent.SetMoveType(s, float32(MoveTypePush))
+	ent.SetLTime(s, 0)
+	ent.SetNextThink(s, 0.05)
+	ent.SetThink(s, 1)
+	ent.SetSolid(s, float32(SolidNot))
 
 	s.PhysicsPusher(ent)
 
-	if got := ent.Vars.NextThink; got != 0 {
+	if got := ent.NextThink(s); got != 0 {
 		t.Fatalf("nextthink = %v, want 0 after pusher think", got)
 	}
-	if got := ent.Vars.Solid; got != float32(SolidTrigger) {
+	if got := ent.Solid(s); got != float32(SolidTrigger) {
 		t.Fatalf("solid = %v, want %v after pusher think", got, float32(SolidTrigger))
 	}
 }
@@ -462,26 +459,27 @@ func TestPhysicsPusherSyncsThirdPartyPusherStateBackFromQCVM(t *testing.T) {
 	}
 	vm.SetGInt(mutateBuiltinOfs, -1)
 
-	e1 := &Edict{Vars: &EntVars{}}
-	e1.Vars.MoveType = float32(MoveTypePush)
-	e1.Vars.NextThink = 0.05
-	e1.Vars.Think = 1
-	target := &Edict{Vars: &EntVars{}}
-	target.Vars.MoveType = float32(MoveTypePush)
+	e1 := &Edict{Num: 1, Vars: &EntVars{}}
+	target := &Edict{Num: 2, Vars: &EntVars{}}
 	s.Edicts = append(s.Edicts, e1, target)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
+
+	e1.SetMoveType(s, float32(MoveTypePush))
+	e1.SetNextThink(s, 0.05)
+	e1.SetThink(s, 1)
+	target.SetMoveType(s, float32(MoveTypePush))
 	targetNum = s.NumForEdict(target)
 
 	s.PhysicsPusher(e1)
 
-	if got := target.Vars.Velocity; got != [3]float32{0, 100, 0} {
+	if got := target.Velocity(s); got != [3]float32{0, 100, 0} {
 		t.Fatalf("target velocity = %v, want [0 100 0]", got)
 	}
-	if got := target.Vars.NextThink; got != 0.5 {
+	if got := target.NextThink(s); got != 0.5 {
 		t.Fatalf("target nextthink = %v, want 0.5", got)
 	}
-	if got := target.Vars.Think; got != 7 {
+	if got := target.Think(s); got != 7 {
 		t.Fatalf("target think = %v, want 7", got)
 	}
 }
@@ -529,13 +527,14 @@ func TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM(t *testing.T) {
 	}
 	vm.SetGInt(spawnBuiltinOfs, -1)
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.MoveType = float32(MoveTypePush)
-	ent.Vars.NextThink = 0.05
-	ent.Vars.Think = 1
+	ent := &Edict{Num: 1, Vars: &EntVars{}}
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
+
+	ent.SetMoveType(s, float32(MoveTypePush))
+	ent.SetNextThink(s, 0.05)
+	ent.SetThink(s, 1)
 
 	s.PhysicsPusher(ent)
 
@@ -543,13 +542,13 @@ func TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM(t *testing.T) {
 		t.Fatalf("spawned edict num = %d, want valid new edict", spawnedNum)
 	}
 	spawned := s.EdictNum(spawnedNum)
-	if spawned == nil || spawned.Vars == nil {
+	if spawned == nil {
 		t.Fatal("spawned trigger missing")
 	}
-	if got := spawned.Vars.Solid; got != float32(SolidTrigger) {
+	if got := spawned.Solid(s); got != float32(SolidTrigger) {
 		t.Fatalf("spawned solid = %v, want %v", got, float32(SolidTrigger))
 	}
-	if got := spawned.Vars.Touch; got != 99 {
+	if got := spawned.Touch(s); got != 99 {
 		t.Fatalf("spawned touch = %v, want 99", got)
 	}
 	if spawned.AreaPrev == nil || spawned.AreaNext == nil {

@@ -10,11 +10,15 @@ import (
 // newServerTestVM prepares the server's VM for tests with reasonable defaults.
 func newServerTestVM(s *Server, maxEdicts int) *qc.VM {
 	vm := s.QCVM
+	if vm == nil {
+		vm = qc.NewVM()
+		s.QCVM = vm
+	}
 	vm.Globals = make([]float32, 256)
 	vm.MaxEdicts = maxEdicts
 	vm.NumEdicts = 1
 	vm.EntityFields = 128
-	vm.EdictSize = 92 + vm.EntityFields*4
+	vm.EdictSize = 28 + vm.EntityFields*4
 	vm.Edicts = make([]byte, vm.EdictSize*maxEdicts)
 	return vm
 }

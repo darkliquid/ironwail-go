@@ -18,11 +18,21 @@ func newPhysicsTestServer() *Server {
 		Gravity:     800,
 		MaxVelocity: 2000,
 		FrameTime:   0.1,
-		Edicts:      []*Edict{{Vars: &EntVars{}}},
-		NumEdicts:   1,
 		CVar:        cvar.NewCVarSystem(),
 	}
+	s.QCVM = newServerTestVM(s, 64)
+	s.Edicts = []*Edict{{Num: 0, Vars: &EntVars{}}}
+	s.NumEdicts = 1
 	return s
+}
+
+func allocPhysicsTestEdict(s *Server) *Edict {
+	num := len(s.Edicts)
+	ent := &Edict{Num: num, Vars: &EntVars{}}
+	s.Edicts = append(s.Edicts, ent)
+	s.NumEdicts = len(s.Edicts)
+	s.QCVM.NumEdicts = s.NumEdicts
+	return ent
 }
 
 func withPhysicsCVars(t *testing.T, s *Server, values map[string]string) {
@@ -42,34 +52,34 @@ func newPushMoveElevatorTestServer(t *testing.T) (*Server, *Edict, *Edict) {
 		t.Fatalf("init server: %v", err)
 	}
 	s.WorldModel = CreateSyntheticWorldModel()
-	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	s.ClearWorld()
 	s.FrameTime = 0.1
 
 	rider := s.EdictNum(1) // preallocated client edict
-	if rider == nil || rider.Vars == nil {
+	if rider == nil {
 		t.Fatal("missing client edict 1")
 	}
-	rider.Vars.MoveType = float32(MoveTypeWalk)
-	rider.Vars.Solid = float32(SolidSlideBox)
-	rider.Vars.Mins = [3]float32{-16, -16, -24}
-	rider.Vars.Maxs = [3]float32{16, 16, 32}
-	rider.Vars.Origin = [3]float32{0, 0, 31.99}
+	rider.SetMoveType(s, float32(MoveTypeWalk))
+	rider.SetSolid(s, float32(SolidSlideBox))
+	rider.SetMins(s, [3]float32{-16, -16, -24})
+	rider.SetMaxs(s, [3]float32{16, 16, 32})
+	rider.SetOrigin(s, [3]float32{0, 0, 31.99})
 
 	pusher := s.AllocEdict() // edict 2+: non-client pusher
 	if pusher == nil {
 		t.Fatal("failed to allocate pusher")
 	}
-	pusher.Vars.MoveType = float32(MoveTypePush)
-	pusher.Vars.Solid = float32(SolidBSP)
-	pusher.Vars.Mins = [3]float32{-32, -32, -8}
-	pusher.Vars.Maxs = [3]float32{32, 32, 8}
-	pusher.Vars.Origin = [3]float32{0, 0, 0}
-	pusher.Vars.Velocity = [3]float32{0, 0, 10}
+	pusher.SetMoveType(s, float32(MoveTypePush))
+	pusher.SetSolid(s, float32(SolidBSP))
+	pusher.SetMins(s, [3]float32{-32, -32, -8})
+	pusher.SetMaxs(s, [3]float32{32, 32, 8})
+	pusher.SetOrigin(s, [3]float32{0, 0, 0})
+	pusher.SetVelocity(s, [3]float32{0, 0, 10})
 
 	s.LinkEdict(pusher, false)
-	rider.Vars.Flags = float32(uint32(rider.Vars.Flags) | FlagOnGround)
-	rider.Vars.GroundEntity = int32(s.NumForEdict(pusher))
+	rider.SetFlags(s, float32(uint32(rider.Flags(s))|FlagOnGround))
+	rider.SetGroundEntity(s, int32(s.NumForEdict(pusher)))
 	s.LinkEdict(rider, false)
 
 	return s, pusher, rider
@@ -93,19 +103,17 @@ func TestClipVelocity(t *testing.T) {
 // Where in C: SV_Physics_Noclip in sv_phys.c
 func TestPhysicsNoClipMovesOriginAndAngles(t *testing.T) {
 	s := newPhysicsTestServer()
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Velocity = [3]float32{10, -5, 2}
-	ent.Vars.AVelocity = [3]float32{0, 90, 0}
-	s.Edicts = append(s.Edicts, ent)
-	s.NumEdicts = len(s.Edicts)
+	ent := allocPhysicsTestEdict(s)
+	ent.SetVelocity(s, [3]float32{10, -5, 2})
+	ent.SetAVelocity(s, [3]float32{0, 90, 0})
 
 	s.PhysicsNoClip(ent)
 
-	if ent.Vars.Origin != [3]float32{1, -0.5, 0.2} {
-		t.Fatalf("origin = %v", ent.Vars.Origin)
+	if got := ent.Origin(s); got != [3]float32{1, -0.5, 0.2} {
+		t.Fatalf("origin = %v", got)
 	}
-	if ent.Vars.Angles != [3]float32{0, 9, 0} {
-		t.Fatalf("angles = %v", ent.Vars.Angles)
+	if got := ent.Angles(s); got != [3]float32{0, 9, 0} {
+		t.Fatalf("angles = %v", got)
 	}
 }
 
@@ -114,14 +122,14 @@ func TestPhysicsNoClipMovesOriginAndAngles(t *testing.T) {
 // Where in C: SV_Physics_Pusher in sv_phys.c
 func TestPhysicsPusherAdvancesLocalTimeWhenIdle(t *testing.T) {
 	s := newPhysicsTestServer()
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.MoveType = float32(MoveTypePush)
-	ent.Vars.LTime = 3
-	ent.Vars.NextThink = 10
+	ent := allocPhysicsTestEdict(s)
+	ent.SetMoveType(s, float32(MoveTypePush))
+	ent.SetLTime(s, 3)
+	ent.SetNextThink(s, 10)
 	s.PhysicsPusher(ent)
 
-	if diff := ent.Vars.LTime - 3.1; diff < -0.0001 || diff > 0.0001 {
-		t.Fatalf("ltime = %v, want 3.1", ent.Vars.LTime)
+	if diff := ent.LTime(s) - 3.1; diff < -0.0001 || diff > 0.0001 {
+		t.Fatalf("ltime = %v, want 3.1", ent.LTime(s))
 	}
 }
 

@@ -45,8 +45,8 @@ func (s *Server) debugTriggerTouch(source string, touch, other *Edict) {
 	touchClass := s.qcEntString(touchNum, qc.EntFieldClassName)
 	touchTargetName := s.qcEntString(touchNum, qc.EntFieldTargetName)
 	touchTarget := s.qcEntString(touchNum, qc.EntFieldTarget)
-	touchUseFn := s.qcFuncName(touch.Vars.Use)
-	touchThinkFn := s.qcFuncName(touch.Vars.Think)
+	touchUseFn := s.qcFuncName(touch.Use(s))
+	touchThinkFn := s.qcFuncName(touch.Think(s))
 
 	otherClass := s.qcEntString(otherNum, qc.EntFieldClassName)
 
@@ -64,10 +64,11 @@ func (s *Server) debugTriggerTouch(source string, touch, other *Edict) {
 		enemyClass = s.qcEntString(int(enemyNum), qc.EntFieldClassName)
 	}
 
+	otherOrg := other.Origin(s)
 	console.Printf("trigger [%s] ent=%d classname=%q targetname=%q target=%q touch_fn=%d use_fn=%s think_fn=%s\n",
-		source, touchNum, touchClass, touchTargetName, touchTarget, touch.Vars.Touch, touchUseFn, touchThinkFn)
+		source, touchNum, touchClass, touchTargetName, touchTarget, touch.Touch(s), touchUseFn, touchThinkFn)
 	console.Printf("  → other ent=%d classname=%q origin=(%.1f %.1f %.1f)\n",
-		otherNum, otherClass, other.Vars.Origin[0], other.Vars.Origin[1], other.Vars.Origin[2])
+		otherNum, otherClass, otherOrg[0], otherOrg[1], otherOrg[2])
 	console.Printf("  → th_checkattack=%d(%s) customflags=%d state=%.1f wait=%.3f nextthink=%.3f time=%.3f enemy=%d(%q)\n",
 		thCheckAttack, s.qcFuncName(thCheckAttack), customFlags, state, wait, nextThink, s.Time, enemyNum, enemyClass)
 
@@ -96,16 +97,14 @@ func (s *Server) debugTriggerFind(fieldOfs int, match string, result int) {
 		nextThink := float32(0)
 		ltime := float32(0)
 		vel := [3]float32{}
-		if ent != nil && ent.Vars != nil {
-			useFn = s.qcFuncName(ent.Vars.Use)
-			thinkFn = s.qcFuncName(ent.Vars.Think)
-			nextThink = ent.Vars.NextThink
-			ltime = ent.Vars.LTime
-			vel = ent.Vars.Velocity
-		}
 		movetype := ""
-		if ent != nil && ent.Vars != nil {
-			movetype = fmt.Sprintf("mt=%d", int(ent.Vars.MoveType))
+		if ent != nil {
+			useFn = s.qcFuncName(ent.Use(s))
+			thinkFn = s.qcFuncName(ent.Think(s))
+			nextThink = ent.NextThink(s)
+			ltime = ent.LTime(s)
+			vel = ent.Velocity(s)
+			movetype = fmt.Sprintf("mt=%d", int(ent.MoveType(s)))
 		}
 		console.Printf("  find(%s=%q) → ent=%d classname=%q %s use_fn=%s think_fn=%s nextthink=%.3f ltime=%.3f velocity=(%.1f %.1f %.1f)\n",
 			fieldName, match, result, cls, movetype, useFn, thinkFn,
@@ -113,30 +112,4 @@ func (s *Server) debugTriggerFind(fieldOfs int, match string, result int) {
 	}
 }
 
-// debugTriggerPusherSync logs when a pusher entity's state is synced back
-// from QCVM after a touch/use callback, showing the velocity/nextthink/think
-// that were set.
-func (s *Server) debugTriggerPusherSync(pusherNum int, before, after *EntVars) {
-	if !s.debugTriggerEnabled() {
-		return
-	}
-	changed := false
-	if before.Velocity != after.Velocity {
-		changed = true
-	}
-	if before.NextThink != after.NextThink {
-		changed = true
-	}
-	if before.Think != after.Think {
-		changed = true
-	}
-	if !changed {
-		return
-	}
-	cls := s.qcEntString(pusherNum, qc.EntFieldClassName)
-	thinkFn := s.qcFuncName(after.Think)
-	console.Printf("  pusher ent=%d classname=%q synced: velocity=(%.1f %.1f %.1f) nextthink=%.3f think=%s\n",
-		pusherNum, cls,
-		after.Velocity[0], after.Velocity[1], after.Velocity[2],
-		after.NextThink, thinkFn)
-}
+

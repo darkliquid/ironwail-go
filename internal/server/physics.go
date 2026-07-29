@@ -9,24 +9,38 @@ import (
 
 // CheckVelocity ensures entity velocity is within valid bounds.
 func (s *Server) CheckVelocity(ent *Edict) {
+	vel := ent.Velocity(s)
+	orig := ent.Origin(s)
+	changedVel := false
+	changedOrig := false
 	for i := 0; i < 3; i++ {
-		if math.IsNaN(float64(ent.Vars.Velocity[i])) {
-			ent.Vars.Velocity[i] = 0
+		if math.IsNaN(float64(vel[i])) {
+			vel[i] = 0
+			changedVel = true
 		}
-		if math.IsNaN(float64(ent.Vars.Origin[i])) {
-			ent.Vars.Origin[i] = 0
+		if math.IsNaN(float64(orig[i])) {
+			orig[i] = 0
+			changedOrig = true
 		}
-		if ent.Vars.Velocity[i] > s.MaxVelocity {
-			ent.Vars.Velocity[i] = s.MaxVelocity
-		} else if ent.Vars.Velocity[i] < -s.MaxVelocity {
-			ent.Vars.Velocity[i] = -s.MaxVelocity
+		if vel[i] > s.MaxVelocity {
+			vel[i] = s.MaxVelocity
+			changedVel = true
+		} else if vel[i] < -s.MaxVelocity {
+			vel[i] = -s.MaxVelocity
+			changedVel = true
 		}
+	}
+	if changedVel {
+		ent.SetVelocity(s, vel)
+	}
+	if changedOrig {
+		ent.SetOrigin(s, orig)
 	}
 }
 
 // RunThink executes the entity's think function if its nextthink time has been reached.
 func (s *Server) RunThink(ent *Edict) bool {
-	thinkTime := ent.Vars.NextThink
+	thinkTime := ent.NextThink(s)
 	if thinkTime <= 0 || thinkTime > s.Time+s.FrameTime {
 		return true
 	}
@@ -36,22 +50,23 @@ func (s *Server) RunThink(ent *Edict) bool {
 	}
 
 	ent.OldThinkTime = thinkTime
-	ent.OldFrame = ent.Vars.Frame
-	ent.Vars.NextThink = 0
+	ent.OldFrame = ent.Frame(s)
+	ent.SetNextThink(s, 0)
 
 	entNum := s.NumForEdict(ent)
+	thinkFn := ent.Think(s)
 	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 	if telemetryEnabled {
 		s.DebugTelemetry.LogEventf(DebugEventThink, s.QCVM, entNum, ent,
-			"runthink begin think_time=%.3f fn=%d", thinkTime, ent.Vars.Think)
+			"runthink begin think_time=%.3f fn=%d", thinkTime, thinkFn)
 	}
 
 	s.setQCTimeGlobal(thinkTime)
 	s.QCVM.SetGlobal("self", entNum)
 	s.QCVM.SetGlobal("other", 0)
-	if ent.Vars.Think != 0 {
+	if thinkFn != 0 {
 		prevNumEdicts := s.NumEdicts
-		if err := s.executeQCFunction(int(ent.Vars.Think)); err == nil {
+		if err := s.executeQCFunction(int(thinkFn)); err == nil {
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 	}
@@ -76,42 +91,45 @@ func (s *Server) Impact(e1, e2 *Edict) {
 
 	s.setQCTimeGlobal(s.Time)
 
-	if e1.Vars.Touch != 0 && e1.Vars.Solid != float32(SolidNot) {
+	e1Touch := e1.Touch(s)
+	e1Solid := e1.Solid(s)
+	if e1Touch != 0 && e1Solid != float32(SolidNot) {
 		prevNumEdicts := s.NumEdicts
 		if telemetryEnabled {
 			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
-				"impact touch begin other=%d fn=%d", e2Num, e1.Vars.Touch)
+				"impact touch begin other=%d fn=%d", e2Num, e1Touch)
 		}
 		s.debugTriggerTouch("impact", e1, e2)
 		s.QCVM.SetGlobal("self", e1Num)
 		s.QCVM.SetGlobal("other", e2Num)
-		if err := s.executeQCFunction(int(e1.Vars.Touch)); err == nil {
+		if err := s.executeQCFunction(int(e1Touch)); err == nil {
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		if telemetryEnabled {
 			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
-				"impact touch end other=%d fn=%d", e2Num, e1.Vars.Touch)
+				"impact touch end other=%d fn=%d", e2Num, e1Touch)
 		}
 	}
 
-	if e2.Vars.Touch != 0 && e2.Vars.Solid != float32(SolidNot) {
+	e2Touch := e2.Touch(s)
+	e2Solid := e2.Solid(s)
+	if e2Touch != 0 && e2Solid != float32(SolidNot) {
 		prevNumEdicts := s.NumEdicts
 		if telemetryEnabled {
 			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
-				"impact touch begin other=%d fn=%d", e1Num, e2.Vars.Touch)
+				"impact touch begin other=%d fn=%d", e1Num, e2Touch)
 		}
 		s.debugTriggerTouch("impact", e2, e1)
 		s.QCVM.SetGlobal("self", e2Num)
 		s.QCVM.SetGlobal("other", e1Num)
-		if err := s.executeQCFunction(int(e2.Vars.Touch)); err == nil {
+		if err := s.executeQCFunction(int(e2Touch)); err == nil {
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		if telemetryEnabled {
 			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
-				"impact touch end other=%d fn=%d", e1Num, e2.Vars.Touch)
+				"impact touch end other=%d fn=%d", e2Num, e2Touch)
 		}
 	}
-
 }
 
 // ClipVelocity slides off an impacting surface.
@@ -141,86 +159,100 @@ func (s *Server) AddGravity(ent *Edict) {
 			entGravity = g
 		}
 	}
-	ent.Vars.Velocity[2] -= entGravity * s.Gravity * s.FrameTime
+	vel := ent.Velocity(s)
+	vel[2] -= entGravity * s.Gravity * s.FrameTime
+	ent.SetVelocity(s, vel)
 }
 
 func (s *Server) SV_CheckWater(ent *Edict) bool {
-	var point [3]float32
-	point[0] = ent.Vars.Origin[0]
-	point[1] = ent.Vars.Origin[1]
-	point[2] = ent.Vars.Origin[2] + ent.Vars.Mins[2] + 1
+	orig := ent.Origin(s)
+	mins := ent.Mins(s)
+	maxs := ent.Maxs(s)
+	viewOfs := ent.ViewOfs(s)
 
-	ent.Vars.WaterLevel = 0
-	ent.Vars.WaterType = float32(bsp.ContentsEmpty)
+	var point [3]float32
+	point[0] = orig[0]
+	point[1] = orig[1]
+	point[2] = orig[2] + mins[2] + 1
+
+	ent.SetWaterLevel(s, 0)
+	ent.SetWaterType(s, float32(bsp.ContentsEmpty))
 	cont := s.PointContents(point)
 	if cont <= bsp.ContentsWater {
-		ent.Vars.WaterType = float32(cont)
-		ent.Vars.WaterLevel = 1
-		point[2] = ent.Vars.Origin[2] + (ent.Vars.Mins[2]+ent.Vars.Maxs[2])*0.5
+		ent.SetWaterType(s, float32(cont))
+		ent.SetWaterLevel(s, 1)
+		point[2] = orig[2] + (mins[2]+maxs[2])*0.5
 		cont = s.PointContents(point)
 		if cont <= bsp.ContentsWater {
-			ent.Vars.WaterLevel = 2
-			point[2] = ent.Vars.Origin[2] + ent.Vars.ViewOfs[2]
+			ent.SetWaterLevel(s, 2)
+			point[2] = orig[2] + viewOfs[2]
 			cont = s.PointContents(point)
 			if cont <= bsp.ContentsWater {
-				ent.Vars.WaterLevel = 3
+				ent.SetWaterLevel(s, 3)
 			}
 		}
 	}
 
-	return ent.Vars.WaterLevel > 1
+	return ent.WaterLevel(s) > 1
 }
 
 func (s *Server) CheckWaterTransition(ent *Edict) {
-	cont := s.PointContents(ent.Vars.Origin)
+	orig := ent.Origin(s)
+	wtype := ent.WaterType(s)
+	cont := s.PointContents(orig)
 
-	if ent.Vars.WaterType == 0 { // just spawned here
-		ent.Vars.WaterType = float32(cont)
-		ent.Vars.WaterLevel = 1
+	if wtype == 0 { // just spawned here
+		ent.SetWaterType(s, float32(cont))
+		ent.SetWaterLevel(s, 1)
 		return
 	}
 
 	if cont <= bsp.ContentsWater {
-		if ent.Vars.WaterType == float32(bsp.ContentsEmpty) {
+		if wtype == float32(bsp.ContentsEmpty) {
 			// just crossed into water
 			s.StartSound(ent, 0, "misc/h2ohit1.wav", 255, 1)
 		}
-		ent.Vars.WaterType = float32(cont)
-		ent.Vars.WaterLevel = 1
+		ent.SetWaterType(s, float32(cont))
+		ent.SetWaterLevel(s, 1)
 	} else {
-		if ent.Vars.WaterType != float32(bsp.ContentsEmpty) {
+		if wtype != float32(bsp.ContentsEmpty) {
 			// just crossed out of water
 			s.StartSound(ent, 0, "misc/h2ohit1.wav", 255, 1)
 		}
-		ent.Vars.WaterType = float32(bsp.ContentsEmpty)
-		ent.Vars.WaterLevel = float32(cont)
+		ent.SetWaterType(s, float32(bsp.ContentsEmpty))
+		ent.SetWaterLevel(s, float32(cont))
 	}
 }
 
 func (s *Server) FlyMove(ent *Edict, time float32, steptrace *TraceResult) int {
 	blocked := 0
-	originalVelocity := ent.Vars.Velocity
-	primalVelocity := ent.Vars.Velocity
+	entVel := ent.Velocity(s)
+	entOrig := ent.Origin(s)
+	entMins := ent.Mins(s)
+	entMaxs := ent.Maxs(s)
+	originalVelocity := entVel
+	primalVelocity := entVel
 	numPlanes := 0
 	var planes [maxClipPlanes][3]float32
 	timeLeft := time
 
 	for bumpCount := 0; bumpCount < 4; bumpCount++ {
-		if ent.Vars.Velocity[0] == 0 && ent.Vars.Velocity[1] == 0 && ent.Vars.Velocity[2] == 0 {
+		if entVel[0] == 0 && entVel[1] == 0 && entVel[2] == 0 {
 			break
 		}
 
-		end := VecAdd(ent.Vars.Origin, VecScale(ent.Vars.Velocity, timeLeft))
-		trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, end, MoveNormal, ent)
+		end := VecAdd(entOrig, VecScale(entVel, timeLeft))
+		trace := s.Move(entOrig, entMins, entMaxs, end, MoveNormal, ent)
 
 		if trace.AllSolid {
-			ent.Vars.Velocity = [3]float32{}
+			ent.SetVelocity(s, [3]float32{})
 			return 3
 		}
 
 		if trace.Fraction > 0 {
-			ent.Vars.Origin = trace.EndPos
-			originalVelocity = ent.Vars.Velocity
+			entOrig = trace.EndPos
+			ent.SetOrigin(s, entOrig)
+			originalVelocity = entVel
 			numPlanes = 0
 		}
 
@@ -230,9 +262,9 @@ func (s *Server) FlyMove(ent *Edict, time float32, steptrace *TraceResult) int {
 
 		if trace.PlaneNormal[2] > 0.7 {
 			blocked |= 1
-			if trace.Entity != nil && int(trace.Entity.Vars.Solid) == int(SolidBSP) {
-				ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
-				ent.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
+			if trace.Entity != nil && int(trace.Entity.Solid(s)) == int(SolidBSP) {
+				ent.SetFlags(s, float32(uint32(ent.Flags(s))|FlagOnGround))
+				ent.SetGroundEntity(s, int32(s.NumForEdict(trace.Entity)))
 			}
 		}
 		if trace.PlaneNormal[2] == 0 {
@@ -253,7 +285,7 @@ func (s *Server) FlyMove(ent *Edict, time float32, steptrace *TraceResult) int {
 		timeLeft -= timeLeft * trace.Fraction
 
 		if numPlanes >= maxClipPlanes {
-			ent.Vars.Velocity = [3]float32{}
+			ent.SetVelocity(s, [3]float32{})
 			return 3
 		}
 
@@ -280,19 +312,21 @@ func (s *Server) FlyMove(ent *Edict, time float32, steptrace *TraceResult) int {
 
 		if i != numPlanes {
 			// go along this plane
-			ent.Vars.Velocity = newVelocity
+			entVel = newVelocity
+			ent.SetVelocity(s, entVel)
 		} else {
 			// go along the crease
 			if numPlanes != 2 {
-				ent.Vars.Velocity = [3]float32{}
+				ent.SetVelocity(s, [3]float32{})
 				return 7
 			}
 			dir := VecCross(planes[0], planes[1])
-			d := VecDot(dir, ent.Vars.Velocity)
-			ent.Vars.Velocity = VecScale(dir, d)
+			d := VecDot(dir, entVel)
+			entVel = VecScale(dir, d)
+			ent.SetVelocity(s, entVel)
 		}
-		if VecDot(ent.Vars.Velocity, primalVelocity) <= 0 {
-			ent.Vars.Velocity = [3]float32{}
+		if VecDot(entVel, primalVelocity) <= 0 {
+			ent.SetVelocity(s, [3]float32{})
 			return blocked
 		}
 	}
@@ -301,21 +335,27 @@ func (s *Server) FlyMove(ent *Edict, time float32, steptrace *TraceResult) int {
 }
 
 func (s *Server) PushEntity(ent *Edict, push [3]float32) TraceResult {
+	orig := ent.Origin(s)
+	mins := ent.Mins(s)
+	maxs := ent.Maxs(s)
+	mt := ent.MoveType(s)
+	solid := ent.Solid(s)
+
 	end := [3]float32{
-		ent.Vars.Origin[0] + push[0],
-		ent.Vars.Origin[1] + push[1],
-		ent.Vars.Origin[2] + push[2],
+		orig[0] + push[0],
+		orig[1] + push[1],
+		orig[2] + push[2],
 	}
 
 	moveType := MoveNormal
-	if MoveType(ent.Vars.MoveType) == MoveTypeFlyMissile {
+	if MoveType(mt) == MoveTypeFlyMissile {
 		moveType = MoveMissile
-	} else if int(ent.Vars.Solid) == int(SolidTrigger) || int(ent.Vars.Solid) == int(SolidNot) {
+	} else if int(solid) == int(SolidTrigger) || int(solid) == int(SolidNot) {
 		moveType = MoveNoMonsters
 	}
 
-	trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, end, MoveType(moveType), ent)
-	ent.Vars.Origin = trace.EndPos
+	trace := s.Move(orig, mins, maxs, end, MoveType(moveType), ent)
+	ent.SetOrigin(s, trace.EndPos)
 	s.LinkEdict(ent, true)
 
 	if trace.Entity != nil {
@@ -327,31 +367,37 @@ func (s *Server) PushEntity(ent *Edict, push [3]float32) TraceResult {
 
 func (s *Server) PushMove(pusher *Edict, movetime float32) {
 	pusherNum := s.NumForEdict(pusher)
-	if pusher.Vars.Velocity[0] == 0 && pusher.Vars.Velocity[1] == 0 && pusher.Vars.Velocity[2] == 0 {
+	pusherVel := pusher.Velocity(s)
+	pusherLTime := pusher.LTime(s)
+	pusherAbsMin := pusher.AbsMin(s)
+	pusherAbsMax := pusher.AbsMax(s)
+	pusherOrig := pusher.Origin(s)
+
+	if pusherVel[0] == 0 && pusherVel[1] == 0 && pusherVel[2] == 0 {
 		SvdbgPushLogf("pusher=%d velocity=0 — early return (ltime += %.4f), no entities pushed", pusherNum, movetime)
-		pusher.Vars.LTime += movetime
+		pusher.SetLTime(s, pusherLTime+movetime)
 		return
 	}
 
 	move := [3]float32{
-		pusher.Vars.Velocity[0] * movetime,
-		pusher.Vars.Velocity[1] * movetime,
-		pusher.Vars.Velocity[2] * movetime,
+		pusherVel[0] * movetime,
+		pusherVel[1] * movetime,
+		pusherVel[2] * movetime,
 	}
 	mins := [3]float32{
-		pusher.Vars.AbsMin[0] + move[0],
-		pusher.Vars.AbsMin[1] + move[1],
-		pusher.Vars.AbsMin[2] + move[2],
+		pusherAbsMin[0] + move[0],
+		pusherAbsMin[1] + move[1],
+		pusherAbsMin[2] + move[2],
 	}
 	maxs := [3]float32{
-		pusher.Vars.AbsMax[0] + move[0],
-		pusher.Vars.AbsMax[1] + move[1],
-		pusher.Vars.AbsMax[2] + move[2],
+		pusherAbsMax[0] + move[0],
+		pusherAbsMax[1] + move[1],
+		pusherAbsMax[2] + move[2],
 	}
 
-	pushorig := pusher.Vars.Origin
-	pusher.Vars.Origin = VecAdd(pusher.Vars.Origin, move)
-	pusher.Vars.LTime += movetime
+	pushorig := pusherOrig
+	pusher.SetOrigin(s, VecAdd(pusherOrig, move))
+	pusher.SetLTime(s, pusherLTime+movetime)
 	s.LinkEdict(pusher, false)
 
 	movedEdicts := make([]*Edict, 0, s.NumEdicts)
@@ -363,19 +409,25 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 			continue
 		}
 
-		movemask := 1 << int(check.Vars.MoveType)
+		checkMoveType := check.MoveType(s)
+		movemask := 1 << int(checkMoveType)
 		if movemask&((1<<int(MoveTypePush))|(1<<int(MoveTypeNone))|(1<<int(MoveTypeNoClip))) != 0 {
 			continue
 		}
 
-		riding := (uint32(check.Vars.Flags)&FlagOnGround) != 0 && s.EdictNum(int(check.Vars.GroundEntity)) == pusher
+		checkFlags := check.Flags(s)
+		checkGroundEnt := check.GroundEntity(s)
+		checkAbsMin := check.AbsMin(s)
+		checkAbsMax := check.AbsMax(s)
+
+		riding := (uint32(checkFlags)&FlagOnGround) != 0 && s.EdictNum(int(checkGroundEnt)) == pusher
 		if !riding {
-			if check.Vars.AbsMin[0] >= maxs[0] ||
-				check.Vars.AbsMin[1] >= maxs[1] ||
-				check.Vars.AbsMin[2] >= maxs[2] ||
-				check.Vars.AbsMax[0] <= mins[0] ||
-				check.Vars.AbsMax[1] <= mins[1] ||
-				check.Vars.AbsMax[2] <= mins[2] {
+			if checkAbsMin[0] >= maxs[0] ||
+				checkAbsMin[1] >= maxs[1] ||
+				checkAbsMin[2] >= maxs[2] ||
+				checkAbsMax[0] <= mins[0] ||
+				checkAbsMax[1] <= mins[1] ||
+				checkAbsMax[2] <= mins[2] {
 				SvdbgPushLogfAt(2, "pusher=%d check=%d riding=false aabb_miss=true — skipped", pusherNum, e)
 				continue
 			}
@@ -386,33 +438,36 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 			}
 			SvdbgPushLogf("pusher=%d check=%d riding=false aabb_hit=true testpos=stuck — pushing (overlapping non-rider)", pusherNum, e)
 		} else {
-			SvdbgPushLogf("pusher=%d check=%d riding=true — pushing (groundentity=%d onground=1)", pusherNum, e, int(check.Vars.GroundEntity))
+			SvdbgPushLogf("pusher=%d check=%d riding=true — pushing (groundentity=%d onground=1)", pusherNum, e, int(checkGroundEnt))
 		}
 
-		if MoveType(check.Vars.MoveType) != MoveTypeWalk {
-			check.Vars.Flags = float32(uint32(check.Vars.Flags) &^ FlagOnGround)
+		if MoveType(checkMoveType) != MoveTypeWalk {
+			check.SetFlags(s, float32(uint32(checkFlags)&^FlagOnGround))
 		}
 
-		entorig := check.Vars.Origin
+		entorig := check.Origin(s)
 		movedEdicts = append(movedEdicts, check)
 		movedFrom = append(movedFrom, entorig)
 
-		solidBackup := pusher.Vars.Solid
-		if int(pusher.Vars.Solid) == int(SolidBSP) || int(pusher.Vars.Solid) == int(SolidBBox) || int(pusher.Vars.Solid) == int(SolidSlideBox) {
-			pusher.Vars.Solid = float32(SolidNot)
+		pusherSolid := pusher.Solid(s)
+		if int(pusherSolid) == int(SolidBSP) || int(pusherSolid) == int(SolidBBox) || int(pusherSolid) == int(SolidSlideBox) {
+			pusher.SetSolid(s, float32(SolidNot))
 			s.PushEntity(check, move)
-			pusher.Vars.Solid = float32(solidBackup)
+			pusher.SetSolid(s, pusherSolid)
 		} else {
 			s.PushEntity(check, move)
 		}
 
 		// sv_debug_push: log post-push position so we can see where the player
 		// ended up after being pushed by the lift, and whether they're blocked.
+		postPushOrig := check.Origin(s)
+		postPushAbsMin := check.AbsMin(s)
+		postPushAbsMax := check.AbsMax(s)
 		SvdbgPushLogfAt(2, "pusher=%d check=%d post-push origin=(%.1f %.1f %.1f) absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
 			pusherNum, e,
-			check.Vars.Origin[0], check.Vars.Origin[1], check.Vars.Origin[2],
-			check.Vars.AbsMin[0], check.Vars.AbsMin[1], check.Vars.AbsMin[2],
-			check.Vars.AbsMax[0], check.Vars.AbsMax[1], check.Vars.AbsMax[2])
+			postPushOrig[0], postPushOrig[1], postPushOrig[2],
+			postPushAbsMin[0], postPushAbsMin[1], postPushAbsMin[2],
+			postPushAbsMax[0], postPushAbsMax[1], postPushAbsMax[2])
 
 		block := s.TestEntityPosition(check)
 		if block == nil {
@@ -420,13 +475,16 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 			continue
 		}
 
-		if check.Vars.Mins[0] == check.Vars.Maxs[0] {
+		checkMins := check.Mins(s)
+		checkMaxs := check.Maxs(s)
+		if checkMins[0] == checkMaxs[0] {
 			continue
 		}
 
-		if int(check.Vars.Solid) == int(SolidNot) || int(check.Vars.Solid) == int(SolidTrigger) {
-			check.Vars.Mins[0], check.Vars.Mins[1], check.Vars.Mins[2] = 0, 0, 0
-			check.Vars.Maxs = check.Vars.Mins
+		checkSolid := check.Solid(s)
+		if int(checkSolid) == int(SolidNot) || int(checkSolid) == int(SolidTrigger) {
+			check.SetMins(s, [3]float32{})
+			check.SetMaxs(s, [3]float32{})
 			continue
 		}
 
@@ -436,7 +494,8 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 		fixLevel := s.CVar.FloatValue("sv_gameplayfix_elevators")
 		if riding && block == pusher &&
 			(fixLevel >= 2 || (fixLevel > 0 && e <= s.MaxClients())) {
-			check.Vars.Origin[2] += DistEpsilon
+			postPushOrig[2] += DistEpsilon
+			check.SetOrigin(s, postPushOrig)
 			if s.TestEntityPosition(check) == nil {
 				slog.Debug("elevator fix nudged entity",
 					"entity", e, "pusher", s.NumForEdict(pusher))
@@ -444,37 +503,38 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 			}
 		}
 
-		check.Vars.Origin = entorig
+		check.SetOrigin(s, entorig)
 		s.LinkEdict(check, true)
 
-		pusher.Vars.Origin = pushorig
+		pusher.SetOrigin(s, pushorig)
 		s.LinkEdict(pusher, false)
-		pusher.Vars.LTime -= movetime
+		pusher.SetLTime(s, pusher.LTime(s)-movetime)
 
-		if pusher.Vars.Blocked != 0 && s.QCVM != nil {
+		pusherBlocked := pusher.Blocked(s)
+		if pusherBlocked != 0 && s.QCVM != nil {
 			pusherNum := s.NumForEdict(pusher)
 			checkNum := s.NumForEdict(check)
 			ctx := captureQCExecutionContext(s.QCVM)
 			telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventBlocked, s.QCVM, pusherNum, pusher,
-					"pushmove blocked by=%d callback=%d movetime=%.3f", checkNum, pusher.Vars.Blocked, movetime)
+					"pushmove blocked by=%d callback=%d movetime=%.3f", checkNum, pusherBlocked, movetime)
 			}
 			prevNumEdicts := s.NumEdicts
 			s.QCVM.SetGlobal("self", pusherNum)
 			s.QCVM.SetGlobal("other", checkNum)
-			if err := s.executeQCFunction(int(pusher.Vars.Blocked)); err == nil {
+			if err := s.executeQCFunction(int(pusherBlocked)); err == nil {
 				s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 			}
 			restoreQCExecutionContext(s.QCVM, ctx)
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventBlocked, s.QCVM, pusherNum, pusher,
-					"pushmove blocked callback done by=%d callback=%d", checkNum, pusher.Vars.Blocked)
+					"pushmove blocked callback done by=%d callback=%d", checkNum, pusherBlocked)
 			}
 		}
 
 		for i, moved := range movedEdicts {
-			moved.Vars.Origin = movedFrom[i]
+			moved.SetOrigin(s, movedFrom[i])
 			s.LinkEdict(moved, false)
 		}
 
@@ -491,23 +551,30 @@ func (s *Server) PhysicsNoClip(ent *Edict) {
 		return
 	}
 
+	angles := ent.Angles(s)
+	avel := ent.AVelocity(s)
+	orig := ent.Origin(s)
+	vel := ent.Velocity(s)
+
 	for i := 0; i < 3; i++ {
-		ent.Vars.Angles[i] += ent.Vars.AVelocity[i] * s.FrameTime
-		ent.Vars.Origin[i] += ent.Vars.Velocity[i] * s.FrameTime
+		angles[i] += avel[i] * s.FrameTime
+		orig[i] += vel[i] * s.FrameTime
 	}
 
+	ent.SetAngles(s, angles)
+	ent.SetOrigin(s, orig)
 	s.LinkEdict(ent, false)
 }
 
 func (s *Server) PhysicsPusher(ent *Edict) {
 	entNum := s.NumForEdict(ent)
 	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
-	oldLTime := ent.Vars.LTime
-	thinkTime := ent.Vars.NextThink
+	oldLTime := ent.LTime(s)
+	thinkTime := ent.NextThink(s)
 	movetime := s.FrameTime
 
-	if thinkTime < ent.Vars.LTime+s.FrameTime {
-		movetime = thinkTime - ent.Vars.LTime
+	if thinkTime < oldLTime+s.FrameTime {
+		movetime = thinkTime - oldLTime
 		if movetime < 0 {
 			movetime = 0
 		}
@@ -521,37 +588,41 @@ func (s *Server) PhysicsPusher(ent *Edict) {
 		s.PushMove(ent, movetime)
 	}
 
-	if thinkTime > oldLTime && thinkTime <= ent.Vars.LTime {
-		ent.Vars.NextThink = 0
-		if s.QCVM != nil && ent.Vars.Think != 0 {
+	thinkTime = ent.NextThink(s)
+	thinkFn := ent.Think(s)
+	curLTime := ent.LTime(s)
+	if thinkTime > oldLTime && thinkTime <= curLTime {
+		ent.SetNextThink(s, 0)
+		if s.QCVM != nil && thinkFn != 0 {
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventThink, s.QCVM, entNum, ent,
-					"physicspusher think begin fn=%d", ent.Vars.Think)
+					"physicspusher think begin fn=%d", thinkFn)
 			}
 			s.setQCTimeGlobal(s.Time)
 			s.QCVM.SetGlobal("self", entNum)
 			s.QCVM.SetGlobal("other", 0)
 			prevNumEdicts := s.NumEdicts
-			if err := s.executeQCFunction(int(ent.Vars.Think)); err == nil {
+			if err := s.executeQCFunction(int(thinkFn)); err == nil {
 				s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 			}
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventThink, s.QCVM, entNum, ent,
-					"physicspusher think end fn=%d freed=%t", ent.Vars.Think, ent.Free)
+					"physicspusher think end fn=%d freed=%t", thinkFn, ent.Free)
 			}
 		}
 	}
 }
 
 func (s *Server) PhysicsStep(ent *Edict) {
-	flags := uint32(ent.Vars.Flags)
+	flags := uint32(ent.Flags(s))
 	if flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
-		hitSound := ent.Vars.Velocity[2] < -0.1*s.Gravity
+		vel := ent.Velocity(s)
+		hitSound := vel[2] < -0.1*s.Gravity
 		s.AddGravity(ent)
 		s.CheckVelocity(ent)
 		s.FlyMove(ent, s.FrameTime, nil)
 		s.LinkEdict(ent, true)
-		if uint32(ent.Vars.Flags)&FlagOnGround != 0 && hitSound {
+		if uint32(ent.Flags(s))&FlagOnGround != 0 && hitSound {
 			s.StartSound(ent, 0, "demon/dland2.wav", 255, 1)
 		}
 	}
@@ -566,7 +637,7 @@ func (s *Server) SV_CheckAllEnts() {
 		if ent == nil || ent.Free {
 			continue
 		}
-		mt := MoveType(ent.Vars.MoveType)
+		mt := MoveType(ent.MoveType(s))
 		if mt == MoveTypePush || mt == MoveTypeNone || mt == MoveTypeNoClip {
 			continue
 		}
@@ -576,13 +647,13 @@ func (s *Server) SV_CheckAllEnts() {
 			// emits a Con_Printf warning; we surface it through slog.
 			slog.Debug("sv_checkallents: entity in invalid position",
 				"index", i,
-				"classname", ent.Vars.ClassName)
+				"classname", ent.ClassName(s))
 		}
 	}
 }
 
 func (s *Server) SV_TryUnstick(ent *Edict, oldVel [3]float32) int {
-	oldOrg := ent.Vars.Origin
+	oldOrg := ent.Origin(s)
 	var dir [3]float32
 
 	for i := 0; i < 8; i++ {
@@ -617,21 +688,20 @@ func (s *Server) SV_TryUnstick(ent *Edict, oldVel [3]float32) int {
 		s.PushEntity(ent, dir)
 
 		// retry the original move
-		ent.Vars.Velocity[0] = oldVel[0]
-		ent.Vars.Velocity[1] = oldVel[1]
-		ent.Vars.Velocity[2] = 0
+		ent.SetVelocity(s, [3]float32{oldVel[0], oldVel[1], 0})
 		blocked := s.FlyMove(ent, 0.1, nil)
 
-		if math.Abs(float64(oldOrg[0]-ent.Vars.Origin[0])) > 4 ||
-			math.Abs(float64(oldOrg[1]-ent.Vars.Origin[1])) > 4 {
+		curOrg := ent.Origin(s)
+		if math.Abs(float64(oldOrg[0]-curOrg[0])) > 4 ||
+			math.Abs(float64(oldOrg[1]-curOrg[1])) > 4 {
 			return blocked
 		}
 
 		// go back to the original pos and try again
-		ent.Vars.Origin = oldOrg
+		ent.SetOrigin(s, oldOrg)
 	}
 
-	ent.Vars.Velocity = [3]float32{}
+	ent.SetVelocity(s, [3]float32{})
 	return 7 // still not moving
 }
 
@@ -641,11 +711,12 @@ func walkMoveNeedsUnstick(oldOrg, newOrg [3]float32) bool {
 }
 
 func (s *Server) SV_WalkMove(ent *Edict) {
-	oldonground := uint32(ent.Vars.Flags) & FlagOnGround
-	ent.Vars.Flags = float32(uint32(ent.Vars.Flags) &^ FlagOnGround)
+	flags := uint32(ent.Flags(s))
+	oldonground := flags & FlagOnGround
+	ent.SetFlags(s, float32(flags&^FlagOnGround))
 
-	oldorg := ent.Vars.Origin
-	oldvel := ent.Vars.Velocity
+	oldorg := ent.Origin(s)
+	oldvel := ent.Velocity(s)
 
 	var steptrace TraceResult
 	clip := s.FlyMove(ent, s.FrameTime, &steptrace)
@@ -654,11 +725,11 @@ func (s *Server) SV_WalkMove(ent *Edict) {
 		return // move didn't block on a step
 	}
 
-	if oldonground == 0 && ent.Vars.WaterLevel == 0 {
+	if oldonground == 0 && ent.WaterLevel(s) == 0 {
 		return // don't stair up while jumping
 	}
 
-	if MoveType(ent.Vars.MoveType) != MoveTypeWalk {
+	if MoveType(ent.MoveType(s)) != MoveTypeWalk {
 		return // gibbed by a trigger
 	}
 
@@ -666,29 +737,27 @@ func (s *Server) SV_WalkMove(ent *Edict) {
 		return
 	}
 
-	if uint32(ent.Vars.Flags)&FlagWaterJump != 0 {
+	if uint32(ent.Flags(s))&FlagWaterJump != 0 {
 		return
 	}
 
-	nosteporg := ent.Vars.Origin
-	nostepvel := ent.Vars.Velocity
+	nosteporg := ent.Origin(s)
+	nostepvel := ent.Velocity(s)
 
 	// back to start pos
-	ent.Vars.Origin = oldorg
+	ent.SetOrigin(s, oldorg)
 
 	// step up
 	upmove := [3]float32{0, 0, 18}
 	s.PushEntity(ent, upmove)
 
 	// move forward with zeroed Z velocity
-	ent.Vars.Velocity[0] = oldvel[0]
-	ent.Vars.Velocity[1] = oldvel[1]
-	ent.Vars.Velocity[2] = 0
+	ent.SetVelocity(s, [3]float32{oldvel[0], oldvel[1], 0})
 	clip = s.FlyMove(ent, s.FrameTime, &steptrace)
 
 	// check for stuckness
 	if clip != 0 {
-		if walkMoveNeedsUnstick(oldorg, ent.Vars.Origin) {
+		if walkMoveNeedsUnstick(oldorg, ent.Origin(s)) {
 			clip = s.SV_TryUnstick(ent, oldvel)
 		}
 	}
@@ -703,20 +772,20 @@ func (s *Server) SV_WalkMove(ent *Edict) {
 	downtrace := s.PushEntity(ent, downmove)
 
 	if downtrace.PlaneNormal[2] > 0.7 {
-		if downtrace.Entity != nil && int(downtrace.Entity.Vars.Solid) == int(SolidBSP) {
-			ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
-			ent.Vars.GroundEntity = int32(s.NumForEdict(downtrace.Entity))
+		if downtrace.Entity != nil && int(downtrace.Entity.Solid(s)) == int(SolidBSP) {
+			ent.SetFlags(s, float32(uint32(ent.Flags(s))|FlagOnGround))
+			ent.SetGroundEntity(s, int32(s.NumForEdict(downtrace.Entity)))
 		}
 	} else {
 		// if the push down didn't end up on good ground, use the move without the step up
-		ent.Vars.Origin = nosteporg
-		ent.Vars.Velocity = nostepvel
+		ent.SetOrigin(s, nosteporg)
+		ent.SetVelocity(s, nostepvel)
 	}
 }
 
 func (s *Server) SV_WallFriction(ent *Edict, trace *TraceResult) {
 	var forward, right, up [3]float32
-	AngleVectors(ent.Vars.VAngle, &forward, &right, &up)
+	AngleVectors(ent.VAngle(s), &forward, &right, &up)
 
 	d := VecDot(trace.PlaneNormal, forward)
 	d += 0.5
@@ -725,17 +794,19 @@ func (s *Server) SV_WallFriction(ent *Edict, trace *TraceResult) {
 	}
 
 	// cut the tangential velocity
-	i := VecDot(trace.PlaneNormal, ent.Vars.Velocity)
+	vel := ent.Velocity(s)
+	i := VecDot(trace.PlaneNormal, vel)
 	into := VecScale(trace.PlaneNormal, i)
-	side := VecSub(ent.Vars.Velocity, into)
+	side := VecSub(vel, into)
 
-	ent.Vars.Velocity[0] = side[0] * (1 + d)
-	ent.Vars.Velocity[1] = side[1] * (1 + d)
+	vel[0] = side[0] * (1 + d)
+	vel[1] = side[1] * (1 + d)
+	ent.SetVelocity(s, vel)
 }
 
 func (s *Server) PhysicsWalk(ent *Edict) {
 	playerClient := s.playerClient(ent)
-	wasUnderwater := ent.Vars.WaterLevel >= 3
+	wasUnderwater := ent.WaterLevel(s) >= 3
 	if playerClient != nil {
 		s.runClientQCThinkWithMode(playerClient, "PlayerPreThink", false)
 		if ent.Free {
@@ -749,7 +820,7 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 		return
 	}
 
-	if !s.SV_CheckWater(ent) && uint32(ent.Vars.Flags)&FlagWaterJump == 0 {
+	if !s.SV_CheckWater(ent) && uint32(ent.Flags(s))&FlagWaterJump == 0 {
 		s.AddGravity(ent)
 	}
 
@@ -762,7 +833,7 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 		if ent.Free {
 			return
 		}
-		forceUnderwater := !wasUnderwater && ent.Vars.WaterLevel >= 3
+		forceUnderwater := !wasUnderwater && ent.WaterLevel(s) >= 3
 		if forceUnderwater != ent.ForceWater {
 			ent.ForceWater = forceUnderwater
 			ent.SendForceWater = true
@@ -771,13 +842,14 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 }
 
 func (s *Server) SV_CheckStuck(ent *Edict) {
+	orig := ent.Origin(s)
 	if s.TestEntityPosition(ent) == nil {
-		ent.Vars.OldOrigin = ent.Vars.Origin
+		ent.SetOldOrigin(s, orig)
 		return
 	}
 
-	org := ent.Vars.Origin
-	ent.Vars.Origin = ent.Vars.OldOrigin
+	oldOrg := ent.OldOrigin(s)
+	ent.SetOrigin(s, oldOrg)
 	if s.TestEntityPosition(ent) == nil {
 		// Unstuck.
 		s.LinkEdict(ent, true)
@@ -787,9 +859,8 @@ func (s *Server) SV_CheckStuck(ent *Edict) {
 	for z := float32(0); z < 18; z++ {
 		for i := float32(-1); i <= 1; i++ {
 			for j := float32(-1); j <= 1; j++ {
-				ent.Vars.Origin[0] = org[0] + i
-				ent.Vars.Origin[1] = org[1] + j
-				ent.Vars.Origin[2] = org[2] + z
+				cand := [3]float32{orig[0] + i, orig[1] + j, orig[2] + z}
+				ent.SetOrigin(s, cand)
 				if s.TestEntityPosition(ent) == nil {
 					// Unstuck.
 					s.LinkEdict(ent, true)
@@ -799,7 +870,7 @@ func (s *Server) SV_CheckStuck(ent *Edict) {
 		}
 	}
 
-	ent.Vars.Origin = org
+	ent.SetOrigin(s, orig)
 	// player is stuck
 }
 
@@ -808,22 +879,27 @@ func (s *Server) PhysicsToss(ent *Edict) {
 		return
 	}
 
-	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
+	flags := uint32(ent.Flags(s))
+	if flags&FlagOnGround != 0 {
 		return
 	}
 
 	s.CheckVelocity(ent)
 
-	mt := MoveType(ent.Vars.MoveType)
+	mt := MoveType(ent.MoveType(s))
 	if mt != MoveTypeFly && mt != MoveTypeFlyMissile {
 		s.AddGravity(ent)
 	}
 
+	angles := ent.Angles(s)
+	avel := ent.AVelocity(s)
 	for i := 0; i < 3; i++ {
-		ent.Vars.Angles[i] += ent.Vars.AVelocity[i] * s.FrameTime
+		angles[i] += avel[i] * s.FrameTime
 	}
+	ent.SetAngles(s, angles)
 
-	move := VecScale(ent.Vars.Velocity, s.FrameTime)
+	vel := ent.Velocity(s)
+	move := VecScale(vel, s.FrameTime)
 	trace := s.PushEntity(ent, move)
 	if trace.Fraction == 1 || ent.Free {
 		return
@@ -834,15 +910,15 @@ func (s *Server) PhysicsToss(ent *Edict) {
 		backoff = 1.5
 	}
 
-	newVel := ClipVelocity(ent.Vars.Velocity, trace.PlaneNormal, backoff)
-	ent.Vars.Velocity = newVel
+	newVel := ClipVelocity(vel, trace.PlaneNormal, backoff)
+	ent.SetVelocity(s, newVel)
 
 	if trace.PlaneNormal[2] > 0.7 {
-		if ent.Vars.Velocity[2] < 60 || mt != MoveTypeBounce {
-			ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
-			ent.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
-			ent.Vars.Velocity = [3]float32{}
-			ent.Vars.AVelocity = [3]float32{}
+		if newVel[2] < 60 || mt != MoveTypeBounce {
+			ent.SetFlags(s, float32(uint32(ent.Flags(s))|FlagOnGround))
+			ent.SetGroundEntity(s, int32(s.NumForEdict(trace.Entity)))
+			ent.SetVelocity(s, [3]float32{})
+			ent.SetAVelocity(s, [3]float32{})
 		}
 	}
 
