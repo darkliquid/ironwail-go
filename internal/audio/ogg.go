@@ -5,7 +5,6 @@ package audio
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 
 	"github.com/jfreymuth/oggvorbis"
@@ -40,7 +39,10 @@ func decodeMusicOGG(name string, data []byte) (*musicTrack, error) {
 		} else if scaled < -32768 {
 			scaled = -32768
 		}
-		binary.LittleEndian.PutUint16(pcm[i*2:], uint16(int16(scaled)))
+		val := uint16(int16(scaled))
+		idx := i * 2
+		pcm[idx] = byte(val)
+		pcm[idx+1] = byte(val >> 8)
 	}
 
 	return &musicTrack{
