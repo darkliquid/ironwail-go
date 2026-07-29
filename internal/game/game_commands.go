@@ -302,8 +302,30 @@ func (g *Game) cmdCamDebug(_ []string) {
 	dz := camOrigin[2] - state.Origin[2]
 	console.Printf("delta(cam-entity)    = (%.2f, %.2f, %.2f)  dist=%.2f\n",
 		dx, dy, dz, math.Sqrt(float64(dx*dx+dy*dy+dz*dz)))
+
+	forward, _, _ := g.runtimeAngleVectors(camAngles)
+	hit, ok := g.traceCrosshairFace(camOrigin, forward)
+	if !ok {
+		console.Printf("crosshair.face       = none (no geometry hit within 16384 units)\n")
+	} else {
+		console.Printf("crosshair.face       = #%d  dist=%.2f  hitPos=(%.2f, %.2f, %.2f)\n",
+			hit.faceIndex, hit.distance, hit.hitPos[0], hit.hitPos[1], hit.hitPos[2])
+		if hit.modelIndex > 0 {
+			console.Printf("crosshair.entity     = edict #%d (submodel *%d)\n", hit.entIndex, hit.modelIndex)
+		} else {
+			console.Printf("crosshair.entity     = worldspawn (model 0)\n")
+		}
+		console.Printf("crosshair.plane      = #%d  side=%d  normal=(%.4f, %.4f, %.4f)  dist=%.2f\n",
+			hit.planeIndex, hit.planeSide, hit.planeNormal[0], hit.planeNormal[1], hit.planeNormal[2], hit.planeDist)
+		console.Printf("crosshair.texture    = %s (%dx%d)  type=%v  uv=(%.2f, %.2f)\n",
+			hit.texName, hit.texWidth, hit.texHeight, hit.texType, hit.hitU, hit.hitV)
+		console.Printf("crosshair.texinfo    = #%d  rawFlags=0x%X  derivedFlags=0x%X  edges=%d  lightOfs=%d  styles=%v\n",
+			hit.texinfoIdx, hit.texFlags, hit.derivedFlags, hit.numEdges, hit.lightOfs, hit.styles)
+	}
 	console.Printf("=========================\n")
 }
+
+
 
 func (g *Game) startupConfigPinsAnyCVar(userDir string, names []string) bool {
 	userDir = strings.TrimSpace(userDir)

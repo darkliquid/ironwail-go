@@ -100,21 +100,10 @@ func debugAtlasDir() string {
 // BSP2 maps like qbj2 start, which can have hundreds or thousands of
 // textures while the buffer is capped at 256 entries.
 func diagMaterialBufferCapacity(source string, materialCount int) {
-	if materialCount <= worldMaterialsBufferCapacity {
-		slog.Debug("Material buffer capacity check passed",
-			"source", source,
-			"material_count", materialCount,
-			"buffer_capacity", worldMaterialsBufferCapacity,
-		)
-		return
-	}
-
-	slog.Warn("MATERIAL BUFFER OVERFLOW: material count exceeds GPU buffer capacity",
+	slog.Debug("Material storage buffer capacity",
 		"source", source,
 		"material_count", materialCount,
-		"buffer_capacity", worldMaterialsBufferCapacity,
-		"overflow_count", materialCount-worldMaterialsBufferCapacity,
-		"explanation", "vertices with materialID >= 256 will cause out-of-bounds reads in the WGSL shader, producing wrong textures",
+		"buffer_bytes", materialCount*32,
 	)
 }
 
@@ -179,31 +168,11 @@ func diagMaterialIDRange(geom *WorldGeometry) {
 		return
 	}
 
-	overCapacity := maxID >= worldMaterialsBufferCapacity
-
 	slog.Debug("MaterialID range",
 		"min_id", minID,
 		"max_id", maxID,
 		"unique_ids", len(uniqueIDs),
-		"buffer_capacity", worldMaterialsBufferCapacity,
-		"over_capacity", overCapacity,
 	)
-
-	if overCapacity {
-		overCount := 0
-		for id, faceCount := range uniqueIDs {
-			if id >= worldMaterialsBufferCapacity {
-				overCount += faceCount
-			}
-		}
-		slog.Warn("VERTEX MATERIALID EXCEEDS SHADER ARRAY BOUND",
-			"max_id", maxID,
-			"buffer_capacity", worldMaterialsBufferCapacity,
-			"faces_with_over_capacity_id", overCount,
-			"total_faces", len(geom.Faces),
-			"explanation", "vertices with materialID >= 256 index beyond the materials[] array in WGSL, reading garbage atlasBounds/layer",
-		)
-	}
 
 	if debugMaterialAuditEnabled() {
 		// Log the top N most-used materialIDs to identify which textures

@@ -455,10 +455,14 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 	var frame1Buffer *wgpu.Buffer
 	var frame1BindGroup *wgpu.BindGroup
 	if len(baseMaterials) > 0 {
+		extMatSize := uint64(len(baseMaterials)) * uint64(unsafe.Sizeof(WorldMaterialData{}))
+		if extMatSize == 0 {
+			extMatSize = uint64(unsafe.Sizeof(WorldMaterialData{}))
+		}
 		buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 			Label:            "External Brush Materials Buffer",
-			Size:             uint64(worldMaterialsBufferSize),
-			Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+			Size:             extMatSize,
+			Usage:            gputypes.BufferUsageStorage | gputypes.BufferUsageCopyDst,
 			MappedAtCreation: false,
 		})
 		if err == nil {
@@ -467,7 +471,7 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 			diagMaterialBufferWrite("ensureExternalBrushModelTextures", len(baseMaterials), worldMaterialsBufferSize)
 			byteLen := len(baseMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
 			byteData := unsafe.Slice((*byte)(unsafe.Pointer(&baseMaterials[0])), byteLen)
-			queue.WriteBuffer(materialsBuffer, 0, byteData)
+			_ = queue.WriteBuffer(materialsBuffer, 0, byteData)
 
 			if r.uniformBindGroupLayout != nil && r.uniformBuffer != nil {
 				bg, err := r.createWorldUniformBindGroup(device, r.uniformBindGroupLayout, r.uniformBuffer, materialsBuffer)
@@ -481,13 +485,13 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 			// frame != 0 can select pressed/activated textures.
 			f1buf, f1err := device.CreateBuffer(&wgpu.BufferDescriptor{
 				Label:            "External Brush Materials Buffer Frame1",
-				Size:             uint64(worldMaterialsBufferSize),
-				Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+				Size:             extMatSize,
+				Usage:            gputypes.BufferUsageStorage | gputypes.BufferUsageCopyDst,
 				MappedAtCreation: false,
 			})
 			if f1err == nil && f1buf != nil {
 				frame1Buffer = f1buf
-				queue.WriteBuffer(frame1Buffer, 0, byteData)
+				_ = queue.WriteBuffer(frame1Buffer, 0, byteData)
 				if r.uniformBindGroupLayout != nil && r.uniformBuffer != nil {
 					f1bg, bgErr := r.createWorldUniformBindGroup(device, r.uniformBindGroupLayout, r.uniformBuffer, frame1Buffer)
 					if bgErr == nil && f1bg != nil {

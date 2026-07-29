@@ -318,15 +318,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		return fmt.Errorf("create uniform buffer: %w", err)
 	}
 
-	materialsBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
-		Label:            "World Materials",
-		Size:             256 * 32, // 256 materials * 32 bytes (vec4 + float + pad)
-		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
-		MappedAtCreation: false,
-	})
-	if err != nil {
-		return fmt.Errorf("create materials buffer: %w", err)
-	}
+
 
 	dynamicLightsBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "World Dynamic Lights",
@@ -336,38 +328,6 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	})
 	if err != nil {
 		return fmt.Errorf("create world dynamic lights buffer: %w", err)
-	}
-
-	// Create bind group for world uniform buffer.
-	uniformLayout := r.uniformBindGroupLayout
-	if uniformLayout != nil {
-		uniformBindGroup, err := r.createWorldUniformBindGroup(device, uniformLayout, uniformBuffer, materialsBuffer)
-		if err != nil {
-			return fmt.Errorf("create uniform bind group: %w", err)
-		} else {
-			r.uniformBindGroup = uniformBindGroup
-			r.worldBindGroup = uniformBindGroup
-		}
-
-		// Create a second materials buffer + bind group for frame-1 (alternate
-		// texture chains). Brush entities with frame != 0 (pressed buttons,
-		// activated switches) bind this group so the shader reads alternate
-		// texture atlas bounds/layer via materials[MaterialID]. The buffer is
-		// updated each frame in updateWorldMaterialsBuffer with frame=1
-		// animations. Only textures with AlternateAnims (+0/+A pairs) differ.
-		frame1Buffer, f1err := device.CreateBuffer(&wgpu.BufferDescriptor{
-			Label:            "World Materials Buffer Frame1",
-			Size:             uint64(worldMaterialsBufferSize),
-			Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
-			MappedAtCreation: false,
-		})
-		if f1err == nil && frame1Buffer != nil {
-			r.worldMaterialsBufferFrame1 = frame1Buffer
-			frame1BG, bgErr := r.createWorldUniformBindGroup(device, uniformLayout, uniformBuffer, frame1Buffer)
-			if bgErr == nil && frame1BG != nil {
-				r.worldUniformBindGroupFrame1 = frame1BG
-			}
-		}
 	}
 
 	var dynamicLightsBindGroup *wgpu.BindGroup
@@ -458,6 +418,52 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		}
 	}
 	worldTextures, worldFullbrightTextures, worldTextureAnimations, worldBaseMaterials := r.uploadWorldMaterialTextures(device, queue, atlasSampler, tree)
+
+	matBufSize := uint64(len(worldBaseMaterials)) * uint64(unsafe.Sizeof(WorldMaterialData{}))
+	if matBufSize == 0 {
+		matBufSize = uint64(unsafe.Sizeof(WorldMaterialData{}))
+	}
+	materialsBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "World Materials",
+		Size:             matBufSize,
+		Usage:            gputypes.BufferUsageStorage | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("create materials buffer: %w", err)
+	}
+
+	// Create bind group for world uniform buffer.
+	uniformLayout := r.uniformBindGroupLayout
+	if uniformLayout != nil {
+		uniformBindGroup, err := r.createWorldUniformBindGroup(device, uniformLayout, uniformBuffer, materialsBuffer)
+		if err != nil {
+			return fmt.Errorf("create uniform bind group: %w", err)
+		} else {
+			r.uniformBindGroup = uniformBindGroup
+			r.worldBindGroup = uniformBindGroup
+		}
+
+		// Create a second materials buffer + bind group for frame-1 (alternate
+		// texture chains). Brush entities with frame != 0 (pressed buttons,
+		// activated switches) bind this group so the shader reads alternate
+		// texture atlas bounds/layer via materials[MaterialID]. The buffer is
+		// updated each frame in updateWorldMaterialsBuffer with frame=1
+		// animations. Only textures with AlternateAnims (+0/+A pairs) differ.
+		frame1Buffer, f1err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "World Materials Buffer Frame1",
+			Size:             matBufSize,
+			Usage:            gputypes.BufferUsageStorage | gputypes.BufferUsageCopyDst,
+			MappedAtCreation: false,
+		})
+		if f1err == nil && frame1Buffer != nil {
+			r.worldMaterialsBufferFrame1 = frame1Buffer
+			frame1BG, bgErr := r.createWorldUniformBindGroup(device, uniformLayout, uniformBuffer, frame1Buffer)
+			if bgErr == nil && frame1BG != nil {
+				r.worldUniformBindGroupFrame1 = frame1BG
+			}
+		}
+	}
 
 	// Phase 3 diagnostic: check atlas layer count against GPU limits.
 	if worldTextures != nil && device != nil {
@@ -656,12 +662,16 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 // This records render commands to draw the world geometry with the configured pipeline,
 
 func (r *Renderer) createWorldUniformBindGroup(device *wgpu.Device, layout *wgpu.BindGroupLayout, uniformBuffer, materialsBuffer *wgpu.Buffer) (*wgpu.BindGroup, error) {
+	matSize := uint64(0)
+	if materialsBuffer != nil {
+		matSize = materialsBuffer.Size()
+	}
 	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "World Uniform BG",
 		Layout: layout,
 		Entries: []wgpu.BindGroupEntry{
 			{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: worldUniformBufferSize},
-			{Binding: 1, Buffer: materialsBuffer, Offset: 0, Size: 256 * 32},
+			{Binding: 1, Buffer: materialsBuffer, Offset: 0, Size: matSize},
 		},
 	})
 }

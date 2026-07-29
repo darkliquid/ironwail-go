@@ -3,7 +3,7 @@
 This document defines the step-by-step implementation strategy for the major engine projects in **ironwail-go**, ordered strictly according to the priority sequence:
 
 1. **Phase 1 (Item 2)**: Direct-VM Accessors & Zero-Sync QCVM (Steps 3–5) — **COMPLETED** (commit `570e806556cc614d9cec0ea6d2c967dd0cb3a241`)
-2. **Phase 2 (Item 3)**: Texture Atlas Storage Buffer Upgrade (BSP2 Large Map Fix)
+2. **Phase 2 (Item 3)**: Texture Atlas Storage Buffer Upgrade (BSP2 Large Map Fix) — **COMPLETED**
 3. **Phase 3 (Item 5)**: Arena / Region Allocators for Level Lifetimes — **COMPLETED** (commit `ab41b31`)
 4. **Phase 4 (Item 4)**: CSQC (Client-Side QuakeC) Host/Client Runtime Integration — **COMPLETED**
 5. **Phase 5 (Item 6)**: Parity Closure & Sign-off on `qbj3_stickflip`
@@ -43,7 +43,9 @@ Complete the migration of server entity state from dual-storage (`EntVars` struc
 
 ---
 
-## Phase 2: Texture Atlas Storage Buffer Upgrade (BSP2 Large Map Fix)
+## Phase 2: Texture Atlas Storage Buffer Upgrade (BSP2 Large Map Fix) [COMPLETED]
+
+**Status**: Completed (Texture materials uniform buffer upgraded to WebGPU read-only storage buffer)
 
 ### Objective
 Replace the hardcoded 256-entry uniform buffer for texture materials with a WebGPU storage buffer, allowing maps with >254 textures (e.g. `qbj2_start`) to render without buffer overflow.

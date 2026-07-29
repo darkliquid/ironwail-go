@@ -125,7 +125,7 @@ struct DynamicLights {
 var<uniform> uniforms: Uniforms;
 
 @group(0) @binding(1)
-var<uniform> materials: array<MaterialData, 256>;
+var<storage, read> materials: array<MaterialData>;
 
 @group(1) @binding(0)
 var worldSampler: sampler;
@@ -348,7 +348,7 @@ struct MaterialData {
 var<uniform> uniforms: Uniforms;
 
 @group(0) @binding(1)
-var<uniform> materials: array<MaterialData, 256>;
+var<storage, read> materials: array<MaterialData>;
 
 @group(1) @binding(0)
 var worldSampler: sampler;
@@ -522,7 +522,7 @@ struct DynamicLights {
 var<uniform> uniforms: Uniforms;
 
 @group(0) @binding(1)
-var<uniform> materials: array<MaterialData, 256>;
+var<storage, read> materials: array<MaterialData>;
 
 @group(1) @binding(0)
 var worldSampler: sampler;
