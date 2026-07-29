@@ -3243,7 +3243,7 @@ Even as features are added and parity gaps close, the codebase's lasting value r
 
 ## Consolidated References and Sources
 
-- <a id="ref-hickman"></a>**[Hickman]** Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. Local copy: [`article/analysisfinal.pdf`](analysisfinal.pdf); text extraction: [`article/analysisfinal.txt`](analysisfinal.txt).
+- <a id="ref-hickman"></a>**[Hickman]** Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. [https://zhickman.com/analysisfinal.pdf](https://zhickman.com/analysisfinal.pdf).
 - <a id="ref-readme"></a>**[README]** [`README.md`](../README.md), ironwail-go repository.
 - <a id="ref-agents"></a>**[AGENTS]** [`AGENTS.md`](../AGENTS.md), ironwail-go repository.
 - <a id="ref-learningguide"></a>**[LearningGuide]** [`docs/LEARNING_GUIDE.md`](../docs/LEARNING_GUIDE.md), ironwail-go repository.

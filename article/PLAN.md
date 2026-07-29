@@ -71,7 +71,7 @@ subset relevant to it.
 
 | Source | URL | Use for |
 | --- | --- | --- |
-| Hickman, *Quake Engine Analysis* (Northeastern) | `zhickman.com/analysisfinal.pdf` (local copy `article/analysisfinal.pdf` + `article/analysisfinal.txt`) | Academic overview of the original Quake engine: game loop, memory, rendering, physics, networking, scripting, math |
+| Hickman, *Quake Engine Analysis* (Northeastern) | `https://zhickman.com/analysisfinal.pdf` | Academic overview of the original Quake engine: game loop, memory, rendering, physics, networking, scripting, math |
 | gogpu issue tracker — darkliquid issues | `github.com/gogpu/gogpu/issues` (fetched via `gh`) | Real-world gogpu bugs: input, pointer lock, adapter power pref, naga SPIR-V bugs, Wayland two-connection bug |
 | Scratchapixel | scratchapixel.com | CG theory citations (rasterization, lightmaps, BSP) |
 | webgpufundamentals | webgpufundamentals.org | WebGPU API practice citations |
@@ -508,7 +508,6 @@ article/
   ironwail_go.md               (final assembled article)
   sources.md                   (bibliography / source index)
   analysisfinal.pdf            (Hickman PDF, local copy)
-  analysisfinal.txt            (pdftotext extraction)
   gogpu_issues.md              (transcript of fetched gogpu issues)
   draft/
     00_notes.md

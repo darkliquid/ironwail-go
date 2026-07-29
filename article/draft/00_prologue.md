@@ -193,7 +193,7 @@ makes it all render without a line of C.
 
 <a id="ref-agents"></a>[AGENTS] [`AGENTS.md`](../../AGENTS.md), ironwail-go repository.
 
-<a id="ref-hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. Local copy: `article/analysisfinal.pdf`; text extraction: `article/analysisfinal.txt`.
+<a id="ref-hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. [https://zhickman.com/analysisfinal.pdf](https://zhickman.com/analysisfinal.pdf).
 
 <a id="ref-learningplan"></a>[LearningPlan] [`docs/RENDERER_LEARNING_PLAN.md`](../../docs/RENDERER_LEARNING_PLAN.md), ironwail-go repository.
 

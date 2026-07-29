@@ -387,7 +387,7 @@ original `progs.dat` from the Quake data directory.
 
 <a id="ref-agents"></a>[AGENTS] [`AGENTS.md`](../../AGENTS.md), ironwail-go repository.
 
-<a id="ref-hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. Local copy: `article/analysisfinal.pdf`; text extraction: `article/analysisfinal.txt`.
+<a id="ref-hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. [https://zhickman.com/analysisfinal.pdf](https://zhickman.com/analysisfinal.pdf).
 
 <a id="ref-parity"></a>[Parity] [`docs/PARITY.md`](../../docs/PARITY.md), ironwail-go repository.
 

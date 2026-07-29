@@ -602,7 +602,7 @@ the Go port changes, and Chapter 2 begins that story.
 
 <a id="ref-fsdocs"></a>[FSDocs] [`docs/internal/fs.md`](../../docs/internal/fs.md), ironwail-go repository.
 
-<a id="ref-hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. Local copy: `article/analysisfinal.pdf`; text extraction: `article/analysisfinal.txt`.
+<a id="ref-hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. [https://zhickman.com/analysisfinal.pdf](https://zhickman.com/analysisfinal.pdf).
 
 <a id="ref-hostdocs"></a>[HostDocs] [`docs/internal/host.md`](../../docs/internal/host.md), ironwail-go repository.
 
