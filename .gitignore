@@ -25,6 +25,8 @@
 !.gitignore
 !/docs/**/*.md
 !/docs/**/*.txt
+!/article/**/*.md
+!/article/**/*.txt
 
 # Parity tooling files
 !/tasks/*.sh

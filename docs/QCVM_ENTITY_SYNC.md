@@ -29,9 +29,9 @@ C engine code accesses via `ed->v.field`.
 
 ```
 s.Edicts []*Edict          (Go structs)
-  └── Edict.Vars *EntVars  (66 "bound" typed fields — Go's source of truth)
+  └── Edict.Vars *EntVars  (78 "bound" typed fields — Go's source of truth)
 
-s.QCVM.Edicts []byte       (flat byte array, all ~213 fields)
+s.QCVM.Edicts []byte       (flat byte array, ~105+ fields depending on mod)
   └── [entNum*EdictSize + 28 + fieldOfs*4]
 ```
 
@@ -39,13 +39,15 @@ s.QCVM.Edicts []byte       (flat byte array, all ~213 fields)
 - QC bytecode reads/writes the `QCVM.Edicts` byte array.
 - `syncEdictToQCVM` copies bound fields Go → QCVM before QC callbacks.
 - `syncEdictFromQCVM` copies bound fields QCVM → Go after QC callbacks.
-- **Only 66 of ~213 fields are synced.** Extension fields (`state`, `speed`,
+- **78 of ~105+ fields are synced.** Extension fields (`state`, `speed`,
   `wait`, `pos1`, `pos2`, `finaldest`, `think1`, `count`, `delay`,
   `killtarget`, `trigger_field`, `th_checkattack`, `customflags`,
-  `target2/3/4`) exist **only in QCVM bytes** — Go never reads or writes them.
-- **Pusher entities** (`MOVETYPE_PUSH`) require special handling because their
-  state (velocity, nextthink, think) is set by QC but must be seen by Go's
-  `PhysicsPusher`.
+  `target2/3/4`) exist **only in QCVM bytes** — Go never reads or writes them
+  through the sync layer (some are read via direct-VM accessors; see below).
+- **Pusher entities** (`MOVETYPE_PUSH`) used to require special handling because
+  their state (velocity, nextthink, think) is set by QC but must be seen by
+  Go's `PhysicsPusher`. The selective pusher sync is now gone — all entities
+  sync unconditionally.
 
 This sync layer is the root cause of every trigger/entity bug found.
 
@@ -158,9 +160,10 @@ gone (~170 lines of dead code removed). The double-sync redundancy in
   and `syncAllFromQCVM` after every QC callback. Callers just set
   `self`/`other`/`time` globals and call it. The fragile pusher/non-pusher
   classification and selective snapshot/diff/restore are gone.
-- **Typed accessor methods:** 70+ accessor methods added to `Edict` in
+- **Typed accessor methods:** 157 accessor methods added to `Edict` in
   `internal/server/entity_accessors.go` that read/write directly to the QCVM
-  byte array via `s.QCVM.EVector`/`EFloat`/`EInt`/`SetE*`.
+  byte array via `s.QCVM.EVector`/`EFloat`/`EInt`/`SetE*`. These bypass
+  `EntVars` entirely, matching C's shared-memory model.
 - **O(1) `NumForEdict`:** Cached `Num` field on `Edict` for fast entity-number
   lookup.
 - **Cached extension field offsets:** Fields like `state`, `wait`, `speed`,
@@ -169,6 +172,11 @@ gone (~170 lines of dead code removed). The double-sync redundancy in
   deleted.
 - **Relink optimization:** `syncAllFromQCVM` only relinks on `Solid`/`Model`
   changes, not `Origin` (matches C `SV_TouchLinks` behavior).
+- **Partial direct-VM access in `server.go`:** ~27 call sites in `server.go`
+  (area-grid, `SV_FindTouchedLeafs`, `LinkEdict` internals) now read/write
+  the QCVM byte array directly via `vm.EFloat`/`vm.EVector`/`vm.SetE*`,
+  bypassing `EntVars`. The `entity_accessors.go` methods are available but
+  not yet widely adopted in the physics/movement hot paths.
 
 ### What Remains
 
@@ -191,8 +199,8 @@ The original 5-step plan was:
 
 | Step | What | Status |
 | --- | --- | --- |
-| 1 | Add accessor methods to `Edict`, cache extension field offsets | **Done** |
-| 2 | Migrate hot-path code to accessors | **Partial** — accessors exist, hot paths not fully migrated |
+| 1 | Add accessor methods to `Edict`, cache extension field offsets | **Done** (157 accessors) |
+| 2 | Migrate hot-path code to accessors | **Partial** — accessors exist, `server.go` has ~27 direct-VM sites, but physics/movement still use `EntVars` |
 | 3 | Remove sync functions (delete `server_qc_sync.go`, simplify `qc_trace.go`) | **Partially done** — old selective sync removed, sync-all replaces it |
 | 4 | Remove `EntVars` struct (rewrite `savegame.go` for QCVM bytes) | **Not done** |
 | 5 | Simplify callback dispatch (match C exactly — no sync, just set globals and execute) | **Not done** — sync-all still runs at every callback |
