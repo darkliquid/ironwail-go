@@ -109,24 +109,51 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	}
 	activeDynamicLights := r.activeDynamicLightsScratch
 	r.mu.Unlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil || vertexScratchBuffer == nil || indexScratchBuffer == nil {
+	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
 		return
 	}
 	if transparentBindGroup == nil {
 		transparentBindGroup = whiteTextureBindGroup
 	}
 
+	// Create mapped scratch buffers per-pass (bypassing queue.WriteBuffer + stagingBelt)
 	if len(scratch.vertexData) > 0 {
-		if err := queue.WriteBuffer(vertexScratchBuffer, 0, scratch.vertexData); err != nil {
-			slog.Warn("failed to upload brush scratch vertices", "error", err)
+		vSize := uint64(len(scratch.vertexData))
+		buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "Brush Entity Vertex Scratch Buffer",
+			Size:             vSize,
+			Usage:            gputypes.BufferUsageVertex,
+			MappedAtCreation: true,
+		})
+		if err != nil {
+			slog.Warn("failed to create brush scratch vertex buffer", "error", err)
 			return
 		}
+		if mr, mrErr := buf.MappedRange(0, vSize); mrErr == nil && mr != nil {
+			copy(mr.Bytes(), scratch.vertexData)
+		}
+		buf.Unmap()
+		vertexScratchBuffer = buf
+		defer vertexScratchBuffer.Release()
 	}
 	if len(scratch.indexData) > 0 {
-		if err := queue.WriteBuffer(indexScratchBuffer, 0, scratch.indexData); err != nil {
-			slog.Warn("failed to upload brush scratch indices", "error", err)
+		iSize := uint64(len(scratch.indexData))
+		buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "Brush Entity Index Scratch Buffer",
+			Size:             iSize,
+			Usage:            gputypes.BufferUsageIndex,
+			MappedAtCreation: true,
+		})
+		if err != nil {
+			slog.Warn("failed to create brush scratch index buffer", "error", err)
 			return
 		}
+		if mr, mrErr := buf.MappedRange(0, iSize); mrErr == nil && mr != nil {
+			copy(mr.Bytes(), scratch.indexData)
+		}
+		buf.Unmap()
+		indexScratchBuffer = buf
+		defer indexScratchBuffer.Release()
 	}
 
 	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Entity Render Encoder"})
@@ -617,23 +644,50 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	}
 	activeDynamicLights := r.activeDynamicLightsScratch
 	r.mu.Unlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil || vertexScratchBuffer == nil || indexScratchBuffer == nil {
+	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
 		return
 	}
 	if transparentBindGroup == nil {
 		transparentBindGroup = whiteTextureBindGroup
 	}
+	// Create mapped scratch buffers per-pass (bypassing queue.WriteBuffer + stagingBelt)
 	if len(scratch.vertexData) > 0 {
-		if err := queue.WriteBuffer(vertexScratchBuffer, 0, scratch.vertexData); err != nil {
-			slog.Warn("failed to upload brush liquid scratch vertices", "error", err)
+		vSize := uint64(len(scratch.vertexData))
+		buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "Brush Liquid Vertex Scratch Buffer",
+			Size:             vSize,
+			Usage:            gputypes.BufferUsageVertex,
+			MappedAtCreation: true,
+		})
+		if err != nil {
+			slog.Warn("failed to create brush liquid scratch vertex buffer", "error", err)
 			return
 		}
+		if mr, mrErr := buf.MappedRange(0, vSize); mrErr == nil && mr != nil {
+			copy(mr.Bytes(), scratch.vertexData)
+		}
+		buf.Unmap()
+		vertexScratchBuffer = buf
+		defer vertexScratchBuffer.Release()
 	}
 	if len(scratch.indexData) > 0 {
-		if err := queue.WriteBuffer(indexScratchBuffer, 0, scratch.indexData); err != nil {
-			slog.Warn("failed to upload brush liquid scratch indices", "error", err)
+		iSize := uint64(len(scratch.indexData))
+		buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "Brush Liquid Index Scratch Buffer",
+			Size:             iSize,
+			Usage:            gputypes.BufferUsageIndex,
+			MappedAtCreation: true,
+		})
+		if err != nil {
+			slog.Warn("failed to create brush liquid scratch index buffer", "error", err)
 			return
 		}
+		if mr, mrErr := buf.MappedRange(0, iSize); mrErr == nil && mr != nil {
+			copy(mr.Bytes(), scratch.indexData)
+		}
+		buf.Unmap()
+		indexScratchBuffer = buf
+		defer indexScratchBuffer.Release()
 	}
 
 	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Liquid Render Encoder"})

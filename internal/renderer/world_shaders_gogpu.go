@@ -31,7 +31,7 @@ struct VertexInput {
     @location(2) lightmapCoord: vec2<f32>,
     @location(3) normal: vec3<f32>,
     @location(4) lightmapLayer: f32,
-    @location(5) materialID: u32,
+    @location(5) @interpolate(flat) materialID: u32,
 }
 ` + worldUniformsWGSL + `
 
@@ -42,7 +42,7 @@ struct VertexOutput {
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
     @location(4) lightmapLayer: f32,
-    @location(5) materialID: u32,
+    @location(5) @interpolate(flat) materialID: u32,
     @location(6) clipPos: vec4<f32>,
 }
 
@@ -99,7 +99,7 @@ struct VertexOutput {
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
     @location(4) lightmapLayer: f32,
-    @location(5) materialID: u32,
+    @location(5) @interpolate(flat) materialID: u32,
     @location(6) clipPos: vec4<f32>,
 }
 
@@ -212,7 +212,9 @@ fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>, clipP
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let mat = materials[input.materialID];
     let localUV = fract(input.texCoord);
-    let atlasUV = vec2<f32>(localUV * mat.atlasBounds.zw + mat.atlasBounds.xy);
+    let halfTexel = vec2<f32>(0.5 / 2048.0, 0.5 / 2048.0);
+    let clampedUV = clamp(localUV, halfTexel, vec2<f32>(1.0) - halfTexel);
+    let atlasUV = vec2<f32>(clampedUV * mat.atlasBounds.zw + mat.atlasBounds.xy);
     let atlasVOffset = mat.layer;
     let sampled = textureSampleLevel(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + atlasVOffset), 0.0);
     let fullbright = textureSampleLevel(worldFullbrightTexture, worldFullbrightSampler, vec2<f32>(atlasUV.x, atlasUV.y + atlasVOffset), 0.0);
@@ -330,7 +332,7 @@ struct VertexOutput {
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
     @location(4) lightmapLayer: f32,
-    @location(5) materialID: u32,
+    @location(5) @interpolate(flat) materialID: u32,
     @location(6) clipPos: vec4<f32>,
 }
 
@@ -425,7 +427,7 @@ struct VertexInput {
     @location(2) lightmapCoord: vec2<f32>,
     @location(3) normal: vec3<f32>,
     @location(4) lightmapLayer: f32,
-    @location(5) materialID: u32,
+    @location(5) @interpolate(flat) materialID: u32,
 }
 ` + worldUniformsWGSL + `
 
@@ -459,7 +461,7 @@ struct VertexInput {
     @location(2) lightmapCoord: vec2<f32>,
     @location(3) normal: vec3<f32>,
     @location(4) lightmapLayer: f32,
-    @location(5) materialID: u32,
+    @location(5) @interpolate(flat) materialID: u32,
 }
 ` + worldUniformsWGSL + `
 
@@ -494,7 +496,7 @@ struct VertexOutput {
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
     @location(4) lightmapLayer: f32,
-    @location(5) materialID: u32,
+    @location(5) @interpolate(flat) materialID: u32,
     @location(6) clipPos: vec4<f32>,
 }
 
