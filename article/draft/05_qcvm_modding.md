@@ -31,7 +31,7 @@ provides **builtins** — native functions like `traceline`, `spawn`,
 the engine. The engine calls into QC at specific dispatch points:
 `StartFrame`, `PlayerPreThink`, `PlayerPostThink`, `touch`, `think`,
 `use`, `blocked`, and the client lifecycle functions (`PutClientInServer`,
-`ClientConnect`, etc.). [#QCDocs](#qcdocs) [#Hickman](#hickman)
+`ClientConnect`, etc.). [QCDocs](#ref-qcdocs) [Hickman](#ref-hickman)
 
 ---
 
@@ -110,13 +110,13 @@ const runawayLoopLimit = 0x1000000
 
 If the statement count exceeds this, the VM aborts with `"runaway loop
 error"`. This is a parity constant — changing it would break mods that
-rely on the exact limit. [#QCDocs](#qcdocs)
+rely on the exact limit. [QCDocs](#ref-qcdocs)
 
 ### Profile counters
 
 Each function has a `Profile` counter. The `profile` console command prints
 the top 10 functions by statement count and resets the counters. This is
-the engine's built-in QC profiler. [#README](#readme)
+the engine's built-in QC profiler. [README](#ref-readme)
 
 ---
 
@@ -138,7 +138,7 @@ in `exec_test.go` guard invariants that would break demos or mods:
 - **Runaway loop limit**: asserted to be exactly `0x1000000`.
   (`TestExecuteProgramRunawayLoopLimitConstantMatchesC`)
 
-[#QCDocs](#qcdocs)
+[QCDocs](#ref-qcdocs)
 
 ---
 
@@ -159,7 +159,7 @@ code accesses via `ed->v.field`. The macros are pure pointer arithmetic:
 **No sync.** When QC sets `self.nextthink`, the engine sees it
 immediately. When the engine sets `ent->v.velocity`, QC sees it
 immediately. All entity fields — standard and extension — are accessible
-by both C and QC through the same memory. [#QCVM](#qcvm)
+by both C and QC through the same memory. [QCVM](#ref-qcvm)
 
 ---
 
@@ -194,7 +194,7 @@ struct fields and thus synced. Extension fields (`state`, `speed`, `wait`,
 `trigger_field`, `th_checkattack`, `customflags`, `target2/3/4`) exist
 **only in QCVM bytes** — Go physics and networking never read them through
 the sync layer (though some are accessible via the direct-VM accessor
-methods). [#QCVM](#qcvm)
+methods). [QCVM](#ref-qcvm)
 
 ### The sync layer
 
@@ -215,7 +215,7 @@ doc's CPU profile of the qbj3 `qbj3_stickflip` map found that QC/server
 edict sync paths — `syncEntVarsFromQC`, `syncEntVarsToQC`,
 `captureNonPusherQCVMEdictSnapshots`, `syncMutatedNonPushersFromQCVM`,
 `SetEFloat` — dominate the profile alongside the QC execution itself.
-[#Parity](#parity)
+[Parity](#ref-parity)
 
 ---
 
@@ -245,7 +245,7 @@ The qbj2 mod's `start` map exposed this via a lift trigger stack:
 8. Train's Go-side velocity/nextthink remain 0 → `PhysicsPusher` never
    moves it. The lift doesn't work.
 
-[#QCVM](#qcvm)
+[QCVM](#ref-qcvm)
 
 ### The fix: unified sync
 
@@ -255,7 +255,7 @@ single dispatch point. The fragile pusher/non-pusher classification,
 `capturePusherSnapshots`, `syncPushersToQCVM`,
 `syncMutatedPushersFromQCVM`, and related functions were deleted (~170
 lines of dead code). Callers now just set `self`/`other`/`time` globals
-and call `executeQCFunction`. [#QCVM](#qcvm)
+and call `executeQCFunction`. [QCVM](#ref-qcvm)
 
 ### The accessor infrastructure
 
@@ -278,7 +278,7 @@ to accessors is the remaining work (steps 3–5 of the migration plan).
 A separate bug: a package-level `serverBuiltinHooks` global caused all VMs
 to share hooks. A CSQC VM and a server VM would cross-contaminate each
 other's callbacks. Fixed by moving hooks to per-VM storage. Tested by
-`TestVMServerHooksIsolation`. [#QCDocs](#qcdocs)
+`TestVMServerHooksIsolation`. [QCDocs](#ref-qcdocs)
 
 ---
 
@@ -299,7 +299,7 @@ When steps 3–5 complete, `EntVars`, `syncAllToQCVM`,
 `executeQCFunction` wrapper will simplify to just save/restore
 `self`/`other`/`time` globals and execute — matching C's zero-sync model
 exactly. The accessor infrastructure is in place; the remaining work is
-migrating the hot paths. [#QCVM](#qcvm)
+migrating the hot paths. [QCVM](#ref-qcvm)
 
 ---
 
@@ -313,7 +313,7 @@ and client event dispatch.
 
 CSQC runtime integration is currently **deferred** — the repo has CSQC
 wrapper infrastructure, but host/client runtime wiring for a full CSQC
-gameplay path is outside the current parity milestone. [#Parity](#parity)
+gameplay path is outside the current parity milestone. [Parity](#ref-parity)
 The tests in `csqc_test.go` verify construction, loading, precache
 registry behavior, and global sync, but no e2e CSQC gameplay path is
 wired.
@@ -342,7 +342,7 @@ runtime surface used by that compiler:
 
 The mental model from the QGo guide: *"QuakeGo is not 'full Go running on
 Quake.' It is a deliberately narrow Go subset that maps cleanly onto
-QuakeC VM concepts."* [#QGoGuide](#qgoguide) The supported types are
+QuakeC VM concepts."* [QGoGuide](#ref-qgoguide) The supported types are
 `float32`, `string`, `bool`, `quake.Vec3`, `*quake.Entity`, and function
 values. Struct fields tagged for qgo map to entity fields. Methods are
 lowered to QCVM-compatible functions. Engine calls are expressed as imports
@@ -356,7 +356,7 @@ They cannot be imported by the engine. This is intentional: `pkg/qgo/quakego`
 is QuakeGo source (a Go dialect compiled to QCVM `progs.dat` bytecode by
 `cmd/qgo`), not regular Go library code. From the repo root, gopls/LSP may
 report `BrokenImport` errors for these packages — these are expected.
-[#AGENTS](#agents)
+[AGENTS](#ref-agents)
 
 ### The mechanical-port convention
 
@@ -365,7 +365,7 @@ structure. The QGo guide is explicit: *"Avoid cosmetic Go-idiom rewrites
 (tagged switches, merged var decls) there — they drift the port from
 `progs.src` and make resync harder."* `.golangci.yml` suppresses `unused`,
 `SA4017`, `QF1003`, and `S1021` for that package for the same reason.
-[#AGENTS](#agents) This is a *resync* concern specific to the QuakeGo side
+[AGENTS](#ref-agents) This is a *resync* concern specific to the QuakeGo side
 project, not the engine — the engine itself uses the original QC bytecode.
 
 ### How to use it
@@ -385,18 +385,23 @@ original `progs.dat` from the Quake data directory.
 
 ## References
 
-<a name="qcdocs"></a>[QCDocs] `docs/internal/qc.md`, ironwail-go repository.
+<a id="ref-agents"></a>[AGENTS] [`AGENTS.md`](../../AGENTS.md), ironwail-go repository.
 
-<a name="qcvm"></a>[QCVM] `docs/QCVM_ENTITY_SYNC.md`, ironwail-go repository.
+<a id="ref-hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. Local copy: `article/analysisfinal.pdf`; text extraction: `article/analysisfinal.txt`.
 
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
+<a id="ref-parity"></a>[Parity] [`docs/PARITY.md`](../../docs/PARITY.md), ironwail-go repository.
 
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
+<a id="ref-qcdocs"></a>[QCDocs] [`docs/internal/qc.md`](../../docs/internal/qc.md), ironwail-go repository.
 
-<a name="agents"></a>[AGENTS] `AGENTS.md`, ironwail-go repository.
+<a id="ref-qcvm"></a>[QCVM] [`docs/QCVM_ENTITY_SYNC.md`](../../docs/QCVM_ENTITY_SYNC.md), ironwail-go repository.
 
-<a name="qgoguide"></a>[QGoGuide] `docs/QGO_QUAKEGO_GUIDE.md`, ironwail-go
-repository.
+<a id="ref-qgoguide"></a>[QGoGuide] [`docs/QGO_QUAKEGO_GUIDE.md`](../../docs/QGO_QUAKEGO_GUIDE.md), ironwail-go repository.
 
-<a name="hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"*
-Northeastern University. Local copy: `article/analysisfinal.pdf`.
+<a id="ref-readme"></a>[README] [`README.md`](../../README.md), ironwail-go repository.
+
+
+[ironwail]: https://github.com/andrei-drexler/ironwail
+[gogpu]: https://github.com/gogpu/gogpu
+[scratchapixel]: https://www.scratchapixel.com/
+[webgpufundamentals]: https://webgpufundamentals.org/
+[oto]: https://github.com/ebitengine/oto

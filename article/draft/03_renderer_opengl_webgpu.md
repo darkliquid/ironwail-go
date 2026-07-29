@@ -48,7 +48,7 @@ Key characteristics of the C renderer:
 
 The water diagnosis doc captures the essential constraint: *"C Ironwail (OpenGL)
 renders the entire frame to a single framebuffer within one `R_RenderView` call.
-There are no intermediate command buffer submits."* [#WaterDiag](#waterdiag)
+There are no intermediate command buffer submits."* [WaterDiag](#ref-waterdiag)
 Everything — opaque, translucent, viewmodel, particles — draws into the same
 framebuffer in sequence. Blending just works because the destination buffer
 accumulates results naturally.
@@ -69,7 +69,7 @@ transparency (McGuire & Bavoil 2013). `R_BeginTranslucency` (`gl_rmain.c:1833`)
 checks `R_GetEffectiveAlphaMode() == ALPHAMODE_OIT` and, if so, binds a
 separate OIT framebuffer with accumulation and revealage textures, sets up
 stencil state, and renders translucent objects into it. A final OIT resolve
-pass composites the result back into the scene framebuffer. [#WaterDiag](#waterdiag)
+pass composites the result back into the scene framebuffer. [WaterDiag](#ref-waterdiag)
 
 ### OpenGL state machine
 
@@ -90,13 +90,13 @@ is `RenderFrame()` at `renderer_gogpu_frame.go:82`. The renderer package doc
 states its core design: *"abstracts the complexities of modern GPU APIs
 (specifically WebGPU via the `gogpu` library) and provides a unified interface
 for rendering 3D world geometry, 2D overlays, and special effects."*
-[#RendererDocs](#rendererdocs)
+[RendererDocs](#ref-rendererdocs)
 
 ### The CPU/GPU split
 
 The learning plan explains the mental model: *"the CPU writes a 'recipe'
 (commands) into a command buffer, the GPU executes it later. The CPU and GPU do
-not share memory directly."* [#LearningPlan](#learningplan) This is visible in
+not share memory directly."* [LearningPlan](#ref-learningplan) This is visible in
 the `DrawContext` struct (`renderer_gogpu.go:16`):
 
 ```go
@@ -124,7 +124,7 @@ and GPU preference. `DefaultCoreConfig()` returns `BackendGo`,
 is used for both windowed and headless/screenshot rendering. This is a direct
 consequence of WebGPU's design — you create an Instance, request an Adapter,
 open a Device, get a Queue. There is no implicit context like OpenGL's
-`wglMakeCurrent`. [#LearningPlan](#learningplan)
+`wglMakeCurrent`. [LearningPlan](#ref-learningplan)
 
 ### Explicit pipeline objects
 
@@ -202,7 +202,7 @@ functions convert `WorldVertex` slices to flat byte arrays for GPU upload:
 entities), `VertexBytes` (sky brushes), and `aliasVertexBytesInto` (alias
 models). The WGSL `VertexInput` struct in the shader must match. If any one
 disagrees, the GPU reads vertex data at wrong offsets — textures scramble,
-lighting artifacts appear, geometry disappears. [#VertexLayout](#vertexlayout)
+lighting artifacts appear, geometry disappears. [VertexLayout](#ref-vertexlayout)
 
 In C, each vertex type (world, alias, sprite) has its own vertex format and
 its own `glVertexAttribPointer` setup. The Go port unifies them into one
@@ -223,7 +223,7 @@ each texture individually before drawing the surfaces that use it. This works
 because OpenGL's state machine tolerates frequent `GL_Bind` calls (though it is
 slow). In WebGPU, binding individual textures per draw is impractical — bind
 group limits and the overhead of creating/rebinding per-texture would cripple
-performance. [#LearningPlan](#learningplan)
+performance. [LearningPlan](#ref-learningplan)
 
 ### The Go solution
 
@@ -248,7 +248,7 @@ The materials buffer is hardcoded to 256 entries, but `baseMaterials` is
 allocated as `textureCount + 2` without clamping. When a map has more than 254
 textures — as the qbj2 mod's `start` map does — a silent buffer overflow occurs.
 This is the **texture atlas overflow** bug, currently open.
-[#MaterialsDiag](#materialsdiag) It is a direct consequence of the atlas design:
+[MaterialsDiag](#ref-materialsdiag) It is a direct consequence of the atlas design:
 the C renderer's per-texture binding has no such limit.
 
 ---
@@ -265,13 +265,13 @@ function (`world_lightmap_gogpu.go:11`) handles this. Lightstyles (animated
 lighting like flickering lights) are evaluated per frame, and lightmap pages
 whose style changed are rebuilt. The fragment shader samples
 `worldLightmap` using the per-vertex `lightmapCoord` and `lightmapLayer`.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 C never allocates lightmaps for `SURF_DRAWTURB` (water/lava) surfaces — they
 are always fullbright. Ironwail added optional lit water via `r_litwater`. The
 Go port samples the lightmap when `litWater > 0.5` in the WGSL uniform,
 defaulting to `vec3<f32>(0.5)` (fullbright when multiplied by 2.0).
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -296,7 +296,7 @@ This is a modern rendering technique that goes beyond anything in C Ironwail's
 OpenGL path. It exists because WebGPU's compute shader support makes it natural
 to implement, and because the qbj3 stress maps push dynamic light counts that
 would be prohibitively expensive with a naive "loop all lights" approach.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ---
 
@@ -314,7 +314,7 @@ When enabled, the renderer replaces the sorted-translucent pass with a
 weighted-blended one (accumulation texture + revealage texture), avoiding the
 back-to-front sort. This mirrors C Ironwail's `ALPHAMODE_OIT` path, but the Go
 implementation is a separate render path rather than a state switch within the
-same pass. [#LearningPlan](#learningplan)
+same pass. [LearningPlan](#ref-learningplan)
 
 ---
 
@@ -338,14 +338,14 @@ ordered phases:
 
 The key parity principle from the water diagnosis: *"no face is drawn both
 opaquely and translucently. The split is by alpha value, not by pass."*
-[#WaterDiag](#waterdiag) Both passes use the same framebuffer (in C) or the
+[WaterDiag](#ref-waterdiag) Both passes use the same framebuffer (in C) or the
 same render pass (in Go). The Go port had to learn this the hard way — the
 original architecture split the frame into multiple `queue.Submit()` calls,
 and Vulkan drivers discarded the framebuffer contents between submits,
 causing translucent water to blend over black instead of opaque geometry.
 Commit `6802fc5` fixed this by drawing translucent liquid faces **within the
 world render pass itself**, matching C's single-framebuffer model.
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -360,7 +360,7 @@ camera is in water. The scene composite pass
 target to the swapchain, applying the warp if active. This adds an extra
 render pass and texture allocation that C does not strictly need (C applies the
 warp via OpenGL's `glScissor` and viewport tricks), but it is the clean
-WebGPU way to do post-processing. [#LearningPlan](#learningplan)
+WebGPU way to do post-processing. [LearningPlan](#ref-learningplan)
 
 ---
 
@@ -373,7 +373,7 @@ GL calls. The `flush2DOverlay` function (`renderer_gogpu_overlay.go:32`) does
 the blit. This approach reduces GPU draw calls for 2D (which can be hundreds of
 text characters and pic draws per frame) to a single fullscreen blit.
 Commit `3b9cfeb` pooled the overlay CPU buffer and cached the GPU texture to
-avoid per-frame allocation. [#RendererDocs](#rendererdocs)
+avoid per-frame allocation. [RendererDocs](#ref-rendererdocs)
 
 ---
 
@@ -402,17 +402,19 @@ and the specific bugs encountered at each stage.
 
 ## References
 
-<a name="rendererdocs"></a>[RendererDocs] `docs/internal/renderer.md`,
-ironwail-go repository.
+<a id="ref-learningplan"></a>[LearningPlan] [`docs/RENDERER_LEARNING_PLAN.md`](../../docs/RENDERER_LEARNING_PLAN.md), ironwail-go repository.
 
-<a name="learningplan"></a>[LearningPlan] `docs/RENDERER_LEARNING_PLAN.md`,
-ironwail-go repository.
+<a id="ref-materialsdiag"></a>[MaterialsDiag] [`docs/diagnoses/qbj2_materials.md`](../../docs/diagnoses/qbj2_materials.md), ironwail-go repository.
 
-<a name="vertexlayout"></a>[VertexLayout] `docs/VERTEX_LAYOUT.md`, ironwail-go
-repository.
+<a id="ref-rendererdocs"></a>[RendererDocs] [`docs/internal/renderer.md`](../../docs/internal/renderer.md), ironwail-go repository.
 
-<a name="waterdiag"></a>[WaterDiag] `docs/diagnoses/qbj2_water.md`, ironwail-go
-repository.
+<a id="ref-vertexlayout"></a>[VertexLayout] [`docs/VERTEX_LAYOUT.md`](../../docs/VERTEX_LAYOUT.md), ironwail-go repository.
 
-<a name="materialsdiag"></a>[MaterialsDiag]
-`docs/diagnoses/qbj2_materials.md`, ironwail-go repository.
+<a id="ref-waterdiag"></a>[WaterDiag] [`docs/diagnoses/qbj2_water.md`](../../docs/diagnoses/qbj2_water.md), ironwail-go repository.
+
+
+[ironwail]: https://github.com/andrei-drexler/ironwail
+[gogpu]: https://github.com/gogpu/gogpu
+[scratchapixel]: https://www.scratchapixel.com/
+[webgpufundamentals]: https://webgpufundamentals.org/
+[oto]: https://github.com/ebitengine/oto

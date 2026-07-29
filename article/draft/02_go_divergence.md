@@ -9,7 +9,7 @@ README states the intent:
 > with the following changes: gogpu/WebGPU as the canonical gameplay
 > renderer/runtime; dividing the codebase up into packages; use Go stdlib
 > for as much as possible, rather than custom implementations of things
-> from the original C codebase. [#README](#readme)
+> from the original C codebase. [README](#ref-readme)
 
 This is not a transliteration. It is a deliberate re-architecture that preserves
 behavioral parity while changing the substrate. Each divergence has a reason,
@@ -29,9 +29,9 @@ Go replaces all of this with the runtime garbage collector. `Hunk_Alloc` becomes
 `make()` or `new()`. Raw pointer arrays become slices. Manual `Z_Free` becomes
 implicit GC. The comparison doc states it plainly: *"Replaces `Hunk_Alloc` with
 standard `make()` or `new()` and utilizes slices instead of raw pointers for
-collections."* [#Comparison](#comparison) The boot sequence doc adds: *"The C
+collections."* [Comparison](#ref-comparison) The boot sequence doc adds: *"The C
 version's `parms.membase = malloc(parms.memsize)` is entirely absent in Go."*
-[#BootSeq](#bootseq)
+[BootSeq](#ref-bootseq)
 
 ### The cost: GC pressure in hot paths
 
@@ -63,7 +63,7 @@ proposal or custom region allocators: allocate a large `[]byte`, sub-allocate
 into it, and discard the whole backing array when the map changes. This would
 give deterministic cleanup for the bulk of per-map allocations (BSP data,
 models, textures) without the GC tax, while still being memory-safe. It is an
-open question, not a settled decision. [#AGENTS](#agents)
+open question, not a settled decision. [AGENTS](#ref-agents)
 
 ---
 
@@ -74,7 +74,7 @@ SDL mutexes and threads are used only for specific tasks: async loading,
 background music, and (in Ironwail) the renderer thread. The comparison doc
 notes: *"Primarily single-threaded, with some use of SDL mutexes and threads
 for specific tasks like async loading or background music."*
-[#Comparison](#comparison)
+[Comparison](#ref-comparison)
 
 Go replaces this with goroutines and channels, but the project does not naively
 parallelize the engine. The core simulation remains single-threaded — the
@@ -92,13 +92,13 @@ the parity rationale:
 > AsyncQueue. In the context of a game engine like Quake, many systems (like
 > save workers or mod downloaders) run in the background but need to update
 > the game state safely without racing against the client or server state.
-> [#AsyncDocs](#asyncdocs)
+> [AsyncDocs](#ref-asyncdocs)
 
 The queue uses `sync.Mutex` and `sync.Cond` for blocking behavior, and is drained
 once per frame in `Host.Frame`. The async doc is candid about the trade-off:
 *"While idiomatic Go might use an unbounded channel for this purpose,
 `async.Queue` mirrors the C implementation's bounded, blocking behavior and
-atomic drain semantics."* [#AsyncDocs](#asyncdocs)
+atomic drain semantics."* [AsyncDocs](#ref-asyncdocs)
 
 ### Dedicated render thread
 
@@ -107,7 +107,7 @@ event loop. The `OnDraw` callback (`renderer_gogpu_runtime.go:149`) registers
 the frame draw callback; `OnUpdate` (`:199`) registers the game logic update.
 The `MainThreadQueue` in `internal/host/mainthread.go` ensures that OS-sensitive
 operations (window management, renderer calls) execute on the correct thread.
-[#HostDocs](#hostdocs)
+[HostDocs](#ref-hostdocs)
 
 ### Audio streaming
 
@@ -116,14 +116,14 @@ DMA/sound-card drivers. Audio mixing still uses the same DMA-style buffer model
 (mirroring classic sound card behavior), but the output device is abstracted
 behind a `Backend` interface. The audio doc notes the mixer uses 24.8 fixed-point
 arithmetic in `SamplePair` for precision without floating-point overhead.
-[#AudioDocs](#audiodocs)
+[AudioDocs](#ref-audiodocs)
 
 ### Parallel asset loading
 
 The `internal/engine` package provides `ParallelLoad[T]` and `LoadPipeline[T]`
 using a worker-pool pattern with a buffered-channel semaphore for concurrency
 limiting. This is used during level loading to fetch multiple sounds, models,
-and textures concurrently. [#EngineDocs](#enginedocs)
+and textures concurrently. [EngineDocs](#ref-enginedocs)
 
 ---
 
@@ -169,7 +169,7 @@ the C source files it mirrors. For example, `internal/server/doc.go` names
 `sv_main.c`, `sv_phys.c`, `world.c`, and `pr_cmds.c`. This is not decoration —
 it is a navigation tool. Before refactoring a Go package, you read its lineage
 section to find the C counterpart, then study the C to understand the canonical
-behavior. [#AGENTS](#agents)
+behavior. [AGENTS](#ref-agents)
 
 ### The `pkg/qgo` exception
 
@@ -177,7 +177,7 @@ behavior. [#AGENTS](#agents)
 `go.mod` files, intentionally outside the root module. They are not importable by
 the engine. This is by design: `pkg/qgo/quakego` is QuakeGo source (a Go dialect
 compiled to QCVM `progs.dat` bytecode), not regular Go library code. The root
-module does not require or replace `pkg/qgo/*`. [#AGENTS](#agents) Chapter 5
+module does not require or replace `pkg/qgo/*`. [AGENTS](#ref-agents) Chapter 5
 covers QuakeGo in detail.
 
 ---
@@ -185,7 +185,7 @@ covers QuakeGo in detail.
 ## stdlib adoption: replacing custom Quake utilities
 
 The README states: *"Use Go stdlib for as much as possible, rather than custom
-implementations of things from the original C codebase."* [#README](#readme)
+implementations of things from the original C codebase."* [README](#ref-readme)
 In practice this means:
 
 - **String handling**: Quake's custom `COM_Parse` tokenizer and string utilities
@@ -194,14 +194,14 @@ In practice this means:
   quote/semicolon rules), but generic string manipulation uses stdlib.
 - **I/O**: `io.Reader` / `io.Writer` / `io.NewSectionReader` replace C's raw
   `FILE *` and byte-pointer I/O. The filesystem package uses `io.NewSectionReader`
-  to provide a standard `io.Reader` over a portion of a `.pak` file. [#FSDocs](#fsdocs)
+  to provide a standard `io.Reader` over a portion of a `.pak` file. [FSDocs](#ref-fsdocs)
 - **Containers**: `sync.Map`, `sync.Pool`, generic slices replace C's manual
   linked lists and arrays.
 - **Math**: `pkg/types` provides `Vec3` and `Mat4` as Go structs with both
   procedural (`Vec3Add`, `Vec3Dot`) and method (`v.Add`, `v.Dot`) APIs. The
   procedural functions follow C Quake's style for parity; the methods provide
   idiomatic Go. The doc notes: *"Both produce identical results."*
-  [#TypesPkg](#typespkg)
+  [TypesPkg](#ref-typespkg)
 
 ### Where custom code remains
 
@@ -222,7 +222,7 @@ semantics:
 
 `mise.toml` sets `CGO_ENABLED = "0"`. The project is pure Go. AGENTS.md states
 this as a hard rule: *"CGO is always off. The project is pure Go. Never
-introduce CGO dependencies."* [#AGENTS](#agents)
+introduce CGO dependencies."* [AGENTS](#ref-agents)
 
 This policy was not always in place. The git history tells a story:
 
@@ -239,7 +239,7 @@ The gogpu issue #157 opening body records the frustration:
 
 > I first attempted to tackle things using GoGPU as the rendering backend,
 > but eventually hit enough issues that I sadly switched to cgo GLFW code.
-> [#GogpuIssues](#gogpuissues)
+> [GogpuIssues](#ref-gogpuissues)
 
 The return came with commit `b2fb6e9` (2026-04-05: *"Retire gl+sdl (#11)"*),
 which removed the OpenGL renderer, the SDL input backend, and made Oto the
@@ -259,7 +259,7 @@ The canonical gameplay stack is now:
 
 `purego` appears as an indirect dependency — it is used by the gogpu stack
 for cgo-free FFI to platform libraries where needed, but the engine itself
-compiles with `CGO_ENABLED=0`. [#Comparison](#comparison)
+compiles with `CGO_ENABLED=0`. [Comparison](#ref-comparison)
 
 ---
 
@@ -269,7 +269,7 @@ The C engine uses `in_sdl.c` to interface with SDL2 for keyboard, mouse, and
 gamepad events. The input handling comparison doc explains the divergence:
 *"Go uses `internal/input/` as a backend-neutral abstraction layer. The active
 runtime backend is supplied by the executable/renderer integration rather than
-by a package-local SDL implementation."* [#InputHandling](#inputhandling)
+by a package-local SDL implementation."* [InputHandling](#ref-inputhandling)
 
 In practice, this means:
 - `internal/input` defines a `Backend` interface and `System` type that
@@ -284,7 +284,7 @@ In practice, this means:
 The Go implementation maintains identical Quake keycodes (`KMWheelUp`,
 `KMouse1`, etc.) to ensure compatibility with `config.cfg` and
 `autoexec.cfg`. Gamepad support is currently initial (deadzones only), compared
-to C Ironwail's extensive gyro/rumble support. [#InputHandling](#inputhandling)
+to C Ironwail's extensive gyro/rumble support. [InputHandling](#ref-inputhandling)
 
 The gogpu input bugs that forced the cgo detour (issues #129, #173, #175) are
 covered in Chapter 6.
@@ -296,7 +296,7 @@ covered in Chapter 6.
 The comparison doc states the goal: *"high-fidelity parity,"* meaning
 identical `progs.dat` execution, identical physics and movement, visual parity
 with the GoGPU renderer, and support for standard Quake data files.
-[#Comparison](#comparison)
+[Comparison](#ref-comparison)
 
 This is enforced through several mechanisms:
 
@@ -334,7 +334,7 @@ contract.
 Ironwail. `mise run parity-go` captures matching GoGPU screenshots.
 `mise run parity-compare` writes visual diffs and exits nonzero if any scene
 exceeds the configured mismatch threshold. This is a real CI gate, not a
-manual eyeball check. [#README](#readme)
+manual eyeball check. [README](#ref-readme)
 
 ### The brutalist jam maps as integration tests
 
@@ -345,7 +345,7 @@ buffer is hardcoded to 256 entries but the map has more), the lit-water fallback
 mismatch, and the QCVM entity-sync pusher/non-pusher bug chain (the lift trigger
 stack). The qbj3 mod's `qbj3_stickflip` map is the current priority stress case:
 85,936 raw faces, 750 models, 106 textures, 1,295 lit-water faces, 228 sky
-faces. [#Parity](#parity)
+faces. [Parity](#ref-parity)
 
 These maps are the unforgiving test. If a parity claim survives a qbj sweep,
 it is real.
@@ -370,7 +370,7 @@ it is real.
 The Go runtime no longer carries parallel legacy renderer/input/audio variants.
 The canonical gameplay stack is GoGPU rendering, renderer-provided input, and
 Oto audio. There are no build tags selecting between renderers — the gogpu
-renderer is always compiled. [#Comparison](#comparison) [#AGENTS](#agents)
+renderer is always compiled. [Comparison](#ref-comparison) [AGENTS](#ref-agents)
 
 ---
 
@@ -390,35 +390,35 @@ what replacing it with WebGPU means.
 
 ## References
 
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
+<a id="ref-agents"></a>[AGENTS] [`AGENTS.md`](../../AGENTS.md), ironwail-go repository.
 
-<a name="agents"></a>[AGENTS] `AGENTS.md`, ironwail-go repository.
+<a id="ref-asyncdocs"></a>[AsyncDocs] [`docs/internal/async.md`](../../docs/internal/async.md), ironwail-go repository.
 
-<a name="comparison"></a>[Comparison] `docs/COMPARISON.md`, ironwail-go
-repository.
+<a id="ref-audiodocs"></a>[AudioDocs] [`docs/internal/audio.md`](../../docs/internal/audio.md), ironwail-go repository.
 
-<a name="bootseq"></a>[BootSeq] `docs/BOOT_SEQUENCE.md`, ironwail-go repository.
+<a id="ref-bootseq"></a>[BootSeq] [`docs/BOOT_SEQUENCE.md`](../../docs/BOOT_SEQUENCE.md), ironwail-go repository.
 
-<a name="inputhandling"></a>[InputHandling] `docs/INPUT_HANDLING.md`,
-ironwail-go repository.
+<a id="ref-comparison"></a>[Comparison] [`docs/COMPARISON.md`](../../docs/COMPARISON.md), ironwail-go repository.
 
-<a name="hostdocs"></a>[HostDocs] `docs/internal/host.md`, ironwail-go
-repository.
+<a id="ref-enginedocs"></a>[EngineDocs] [`docs/internal/engine.md`](../../docs/internal/engine.md), ironwail-go repository.
 
-<a name="asyncdocs"></a>[AsyncDocs] `docs/internal/async.md`, ironwail-go
-repository.
+<a id="ref-fsdocs"></a>[FSDocs] [`docs/internal/fs.md`](../../docs/internal/fs.md), ironwail-go repository.
 
-<a name="audiodocs"></a>[AudioDocs] `docs/internal/audio.md`, ironwail-go
-repository.
+<a id="ref-gogpuissues"></a>[GogpuIssues] `article/gogpu_issues.md` (transcript of gogpu/gogpu issues).
 
-<a name="enginedocs"></a>[EngineDocs] `docs/internal/engine.md`, ironwail-go
-repository.
+<a id="ref-hostdocs"></a>[HostDocs] [`docs/internal/host.md`](../../docs/internal/host.md), ironwail-go repository.
 
-<a name="fsdocs"></a>[FSDocs] `docs/internal/fs.md`, ironwail-go repository.
+<a id="ref-inputhandling"></a>[InputHandling] [`docs/INPUT_HANDLING.md`](../../docs/INPUT_HANDLING.md), ironwail-go repository.
 
-<a name="typespkg"></a>[TypesPkg] `pkg/types/types.go`, ironwail-go repository.
+<a id="ref-parity"></a>[Parity] [`docs/PARITY.md`](../../docs/PARITY.md), ironwail-go repository.
 
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
+<a id="ref-readme"></a>[README] [`README.md`](../../README.md), ironwail-go repository.
 
-<a name="gogpuissues"></a>[GogpuIssues] `article/gogpu_issues.md` (transcript
-of gogpu/gogpu issues, fetched 2026-07-27).
+<a id="ref-typespkg"></a>[TypesPkg] [`pkg/types/types.go`](../../pkg/types/types.go), ironwail-go repository.
+
+
+[ironwail]: https://github.com/andrei-drexler/ironwail
+[gogpu]: https://github.com/gogpu/gogpu
+[scratchapixel]: https://www.scratchapixel.com/
+[webgpufundamentals]: https://webgpufundamentals.org/
+[oto]: https://github.com/ebitengine/oto

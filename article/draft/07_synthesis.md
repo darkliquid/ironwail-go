@@ -4,7 +4,7 @@
 school days spent hacking Quake mods, a desire to test modern AI agentic coding
 capabilities on a non-trivial codebase, and a technical curiosity to see if a
 1996 3D engine could be re-architected into pure, safe Go with a WebGPU renderer
-and zero C dependencies. [#README](#readme)
+and zero C dependencies. [README](#ref-readme)
 
 Six chapters later, the engine runs. It loads BSP maps, executes QuakeC bytecode,
 simulates player and monster physics, streams spatialized audio via Oto, and
@@ -31,7 +31,7 @@ engines:
   never retrofitted — they are structural.
 - **BSP and PVS visibility culling** continues to excel. On `qbj3_stickflip`, a
   massive map with 85,936 raw faces and 22,195 leaves, the PVS lookup instantly
-  reduces the first rendered frame to just 1,002 visible faces. [#Parity](#parity)
+  reduces the first rendered frame to just 1,002 visible faces. [Parity](#ref-parity)
 - **The command system** (`cmdsys`) as a unified control path for keybindings,
   console execution, menus, configuration files, and script automation remains
   unmatched for engine debuggability.
@@ -114,7 +114,7 @@ pointer arithmetic connects engine code (`ed->v.velocity`) and bytecode
 Because Go forbids pointer arithmetic and requires type safety, `ironwail-go`
 operates with **dual storage**: typed Go structs (`Edict.Vars`) for engine physics/networking, and a flat `QCVM.Edicts []byte` array for VM bytecode. Syncing data back and forth via reflection (`syncAllToQCVM` / `syncAllFromQCVM`) at every QuakeC callback introduces an O(numEdicts × numFields) tax. The `qbj3` CPU profiles showed that edict synchronization is one of the heaviest CPU consumers in the entire server frame.
 
-While the unified sync fixed fragile selective-sync bugs (like the `qbj2` lift trigger failure), the long-term resolution requires completing the migration to direct-VM accessor methods (`Edict.Velocity()`, `Edict.SetVelocity()`), deleting `EntVars` and `server_qc_sync.go` entirely to achieve C's zero-sync model. [#QCVM](#qcvm)
+While the unified sync fixed fragile selective-sync bugs (like the `qbj2` lift trigger failure), the long-term resolution requires completing the migration to direct-VM accessor methods (`Edict.Velocity()`, `Edict.SetVelocity()`), deleting `EntVars` and `server_qc_sync.go` entirely to achieve C's zero-sync model. [QCVM](#ref-qcvm)
 
 ### 3. Naga compiler and desktop windowing maturity
 
@@ -141,7 +141,7 @@ lighting to limits that exposed rendering and CPU bottlenecks that clean standar
 
 ## Reflection on multi-agent agentic coding
 
-`ironwail-go` was developed as an agentic coding experiment under the "Senior-Junior" partnership model codified in `AGENTS.md` — the human engineer acts as architect and reviewer, while AI agents perform code translation, refactoring, and test writing. [#AGENTS](#agents)
+`ironwail-go` was developed as an agentic coding experiment under the "Senior-Junior" partnership model codified in `AGENTS.md` — the human engineer acts as architect and reviewer, while AI agents perform code translation, refactoring, and test writing. [AGENTS](#ref-agents)
 
 Crucially, **the project was not built by a single AI model.** Work was distributed across multiple agents over the course of the port:
 
@@ -212,13 +212,13 @@ Completing steps 3–5 of the QCVM migration plan:
 - Delete `EntVars` and `internal/server/server_qc_sync.go`.
 - Remove `syncAllToQCVM` and `syncAllFromQCVM` calls from `executeQCFunction`.
 
-This will achieve C Quake's zero-sync architecture, eliminating the reflection overhead and matching native VM performance. [#QCVM](#qcvm)
+This will achieve C Quake's zero-sync architecture, eliminating the reflection overhead and matching native VM performance. [QCVM](#ref-qcvm)
 
 ### 4. Continued parity closure & CSQC integration
 
 - **Texture atlas storage upgrade:** Replace the uniform buffer materials array with
   a storage buffer (`var<storage, read> materials`) to remove the hardcoded
-  256-texture limit, fully resolving the `qbj2` atlas overflow bug. [#MaterialsDiag](#materialsdiag)
+  256-texture limit, fully resolving the `qbj2` atlas overflow bug. [MaterialsDiag](#ref-materialsdiag)
 - **CSQC wiring:** Complete host and client runtime integration for Client-Side
   QuakeC (`csprogs.dat`), bringing full support for custom mod HUDs and client-side
   predicted entities.
@@ -243,12 +243,19 @@ Even as features are added and parity gaps close, the codebase's lasting value r
 
 ## References
 
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
+<a id="ref-agents"></a>[AGENTS] [`AGENTS.md`](../../AGENTS.md), ironwail-go repository.
 
-<a name="agents"></a>[AGENTS] `AGENTS.md`, ironwail-go repository.
+<a id="ref-materialsdiag"></a>[MaterialsDiag] [`docs/diagnoses/qbj2_materials.md`](../../docs/diagnoses/qbj2_materials.md), ironwail-go repository.
 
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
+<a id="ref-parity"></a>[Parity] [`docs/PARITY.md`](../../docs/PARITY.md), ironwail-go repository.
 
-<a name="qcvm"></a>[QCVM] `docs/QCVM_ENTITY_SYNC.md`, ironwail-go repository.
+<a id="ref-qcvm"></a>[QCVM] [`docs/QCVM_ENTITY_SYNC.md`](../../docs/QCVM_ENTITY_SYNC.md), ironwail-go repository.
 
-<a name="materialsdiag"></a>[MaterialsDiag] `docs/diagnoses/qbj2_materials.md`, ironwail-go repository.
+<a id="ref-readme"></a>[README] [`README.md`](../../README.md), ironwail-go repository.
+
+
+[ironwail]: https://github.com/andrei-drexler/ironwail
+[gogpu]: https://github.com/gogpu/gogpu
+[scratchapixel]: https://www.scratchapixel.com/
+[webgpufundamentals]: https://webgpufundamentals.org/
+[oto]: https://github.com/ebitengine/oto

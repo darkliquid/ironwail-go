@@ -6,9 +6,9 @@ Quake engine — not the software renderer's scanline rasterizer, not the
 Win32 platform glue, but the *core engine*: the simulation, the scripting
 VM, the world representation, the networking, and the rendering contract.
 It draws on two sources: Zachary Hickman's academic analysis of the Quake
-engine, written for Northeastern University [#Hickman](#hickman), and the
+engine, written for Northeastern University [Hickman](#ref-hickman), and the
 formal behavior specification in `docs/QUAKE_SPECIFICATION.md`
-[#Spec](#spec), cross-referenced against the C source in `ironwail/Quake/`.
+[Spec](#ref-spec), cross-referenced against the C source in `ironwail/Quake/`.
 
 ---
 
@@ -16,7 +16,7 @@ formal behavior specification in `docs/QUAKE_SPECIFICATION.md`
 
 Hickman opens with the observation that *"defining what sort of time the
 game loop is based on [...] is critical, as all sub-processes of the engine
-are related to the selection and definition of time."* [#Hickman](#hickman)
+are related to the selection and definition of time."* [Hickman](#ref-hickman)
 Quake's answer is unambiguous: **time is real time.** The engine measures
 wall-clock seconds via `Sys_DoubleTime()`, computes a delta, and passes it
 to `Host_Frame`. Here is the C Ironwail main loop, simplified from
@@ -66,7 +66,7 @@ void _Host_Frame (double time)
 ```
 
 Hickman summarized this as three phases: *"Network, Prediction/Collision,
-and Rendition."* [#Hickman](#hickman) But there is a subtlety he did not
+and Rendition."* [Hickman](#ref-hickman) But there is a subtlety he did not
 emphasize: **the server and the renderer run at different rates.** The
 renderer can run at `host_maxfps` (default 250 in Ironwail), but the server
 ticks at a fixed `host_netinterval` (72 Hz for network play). The
@@ -76,14 +76,14 @@ This is the same pattern the Go port preserves — the `internal/host`
 package's `Frame()` method in `frame.go` implements the same timing logic,
 and the `FrameCallbacks` interface (`GetEvents`, `ProcessConsoleCommands`,
 `ProcessServer`, `ProcessClient`, `UpdateScreen`, `UpdateAudio`) mirrors
-the C call sequence. [#HostDocs](#hostdocs)
+the C call sequence. [HostDocs](#ref-hostdocs)
 
 ---
 
 ## Resource management: the Hunk, the Zone, and the Cache
 
 Quake manages memory through three mechanisms, each with a different
-lifecycle. Hickman covers all three [#Hickman](#hickman); the C code lives
+lifecycle. Hickman covers all three [Hickman](#ref-hickman); the C code lives
 in `common.c`.
 
 ### The Hunk
@@ -135,7 +135,7 @@ This is the single most important architectural fact about Quake, and the
 > The most important thing to understand about the Quake engine (and thus
 > Ironwail Go) is that it is fundamentally a **client-server application**,
 > even when playing single-player.
-> [#LearningGuide](#learningguide)
+> [LearningGuide](#ref-learningguide)
 
 ### The server is the source of truth
 
@@ -205,7 +205,7 @@ package doc explains, the client does five things each frame:
    for a server round-trip.
 5. **Interpolate** — `LerpPoint` computes a 0.0–1.0 fraction to smoothly
    interpolate entity positions between server updates (which arrive at
-   20 Hz, while the renderer may run at 250 Hz). [#ClientDocs](#clientdocs)
+   20 Hz, while the renderer may run at 250 Hz). [ClientDocs](#ref-clientdocs)
 
 ### The signon sequence
 
@@ -224,7 +224,7 @@ multi-stage "signon" sequence. The formal specification
 The walkthrough doc puts it bluntly: *"single-player is not a shortcut
 around the network model. It is the same conceptual client/server
 lifecycle, just connected in-process"* via a loopback socket.
-[#WalkSP](#walksp) In multiplayer, the same protocol runs over UDP.
+[WalkSP](#ref-walksp) In multiplayer, the same protocol runs over UDP.
 
 ### Entity snapshots and delta compression
 
@@ -235,7 +235,7 @@ missed, the client must "force link" (snap) to the new position. The
 specification notes: *"the client maintains the previous frame's state to
 interpolate positions and angles. If a frame is missed, the client must
 'force link' (snap) to the new position to prevent visual glitches."*
-[#Spec](#spec) In C, this lives in `cl_parse.c`'s `CL_ParseDelta`.
+[Spec](#ref-spec) In C, this lives in `cl_parse.c`'s `CL_ParseDelta`.
 
 ---
 
@@ -255,11 +255,11 @@ Quake's asset system is a virtual filesystem. The formal specification
 The PAK format is simple: a `PACK` header (4 bytes), a directory offset
 (int32), and a directory length (int32). Each directory entry is a 56-byte
 null-terminated filename, a position (int32), and a length (int32).
-Lookups are case-insensitive. [#Spec](#spec) In C, this lives in
+Lookups are case-insensitive. [Spec](#ref-spec) In C, this lives in
 `common.c` (`COM_InitFilesystem`, `COM_AddGameDirectory`,
 `COM_LoadPackFile`). The Go port's `internal/fs` package mirrors this
 exactly, including path-sanitization security checks against directory
-traversal. [#FSDocs](#fsdocs)
+traversal. [FSDocs](#ref-fsdocs)
 
 ---
 
@@ -270,7 +270,7 @@ explains:
 
 > A `.bsp` file is a list of vertices, edges, faces, planes, and leaves.
 > You do not need to parse it yourself [...] but you must understand that
-> the world is "one big mesh with extra metadata". [#BSPDocs](#bspdocs)
+> the world is "one big mesh with extra metadata". [BSPDocs](#ref-bspdocs)
 
 ### What BSP gives you
 
@@ -327,7 +327,7 @@ trigger entities overlapping a given entity.
 Hickman notes that Quake's scripting system allowed modders to *"change
 the game without having the C source code"* and that scripts are
 *"processed by the exec command and sent to cmd.h to be run."*
-[#Hickman](#hickman) But the scripting system is far more sophisticated
+[Hickman](#ref-hickman) But the scripting system is far more sophisticated
 than that summary suggests.
 
 ### What QuakeC is
@@ -387,7 +387,7 @@ accesses via `ed->v.field`. The macros are pure pointer arithmetic:
 **There is no sync.** When QuakeC sets `self.nextthink`, the engine sees
 it immediately. When the engine sets `ent->v.velocity`, QuakeC sees it
 immediately. All entity fields are accessible by both C and QC through the
-same memory. [#QCVM](#qcvm) This is elegant and fast — and it is the
+same memory. [QCVM](#ref-qcvm) This is elegant and fast — and it is the
 third thing the Go port has to replace (covered in Chapter 5).
 
 ### The interpreter loop
@@ -406,7 +406,7 @@ net against QC bugs hanging the engine.
 
 Hickman covers scripting in §XIV, noting that scripts can set variables
 (`/set`, `/unset`), create aliases, and run macros from `.cfg` files.
-[#Hickman](#hickman) The deeper architectural point is that **everything
+[Hickman](#ref-hickman) The deeper architectural point is that **everything
 in the engine is a command**. When you press a key, it's bound to a
 command (e.g., `+forward`). When you click a menu item, it queues a
 command (e.g., `map start`). When the engine starts, it executes
@@ -423,13 +423,13 @@ The `cmdsys` package doc explains the dispatch flow:
    and semicolons).
 5. **Dispatch** — the first token is looked up: if it matches a command,
    its handler is called; if an alias, it's expanded into the buffer; if
-   a cvar, it's treated as a set operation. [#CmdSysDocs](#cmdsysdocs)
+   a cvar, it's treated as a set operation. [CmdSysDocs](#ref-cmdsysdocs)
 
 This design means the console, the menu, config files, and automation
 all use the same control path. The single-player walkthrough notes:
 *"menu actions are mostly command producers"* — choosing New Game queues
 `disconnect`, `maxplayers 1`, `deathmatch 0`, `coop 0`, `map start`.
-[#WalkSP](#walksp)
+[WalkSP](#ref-walksp)
 
 ### Cvars
 
@@ -437,7 +437,7 @@ Cvars (console variables) store engine state and configuration. They have
 flags: `FlagArchive` (saved to `config.cfg`), `FlagROM` (read-only),
 `FlagAutoCvar` (auto-synced to an engine variable). Cvars fire callbacks
 when their value changes. The formal specification covers them in §2.3.
-[#Spec](#spec)
+[Spec](#ref-spec)
 
 ---
 
@@ -446,7 +446,7 @@ when their value changes. The formal specification covers them in §2.3.
 Quake's networking model is UDP-based, even for single-player (where it
 uses a loopback driver). Hickman covers the file structure in §XIII,
 listing the `net_*` files for IPX, UDP, serial, loopback, and the VCR
-playback driver. [#Hickman](#hickman)
+playback driver. [Hickman](#ref-hickman)
 
 ### The protocol
 
@@ -455,7 +455,7 @@ versions: `PROTOCOL_NETQUAKE` (15, the original), `PROTOCOL_FITZQUAKE`
 (666, Ironwail's extended protocol with larger entity counts and
 additional message types), and `PROTOCOL_RMQ` (999, further extensions for
 large-map coordinates). The Go port defaults to `PROTOCOL_RMQ` (999) to
-support large-map coordinates. [#Spec](#spec)
+support large-map coordinates. [Spec](#ref-spec)
 The `internal/net` package doc explains the messaging model:
 
 - **Reliable messages** use a stop-and-wait ARQ protocol. Payloads larger
@@ -463,7 +463,7 @@ The `internal/net` package doc explains the messaging model:
   state (map changes, precaches, signon).
 - **Unreliable messages** are fire-and-forget. Used for frequently updated
   state (entity positions) where losing a packet is preferable to waiting
-  for retransmission. [#NetDocs](#netdocs)
+  for retransmission. [NetDocs](#ref-netdocs)
 
 The wire format uses `SVC_*` (server-to-client) and `CLC_*`
 (client-to-server) message type constants, defined in
@@ -476,7 +476,7 @@ headers.
 
 Hickman covers the rendering system in §IV, noting that *"Quake uses
 OpenGL for the drawing of all graphics in the game"* and that rendering
-*"mostly revolves around Alias models."* [#Hickman](#hickman) The C
+*"mostly revolves around Alias models."* [Hickman](#ref-hickman) The C
 Ironwail renderer is a modernized OpenGL path (core profile, shaders) in
 `gl_*.c` and `r_*.c`. The key entry point is `R_RenderView` in
 `gl_rmain.c`, which:
@@ -499,7 +499,7 @@ WebGPU — is the subject of Chapters 3 and 4.
 
 ## Game object models: alias, sprite, BSP
 
-Hickman covers all three in §IX. [#Hickman](#hickman)
+Hickman covers all three in §IX. [Hickman](#ref-hickman)
 
 ### Alias models (MDL)
 
@@ -511,7 +511,7 @@ Alias models represent players, monsters, and items. The format is
 - A list of vertices and triangles.
 - **Animation frames** — each frame has min/max bounding box values, a
   name, and an array of vertices (3D position + packed normal). Animation
-  is achieved by interpolating between frames. [#Hickman](#hickman)
+  is achieved by interpolating between frames. [Hickman](#ref-hickman)
   The `internal/model` package and `internal/renderer/alias/` handle these
   in the Go port.
 
@@ -520,7 +520,7 @@ Alias models represent players, monsters, and items. The format is
 Sprites are 2D billboards that always face the camera. They are faster to
 render than alias models and are used for explosions, pickups, and other
 detailed static objects. The format is `IDSP`, version 1. A sprite is a
-list of 2D pictures organized into frames. [#Hickman](#hickman)
+list of 2D pictures organized into frames. [Hickman](#ref-hickman)
 
 ### BSP models (submodels)
 
@@ -528,7 +528,7 @@ A BSP file contains multiple "models." Model 0 is the world itself.
 Models 1+ are submodels — brush entities like doors, platforms, and
 triggers that are part of the BSP geometry but can move independently.
 The server loads these as `*1`, `*2`, etc. and assigns them to entities
-via `setmodel()`. [#BSPDocs](#bspdocs)
+via `setmodel()`. [BSPDocs](#ref-bspdocs)
 
 ---
 
@@ -538,7 +538,7 @@ The audio subsystem splits into files prefixed `snd_`. `snd_dma.c` is
 the main control for streaming sound output. Sound volume and panning are
 **spatialized**: volume decreases with distance (attenuation), and panning
 is calculated using the dot product between the listener's right vector and
-the vector to the sound source. [#Spec](#spec) The Go port uses the
+the vector to the sound source. [Spec](#ref-spec) The Go port uses the
 [Oto][oto] library for audio output, replacing the C DMA/sound-card
 drivers.
 
@@ -563,7 +563,7 @@ detection, and physics. The key functions include:
 
 Three of these — `Invert24To16`, `TransformVector`, and `BoxOnPlaneSide`
 — had hand-optimized assembly implementations in `math.s` / `matha.s` for
-the original software renderer. [#Hickman](#hickman) The Go port replaces
+the original software renderer. [Hickman](#ref-hickman) The Go port replaces
 all of this with pure-Go `float32` math in `pkg/types` and inline
 operations, relying on the Go compiler's optimization.
 
@@ -594,37 +594,31 @@ the Go port changes, and Chapter 2 begins that story.
 
 ## References
 
-<a name="hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"*
-Northeastern University. Local copy: `article/analysisfinal.pdf`.
+<a id="ref-bspdocs"></a>[BSPDocs] [`docs/internal/bsp.md`](../../docs/internal/bsp.md), ironwail-go repository.
 
-<a name="spec"></a>[Spec] `docs/QUAKE_SPECIFICATION.md`, ironwail-go
-repository.
+<a id="ref-clientdocs"></a>[ClientDocs] [`docs/internal/client.md`](../../docs/internal/client.md), ironwail-go repository.
 
-<a name="learningguide"></a>[LearningGuide] `docs/LEARNING_GUIDE.md`,
-ironwail-go repository.
+<a id="ref-cmdsysdocs"></a>[CmdSysDocs] [`docs/internal/cmdsys.md`](../../docs/internal/cmdsys.md), ironwail-go repository.
 
-<a name="hostdocs"></a>[HostDocs] `docs/internal/host.md`, ironwail-go
-repository.
+<a id="ref-fsdocs"></a>[FSDocs] [`docs/internal/fs.md`](../../docs/internal/fs.md), ironwail-go repository.
 
-<a name="clientdocs"></a>[ClientDocs] `docs/internal/client.md`,
-ironwail-go repository.
+<a id="ref-hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. Local copy: `article/analysisfinal.pdf`; text extraction: `article/analysisfinal.txt`.
 
-<a name="walksp"></a>[WalkSP]
-`docs/WALKTHROUGH_SINGLEPLAYER_FORWARD.md`, ironwail-go repository.
+<a id="ref-hostdocs"></a>[HostDocs] [`docs/internal/host.md`](../../docs/internal/host.md), ironwail-go repository.
 
-<a name="fsdocs"></a>[FSDocs] `docs/internal/fs.md`, ironwail-go
-repository.
+<a id="ref-learningguide"></a>[LearningGuide] [`docs/LEARNING_GUIDE.md`](../../docs/LEARNING_GUIDE.md), ironwail-go repository.
 
-<a name="bspdocs"></a>[BSPDocs] `docs/internal/bsp.md`, ironwail-go
-repository.
+<a id="ref-netdocs"></a>[NetDocs] [`docs/internal/net.md`](../../docs/internal/net.md), ironwail-go repository.
 
-<a name="qcvm"></a>[QCVM] `docs/QCVM_ENTITY_SYNC.md`, ironwail-go
-repository.
+<a id="ref-qcvm"></a>[QCVM] [`docs/QCVM_ENTITY_SYNC.md`](../../docs/QCVM_ENTITY_SYNC.md), ironwail-go repository.
 
-<a name="cmdsysdocs"></a>[CmdSysDocs] `docs/internal/cmdsys.md`,
-ironwail-go repository.
+<a id="ref-spec"></a>[Spec] [`docs/QUAKE_SPECIFICATION.md`](../../docs/QUAKE_SPECIFICATION.md), ironwail-go repository.
 
-<a name="netdocs"></a>[NetDocs] `docs/internal/net.md`, ironwail-go
-repository.
+<a id="ref-walksp"></a>[WalkSP] [`docs/WALKTHROUGH_SINGLEPLAYER_FORWARD.md`](../../docs/WALKTHROUGH_SINGLEPLAYER_FORWARD.md), ironwail-go repository.
 
+
+[ironwail]: https://github.com/andrei-drexler/ironwail
+[gogpu]: https://github.com/gogpu/gogpu
+[scratchapixel]: https://www.scratchapixel.com/
+[webgpufundamentals]: https://webgpufundamentals.org/
 [oto]: https://github.com/ebitengine/oto

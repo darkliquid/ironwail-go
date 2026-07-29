@@ -2,17 +2,19 @@
 
 ## Table of Contents
 
-- [Prologue: Why Port Quake to Go in 2026](#prologue-why-port-quake-to-go-in-2026)
-- [Chapter 1: How the Quake Engine Actually Works](#chapter-1-how-the-quake-engine-actually-works)
-- [Chapter 2: The Go Divergence — From C Hunk to GC, From OpenGL to WebGPU](#chapter-2-the-go-divergence--from-c-hunk-to-gc-from-opengl-to-webgpu)
-- [Chapter 3: The Renderer — OpenGL Then, WebGPU Now](#chapter-3-the-renderer--opengl-then-webgpu-now)
-- [Chapter 4: Render Stages, Broken Down](#chapter-4-render-stages-broken-down)
-- [Chapter 5: The Modding System and the QuakeC VM](#chapter-5-the-modding-system-and-the-quakec-vm)
-- [Chapter 6: GoGPU — Pure-Go WebGPU in Practice](#chapter-6-gogpu--pure-go-webgpu-in-practice)
-- [Chapter 7: Synthesis — What Was Learned, and Where It Goes](#chapter-7-synthesis--what-was-learned-and-where-it-goes)
+- [Prologue: Why Port Quake to Go in 2026](#prologue)
+- [Chapter 1: How the Quake Engine Actually Works](#chapter-1)
+- [Chapter 2: The Go Divergence — From C Hunk to GC, From OpenGL to WebGPU](#chapter-2)
+- [Chapter 3: The Renderer — OpenGL Then, WebGPU Now](#chapter-3)
+- [Chapter 4: Render Stages, Broken Down](#chapter-4)
+- [Chapter 5: The Modding System and the QuakeC VM](#chapter-5)
+- [Chapter 6: GoGPU — Pure-Go WebGPU in Practice](#chapter-6)
+- [Chapter 7: Synthesis — What Was Learned, and Where It Goes](#chapter-7)
+- [Consolidated References and Sources](#ref-consolidated)
 
 ---
 
+<a id="prologue"></a>
 # Prologue: Why Port Quake to Go in 2026
 
 In 1996, id Software published Quake. It was the first fully-3D first-person
@@ -23,7 +25,7 @@ for game logic, and a software (later OpenGL) renderer — set patterns that
 game engines still follow thirty years later. Zachary Hickman, in an academic
 analysis of the engine written for Northeastern University, framed it
 succinctly: *"The impressive feature improvements required a much more
-comprehensive engine."* [#Hickman](#hickman)
+comprehensive engine."* [Hickman](#ref-hickman)
 
 This is the story of re-implementing that engine in Go.
 
@@ -43,7 +45,7 @@ The README states the intent plainly:
 > experiment to get more experience with agentic coding and furthermore to
 > learn more about the Quake engine, game programming and indulge in a bit
 > of nostalgia from my school days of hacking together Quake mods and maps.
-> [#README](#readme)
+> [README](#ref-readme)
 
 Three threads run through the whole project, and through this article:
 
@@ -57,7 +59,7 @@ no."* A large portion of the codebase was written by AI agents converting C
 to Go, but under a human-as-architect-and-reviewer model that the project's
 `AGENTS.md` codifies as a "Senior-Junior partnership" — the human acts as
 architect and reviewer, the agent as a fast, literal-minded junior
-engineer. [#AGENTS](#agents)
+engineer. [AGENTS](#ref-agents)
 
 And critically: it was not one agent. The git history attributes work across
 several different models:
@@ -107,17 +109,17 @@ experience. This shows up concretely in:
   all the way to "read `RenderFrame()` top to bottom and explain every
   line," citing [Scratchapixel][scratchapixel] for theory and
   [webgpufundamentals][webgpufundamentals] for API practice, with
-  build-it-yourself milestones at each stage. [#LearningPlan](#learningplan)
+  build-it-yourself milestones at each stage. [LearningPlan](#ref-learningplan)
 - **The `// Where in C:` citation convention** in tests, e.g.
   `// Where in C: SV_WalkMove in sv_phys.c`, anchoring every behavioral
   assertion to the canonical reference.
 - **`bspdiag`** — an offline BSP inspection CLI (`cmd/bspdiag`) built so
   that anyone can inspect map lumps, entities, leaf contents, lightmaps, and
-  liquid alpha settings without writing scratch scripts. [#AGENTS](#agents)
+  liquid alpha settings without writing scratch scripts. [AGENTS](#ref-agents)
 - **Parity test names that document the invariant being protected** — e.g.
   `TestExecuteProgramRunawayLoopLimitConstantMatchesC` asserts the
   runaway-loop limit is exactly `0x1000000`, and the name itself explains
-  *why* that constant matters for mod compatibility. [#QCDocs](#qcdocs)
+  *why* that constant matters for mod compatibility. [QCDocs](#ref-qcdocs)
 
 This article is written in the same spirit. It explains Quake-specific and
 WebGPU-specific concepts inline rather than assuming them, and it cites
@@ -143,7 +145,7 @@ documentation is shot through with their specifics:
   fallback mismatch, and the QCVM entity-sync pusher/non-pusher bug chain
   (the qbj2 start map's lift trigger stack — a dozen trigger types firing on
   spawn — exposed that `executeQCFunction` was not syncing
-  `MOVETYPE_PUSH` entities). [#QCVM](#qcvm) [#MaterialsDiag](#materialsdiag)
+  `MOVETYPE_PUSH` entities). [QCVM](#ref-qcvm) [MaterialsDiag](#ref-materialsdiag)
 - **`qbj3`** (e.g. the `qbj3_stickflip` map) is the current priority
   stress case. The parity guide records its scale: 85,936 raw faces,
   77,001 built faces, 168,142 built triangles, 322,144 vertices, 22,195
@@ -151,7 +153,7 @@ documentation is shot through with their specifics:
   lit-water/turbulent faces, and 228 sky faces. Its first rendered frame
   at the captured spawn view reports 1,002 visible faces, eight opaque
   world batches, seven opaque brush entities, and eleven opaque alias
-  entities. [#Parity](#parity)
+  entities. [Parity](#ref-parity)
 
 Each chapter of this article that discusses a bug will tie it back to the
 specific qbj map that surfaced it. The brutalist jams are not a footnote;
@@ -167,14 +169,14 @@ engine built around three assumptions that Go actively pushes against:
 
 1. **Manual memory management.** Quake's `Hunk` and `Zone` allocators are a
    single pre-allocated heap with manual pointer arithmetic and
-   bump-allocation arenas. [#Hickman](#hickman) Go has a garbage collector
+   bump-allocation arenas. [Hickman](#ref-hickman) Go has a garbage collector
    and forbids pointer arithmetic.
 2. **Immediate-mode, single-threaded rendering.** The C renderer
    (Ironwail's modernized OpenGL path) draws directly to a framebuffer in
    `R_RenderView`, binding textures one at a time in immediate GL calls.
    WebGPU is explicitly a *retained* API: you write a "recipe" of commands
    into a command buffer, the GPU executes it later, and the CPU and GPU
-   do not share memory directly. [#LearningPlan](#learningplan)
+   do not share memory directly. [LearningPlan](#ref-learningplan)
 3. **Shared memory between engine and scripting.** In C, the QuakeC VM
    and the engine code read and write the *same* `edict_t` structs in the
    *same* memory. There is no sync. In Go, the GC'd `Edict` structs and the
@@ -193,7 +195,7 @@ engine built around three assumptions that Go actively pushes against:
    copies at every QC callback. The long-term goal (steps 3–5 of the
    migration plan) is to migrate all hot paths to the accessors, delete
    `EntVars` and the sync layer entirely, and match C's zero-sync model.
-   [#QCVM](#qcvm)
+   [QCVM](#ref-qcvm)
 
 Every architectural decision in `ironwail-go` — and every bug — flows from
 the collision between Quake's 1996 assumptions and Go's 2026 reality. The
@@ -204,35 +206,9 @@ makes it all render without a line of C.
 
 ---
 
-## References
-
-<a name="hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"*
-Northeastern University. Local copy: `article/analysisfinal.pdf`; text
-extraction: `article/analysisfinal.txt`.
-
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
-
-<a name="agents"></a>[AGENTS] `AGENTS.md`, ironwail-go repository.
-
-<a name="learningplan"></a>[LearningPlan] `docs/RENDERER_LEARNING_PLAN.md`,
-ironwail-go repository.
-
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
-
-<a name="qcvm"></a>[QCVM] `docs/QCVM_ENTITY_SYNC.md`, ironwail-go repository.
-
-<a name="qcdocs"></a>[QCDocs] `docs/internal/qc.md`, ironwail-go repository.
-
-<a name="materialsdiag"></a>[MaterialsDiag] `docs/diagnoses/qbj2_materials.md`,
-ironwail-go repository.
-
-[ironwail]: https://github.com/andrei-drexler/ironwail
-[gogpu]: https://github.com/gogpu/gogpu
-[scratchapixel]: https://www.scratchapixel.com/
-[webgpufundamentals]: https://webgpufundamentals.org/
-
 ---
 
+<a id="chapter-1"></a>
 # Chapter 1: How the Quake Engine Actually Works
 
 Before we can understand what `ironwail-go` changes, we need to understand
@@ -241,9 +217,9 @@ Quake engine — not the software renderer's scanline rasterizer, not the
 Win32 platform glue, but the *core engine*: the simulation, the scripting
 VM, the world representation, the networking, and the rendering contract.
 It draws on two sources: Zachary Hickman's academic analysis of the Quake
-engine, written for Northeastern University [#Hickman](#hickman), and the
+engine, written for Northeastern University [Hickman](#ref-hickman), and the
 formal behavior specification in `docs/QUAKE_SPECIFICATION.md`
-[#Spec](#spec), cross-referenced against the C source in `ironwail/Quake/`.
+[Spec](#ref-spec), cross-referenced against the C source in `ironwail/Quake/`.
 
 ---
 
@@ -251,7 +227,7 @@ formal behavior specification in `docs/QUAKE_SPECIFICATION.md`
 
 Hickman opens with the observation that *"defining what sort of time the
 game loop is based on [...] is critical, as all sub-processes of the engine
-are related to the selection and definition of time."* [#Hickman](#hickman)
+are related to the selection and definition of time."* [Hickman](#ref-hickman)
 Quake's answer is unambiguous: **time is real time.** The engine measures
 wall-clock seconds via `Sys_DoubleTime()`, computes a delta, and passes it
 to `Host_Frame`. Here is the C Ironwail main loop, simplified from
@@ -301,7 +277,7 @@ void _Host_Frame (double time)
 ```
 
 Hickman summarized this as three phases: *"Network, Prediction/Collision,
-and Rendition."* [#Hickman](#hickman) But there is a subtlety he did not
+and Rendition."* [Hickman](#ref-hickman) But there is a subtlety he did not
 emphasize: **the server and the renderer run at different rates.** The
 renderer can run at `host_maxfps` (default 250 in Ironwail), but the server
 ticks at a fixed `host_netinterval` (72 Hz for network play). The
@@ -311,14 +287,14 @@ This is the same pattern the Go port preserves — the `internal/host`
 package's `Frame()` method in `frame.go` implements the same timing logic,
 and the `FrameCallbacks` interface (`GetEvents`, `ProcessConsoleCommands`,
 `ProcessServer`, `ProcessClient`, `UpdateScreen`, `UpdateAudio`) mirrors
-the C call sequence. [#HostDocs](#hostdocs)
+the C call sequence. [HostDocs](#ref-hostdocs)
 
 ---
 
 ## Resource management: the Hunk, the Zone, and the Cache
 
 Quake manages memory through three mechanisms, each with a different
-lifecycle. Hickman covers all three [#Hickman](#hickman); the C code lives
+lifecycle. Hickman covers all three [Hickman](#ref-hickman); the C code lives
 in `common.c`.
 
 ### The Hunk
@@ -370,7 +346,7 @@ This is the single most important architectural fact about Quake, and the
 > The most important thing to understand about the Quake engine (and thus
 > Ironwail Go) is that it is fundamentally a **client-server application**,
 > even when playing single-player.
-> [#LearningGuide](#learningguide)
+> [LearningGuide](#ref-learningguide)
 
 ### The server is the source of truth
 
@@ -440,7 +416,7 @@ package doc explains, the client does five things each frame:
    for a server round-trip.
 5. **Interpolate** — `LerpPoint` computes a 0.0–1.0 fraction to smoothly
    interpolate entity positions between server updates (which arrive at
-   20 Hz, while the renderer may run at 250 Hz). [#ClientDocs](#clientdocs)
+   20 Hz, while the renderer may run at 250 Hz). [ClientDocs](#ref-clientdocs)
 
 ### The signon sequence
 
@@ -459,7 +435,7 @@ multi-stage "signon" sequence. The formal specification
 The walkthrough doc puts it bluntly: *"single-player is not a shortcut
 around the network model. It is the same conceptual client/server
 lifecycle, just connected in-process"* via a loopback socket.
-[#WalkSP](#walksp) In multiplayer, the same protocol runs over UDP.
+[WalkSP](#ref-walksp) In multiplayer, the same protocol runs over UDP.
 
 ### Entity snapshots and delta compression
 
@@ -470,7 +446,7 @@ missed, the client must "force link" (snap) to the new position. The
 specification notes: *"the client maintains the previous frame's state to
 interpolate positions and angles. If a frame is missed, the client must
 'force link' (snap) to the new position to prevent visual glitches."*
-[#Spec](#spec) In C, this lives in `cl_parse.c`'s `CL_ParseDelta`.
+[Spec](#ref-spec) In C, this lives in `cl_parse.c`'s `CL_ParseDelta`.
 
 ---
 
@@ -490,11 +466,11 @@ Quake's asset system is a virtual filesystem. The formal specification
 The PAK format is simple: a `PACK` header (4 bytes), a directory offset
 (int32), and a directory length (int32). Each directory entry is a 56-byte
 null-terminated filename, a position (int32), and a length (int32).
-Lookups are case-insensitive. [#Spec](#spec) In C, this lives in
+Lookups are case-insensitive. [Spec](#ref-spec) In C, this lives in
 `common.c` (`COM_InitFilesystem`, `COM_AddGameDirectory`,
 `COM_LoadPackFile`). The Go port's `internal/fs` package mirrors this
 exactly, including path-sanitization security checks against directory
-traversal. [#FSDocs](#fsdocs)
+traversal. [FSDocs](#ref-fsdocs)
 
 ---
 
@@ -505,7 +481,7 @@ explains:
 
 > A `.bsp` file is a list of vertices, edges, faces, planes, and leaves.
 > You do not need to parse it yourself [...] but you must understand that
-> the world is "one big mesh with extra metadata". [#BSPDocs](#bspdocs)
+> the world is "one big mesh with extra metadata". [BSPDocs](#ref-bspdocs)
 
 ### What BSP gives you
 
@@ -562,7 +538,7 @@ trigger entities overlapping a given entity.
 Hickman notes that Quake's scripting system allowed modders to *"change
 the game without having the C source code"* and that scripts are
 *"processed by the exec command and sent to cmd.h to be run."*
-[#Hickman](#hickman) But the scripting system is far more sophisticated
+[Hickman](#ref-hickman) But the scripting system is far more sophisticated
 than that summary suggests.
 
 ### What QuakeC is
@@ -622,7 +598,7 @@ accesses via `ed->v.field`. The macros are pure pointer arithmetic:
 **There is no sync.** When QuakeC sets `self.nextthink`, the engine sees
 it immediately. When the engine sets `ent->v.velocity`, QuakeC sees it
 immediately. All entity fields are accessible by both C and QC through the
-same memory. [#QCVM](#qcvm) This is elegant and fast — and it is the
+same memory. [QCVM](#ref-qcvm) This is elegant and fast — and it is the
 third thing the Go port has to replace (covered in Chapter 5).
 
 ### The interpreter loop
@@ -641,7 +617,7 @@ net against QC bugs hanging the engine.
 
 Hickman covers scripting in §XIV, noting that scripts can set variables
 (`/set`, `/unset`), create aliases, and run macros from `.cfg` files.
-[#Hickman](#hickman) The deeper architectural point is that **everything
+[Hickman](#ref-hickman) The deeper architectural point is that **everything
 in the engine is a command**. When you press a key, it's bound to a
 command (e.g., `+forward`). When you click a menu item, it queues a
 command (e.g., `map start`). When the engine starts, it executes
@@ -658,13 +634,13 @@ The `cmdsys` package doc explains the dispatch flow:
    and semicolons).
 5. **Dispatch** — the first token is looked up: if it matches a command,
    its handler is called; if an alias, it's expanded into the buffer; if
-   a cvar, it's treated as a set operation. [#CmdSysDocs](#cmdsysdocs)
+   a cvar, it's treated as a set operation. [CmdSysDocs](#ref-cmdsysdocs)
 
 This design means the console, the menu, config files, and automation
 all use the same control path. The single-player walkthrough notes:
 *"menu actions are mostly command producers"* — choosing New Game queues
 `disconnect`, `maxplayers 1`, `deathmatch 0`, `coop 0`, `map start`.
-[#WalkSP](#walksp)
+[WalkSP](#ref-walksp)
 
 ### Cvars
 
@@ -672,7 +648,7 @@ Cvars (console variables) store engine state and configuration. They have
 flags: `FlagArchive` (saved to `config.cfg`), `FlagROM` (read-only),
 `FlagAutoCvar` (auto-synced to an engine variable). Cvars fire callbacks
 when their value changes. The formal specification covers them in §2.3.
-[#Spec](#spec)
+[Spec](#ref-spec)
 
 ---
 
@@ -681,7 +657,7 @@ when their value changes. The formal specification covers them in §2.3.
 Quake's networking model is UDP-based, even for single-player (where it
 uses a loopback driver). Hickman covers the file structure in §XIII,
 listing the `net_*` files for IPX, UDP, serial, loopback, and the VCR
-playback driver. [#Hickman](#hickman)
+playback driver. [Hickman](#ref-hickman)
 
 ### The protocol
 
@@ -690,7 +666,7 @@ versions: `PROTOCOL_NETQUAKE` (15, the original), `PROTOCOL_FITZQUAKE`
 (666, Ironwail's extended protocol with larger entity counts and
 additional message types), and `PROTOCOL_RMQ` (999, further extensions for
 large-map coordinates). The Go port defaults to `PROTOCOL_RMQ` (999) to
-support large-map coordinates. [#Spec](#spec)
+support large-map coordinates. [Spec](#ref-spec)
 The `internal/net` package doc explains the messaging model:
 
 - **Reliable messages** use a stop-and-wait ARQ protocol. Payloads larger
@@ -698,7 +674,7 @@ The `internal/net` package doc explains the messaging model:
   state (map changes, precaches, signon).
 - **Unreliable messages** are fire-and-forget. Used for frequently updated
   state (entity positions) where losing a packet is preferable to waiting
-  for retransmission. [#NetDocs](#netdocs)
+  for retransmission. [NetDocs](#ref-netdocs)
 
 The wire format uses `SVC_*` (server-to-client) and `CLC_*`
 (client-to-server) message type constants, defined in
@@ -711,7 +687,7 @@ headers.
 
 Hickman covers the rendering system in §IV, noting that *"Quake uses
 OpenGL for the drawing of all graphics in the game"* and that rendering
-*"mostly revolves around Alias models."* [#Hickman](#hickman) The C
+*"mostly revolves around Alias models."* [Hickman](#ref-hickman) The C
 Ironwail renderer is a modernized OpenGL path (core profile, shaders) in
 `gl_*.c` and `r_*.c`. The key entry point is `R_RenderView` in
 `gl_rmain.c`, which:
@@ -734,7 +710,7 @@ WebGPU — is the subject of Chapters 3 and 4.
 
 ## Game object models: alias, sprite, BSP
 
-Hickman covers all three in §IX. [#Hickman](#hickman)
+Hickman covers all three in §IX. [Hickman](#ref-hickman)
 
 ### Alias models (MDL)
 
@@ -746,7 +722,7 @@ Alias models represent players, monsters, and items. The format is
 - A list of vertices and triangles.
 - **Animation frames** — each frame has min/max bounding box values, a
   name, and an array of vertices (3D position + packed normal). Animation
-  is achieved by interpolating between frames. [#Hickman](#hickman)
+  is achieved by interpolating between frames. [Hickman](#ref-hickman)
   The `internal/model` package and `internal/renderer/alias/` handle these
   in the Go port.
 
@@ -755,7 +731,7 @@ Alias models represent players, monsters, and items. The format is
 Sprites are 2D billboards that always face the camera. They are faster to
 render than alias models and are used for explosions, pickups, and other
 detailed static objects. The format is `IDSP`, version 1. A sprite is a
-list of 2D pictures organized into frames. [#Hickman](#hickman)
+list of 2D pictures organized into frames. [Hickman](#ref-hickman)
 
 ### BSP models (submodels)
 
@@ -763,7 +739,7 @@ A BSP file contains multiple "models." Model 0 is the world itself.
 Models 1+ are submodels — brush entities like doors, platforms, and
 triggers that are part of the BSP geometry but can move independently.
 The server loads these as `*1`, `*2`, etc. and assigns them to entities
-via `setmodel()`. [#BSPDocs](#bspdocs)
+via `setmodel()`. [BSPDocs](#ref-bspdocs)
 
 ---
 
@@ -773,7 +749,7 @@ The audio subsystem splits into files prefixed `snd_`. `snd_dma.c` is
 the main control for streaming sound output. Sound volume and panning are
 **spatialized**: volume decreases with distance (attenuation), and panning
 is calculated using the dot product between the listener's right vector and
-the vector to the sound source. [#Spec](#spec) The Go port uses the
+the vector to the sound source. [Spec](#ref-spec) The Go port uses the
 [Oto][oto] library for audio output, replacing the C DMA/sound-card
 drivers.
 
@@ -798,7 +774,7 @@ detection, and physics. The key functions include:
 
 Three of these — `Invert24To16`, `TransformVector`, and `BoxOnPlaneSide`
 — had hand-optimized assembly implementations in `math.s` / `matha.s` for
-the original software renderer. [#Hickman](#hickman) The Go port replaces
+the original software renderer. [Hickman](#ref-hickman) The Go port replaces
 all of this with pure-Go `float32` math in `pkg/types` and inline
 operations, relying on the Go compiler's optimization.
 
@@ -827,45 +803,9 @@ the Go port changes, and Chapter 2 begins that story.
 
 ---
 
-## References
-
-<a name="hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"*
-Northeastern University. Local copy: `article/analysisfinal.pdf`.
-
-<a name="spec"></a>[Spec] `docs/QUAKE_SPECIFICATION.md`, ironwail-go
-repository.
-
-<a name="learningguide"></a>[LearningGuide] `docs/LEARNING_GUIDE.md`,
-ironwail-go repository.
-
-<a name="hostdocs"></a>[HostDocs] `docs/internal/host.md`, ironwail-go
-repository.
-
-<a name="clientdocs"></a>[ClientDocs] `docs/internal/client.md`,
-ironwail-go repository.
-
-<a name="walksp"></a>[WalkSP]
-`docs/WALKTHROUGH_SINGLEPLAYER_FORWARD.md`, ironwail-go repository.
-
-<a name="fsdocs"></a>[FSDocs] `docs/internal/fs.md`, ironwail-go
-repository.
-
-<a name="bspdocs"></a>[BSPDocs] `docs/internal/bsp.md`, ironwail-go
-repository.
-
-<a name="qcvm"></a>[QCVM] `docs/QCVM_ENTITY_SYNC.md`, ironwail-go
-repository.
-
-<a name="cmdsysdocs"></a>[CmdSysDocs] `docs/internal/cmdsys.md`,
-ironwail-go repository.
-
-<a name="netdocs"></a>[NetDocs] `docs/internal/net.md`, ironwail-go
-repository.
-
-[oto]: https://github.com/ebitengine/oto
-
 ---
 
+<a id="chapter-2"></a>
 # Chapter 2: The Go Divergence — From C Hunk to GC, From OpenGL to WebGPU
 
 Chapter 1 described the Quake engine as it was built in 1996: a manual-memory,
@@ -877,7 +817,7 @@ README states the intent:
 > with the following changes: gogpu/WebGPU as the canonical gameplay
 > renderer/runtime; dividing the codebase up into packages; use Go stdlib
 > for as much as possible, rather than custom implementations of things
-> from the original C codebase. [#README](#readme)
+> from the original C codebase. [README](#ref-readme)
 
 This is not a transliteration. It is a deliberate re-architecture that preserves
 behavioral parity while changing the substrate. Each divergence has a reason,
@@ -897,9 +837,9 @@ Go replaces all of this with the runtime garbage collector. `Hunk_Alloc` becomes
 `make()` or `new()`. Raw pointer arrays become slices. Manual `Z_Free` becomes
 implicit GC. The comparison doc states it plainly: *"Replaces `Hunk_Alloc` with
 standard `make()` or `new()` and utilizes slices instead of raw pointers for
-collections."* [#Comparison](#comparison) The boot sequence doc adds: *"The C
+collections."* [Comparison](#ref-comparison) The boot sequence doc adds: *"The C
 version's `parms.membase = malloc(parms.memsize)` is entirely absent in Go."*
-[#BootSeq](#bootseq)
+[BootSeq](#ref-bootseq)
 
 ### The cost: GC pressure in hot paths
 
@@ -931,7 +871,7 @@ proposal or custom region allocators: allocate a large `[]byte`, sub-allocate
 into it, and discard the whole backing array when the map changes. This would
 give deterministic cleanup for the bulk of per-map allocations (BSP data,
 models, textures) without the GC tax, while still being memory-safe. It is an
-open question, not a settled decision. [#AGENTS](#agents)
+open question, not a settled decision. [AGENTS](#ref-agents)
 
 ---
 
@@ -942,7 +882,7 @@ SDL mutexes and threads are used only for specific tasks: async loading,
 background music, and (in Ironwail) the renderer thread. The comparison doc
 notes: *"Primarily single-threaded, with some use of SDL mutexes and threads
 for specific tasks like async loading or background music."*
-[#Comparison](#comparison)
+[Comparison](#ref-comparison)
 
 Go replaces this with goroutines and channels, but the project does not naively
 parallelize the engine. The core simulation remains single-threaded — the
@@ -960,13 +900,13 @@ the parity rationale:
 > AsyncQueue. In the context of a game engine like Quake, many systems (like
 > save workers or mod downloaders) run in the background but need to update
 > the game state safely without racing against the client or server state.
-> [#AsyncDocs](#asyncdocs)
+> [AsyncDocs](#ref-asyncdocs)
 
 The queue uses `sync.Mutex` and `sync.Cond` for blocking behavior, and is drained
 once per frame in `Host.Frame`. The async doc is candid about the trade-off:
 *"While idiomatic Go might use an unbounded channel for this purpose,
 `async.Queue` mirrors the C implementation's bounded, blocking behavior and
-atomic drain semantics."* [#AsyncDocs](#asyncdocs)
+atomic drain semantics."* [AsyncDocs](#ref-asyncdocs)
 
 ### Dedicated render thread
 
@@ -975,7 +915,7 @@ event loop. The `OnDraw` callback (`renderer_gogpu_runtime.go:149`) registers
 the frame draw callback; `OnUpdate` (`:199`) registers the game logic update.
 The `MainThreadQueue` in `internal/host/mainthread.go` ensures that OS-sensitive
 operations (window management, renderer calls) execute on the correct thread.
-[#HostDocs](#hostdocs)
+[HostDocs](#ref-hostdocs)
 
 ### Audio streaming
 
@@ -984,14 +924,14 @@ DMA/sound-card drivers. Audio mixing still uses the same DMA-style buffer model
 (mirroring classic sound card behavior), but the output device is abstracted
 behind a `Backend` interface. The audio doc notes the mixer uses 24.8 fixed-point
 arithmetic in `SamplePair` for precision without floating-point overhead.
-[#AudioDocs](#audiodocs)
+[AudioDocs](#ref-audiodocs)
 
 ### Parallel asset loading
 
 The `internal/engine` package provides `ParallelLoad[T]` and `LoadPipeline[T]`
 using a worker-pool pattern with a buffered-channel semaphore for concurrency
 limiting. This is used during level loading to fetch multiple sounds, models,
-and textures concurrently. [#EngineDocs](#enginedocs)
+and textures concurrently. [EngineDocs](#ref-enginedocs)
 
 ---
 
@@ -1037,7 +977,7 @@ the C source files it mirrors. For example, `internal/server/doc.go` names
 `sv_main.c`, `sv_phys.c`, `world.c`, and `pr_cmds.c`. This is not decoration —
 it is a navigation tool. Before refactoring a Go package, you read its lineage
 section to find the C counterpart, then study the C to understand the canonical
-behavior. [#AGENTS](#agents)
+behavior. [AGENTS](#ref-agents)
 
 ### The `pkg/qgo` exception
 
@@ -1045,7 +985,7 @@ behavior. [#AGENTS](#agents)
 `go.mod` files, intentionally outside the root module. They are not importable by
 the engine. This is by design: `pkg/qgo/quakego` is QuakeGo source (a Go dialect
 compiled to QCVM `progs.dat` bytecode), not regular Go library code. The root
-module does not require or replace `pkg/qgo/*`. [#AGENTS](#agents) Chapter 5
+module does not require or replace `pkg/qgo/*`. [AGENTS](#ref-agents) Chapter 5
 covers QuakeGo in detail.
 
 ---
@@ -1053,7 +993,7 @@ covers QuakeGo in detail.
 ## stdlib adoption: replacing custom Quake utilities
 
 The README states: *"Use Go stdlib for as much as possible, rather than custom
-implementations of things from the original C codebase."* [#README](#readme)
+implementations of things from the original C codebase."* [README](#ref-readme)
 In practice this means:
 
 - **String handling**: Quake's custom `COM_Parse` tokenizer and string utilities
@@ -1062,14 +1002,14 @@ In practice this means:
   quote/semicolon rules), but generic string manipulation uses stdlib.
 - **I/O**: `io.Reader` / `io.Writer` / `io.NewSectionReader` replace C's raw
   `FILE *` and byte-pointer I/O. The filesystem package uses `io.NewSectionReader`
-  to provide a standard `io.Reader` over a portion of a `.pak` file. [#FSDocs](#fsdocs)
+  to provide a standard `io.Reader` over a portion of a `.pak` file. [FSDocs](#ref-fsdocs)
 - **Containers**: `sync.Map`, `sync.Pool`, generic slices replace C's manual
   linked lists and arrays.
 - **Math**: `pkg/types` provides `Vec3` and `Mat4` as Go structs with both
   procedural (`Vec3Add`, `Vec3Dot`) and method (`v.Add`, `v.Dot`) APIs. The
   procedural functions follow C Quake's style for parity; the methods provide
   idiomatic Go. The doc notes: *"Both produce identical results."*
-  [#TypesPkg](#typespkg)
+  [TypesPkg](#ref-typespkg)
 
 ### Where custom code remains
 
@@ -1090,7 +1030,7 @@ semantics:
 
 `mise.toml` sets `CGO_ENABLED = "0"`. The project is pure Go. AGENTS.md states
 this as a hard rule: *"CGO is always off. The project is pure Go. Never
-introduce CGO dependencies."* [#AGENTS](#agents)
+introduce CGO dependencies."* [AGENTS](#ref-agents)
 
 This policy was not always in place. The git history tells a story:
 
@@ -1107,7 +1047,7 @@ The gogpu issue #157 opening body records the frustration:
 
 > I first attempted to tackle things using GoGPU as the rendering backend,
 > but eventually hit enough issues that I sadly switched to cgo GLFW code.
-> [#GogpuIssues](#gogpuissues)
+> [GogpuIssues](#ref-gogpuissues)
 
 The return came with commit `b2fb6e9` (2026-04-05: *"Retire gl+sdl (#11)"*),
 which removed the OpenGL renderer, the SDL input backend, and made Oto the
@@ -1127,7 +1067,7 @@ The canonical gameplay stack is now:
 
 `purego` appears as an indirect dependency — it is used by the gogpu stack
 for cgo-free FFI to platform libraries where needed, but the engine itself
-compiles with `CGO_ENABLED=0`. [#Comparison](#comparison)
+compiles with `CGO_ENABLED=0`. [Comparison](#ref-comparison)
 
 ---
 
@@ -1137,7 +1077,7 @@ The C engine uses `in_sdl.c` to interface with SDL2 for keyboard, mouse, and
 gamepad events. The input handling comparison doc explains the divergence:
 *"Go uses `internal/input/` as a backend-neutral abstraction layer. The active
 runtime backend is supplied by the executable/renderer integration rather than
-by a package-local SDL implementation."* [#InputHandling](#inputhandling)
+by a package-local SDL implementation."* [InputHandling](#ref-inputhandling)
 
 In practice, this means:
 - `internal/input` defines a `Backend` interface and `System` type that
@@ -1152,7 +1092,7 @@ In practice, this means:
 The Go implementation maintains identical Quake keycodes (`KMWheelUp`,
 `KMouse1`, etc.) to ensure compatibility with `config.cfg` and
 `autoexec.cfg`. Gamepad support is currently initial (deadzones only), compared
-to C Ironwail's extensive gyro/rumble support. [#InputHandling](#inputhandling)
+to C Ironwail's extensive gyro/rumble support. [InputHandling](#ref-inputhandling)
 
 The gogpu input bugs that forced the cgo detour (issues #129, #173, #175) are
 covered in Chapter 6.
@@ -1164,7 +1104,7 @@ covered in Chapter 6.
 The comparison doc states the goal: *"high-fidelity parity,"* meaning
 identical `progs.dat` execution, identical physics and movement, visual parity
 with the GoGPU renderer, and support for standard Quake data files.
-[#Comparison](#comparison)
+[Comparison](#ref-comparison)
 
 This is enforced through several mechanisms:
 
@@ -1202,7 +1142,7 @@ contract.
 Ironwail. `mise run parity-go` captures matching GoGPU screenshots.
 `mise run parity-compare` writes visual diffs and exits nonzero if any scene
 exceeds the configured mismatch threshold. This is a real CI gate, not a
-manual eyeball check. [#README](#readme)
+manual eyeball check. [README](#ref-readme)
 
 ### The brutalist jam maps as integration tests
 
@@ -1213,7 +1153,7 @@ buffer is hardcoded to 256 entries but the map has more), the lit-water fallback
 mismatch, and the QCVM entity-sync pusher/non-pusher bug chain (the lift trigger
 stack). The qbj3 mod's `qbj3_stickflip` map is the current priority stress case:
 85,936 raw faces, 750 models, 106 textures, 1,295 lit-water faces, 228 sky
-faces. [#Parity](#parity)
+faces. [Parity](#ref-parity)
 
 These maps are the unforgiving test. If a parity claim survives a qbj sweep,
 it is real.
@@ -1238,7 +1178,7 @@ it is real.
 The Go runtime no longer carries parallel legacy renderer/input/audio variants.
 The canonical gameplay stack is GoGPU rendering, renderer-provided input, and
 Oto audio. There are no build tags selecting between renderers — the gogpu
-renderer is always compiled. [#Comparison](#comparison) [#AGENTS](#agents)
+renderer is always compiled. [Comparison](#ref-comparison) [AGENTS](#ref-agents)
 
 ---
 
@@ -1256,43 +1196,9 @@ what replacing it with WebGPU means.
 
 ---
 
-## References
-
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
-
-<a name="agents"></a>[AGENTS] `AGENTS.md`, ironwail-go repository.
-
-<a name="comparison"></a>[Comparison] `docs/COMPARISON.md`, ironwail-go
-repository.
-
-<a name="bootseq"></a>[BootSeq] `docs/BOOT_SEQUENCE.md`, ironwail-go repository.
-
-<a name="inputhandling"></a>[InputHandling] `docs/INPUT_HANDLING.md`,
-ironwail-go repository.
-
-<a name="hostdocs"></a>[HostDocs] `docs/internal/host.md`, ironwail-go
-repository.
-
-<a name="asyncdocs"></a>[AsyncDocs] `docs/internal/async.md`, ironwail-go
-repository.
-
-<a name="audiodocs"></a>[AudioDocs] `docs/internal/audio.md`, ironwail-go
-repository.
-
-<a name="enginedocs"></a>[EngineDocs] `docs/internal/engine.md`, ironwail-go
-repository.
-
-<a name="fsdocs"></a>[FSDocs] `docs/internal/fs.md`, ironwail-go repository.
-
-<a name="typespkg"></a>[TypesPkg] `pkg/types/types.go`, ironwail-go repository.
-
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
-
-<a name="gogpuissues"></a>[GogpuIssues] `article/gogpu_issues.md` (transcript
-of gogpu/gogpu issues, fetched 2026-07-27).
-
 ---
 
+<a id="chapter-3"></a>
 # Chapter 3: The Renderer — OpenGL Then, WebGPU Now
 
 The renderer is the most divergent subsystem in `ironwail-go`. The C Ironwail
@@ -1343,7 +1249,7 @@ Key characteristics of the C renderer:
 
 The water diagnosis doc captures the essential constraint: *"C Ironwail (OpenGL)
 renders the entire frame to a single framebuffer within one `R_RenderView` call.
-There are no intermediate command buffer submits."* [#WaterDiag](#waterdiag)
+There are no intermediate command buffer submits."* [WaterDiag](#ref-waterdiag)
 Everything — opaque, translucent, viewmodel, particles — draws into the same
 framebuffer in sequence. Blending just works because the destination buffer
 accumulates results naturally.
@@ -1364,7 +1270,7 @@ transparency (McGuire & Bavoil 2013). `R_BeginTranslucency` (`gl_rmain.c:1833`)
 checks `R_GetEffectiveAlphaMode() == ALPHAMODE_OIT` and, if so, binds a
 separate OIT framebuffer with accumulation and revealage textures, sets up
 stencil state, and renders translucent objects into it. A final OIT resolve
-pass composites the result back into the scene framebuffer. [#WaterDiag](#waterdiag)
+pass composites the result back into the scene framebuffer. [WaterDiag](#ref-waterdiag)
 
 ### OpenGL state machine
 
@@ -1385,13 +1291,13 @@ is `RenderFrame()` at `renderer_gogpu_frame.go:82`. The renderer package doc
 states its core design: *"abstracts the complexities of modern GPU APIs
 (specifically WebGPU via the `gogpu` library) and provides a unified interface
 for rendering 3D world geometry, 2D overlays, and special effects."*
-[#RendererDocs](#rendererdocs)
+[RendererDocs](#ref-rendererdocs)
 
 ### The CPU/GPU split
 
 The learning plan explains the mental model: *"the CPU writes a 'recipe'
 (commands) into a command buffer, the GPU executes it later. The CPU and GPU do
-not share memory directly."* [#LearningPlan](#learningplan) This is visible in
+not share memory directly."* [LearningPlan](#ref-learningplan) This is visible in
 the `DrawContext` struct (`renderer_gogpu.go:16`):
 
 ```go
@@ -1419,7 +1325,7 @@ and GPU preference. `DefaultCoreConfig()` returns `BackendGo`,
 is used for both windowed and headless/screenshot rendering. This is a direct
 consequence of WebGPU's design — you create an Instance, request an Adapter,
 open a Device, get a Queue. There is no implicit context like OpenGL's
-`wglMakeCurrent`. [#LearningPlan](#learningplan)
+`wglMakeCurrent`. [LearningPlan](#ref-learningplan)
 
 ### Explicit pipeline objects
 
@@ -1497,7 +1403,7 @@ functions convert `WorldVertex` slices to flat byte arrays for GPU upload:
 entities), `VertexBytes` (sky brushes), and `aliasVertexBytesInto` (alias
 models). The WGSL `VertexInput` struct in the shader must match. If any one
 disagrees, the GPU reads vertex data at wrong offsets — textures scramble,
-lighting artifacts appear, geometry disappears. [#VertexLayout](#vertexlayout)
+lighting artifacts appear, geometry disappears. [VertexLayout](#ref-vertexlayout)
 
 In C, each vertex type (world, alias, sprite) has its own vertex format and
 its own `glVertexAttribPointer` setup. The Go port unifies them into one
@@ -1518,7 +1424,7 @@ each texture individually before drawing the surfaces that use it. This works
 because OpenGL's state machine tolerates frequent `GL_Bind` calls (though it is
 slow). In WebGPU, binding individual textures per draw is impractical — bind
 group limits and the overhead of creating/rebinding per-texture would cripple
-performance. [#LearningPlan](#learningplan)
+performance. [LearningPlan](#ref-learningplan)
 
 ### The Go solution
 
@@ -1543,7 +1449,7 @@ The materials buffer is hardcoded to 256 entries, but `baseMaterials` is
 allocated as `textureCount + 2` without clamping. When a map has more than 254
 textures — as the qbj2 mod's `start` map does — a silent buffer overflow occurs.
 This is the **texture atlas overflow** bug, currently open.
-[#MaterialsDiag](#materialsdiag) It is a direct consequence of the atlas design:
+[MaterialsDiag](#ref-materialsdiag) It is a direct consequence of the atlas design:
 the C renderer's per-texture binding has no such limit.
 
 ---
@@ -1560,13 +1466,13 @@ function (`world_lightmap_gogpu.go:11`) handles this. Lightstyles (animated
 lighting like flickering lights) are evaluated per frame, and lightmap pages
 whose style changed are rebuilt. The fragment shader samples
 `worldLightmap` using the per-vertex `lightmapCoord` and `lightmapLayer`.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 C never allocates lightmaps for `SURF_DRAWTURB` (water/lava) surfaces — they
 are always fullbright. Ironwail added optional lit water via `r_litwater`. The
 Go port samples the lightmap when `litWater > 0.5` in the WGSL uniform,
 defaulting to `vec3<f32>(0.5)` (fullbright when multiplied by 2.0).
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -1591,7 +1497,7 @@ This is a modern rendering technique that goes beyond anything in C Ironwail's
 OpenGL path. It exists because WebGPU's compute shader support makes it natural
 to implement, and because the qbj3 stress maps push dynamic light counts that
 would be prohibitively expensive with a naive "loop all lights" approach.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ---
 
@@ -1609,7 +1515,7 @@ When enabled, the renderer replaces the sorted-translucent pass with a
 weighted-blended one (accumulation texture + revealage texture), avoiding the
 back-to-front sort. This mirrors C Ironwail's `ALPHAMODE_OIT` path, but the Go
 implementation is a separate render path rather than a state switch within the
-same pass. [#LearningPlan](#learningplan)
+same pass. [LearningPlan](#ref-learningplan)
 
 ---
 
@@ -1633,14 +1539,14 @@ ordered phases:
 
 The key parity principle from the water diagnosis: *"no face is drawn both
 opaquely and translucently. The split is by alpha value, not by pass."*
-[#WaterDiag](#waterdiag) Both passes use the same framebuffer (in C) or the
+[WaterDiag](#ref-waterdiag) Both passes use the same framebuffer (in C) or the
 same render pass (in Go). The Go port had to learn this the hard way — the
 original architecture split the frame into multiple `queue.Submit()` calls,
 and Vulkan drivers discarded the framebuffer contents between submits,
 causing translucent water to blend over black instead of opaque geometry.
 Commit `6802fc5` fixed this by drawing translucent liquid faces **within the
 world render pass itself**, matching C's single-framebuffer model.
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -1655,7 +1561,7 @@ camera is in water. The scene composite pass
 target to the swapchain, applying the warp if active. This adds an extra
 render pass and texture allocation that C does not strictly need (C applies the
 warp via OpenGL's `glScissor` and viewport tricks), but it is the clean
-WebGPU way to do post-processing. [#LearningPlan](#learningplan)
+WebGPU way to do post-processing. [LearningPlan](#ref-learningplan)
 
 ---
 
@@ -1668,7 +1574,7 @@ GL calls. The `flush2DOverlay` function (`renderer_gogpu_overlay.go:32`) does
 the blit. This approach reduces GPU draw calls for 2D (which can be hundreds of
 text characters and pic draws per frame) to a single fullscreen blit.
 Commit `3b9cfeb` pooled the overlay CPU buffer and cached the GPU texture to
-avoid per-frame allocation. [#RendererDocs](#rendererdocs)
+avoid per-frame allocation. [RendererDocs](#ref-rendererdocs)
 
 ---
 
@@ -1695,25 +1601,9 @@ and the specific bugs encountered at each stage.
 
 ---
 
-## References
-
-<a name="rendererdocs"></a>[RendererDocs] `docs/internal/renderer.md`,
-ironwail-go repository.
-
-<a name="learningplan"></a>[LearningPlan] `docs/RENDERER_LEARNING_PLAN.md`,
-ironwail-go repository.
-
-<a name="vertexlayout"></a>[VertexLayout] `docs/VERTEX_LAYOUT.md`, ironwail-go
-repository.
-
-<a name="waterdiag"></a>[WaterDiag] `docs/diagnoses/qbj2_water.md`, ironwail-go
-repository.
-
-<a name="materialsdiag"></a>[MaterialsDiag]
-`docs/diagnoses/qbj2_materials.md`, ironwail-go repository.
-
 ---
 
+<a id="chapter-4"></a>
 # Chapter 4: Render Stages, Broken Down
 
 Chapter 3 compared the C OpenGL renderer and the Go WebGPU renderer
@@ -1723,7 +1613,7 @@ it lived in C, how it works in Go, and what bugs were encountered.
 
 The stage numbering follows `docs/RENDERER_LEARNING_PLAN.md` (Stages 0–14),
 which is the project's canonical curriculum for learning the renderer.
-[#LearningPlan](#learningplan) The frame orchestration lives in
+[LearningPlan](#ref-learningplan) The frame orchestration lives in
 `RenderFrame()` at `renderer_gogpu_frame.go:82`, and the world render pass
 lives in `renderWorldInternal()` at `world_render_gogpu.go:16`.
 
@@ -1737,7 +1627,7 @@ Before any rendering can happen, the engine must establish a connection to
 the GPU. In WebGPU, this is a four-step hierarchy: create an Instance (the
 entry point to the WebGPU API), request an Adapter (a physical GPU), open a
 Device (a logical GPU context with its own queue), and get the Queue (the
-command submission interface). [#LearningPlan](#learningplan)
+command submission interface). [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -1757,14 +1647,14 @@ windowed mode, the `gogpu.App` event loop owns the surface; in headless
 mode, `Core.InitHeadless()` creates an offscreen surface for screenshot
 capture. The GPU preference was the subject of gogpu issue #176 (adapter
 power preference not forwarded on hybrid-GPU Linux systems).
-[#GogpuIssues](#gogpuissues)
+[GogpuIssues](#ref-gogpuissues)
 
 ### Bugs/lessons
 
 The screenshot path was originally a stub writing `RGB(20,20,46)` — a
 plausible-looking dark color that was not a real GPU readback. This
 actively misled the water translucency investigation until it was fixed.
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -1774,7 +1664,7 @@ actively misled the water translucency investigation until it was fixed.
 
 The fundamental unit of WebGPU rendering: a vertex buffer + a WGSL vertex
 shader + a WGSL fragment shader + a pipeline object + a bind group, all
-wired together to produce pixels. [#LearningPlan](#learningplan)
+wired together to produce pixels. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -1807,7 +1697,7 @@ and outputs it. This is a fullscreen tint — Quake's "polyblend" used for
 underwater color wash and damage flashes. The pipeline setup is in
 `ensurePolyBlendResourcesLocked()` (`:83`); per-frame use is
 `renderPolyBlendHAL()` (`:224`), called from `RenderFrame()` at
-`:218`. [#LearningPlan](#learningplan)
+`:218`. [LearningPlan](#ref-learningplan)
 
 For a real vertex-buffer example, the **particle** pipeline
 (`particle_gogpu.go:20`) uses instanced vertices with per-particle position
@@ -1818,7 +1708,7 @@ and color attributes.
 The naga WGSL→SPIR-V compiler had a bug with scalar `mix()` (gogpu issue
 #162) — `mix(vec3, vec3, f32)` produced invalid SPIR-V that crashed on
 NVIDIA. The workaround was `vec3<f32>(fog)` splat. Fixed in naga v0.17.0+.
-[#GogpuIssues](#gogpuissues)
+[GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -1828,7 +1718,7 @@ NVIDIA. The workaround was `vec3<f32>(fog)` splat. Fixed in naga v0.17.0+.
 
 The **view matrix** transforms world space into camera/eye space. The
 **projection matrix** transforms eye space into clip space (the GPU's
-normalized cube). Together they are the VP matrix. [#LearningPlan](#learningplan)
+normalized cube). Together they are the VP matrix. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -1870,7 +1760,7 @@ the VP is computed and written to the GPU buffer at `:144-153`.
 
 Upload the BSP world geometry (vertices, edges, faces, textures) to GPU
 buffers and render it. The world is "one big mesh with extra metadata."
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -1888,7 +1778,7 @@ This is the largest stage. `UploadWorld()` at
   `world_geometry_gogpu.go` constructs the vertex data.
 - **Vertex construction**: the 48-byte `WorldVertex` struct (see Chapter 3
   and `docs/VERTEX_LAYOUT.md`) flows from Go struct → byte packer → WGSL
-  `@vertex` input. [#VertexLayout](#vertexlayout)
+  `@vertex` input. [VertexLayout](#ref-vertexlayout)
 - **Byte packing**: `appendGoGPUWorldVertexBytes` in `world_gogpu.go`.
 - **Pipeline creation**: `createWorldPipeline()` and friends in
   `world_pipelines_gogpu.go:13`.
@@ -1906,7 +1796,7 @@ depth-stencil attachment (`worldDepthTextureView`).
 Texture corruption on multi-layer atlas maps (commit `d89b34c`) was caused
 by not copying both atlas layer and bounds when animating textures. The
 fix was in `animateWorldMaterials` to swap the entire material config.
-[#MaterialsDiag](#materialsdiag)
+[MaterialsDiag](#ref-materialsdiag)
 
 ---
 
@@ -1917,7 +1807,7 @@ fix was in `animateWorldMaterials` to swap the entire material config.
 A Quake map has hundreds of small textures. WebGPU cannot bind hundreds of
 textures individually. Solution: pack them into a single atlas texture and
 use per-vertex `materialID` to index into a materials uniform buffer that
-holds the atlas bounds and layer for each texture. [#LearningPlan](#learningplan)
+holds the atlas bounds and layer for each texture. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -1948,7 +1838,7 @@ textures, the `WriteBuffer` call silently overflows the 8192-byte GPU
 buffer. The `diagMaterialBufferCapacity` and `diagMaterialBufferWrite`
 functions in `diag_atlas.go` log warnings but do not clamp. The fix would
 require changing the uniform buffer to a storage buffer to remove the
-256-entry limit. [#MaterialsDiag](#materialsdiag)
+256-entry limit. [MaterialsDiag](#ref-materialsdiag)
 
 ---
 
@@ -1959,7 +1849,7 @@ require changing the uniform buffer to a storage buffer to remove the
 Quake does not compute lighting at runtime. Lighting is pre-baked offline
 by the map compiler (`qrad`) and stored as a lightmap: a small grayscale
 texture per face. The fragment shader samples both the material texture and
-the lightmap, and multiplies them. [#LearningPlan](#learningplan)
+the lightmap, and multiplies them. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -1983,14 +1873,14 @@ frame in `CL_RunLightStyles` (`cl_main.c`).
 C never allocates lightmaps for `SURF_DRAWTURB` (water/lava) surfaces —
 they are fullbright. Ironwail added optional lit water via `r_litwater`. The
 Go port samples the lightmap when `litWater > 0.5` in the WGSL uniform.
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ### Bugs/lessons
 
 The fallback lightmap was created as `TextureViewDimension2D` but the
 shader declared `texture_2d_array<f32>`. WebGPU rejected it silently,
 defaulting to fullbright white (×2.0 overbright). Fixed by using
-`TextureViewDimension2DArray`. [#WaterDiag](#waterdiag)
+`TextureViewDimension2DArray`. [WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -2002,7 +1892,7 @@ The single most important optimization in a Quake renderer. The BSP tree
 organizes the world into convex leaves. Each leaf has a PVS (Potentially
 Visible Set) bitmask saying which other leaves can be seen from it. Before
 drawing, the engine finds the camera's leaf, looks up the PVS, and only
-draws faces in visible leaves. [#LearningPlan](#learningplan)
+draws faces in visible leaves. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -2019,7 +1909,7 @@ walk the BSP tree and mark visible surfaces using the PVS.
 - **What gets drawn**: `renderWorldInternal()` only draws faces that passed
   visibility. This is why Quake can render huge maps at 60 FPS — the qbj3
   `qbj3_stickflip` map has 85,936 raw faces but only 1,002 visible at the
-  spawn view. [#Parity](#parity)
+  spawn view. [Parity](#ref-parity)
 
 ### Bugs/lessons
 
@@ -2027,7 +1917,7 @@ Single-leaf PVS culled underwater geometry. Fixed by using `FatPVS` (from
 C's `SV_FatPVS`) when the camera leaf contains water faces. Also, a BSP2
 `HeadNode` traversal bug caused `FatPVS`/`PointInLeaf` to start at node 0
 (submodel) instead of `Models[0].HeadNode[0]` — critical for BSP2 maps.
-Fixed in `internal/bsp/tree.go`. [#WaterDiag](#waterdiag)
+Fixed in `internal/bsp/tree.go`. [WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -2037,7 +1927,7 @@ Fixed in `internal/bsp/tree.go`. [#WaterDiag](#waterdiag)
 
 Opaque objects use depth testing (draw in any order, the depth buffer
 resolves which is in front). Translucent objects must be sorted
-back-to-front and drawn with depth-write off. [#LearningPlan](#learningplan)
+back-to-front and drawn with depth-write off. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -2046,7 +1936,7 @@ submits. Opaque water (`R_DrawWater(false)`) draws with blend=OPAQUE,
 depth-write=ON. Translucent water (`R_DrawWater(true)`) draws with
 blend=ALPHA, depth-write=OFF. Both use the same framebuffer. The key
 principle: no face is drawn both opaquely and translucently — the split is
-by alpha value, not by pass. [#WaterDiag](#waterdiag)
+by alpha value, not by pass. [WaterDiag](#ref-waterdiag)
 
 ### GoGPU reality
 
@@ -2080,7 +1970,7 @@ causes:
    applied the override when `r_wateralpha` was exactly `1.0`. A stale
    config value prevented the map's `wateralpha=0.6` from taking effect.
 
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -2092,7 +1982,7 @@ Quake's water/lava/sky surfaces use a "turbulent" warp: UV coordinates are
 animated with a sine function to make the texture swim. Sky is a special
 surface that ignores depth and uses a two-layer scrolling texture. Fog is
 exponential distance fog. When underwater, the final composited scene is
-distorted by a sinusoidal screen-space warp. [#LearningPlan](#learningplan)
+distorted by a sinusoidal screen-space warp. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -2131,7 +2021,7 @@ return textureSample(sceneTexture, sceneSampler, uv * uvScale);
 
 The scene composite shader's use of `dpdx`/`dpdy` was one of the naga SPIR-V
 bugs surfaced in gogpu issue #157 — derivatives produced invalid SPIR-V.
-[#GogpuIssues](#gogpuissues)
+[GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -2143,7 +2033,7 @@ Divide the camera frustum into a 3D grid of clusters (32×16×32 tiles). A
 compute shader determines which lights affect each cluster. The fragment
 shader iterates only the lights in its cluster, rather than looping all
 lights. This is a modern technique the C renderer does not have.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -2176,7 +2066,7 @@ dynamic light model (OpenGL point lights via `R_AddLights`).
 Draw everything that isn't the static BSP world: doors and platforms (brush
 entities), monsters and items (alias models), explosions and pickups
 (sprites), bullet holes (decals), and the first-person weapon (viewmodel).
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -2199,7 +2089,7 @@ The **viewmodel** (`renderViewModelHAL` at `world_gogpu_alias.go:593`) is
 a special alias-model render with its own depth handling — it draws on top
 of the world without depth-testing against it. All of these are orchestrated
 in `renderEntities()` at `renderer_gogpu_frame.go:586`, ordered into opaque
-→ sky → translucent passes. [#LearningPlan](#learningplan)
+→ sky → translucent passes. [LearningPlan](#ref-learningplan)
 
 ### Bugs/lessons
 
@@ -2213,7 +2103,7 @@ in `renderEntities()` at `renderer_gogpu_frame.go:586`, ordered into opaque
   sampler (commits `e68aa0c`, `4f5e03b`, `6dfda87`).
 - **Pressed button textures**: the frame-1 materials buffer was missing
   entirely — pressed buttons showed their unpressed texture (commit
-  `aa17df6`). [#MaterialsDiag](#materialsdiag)
+  `aa17df6`). [MaterialsDiag](#ref-materialsdiag)
 
 ---
 
@@ -2223,7 +2113,7 @@ in `renderEntities()` at `renderer_gogpu_frame.go:586`, ordered into opaque
 
 Particles are camera-facing billboards with a procedural soft-circle
 fragment shader. Simulated on the CPU (gravity, decay), uploaded each frame.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -2250,7 +2140,7 @@ fragment shader. Simulated on the CPU (gravity, decay), uploaded each frame.
 
 Render the 3D scene to an offscreen texture, then draw that texture to the
 screen with a fullscreen shader that can distort it (underwater warp), tint
-it (polyblend), and finally draw the 2D UI on top. [#LearningPlan](#learningplan)
+it (polyblend), and finally draw the 2D UI on top. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -2285,7 +2175,7 @@ into the shader via `@builtin(vertex_index)`).
 
 ### Purpose
 
-Combine all stages into one frame loop. [#LearningPlan](#learningplan)
+Combine all stages into one frame loop. [LearningPlan](#ref-learningplan)
 
 ### GoGPU reality
 
@@ -2305,7 +2195,7 @@ Reading `RenderFrame()` at `renderer_gogpu_frame.go:82` end to end:
 
 The `host_speeds 1` cvar enables per-phase timing (`clear_ms`,
 `world_ms`, `entities_ms`, `viewmodel_ms`, `scene_composite_ms`,
-`polyblend_ms`, `overlay_ms`, `total_ms`) logged each frame. [#README](#readme)
+`polyblend_ms`, `overlay_ms`, `total_ms`) logged each frame. [README](#ref-readme)
 
 The depth-stencil is cleared before the entities phase
 (`:177-188`) so entities can depth-test against the world without
@@ -2319,7 +2209,7 @@ re-rendering the world into the entity pass.
 
 Replace the sorted-translucent pass with weighted-blended transparency
 (McGuire & Bavoil 2013), avoiding the back-to-front sort. Enabled by a cvar.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -2340,29 +2230,9 @@ the default path is sorted translucency.
 
 ---
 
-## References
-
-<a name="learningplan"></a>[LearningPlan] `docs/RENDERER_LEARNING_PLAN.md`,
-ironwail-go repository.
-
-<a name="vertexlayout"></a>[VertexLayout] `docs/VERTEX_LAYOUT.md`,
-ironwail-go repository.
-
-<a name="waterdiag"></a>[WaterDiag] `docs/diagnoses/qbj2_water.md`,
-ironwail-go repository.
-
-<a name="materialsdiag"></a>[MaterialsDiag]
-`docs/diagnoses/qbj2_materials.md`, ironwail-go repository.
-
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
-
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
-
-<a name="gogpuissues"></a>[GogpuIssues] `article/gogpu_issues.md` (transcript
-of gogpu/gogpu issues, fetched 2026-07-27).
-
 ---
 
+<a id="chapter-5"></a>
 # Chapter 5: The Modding System and the QuakeC VM
 
 Quake's moddability is one of its most enduring legacies. The game logic —
@@ -2396,7 +2266,7 @@ provides **builtins** — native functions like `traceline`, `spawn`,
 the engine. The engine calls into QC at specific dispatch points:
 `StartFrame`, `PlayerPreThink`, `PlayerPostThink`, `touch`, `think`,
 `use`, `blocked`, and the client lifecycle functions (`PutClientInServer`,
-`ClientConnect`, etc.). [#QCDocs](#qcdocs) [#Hickman](#hickman)
+`ClientConnect`, etc.). [QCDocs](#ref-qcdocs) [Hickman](#ref-hickman)
 
 ---
 
@@ -2475,13 +2345,13 @@ const runawayLoopLimit = 0x1000000
 
 If the statement count exceeds this, the VM aborts with `"runaway loop
 error"`. This is a parity constant — changing it would break mods that
-rely on the exact limit. [#QCDocs](#qcdocs)
+rely on the exact limit. [QCDocs](#ref-qcdocs)
 
 ### Profile counters
 
 Each function has a `Profile` counter. The `profile` console command prints
 the top 10 functions by statement count and resets the counters. This is
-the engine's built-in QC profiler. [#README](#readme)
+the engine's built-in QC profiler. [README](#ref-readme)
 
 ---
 
@@ -2503,7 +2373,7 @@ in `exec_test.go` guard invariants that would break demos or mods:
 - **Runaway loop limit**: asserted to be exactly `0x1000000`.
   (`TestExecuteProgramRunawayLoopLimitConstantMatchesC`)
 
-[#QCDocs](#qcdocs)
+[QCDocs](#ref-qcdocs)
 
 ---
 
@@ -2524,7 +2394,7 @@ code accesses via `ed->v.field`. The macros are pure pointer arithmetic:
 **No sync.** When QC sets `self.nextthink`, the engine sees it
 immediately. When the engine sets `ent->v.velocity`, QC sees it
 immediately. All entity fields — standard and extension — are accessible
-by both C and QC through the same memory. [#QCVM](#qcvm)
+by both C and QC through the same memory. [QCVM](#ref-qcvm)
 
 ---
 
@@ -2559,7 +2429,7 @@ struct fields and thus synced. Extension fields (`state`, `speed`, `wait`,
 `trigger_field`, `th_checkattack`, `customflags`, `target2/3/4`) exist
 **only in QCVM bytes** — Go physics and networking never read them through
 the sync layer (though some are accessible via the direct-VM accessor
-methods). [#QCVM](#qcvm)
+methods). [QCVM](#ref-qcvm)
 
 ### The sync layer
 
@@ -2580,7 +2450,7 @@ doc's CPU profile of the qbj3 `qbj3_stickflip` map found that QC/server
 edict sync paths — `syncEntVarsFromQC`, `syncEntVarsToQC`,
 `captureNonPusherQCVMEdictSnapshots`, `syncMutatedNonPushersFromQCVM`,
 `SetEFloat` — dominate the profile alongside the QC execution itself.
-[#Parity](#parity)
+[Parity](#ref-parity)
 
 ---
 
@@ -2610,7 +2480,7 @@ The qbj2 mod's `start` map exposed this via a lift trigger stack:
 8. Train's Go-side velocity/nextthink remain 0 → `PhysicsPusher` never
    moves it. The lift doesn't work.
 
-[#QCVM](#qcvm)
+[QCVM](#ref-qcvm)
 
 ### The fix: unified sync
 
@@ -2620,7 +2490,7 @@ single dispatch point. The fragile pusher/non-pusher classification,
 `capturePusherSnapshots`, `syncPushersToQCVM`,
 `syncMutatedPushersFromQCVM`, and related functions were deleted (~170
 lines of dead code). Callers now just set `self`/`other`/`time` globals
-and call `executeQCFunction`. [#QCVM](#qcvm)
+and call `executeQCFunction`. [QCVM](#ref-qcvm)
 
 ### The accessor infrastructure
 
@@ -2643,7 +2513,7 @@ to accessors is the remaining work (steps 3–5 of the migration plan).
 A separate bug: a package-level `serverBuiltinHooks` global caused all VMs
 to share hooks. A CSQC VM and a server VM would cross-contaminate each
 other's callbacks. Fixed by moving hooks to per-VM storage. Tested by
-`TestVMServerHooksIsolation`. [#QCDocs](#qcdocs)
+`TestVMServerHooksIsolation`. [QCDocs](#ref-qcdocs)
 
 ---
 
@@ -2664,7 +2534,7 @@ When steps 3–5 complete, `EntVars`, `syncAllToQCVM`,
 `executeQCFunction` wrapper will simplify to just save/restore
 `self`/`other`/`time` globals and execute — matching C's zero-sync model
 exactly. The accessor infrastructure is in place; the remaining work is
-migrating the hot paths. [#QCVM](#qcvm)
+migrating the hot paths. [QCVM](#ref-qcvm)
 
 ---
 
@@ -2678,7 +2548,7 @@ and client event dispatch.
 
 CSQC runtime integration is currently **deferred** — the repo has CSQC
 wrapper infrastructure, but host/client runtime wiring for a full CSQC
-gameplay path is outside the current parity milestone. [#Parity](#parity)
+gameplay path is outside the current parity milestone. [Parity](#ref-parity)
 The tests in `csqc_test.go` verify construction, loading, precache
 registry behavior, and global sync, but no e2e CSQC gameplay path is
 wired.
@@ -2707,7 +2577,7 @@ runtime surface used by that compiler:
 
 The mental model from the QGo guide: *"QuakeGo is not 'full Go running on
 Quake.' It is a deliberately narrow Go subset that maps cleanly onto
-QuakeC VM concepts."* [#QGoGuide](#qgoguide) The supported types are
+QuakeC VM concepts."* [QGoGuide](#ref-qgoguide) The supported types are
 `float32`, `string`, `bool`, `quake.Vec3`, `*quake.Entity`, and function
 values. Struct fields tagged for qgo map to entity fields. Methods are
 lowered to QCVM-compatible functions. Engine calls are expressed as imports
@@ -2721,7 +2591,7 @@ They cannot be imported by the engine. This is intentional: `pkg/qgo/quakego`
 is QuakeGo source (a Go dialect compiled to QCVM `progs.dat` bytecode by
 `cmd/qgo`), not regular Go library code. From the repo root, gopls/LSP may
 report `BrokenImport` errors for these packages — these are expected.
-[#AGENTS](#agents)
+[AGENTS](#ref-agents)
 
 ### The mechanical-port convention
 
@@ -2730,7 +2600,7 @@ structure. The QGo guide is explicit: *"Avoid cosmetic Go-idiom rewrites
 (tagged switches, merged var decls) there — they drift the port from
 `progs.src` and make resync harder."* `.golangci.yml` suppresses `unused`,
 `SA4017`, `QF1003`, and `S1021` for that package for the same reason.
-[#AGENTS](#agents) This is a *resync* concern specific to the QuakeGo side
+[AGENTS](#ref-agents) This is a *resync* concern specific to the QuakeGo side
 project, not the engine — the engine itself uses the original QC bytecode.
 
 ### How to use it
@@ -2748,31 +2618,14 @@ original `progs.dat` from the Quake data directory.
 
 ---
 
-## References
-
-<a name="qcdocs"></a>[QCDocs] `docs/internal/qc.md`, ironwail-go repository.
-
-<a name="qcvm"></a>[QCVM] `docs/QCVM_ENTITY_SYNC.md`, ironwail-go repository.
-
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
-
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
-
-<a name="agents"></a>[AGENTS] `AGENTS.md`, ironwail-go repository.
-
-<a name="qgoguide"></a>[QGoGuide] `docs/QGO_QUAKEGO_GUIDE.md`, ironwail-go
-repository.
-
-<a name="hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"*
-Northeastern University. Local copy: `article/analysisfinal.pdf`.
-
 ---
 
+<a id="chapter-6"></a>
 # Chapter 6: GoGPU — Pure-Go WebGPU in Practice
 
 The decision to use a pure-Go WebGPU stack is the defining technical gamble of
 `ironwail-go`. The README states it as a first principle: *"gogpu/WebGPU as the
-canonical gameplay renderer/runtime."* [#README](#readme) The project compiles
+canonical gameplay renderer/runtime."* [README](#ref-readme) The project compiles
 with `CGO_ENABLED=0`. There is no C in the runtime path — not in the renderer,
 not in the audio, not in the windowing. This chapter is a field report on what
 that actually means, using the real bugs, issues, and lessons encountered over
@@ -2847,7 +2700,7 @@ WGSL's `mix()` function uses a scalar blend factor (`f32`) with `vec3<f32>`
 operands, naga v0.15.2 emitted an `FMix` instruction with mismatched operand
 types — a `vec3` and a scalar `float`. AMD's RADV driver tolerated this on the
 integrated GPU, but running with `DRI_PRIME=1` to enforce the discrete NVIDIA
-GPU crashed with `SIGSEGV at addr=0x10`. [#GogpuIssues](#gogpuissues)
+GPU crashed with `SIGSEGV at addr=0x10`. [GogpuIssues](#ref-gogpuissues)
 
 ### The workaround
 
@@ -2878,7 +2731,7 @@ produces:
 
 After upgrading to naga v0.17.15 (the current `go.mod` version), the
 workaround is no longer necessary, though the explicit splat remains in the
-shader as defensive coding. [#GogpuIssues](#gogpuissues)
+shader as defensive coding. [GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -2890,7 +2743,7 @@ naga's WGSL parser could not handle swizzle expressions in certain
 contexts. The particle vertex shader used a writable swizzle compound
 assignment that triggered `ExprSwizzle is not a pointer expression` in naga.
 This prevented the GoGPU renderer from compiling its shaders at all — no
-visuals, just a crash. [#GogpuIssues](#gogpuissues)
+visuals, just a crash. [GogpuIssues](#ref-gogpuissues)
 
 ### The workaround
 
@@ -2906,7 +2759,7 @@ gogpu maintainer kolkov confirmed both the swizzle gap and the
 `dpdx`/`dpdy`/`textureDimensions` SPIR-V issue (which affected the scene
 composite fragment shader) as naga bugs, filed them as naga #45 and #46, and
 said: *"These are exactly the real-world 3D patterns we were missing in our
-test coverage."* [#GogpuIssues](#gogpuissues)
+test coverage."* [GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -2925,7 +2778,7 @@ Fixed in gogpu v0.22.8. The `InputBackend` in
 source to the engine's `internal/input.Backend` interface. It uses callback-based
 input (`OnKeyPress`, `OnMouseMove`, etc.) when available, and falls back to
 polling `b.app.Input().Keyboard()` / `.Mouse()` state otherwise. The polling path
-has a heartbeat log to detect silent input failures. [#GogpuIssues](#gogpuissues)
+has a heartbeat log to detect silent input failures. [GogpuIssues](#ref-gogpuissues)
 
 ### The input architecture
 
@@ -2958,7 +2811,7 @@ constraints protocol implementation did not exist at all.
 Issue #173 asked for the feature; issue #175 pointed to
 [`libwldevices-go`](https://github.com/bnema/libwldevices-go) as a potential
 Wayland implementation dependency. Both were closed after gogpu added pointer
-lock support. [#GogpuIssues](#gogpuissues)
+lock support. [GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -2979,7 +2832,7 @@ forwarding it through `RequestAdapter`. The `Core` struct in
 `core_gogpu.go:46` now has `GPUPreference` in `CoreConfig`, with
 `DefaultCoreConfig()` returning `GPUPreferHighPerformance`. The `CoreConfig`
 is the Go-side mechanism for this — the engine can expose a user-facing GPU
-preference cvar and pass it through. [#GogpuIssues](#gogpuissues)
+preference cvar and pass it through. [GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -2987,7 +2840,7 @@ preference cvar and pass it through. [#GogpuIssues](#gogpuissues)
 
 This is the defining architectural bug of the gogpu stack, and the one that
 caused the most frustration during the port. It is documented in the issue
-#157 comment thread by gogpu maintainer kolkov. [#GogpuIssues](#gogpuissues)
+#157 comment thread by gogpu maintainer kolkov. [GogpuIssues](#ref-gogpuissues)
 
 ### The problem
 
@@ -3024,7 +2877,7 @@ Bind `wl_seat` + `wl_pointer` + `wl_keyboard` on the C connection and
 forward events to Go. gogpu's CSD (client-side decoration) code already did
 exactly this for pointer events on decoration subsurfaces — it needed to be
 generalized to the main surface. Tracked as BUG-GOGPU-002 (P0).
-[#GogpuIssues](#gogpuissues)
+[GogpuIssues](#ref-gogpuissues)
 
 ### The lesson for engine authors
 
@@ -3063,7 +2916,7 @@ The gogpu issue #157 opening body captures the state at the detour's peak:
 
 > I first attempted to tackle things using GoGPU as the rendering backend,
 > but eventually hit enough issues that I sadly switched to cgo GLFW code.
-> [#GogpuIssues](#gogpuissues)
+> [GogpuIssues](#ref-gogpuissues)
 
 The return was driven by naga fixes (swizzle, scalar `mix()`), the X11 input
 fix (v0.22.8), and the decision that pure-Go was worth the remaining pain.
@@ -3085,7 +2938,7 @@ fix (v0.22.8), and the decision that pure-Go was worth the remaining pain.
   engine running on the pure-Go GPU stack. gogpu issue #163 ("Ironwail-go
   demo") is the showcase thread. The gogpu maintainers use it as evidence
   that the stack can handle a real engine, not just toy examples.
-  [#GogpuIssues](#gogpuissues)
+  [GogpuIssues](#ref-gogpuissues)
 - **Active development**: The gogpu maintainer (kolkov) is responsive and
   uses `ironwail-go` bug reports to prioritize naga and platform fixes.
 
@@ -3138,22 +2991,16 @@ fix (v0.22.8), and the decision that pure-Go was worth the remaining pain.
 
 ---
 
-## References
-
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
-
-<a name="gogpuissues"></a>[GogpuIssues] `article/gogpu_issues.md` (transcript
-of gogpu/gogpu issues, fetched 2026-07-27).
-
 ---
 
+<a id="chapter-7"></a>
 # Chapter 7: Synthesis — What Was Learned, and Where It Goes
 
 `ironwail-go` began as an experiment driven by three motives: nostalgia for
 school days spent hacking Quake mods, a desire to test modern AI agentic coding
 capabilities on a non-trivial codebase, and a technical curiosity to see if a
 1996 3D engine could be re-architected into pure, safe Go with a WebGPU renderer
-and zero C dependencies. [#README](#readme)
+and zero C dependencies. [README](#ref-readme)
 
 Six chapters later, the engine runs. It loads BSP maps, executes QuakeC bytecode,
 simulates player and monster physics, streams spatialized audio via Oto, and
@@ -3180,7 +3027,7 @@ engines:
   never retrofitted — they are structural.
 - **BSP and PVS visibility culling** continues to excel. On `qbj3_stickflip`, a
   massive map with 85,936 raw faces and 22,195 leaves, the PVS lookup instantly
-  reduces the first rendered frame to just 1,002 visible faces. [#Parity](#parity)
+  reduces the first rendered frame to just 1,002 visible faces. [Parity](#ref-parity)
 - **The command system** (`cmdsys`) as a unified control path for keybindings,
   console execution, menus, configuration files, and script automation remains
   unmatched for engine debuggability.
@@ -3263,7 +3110,7 @@ pointer arithmetic connects engine code (`ed->v.velocity`) and bytecode
 Because Go forbids pointer arithmetic and requires type safety, `ironwail-go`
 operates with **dual storage**: typed Go structs (`Edict.Vars`) for engine physics/networking, and a flat `QCVM.Edicts []byte` array for VM bytecode. Syncing data back and forth via reflection (`syncAllToQCVM` / `syncAllFromQCVM`) at every QuakeC callback introduces an O(numEdicts × numFields) tax. The `qbj3` CPU profiles showed that edict synchronization is one of the heaviest CPU consumers in the entire server frame.
 
-While the unified sync fixed fragile selective-sync bugs (like the `qbj2` lift trigger failure), the long-term resolution requires completing the migration to direct-VM accessor methods (`Edict.Velocity()`, `Edict.SetVelocity()`), deleting `EntVars` and `server_qc_sync.go` entirely to achieve C's zero-sync model. [#QCVM](#qcvm)
+While the unified sync fixed fragile selective-sync bugs (like the `qbj2` lift trigger failure), the long-term resolution requires completing the migration to direct-VM accessor methods (`Edict.Velocity()`, `Edict.SetVelocity()`), deleting `EntVars` and `server_qc_sync.go` entirely to achieve C's zero-sync model. [QCVM](#ref-qcvm)
 
 ### 3. Naga compiler and desktop windowing maturity
 
@@ -3290,7 +3137,7 @@ lighting to limits that exposed rendering and CPU bottlenecks that clean standar
 
 ## Reflection on multi-agent agentic coding
 
-`ironwail-go` was developed as an agentic coding experiment under the "Senior-Junior" partnership model codified in `AGENTS.md` — the human engineer acts as architect and reviewer, while AI agents perform code translation, refactoring, and test writing. [#AGENTS](#agents)
+`ironwail-go` was developed as an agentic coding experiment under the "Senior-Junior" partnership model codified in `AGENTS.md` — the human engineer acts as architect and reviewer, while AI agents perform code translation, refactoring, and test writing. [AGENTS](#ref-agents)
 
 Crucially, **the project was not built by a single AI model.** Work was distributed across multiple agents over the course of the port:
 
@@ -3361,13 +3208,13 @@ Completing steps 3–5 of the QCVM migration plan:
 - Delete `EntVars` and `internal/server/server_qc_sync.go`.
 - Remove `syncAllToQCVM` and `syncAllFromQCVM` calls from `executeQCFunction`.
 
-This will achieve C Quake's zero-sync architecture, eliminating the reflection overhead and matching native VM performance. [#QCVM](#qcvm)
+This will achieve C Quake's zero-sync architecture, eliminating the reflection overhead and matching native VM performance. [QCVM](#ref-qcvm)
 
 ### 4. Continued parity closure & CSQC integration
 
 - **Texture atlas storage upgrade:** Replace the uniform buffer materials array with
   a storage buffer (`var<storage, read> materials`) to remove the hardcoded
-  256-texture limit, fully resolving the `qbj2` atlas overflow bug. [#MaterialsDiag](#materialsdiag)
+  256-texture limit, fully resolving the `qbj2` atlas overflow bug. [MaterialsDiag](#ref-materialsdiag)
 - **CSQC wiring:** Complete host and client runtime integration for Client-Side
   QuakeC (`csprogs.dat`), bringing full support for custom mod HUDs and client-side
   predicted entities.
@@ -3390,14 +3237,44 @@ Even as features are added and parity gaps close, the codebase's lasting value r
 
 ---
 
-## References
+---
 
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
+<a id="ref-consolidated"></a>
 
-<a name="agents"></a>[AGENTS] `AGENTS.md`, ironwail-go repository.
+## Consolidated References and Sources
 
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
+- <a id="ref-hickman"></a>**[Hickman]** Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. Local copy: [`article/analysisfinal.pdf`](analysisfinal.pdf); text extraction: [`article/analysisfinal.txt`](analysisfinal.txt).
+- <a id="ref-readme"></a>**[README]** [`README.md`](../README.md), ironwail-go repository.
+- <a id="ref-agents"></a>**[AGENTS]** [`AGENTS.md`](../AGENTS.md), ironwail-go repository.
+- <a id="ref-learningguide"></a>**[LearningGuide]** [`docs/LEARNING_GUIDE.md`](../docs/LEARNING_GUIDE.md), ironwail-go repository.
+- <a id="ref-comparison"></a>**[Comparison]** [`docs/COMPARISON.md`](../docs/COMPARISON.md), ironwail-go repository.
+- <a id="ref-parity"></a>**[Parity]** [`docs/PARITY.md`](../docs/PARITY.md), ironwail-go repository.
+- <a id="ref-learningplan"></a>**[LearningPlan]** [`docs/RENDERER_LEARNING_PLAN.md`](../docs/RENDERER_LEARNING_PLAN.md), ironwail-go repository.
+- <a id="ref-vertexlayout"></a>**[VertexLayout]** [`docs/VERTEX_LAYOUT.md`](../docs/VERTEX_LAYOUT.md), ironwail-go repository.
+- <a id="ref-spec"></a>**[Spec]** [`docs/QUAKE_SPECIFICATION.md`](../docs/QUAKE_SPECIFICATION.md), ironwail-go repository.
+- <a id="ref-qcvm"></a>**[QCVM]** [`docs/QCVM_ENTITY_SYNC.md`](../docs/QCVM_ENTITY_SYNC.md), ironwail-go repository.
+- <a id="ref-qgoguide"></a>**[QGoGuide]** [`docs/QGO_QUAKEGO_GUIDE.md`](../docs/QGO_QUAKEGO_GUIDE.md), ironwail-go repository.
+- <a id="ref-hostdocs"></a>**[HostDocs]** [`docs/internal/host.md`](../docs/internal/host.md), ironwail-go repository.
+- <a id="ref-clientdocs"></a>**[ClientDocs]** [`docs/internal/client.md`](../docs/internal/client.md), ironwail-go repository.
+- <a id="ref-walksp"></a>**[WalkSP]** [`docs/WALKTHROUGH_SINGLEPLAYER_FORWARD.md`](../docs/WALKTHROUGH_SINGLEPLAYER_FORWARD.md), ironwail-go repository.
+- <a id="ref-fsdocs"></a>**[FSDocs]** [`docs/internal/fs.md`](../docs/internal/fs.md), ironwail-go repository.
+- <a id="ref-bspdocs"></a>**[BSPDocs]** [`docs/internal/bsp.md`](../docs/internal/bsp.md), ironwail-go repository.
+- <a id="ref-qcdocs"></a>**[QCDocs]** [`docs/internal/qc.md`](../docs/internal/qc.md), ironwail-go repository.
+- <a id="ref-cmdsysdocs"></a>**[CmdSysDocs]** [`docs/internal/cmdsys.md`](../docs/internal/cmdsys.md), ironwail-go repository.
+- <a id="ref-netdocs"></a>**[NetDocs]** [`docs/internal/net.md`](../docs/internal/net.md), ironwail-go repository.
+- <a id="ref-inputhandling"></a>**[InputHandling]** [`docs/INPUT_HANDLING.md`](../docs/INPUT_HANDLING.md), ironwail-go repository.
+- <a id="ref-asyncdocs"></a>**[AsyncDocs]** [`docs/internal/async.md`](../docs/internal/async.md), ironwail-go repository.
+- <a id="ref-audiodocs"></a>**[AudioDocs]** [`docs/internal/audio.md`](../docs/internal/audio.md), ironwail-go repository.
+- <a id="ref-enginedocs"></a>**[EngineDocs]** [`docs/internal/engine.md`](../docs/internal/engine.md), ironwail-go repository.
+- <a id="ref-typespkg"></a>**[TypesPkg]** [`pkg/types/types.go`](../pkg/types/types.go), ironwail-go repository.
+- <a id="ref-bootseq"></a>**[BootSeq]** [`docs/BOOT_SEQUENCE.md`](../docs/BOOT_SEQUENCE.md), ironwail-go repository.
+- <a id="ref-rendererdocs"></a>**[RendererDocs]** [`docs/internal/renderer.md`](../docs/internal/renderer.md), ironwail-go repository.
+- <a id="ref-waterdiag"></a>**[WaterDiag]** [`docs/diagnoses/qbj2_water.md`](../docs/diagnoses/qbj2_water.md), ironwail-go repository.
+- <a id="ref-materialsdiag"></a>**[MaterialsDiag]** [`docs/diagnoses/qbj2_materials.md`](../docs/diagnoses/qbj2_materials.md), ironwail-go repository.
+- <a id="ref-gogpuissues"></a>**[GogpuIssues]** [`article/gogpu_issues.md`](gogpu_issues.md) (transcript of fetched `gogpu/gogpu` issues).
 
-<a name="qcvm"></a>[QCVM] `docs/QCVM_ENTITY_SYNC.md`, ironwail-go repository.
-
-<a name="materialsdiag"></a>[MaterialsDiag] `docs/diagnoses/qbj2_materials.md`, ironwail-go repository.
+[ironwail]: https://github.com/andrei-drexler/ironwail
+[gogpu]: https://github.com/gogpu/gogpu
+[scratchapixel]: https://www.scratchapixel.com/
+[webgpufundamentals]: https://webgpufundamentals.org/
+[oto]: https://github.com/ebitengine/oto

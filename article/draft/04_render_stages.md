@@ -7,7 +7,7 @@ it lived in C, how it works in Go, and what bugs were encountered.
 
 The stage numbering follows `docs/RENDERER_LEARNING_PLAN.md` (Stages 0–14),
 which is the project's canonical curriculum for learning the renderer.
-[#LearningPlan](#learningplan) The frame orchestration lives in
+[LearningPlan](#ref-learningplan) The frame orchestration lives in
 `RenderFrame()` at `renderer_gogpu_frame.go:82`, and the world render pass
 lives in `renderWorldInternal()` at `world_render_gogpu.go:16`.
 
@@ -21,7 +21,7 @@ Before any rendering can happen, the engine must establish a connection to
 the GPU. In WebGPU, this is a four-step hierarchy: create an Instance (the
 entry point to the WebGPU API), request an Adapter (a physical GPU), open a
 Device (a logical GPU context with its own queue), and get the Queue (the
-command submission interface). [#LearningPlan](#learningplan)
+command submission interface). [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -41,14 +41,14 @@ windowed mode, the `gogpu.App` event loop owns the surface; in headless
 mode, `Core.InitHeadless()` creates an offscreen surface for screenshot
 capture. The GPU preference was the subject of gogpu issue #176 (adapter
 power preference not forwarded on hybrid-GPU Linux systems).
-[#GogpuIssues](#gogpuissues)
+[GogpuIssues](#ref-gogpuissues)
 
 ### Bugs/lessons
 
 The screenshot path was originally a stub writing `RGB(20,20,46)` — a
 plausible-looking dark color that was not a real GPU readback. This
 actively misled the water translucency investigation until it was fixed.
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -58,7 +58,7 @@ actively misled the water translucency investigation until it was fixed.
 
 The fundamental unit of WebGPU rendering: a vertex buffer + a WGSL vertex
 shader + a WGSL fragment shader + a pipeline object + a bind group, all
-wired together to produce pixels. [#LearningPlan](#learningplan)
+wired together to produce pixels. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -91,7 +91,7 @@ and outputs it. This is a fullscreen tint — Quake's "polyblend" used for
 underwater color wash and damage flashes. The pipeline setup is in
 `ensurePolyBlendResourcesLocked()` (`:83`); per-frame use is
 `renderPolyBlendHAL()` (`:224`), called from `RenderFrame()` at
-`:218`. [#LearningPlan](#learningplan)
+`:218`. [LearningPlan](#ref-learningplan)
 
 For a real vertex-buffer example, the **particle** pipeline
 (`particle_gogpu.go:20`) uses instanced vertices with per-particle position
@@ -102,7 +102,7 @@ and color attributes.
 The naga WGSL→SPIR-V compiler had a bug with scalar `mix()` (gogpu issue
 #162) — `mix(vec3, vec3, f32)` produced invalid SPIR-V that crashed on
 NVIDIA. The workaround was `vec3<f32>(fog)` splat. Fixed in naga v0.17.0+.
-[#GogpuIssues](#gogpuissues)
+[GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -112,7 +112,7 @@ NVIDIA. The workaround was `vec3<f32>(fog)` splat. Fixed in naga v0.17.0+.
 
 The **view matrix** transforms world space into camera/eye space. The
 **projection matrix** transforms eye space into clip space (the GPU's
-normalized cube). Together they are the VP matrix. [#LearningPlan](#learningplan)
+normalized cube). Together they are the VP matrix. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -154,7 +154,7 @@ the VP is computed and written to the GPU buffer at `:144-153`.
 
 Upload the BSP world geometry (vertices, edges, faces, textures) to GPU
 buffers and render it. The world is "one big mesh with extra metadata."
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -172,7 +172,7 @@ This is the largest stage. `UploadWorld()` at
   `world_geometry_gogpu.go` constructs the vertex data.
 - **Vertex construction**: the 48-byte `WorldVertex` struct (see Chapter 3
   and `docs/VERTEX_LAYOUT.md`) flows from Go struct → byte packer → WGSL
-  `@vertex` input. [#VertexLayout](#vertexlayout)
+  `@vertex` input. [VertexLayout](#ref-vertexlayout)
 - **Byte packing**: `appendGoGPUWorldVertexBytes` in `world_gogpu.go`.
 - **Pipeline creation**: `createWorldPipeline()` and friends in
   `world_pipelines_gogpu.go:13`.
@@ -190,7 +190,7 @@ depth-stencil attachment (`worldDepthTextureView`).
 Texture corruption on multi-layer atlas maps (commit `d89b34c`) was caused
 by not copying both atlas layer and bounds when animating textures. The
 fix was in `animateWorldMaterials` to swap the entire material config.
-[#MaterialsDiag](#materialsdiag)
+[MaterialsDiag](#ref-materialsdiag)
 
 ---
 
@@ -201,7 +201,7 @@ fix was in `animateWorldMaterials` to swap the entire material config.
 A Quake map has hundreds of small textures. WebGPU cannot bind hundreds of
 textures individually. Solution: pack them into a single atlas texture and
 use per-vertex `materialID` to index into a materials uniform buffer that
-holds the atlas bounds and layer for each texture. [#LearningPlan](#learningplan)
+holds the atlas bounds and layer for each texture. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -232,7 +232,7 @@ textures, the `WriteBuffer` call silently overflows the 8192-byte GPU
 buffer. The `diagMaterialBufferCapacity` and `diagMaterialBufferWrite`
 functions in `diag_atlas.go` log warnings but do not clamp. The fix would
 require changing the uniform buffer to a storage buffer to remove the
-256-entry limit. [#MaterialsDiag](#materialsdiag)
+256-entry limit. [MaterialsDiag](#ref-materialsdiag)
 
 ---
 
@@ -243,7 +243,7 @@ require changing the uniform buffer to a storage buffer to remove the
 Quake does not compute lighting at runtime. Lighting is pre-baked offline
 by the map compiler (`qrad`) and stored as a lightmap: a small grayscale
 texture per face. The fragment shader samples both the material texture and
-the lightmap, and multiplies them. [#LearningPlan](#learningplan)
+the lightmap, and multiplies them. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -267,14 +267,14 @@ frame in `CL_RunLightStyles` (`cl_main.c`).
 C never allocates lightmaps for `SURF_DRAWTURB` (water/lava) surfaces —
 they are fullbright. Ironwail added optional lit water via `r_litwater`. The
 Go port samples the lightmap when `litWater > 0.5` in the WGSL uniform.
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ### Bugs/lessons
 
 The fallback lightmap was created as `TextureViewDimension2D` but the
 shader declared `texture_2d_array<f32>`. WebGPU rejected it silently,
 defaulting to fullbright white (×2.0 overbright). Fixed by using
-`TextureViewDimension2DArray`. [#WaterDiag](#waterdiag)
+`TextureViewDimension2DArray`. [WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -286,7 +286,7 @@ The single most important optimization in a Quake renderer. The BSP tree
 organizes the world into convex leaves. Each leaf has a PVS (Potentially
 Visible Set) bitmask saying which other leaves can be seen from it. Before
 drawing, the engine finds the camera's leaf, looks up the PVS, and only
-draws faces in visible leaves. [#LearningPlan](#learningplan)
+draws faces in visible leaves. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -303,7 +303,7 @@ walk the BSP tree and mark visible surfaces using the PVS.
 - **What gets drawn**: `renderWorldInternal()` only draws faces that passed
   visibility. This is why Quake can render huge maps at 60 FPS — the qbj3
   `qbj3_stickflip` map has 85,936 raw faces but only 1,002 visible at the
-  spawn view. [#Parity](#parity)
+  spawn view. [Parity](#ref-parity)
 
 ### Bugs/lessons
 
@@ -311,7 +311,7 @@ Single-leaf PVS culled underwater geometry. Fixed by using `FatPVS` (from
 C's `SV_FatPVS`) when the camera leaf contains water faces. Also, a BSP2
 `HeadNode` traversal bug caused `FatPVS`/`PointInLeaf` to start at node 0
 (submodel) instead of `Models[0].HeadNode[0]` — critical for BSP2 maps.
-Fixed in `internal/bsp/tree.go`. [#WaterDiag](#waterdiag)
+Fixed in `internal/bsp/tree.go`. [WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -321,7 +321,7 @@ Fixed in `internal/bsp/tree.go`. [#WaterDiag](#waterdiag)
 
 Opaque objects use depth testing (draw in any order, the depth buffer
 resolves which is in front). Translucent objects must be sorted
-back-to-front and drawn with depth-write off. [#LearningPlan](#learningplan)
+back-to-front and drawn with depth-write off. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -330,7 +330,7 @@ submits. Opaque water (`R_DrawWater(false)`) draws with blend=OPAQUE,
 depth-write=ON. Translucent water (`R_DrawWater(true)`) draws with
 blend=ALPHA, depth-write=OFF. Both use the same framebuffer. The key
 principle: no face is drawn both opaquely and translucently — the split is
-by alpha value, not by pass. [#WaterDiag](#waterdiag)
+by alpha value, not by pass. [WaterDiag](#ref-waterdiag)
 
 ### GoGPU reality
 
@@ -364,7 +364,7 @@ causes:
    applied the override when `r_wateralpha` was exactly `1.0`. A stale
    config value prevented the map's `wateralpha=0.6` from taking effect.
 
-[#WaterDiag](#waterdiag)
+[WaterDiag](#ref-waterdiag)
 
 ---
 
@@ -376,7 +376,7 @@ Quake's water/lava/sky surfaces use a "turbulent" warp: UV coordinates are
 animated with a sine function to make the texture swim. Sky is a special
 surface that ignores depth and uses a two-layer scrolling texture. Fog is
 exponential distance fog. When underwater, the final composited scene is
-distorted by a sinusoidal screen-space warp. [#LearningPlan](#learningplan)
+distorted by a sinusoidal screen-space warp. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -415,7 +415,7 @@ return textureSample(sceneTexture, sceneSampler, uv * uvScale);
 
 The scene composite shader's use of `dpdx`/`dpdy` was one of the naga SPIR-V
 bugs surfaced in gogpu issue #157 — derivatives produced invalid SPIR-V.
-[#GogpuIssues](#gogpuissues)
+[GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -427,7 +427,7 @@ Divide the camera frustum into a 3D grid of clusters (32×16×32 tiles). A
 compute shader determines which lights affect each cluster. The fragment
 shader iterates only the lights in its cluster, rather than looping all
 lights. This is a modern technique the C renderer does not have.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -460,7 +460,7 @@ dynamic light model (OpenGL point lights via `R_AddLights`).
 Draw everything that isn't the static BSP world: doors and platforms (brush
 entities), monsters and items (alias models), explosions and pickups
 (sprites), bullet holes (decals), and the first-person weapon (viewmodel).
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -483,7 +483,7 @@ The **viewmodel** (`renderViewModelHAL` at `world_gogpu_alias.go:593`) is
 a special alias-model render with its own depth handling — it draws on top
 of the world without depth-testing against it. All of these are orchestrated
 in `renderEntities()` at `renderer_gogpu_frame.go:586`, ordered into opaque
-→ sky → translucent passes. [#LearningPlan](#learningplan)
+→ sky → translucent passes. [LearningPlan](#ref-learningplan)
 
 ### Bugs/lessons
 
@@ -497,7 +497,7 @@ in `renderEntities()` at `renderer_gogpu_frame.go:586`, ordered into opaque
   sampler (commits `e68aa0c`, `4f5e03b`, `6dfda87`).
 - **Pressed button textures**: the frame-1 materials buffer was missing
   entirely — pressed buttons showed their unpressed texture (commit
-  `aa17df6`). [#MaterialsDiag](#materialsdiag)
+  `aa17df6`). [MaterialsDiag](#ref-materialsdiag)
 
 ---
 
@@ -507,7 +507,7 @@ in `renderEntities()` at `renderer_gogpu_frame.go:586`, ordered into opaque
 
 Particles are camera-facing billboards with a procedural soft-circle
 fragment shader. Simulated on the CPU (gravity, decay), uploaded each frame.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -534,7 +534,7 @@ fragment shader. Simulated on the CPU (gravity, decay), uploaded each frame.
 
 Render the 3D scene to an offscreen texture, then draw that texture to the
 screen with a fullscreen shader that can distort it (underwater warp), tint
-it (polyblend), and finally draw the 2D UI on top. [#LearningPlan](#learningplan)
+it (polyblend), and finally draw the 2D UI on top. [LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -569,7 +569,7 @@ into the shader via `@builtin(vertex_index)`).
 
 ### Purpose
 
-Combine all stages into one frame loop. [#LearningPlan](#learningplan)
+Combine all stages into one frame loop. [LearningPlan](#ref-learningplan)
 
 ### GoGPU reality
 
@@ -589,7 +589,7 @@ Reading `RenderFrame()` at `renderer_gogpu_frame.go:82` end to end:
 
 The `host_speeds 1` cvar enables per-phase timing (`clear_ms`,
 `world_ms`, `entities_ms`, `viewmodel_ms`, `scene_composite_ms`,
-`polyblend_ms`, `overlay_ms`, `total_ms`) logged each frame. [#README](#readme)
+`polyblend_ms`, `overlay_ms`, `total_ms`) logged each frame. [README](#ref-readme)
 
 The depth-stencil is cleared before the entities phase
 (`:177-188`) so entities can depth-test against the world without
@@ -603,7 +603,7 @@ re-rendering the world into the entity pass.
 
 Replace the sorted-translucent pass with weighted-blended transparency
 (McGuire & Bavoil 2013), avoiding the back-to-front sort. Enabled by a cvar.
-[#LearningPlan](#learningplan)
+[LearningPlan](#ref-learningplan)
 
 ### C reference
 
@@ -626,21 +626,23 @@ the default path is sorted translucency.
 
 ## References
 
-<a name="learningplan"></a>[LearningPlan] `docs/RENDERER_LEARNING_PLAN.md`,
-ironwail-go repository.
+<a id="ref-gogpuissues"></a>[GogpuIssues] `article/gogpu_issues.md` (transcript of gogpu/gogpu issues).
 
-<a name="vertexlayout"></a>[VertexLayout] `docs/VERTEX_LAYOUT.md`,
-ironwail-go repository.
+<a id="ref-learningplan"></a>[LearningPlan] [`docs/RENDERER_LEARNING_PLAN.md`](../../docs/RENDERER_LEARNING_PLAN.md), ironwail-go repository.
 
-<a name="waterdiag"></a>[WaterDiag] `docs/diagnoses/qbj2_water.md`,
-ironwail-go repository.
+<a id="ref-materialsdiag"></a>[MaterialsDiag] [`docs/diagnoses/qbj2_materials.md`](../../docs/diagnoses/qbj2_materials.md), ironwail-go repository.
 
-<a name="materialsdiag"></a>[MaterialsDiag]
-`docs/diagnoses/qbj2_materials.md`, ironwail-go repository.
+<a id="ref-parity"></a>[Parity] [`docs/PARITY.md`](../../docs/PARITY.md), ironwail-go repository.
 
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
+<a id="ref-readme"></a>[README] [`README.md`](../../README.md), ironwail-go repository.
 
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
+<a id="ref-vertexlayout"></a>[VertexLayout] [`docs/VERTEX_LAYOUT.md`](../../docs/VERTEX_LAYOUT.md), ironwail-go repository.
 
-<a name="gogpuissues"></a>[GogpuIssues] `article/gogpu_issues.md` (transcript
-of gogpu/gogpu issues, fetched 2026-07-27).
+<a id="ref-waterdiag"></a>[WaterDiag] [`docs/diagnoses/qbj2_water.md`](../../docs/diagnoses/qbj2_water.md), ironwail-go repository.
+
+
+[ironwail]: https://github.com/andrei-drexler/ironwail
+[gogpu]: https://github.com/gogpu/gogpu
+[scratchapixel]: https://www.scratchapixel.com/
+[webgpufundamentals]: https://webgpufundamentals.org/
+[oto]: https://github.com/ebitengine/oto

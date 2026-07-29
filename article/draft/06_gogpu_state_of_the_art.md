@@ -2,7 +2,7 @@
 
 The decision to use a pure-Go WebGPU stack is the defining technical gamble of
 `ironwail-go`. The README states it as a first principle: *"gogpu/WebGPU as the
-canonical gameplay renderer/runtime."* [#README](#readme) The project compiles
+canonical gameplay renderer/runtime."* [README](#ref-readme) The project compiles
 with `CGO_ENABLED=0`. There is no C in the runtime path — not in the renderer,
 not in the audio, not in the windowing. This chapter is a field report on what
 that actually means, using the real bugs, issues, and lessons encountered over
@@ -77,7 +77,7 @@ WGSL's `mix()` function uses a scalar blend factor (`f32`) with `vec3<f32>`
 operands, naga v0.15.2 emitted an `FMix` instruction with mismatched operand
 types — a `vec3` and a scalar `float`. AMD's RADV driver tolerated this on the
 integrated GPU, but running with `DRI_PRIME=1` to enforce the discrete NVIDIA
-GPU crashed with `SIGSEGV at addr=0x10`. [#GogpuIssues](#gogpuissues)
+GPU crashed with `SIGSEGV at addr=0x10`. [GogpuIssues](#ref-gogpuissues)
 
 ### The workaround
 
@@ -108,7 +108,7 @@ produces:
 
 After upgrading to naga v0.17.15 (the current `go.mod` version), the
 workaround is no longer necessary, though the explicit splat remains in the
-shader as defensive coding. [#GogpuIssues](#gogpuissues)
+shader as defensive coding. [GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -120,7 +120,7 @@ naga's WGSL parser could not handle swizzle expressions in certain
 contexts. The particle vertex shader used a writable swizzle compound
 assignment that triggered `ExprSwizzle is not a pointer expression` in naga.
 This prevented the GoGPU renderer from compiling its shaders at all — no
-visuals, just a crash. [#GogpuIssues](#gogpuissues)
+visuals, just a crash. [GogpuIssues](#ref-gogpuissues)
 
 ### The workaround
 
@@ -136,7 +136,7 @@ gogpu maintainer kolkov confirmed both the swizzle gap and the
 `dpdx`/`dpdy`/`textureDimensions` SPIR-V issue (which affected the scene
 composite fragment shader) as naga bugs, filed them as naga #45 and #46, and
 said: *"These are exactly the real-world 3D patterns we were missing in our
-test coverage."* [#GogpuIssues](#gogpuissues)
+test coverage."* [GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -155,7 +155,7 @@ Fixed in gogpu v0.22.8. The `InputBackend` in
 source to the engine's `internal/input.Backend` interface. It uses callback-based
 input (`OnKeyPress`, `OnMouseMove`, etc.) when available, and falls back to
 polling `b.app.Input().Keyboard()` / `.Mouse()` state otherwise. The polling path
-has a heartbeat log to detect silent input failures. [#GogpuIssues](#gogpuissues)
+has a heartbeat log to detect silent input failures. [GogpuIssues](#ref-gogpuissues)
 
 ### The input architecture
 
@@ -188,7 +188,7 @@ constraints protocol implementation did not exist at all.
 Issue #173 asked for the feature; issue #175 pointed to
 [`libwldevices-go`](https://github.com/bnema/libwldevices-go) as a potential
 Wayland implementation dependency. Both were closed after gogpu added pointer
-lock support. [#GogpuIssues](#gogpuissues)
+lock support. [GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -209,7 +209,7 @@ forwarding it through `RequestAdapter`. The `Core` struct in
 `core_gogpu.go:46` now has `GPUPreference` in `CoreConfig`, with
 `DefaultCoreConfig()` returning `GPUPreferHighPerformance`. The `CoreConfig`
 is the Go-side mechanism for this — the engine can expose a user-facing GPU
-preference cvar and pass it through. [#GogpuIssues](#gogpuissues)
+preference cvar and pass it through. [GogpuIssues](#ref-gogpuissues)
 
 ---
 
@@ -217,7 +217,7 @@ preference cvar and pass it through. [#GogpuIssues](#gogpuissues)
 
 This is the defining architectural bug of the gogpu stack, and the one that
 caused the most frustration during the port. It is documented in the issue
-#157 comment thread by gogpu maintainer kolkov. [#GogpuIssues](#gogpuissues)
+#157 comment thread by gogpu maintainer kolkov. [GogpuIssues](#ref-gogpuissues)
 
 ### The problem
 
@@ -254,7 +254,7 @@ Bind `wl_seat` + `wl_pointer` + `wl_keyboard` on the C connection and
 forward events to Go. gogpu's CSD (client-side decoration) code already did
 exactly this for pointer events on decoration subsurfaces — it needed to be
 generalized to the main surface. Tracked as BUG-GOGPU-002 (P0).
-[#GogpuIssues](#gogpuissues)
+[GogpuIssues](#ref-gogpuissues)
 
 ### The lesson for engine authors
 
@@ -293,7 +293,7 @@ The gogpu issue #157 opening body captures the state at the detour's peak:
 
 > I first attempted to tackle things using GoGPU as the rendering backend,
 > but eventually hit enough issues that I sadly switched to cgo GLFW code.
-> [#GogpuIssues](#gogpuissues)
+> [GogpuIssues](#ref-gogpuissues)
 
 The return was driven by naga fixes (swizzle, scalar `mix()`), the X11 input
 fix (v0.22.8), and the decision that pure-Go was worth the remaining pain.
@@ -315,7 +315,7 @@ fix (v0.22.8), and the decision that pure-Go was worth the remaining pain.
   engine running on the pure-Go GPU stack. gogpu issue #163 ("Ironwail-go
   demo") is the showcase thread. The gogpu maintainers use it as evidence
   that the stack can handle a real engine, not just toy examples.
-  [#GogpuIssues](#gogpuissues)
+  [GogpuIssues](#ref-gogpuissues)
 - **Active development**: The gogpu maintainer (kolkov) is responsive and
   uses `ironwail-go` bug reports to prioritize naga and platform fixes.
 
@@ -370,7 +370,13 @@ fix (v0.22.8), and the decision that pure-Go was worth the remaining pain.
 
 ## References
 
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
+<a id="ref-gogpuissues"></a>[GogpuIssues] `article/gogpu_issues.md` (transcript of gogpu/gogpu issues).
 
-<a name="gogpuissues"></a>[GogpuIssues] `article/gogpu_issues.md` (transcript
-of gogpu/gogpu issues, fetched 2026-07-27).
+<a id="ref-readme"></a>[README] [`README.md`](../../README.md), ironwail-go repository.
+
+
+[ironwail]: https://github.com/andrei-drexler/ironwail
+[gogpu]: https://github.com/gogpu/gogpu
+[scratchapixel]: https://www.scratchapixel.com/
+[webgpufundamentals]: https://webgpufundamentals.org/
+[oto]: https://github.com/ebitengine/oto

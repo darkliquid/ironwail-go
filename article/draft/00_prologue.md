@@ -8,7 +8,7 @@ for game logic, and a software (later OpenGL) renderer — set patterns that
 game engines still follow thirty years later. Zachary Hickman, in an academic
 analysis of the engine written for Northeastern University, framed it
 succinctly: *"The impressive feature improvements required a much more
-comprehensive engine."* [#Hickman](#hickman)
+comprehensive engine."* [Hickman](#ref-hickman)
 
 This is the story of re-implementing that engine in Go.
 
@@ -28,7 +28,7 @@ The README states the intent plainly:
 > experiment to get more experience with agentic coding and furthermore to
 > learn more about the Quake engine, game programming and indulge in a bit
 > of nostalgia from my school days of hacking together Quake mods and maps.
-> [#README](#readme)
+> [README](#ref-readme)
 
 Three threads run through the whole project, and through this article:
 
@@ -42,7 +42,7 @@ no."* A large portion of the codebase was written by AI agents converting C
 to Go, but under a human-as-architect-and-reviewer model that the project's
 `AGENTS.md` codifies as a "Senior-Junior partnership" — the human acts as
 architect and reviewer, the agent as a fast, literal-minded junior
-engineer. [#AGENTS](#agents)
+engineer. [AGENTS](#ref-agents)
 
 And critically: it was not one agent. The git history attributes work across
 several different models:
@@ -92,17 +92,17 @@ experience. This shows up concretely in:
   all the way to "read `RenderFrame()` top to bottom and explain every
   line," citing [Scratchapixel][scratchapixel] for theory and
   [webgpufundamentals][webgpufundamentals] for API practice, with
-  build-it-yourself milestones at each stage. [#LearningPlan](#learningplan)
+  build-it-yourself milestones at each stage. [LearningPlan](#ref-learningplan)
 - **The `// Where in C:` citation convention** in tests, e.g.
   `// Where in C: SV_WalkMove in sv_phys.c`, anchoring every behavioral
   assertion to the canonical reference.
 - **`bspdiag`** — an offline BSP inspection CLI (`cmd/bspdiag`) built so
   that anyone can inspect map lumps, entities, leaf contents, lightmaps, and
-  liquid alpha settings without writing scratch scripts. [#AGENTS](#agents)
+  liquid alpha settings without writing scratch scripts. [AGENTS](#ref-agents)
 - **Parity test names that document the invariant being protected** — e.g.
   `TestExecuteProgramRunawayLoopLimitConstantMatchesC` asserts the
   runaway-loop limit is exactly `0x1000000`, and the name itself explains
-  *why* that constant matters for mod compatibility. [#QCDocs](#qcdocs)
+  *why* that constant matters for mod compatibility. [QCDocs](#ref-qcdocs)
 
 This article is written in the same spirit. It explains Quake-specific and
 WebGPU-specific concepts inline rather than assuming them, and it cites
@@ -128,7 +128,7 @@ documentation is shot through with their specifics:
   fallback mismatch, and the QCVM entity-sync pusher/non-pusher bug chain
   (the qbj2 start map's lift trigger stack — a dozen trigger types firing on
   spawn — exposed that `executeQCFunction` was not syncing
-  `MOVETYPE_PUSH` entities). [#QCVM](#qcvm) [#MaterialsDiag](#materialsdiag)
+  `MOVETYPE_PUSH` entities). [QCVM](#ref-qcvm) [MaterialsDiag](#ref-materialsdiag)
 - **`qbj3`** (e.g. the `qbj3_stickflip` map) is the current priority
   stress case. The parity guide records its scale: 85,936 raw faces,
   77,001 built faces, 168,142 built triangles, 322,144 vertices, 22,195
@@ -136,7 +136,7 @@ documentation is shot through with their specifics:
   lit-water/turbulent faces, and 228 sky faces. Its first rendered frame
   at the captured spawn view reports 1,002 visible faces, eight opaque
   world batches, seven opaque brush entities, and eleven opaque alias
-  entities. [#Parity](#parity)
+  entities. [Parity](#ref-parity)
 
 Each chapter of this article that discusses a bug will tie it back to the
 specific qbj map that surfaced it. The brutalist jams are not a footnote;
@@ -152,14 +152,14 @@ engine built around three assumptions that Go actively pushes against:
 
 1. **Manual memory management.** Quake's `Hunk` and `Zone` allocators are a
    single pre-allocated heap with manual pointer arithmetic and
-   bump-allocation arenas. [#Hickman](#hickman) Go has a garbage collector
+   bump-allocation arenas. [Hickman](#ref-hickman) Go has a garbage collector
    and forbids pointer arithmetic.
 2. **Immediate-mode, single-threaded rendering.** The C renderer
    (Ironwail's modernized OpenGL path) draws directly to a framebuffer in
    `R_RenderView`, binding textures one at a time in immediate GL calls.
    WebGPU is explicitly a *retained* API: you write a "recipe" of commands
    into a command buffer, the GPU executes it later, and the CPU and GPU
-   do not share memory directly. [#LearningPlan](#learningplan)
+   do not share memory directly. [LearningPlan](#ref-learningplan)
 3. **Shared memory between engine and scripting.** In C, the QuakeC VM
    and the engine code read and write the *same* `edict_t` structs in the
    *same* memory. There is no sync. In Go, the GC'd `Edict` structs and the
@@ -178,7 +178,7 @@ engine built around three assumptions that Go actively pushes against:
    copies at every QC callback. The long-term goal (steps 3–5 of the
    migration plan) is to migrate all hot paths to the accessors, delete
    `EntVars` and the sync layer entirely, and match C's zero-sync model.
-   [#QCVM](#qcvm)
+   [QCVM](#ref-qcvm)
 
 Every architectural decision in `ironwail-go` — and every bug — flows from
 the collision between Quake's 1996 assumptions and Go's 2026 reality. The
@@ -191,27 +191,25 @@ makes it all render without a line of C.
 
 ## References
 
-<a name="hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"*
-Northeastern University. Local copy: `article/analysisfinal.pdf`; text
-extraction: `article/analysisfinal.txt`.
+<a id="ref-agents"></a>[AGENTS] [`AGENTS.md`](../../AGENTS.md), ironwail-go repository.
 
-<a name="readme"></a>[README] `README.md`, ironwail-go repository.
+<a id="ref-hickman"></a>[Hickman] Zachary Hickman, *"Quake Engine Analysis,"* Northeastern University. Local copy: `article/analysisfinal.pdf`; text extraction: `article/analysisfinal.txt`.
 
-<a name="agents"></a>[AGENTS] `AGENTS.md`, ironwail-go repository.
+<a id="ref-learningplan"></a>[LearningPlan] [`docs/RENDERER_LEARNING_PLAN.md`](../../docs/RENDERER_LEARNING_PLAN.md), ironwail-go repository.
 
-<a name="learningplan"></a>[LearningPlan] `docs/RENDERER_LEARNING_PLAN.md`,
-ironwail-go repository.
+<a id="ref-materialsdiag"></a>[MaterialsDiag] [`docs/diagnoses/qbj2_materials.md`](../../docs/diagnoses/qbj2_materials.md), ironwail-go repository.
 
-<a name="parity"></a>[Parity] `docs/PARITY.md`, ironwail-go repository.
+<a id="ref-parity"></a>[Parity] [`docs/PARITY.md`](../../docs/PARITY.md), ironwail-go repository.
 
-<a name="qcvm"></a>[QCVM] `docs/QCVM_ENTITY_SYNC.md`, ironwail-go repository.
+<a id="ref-qcdocs"></a>[QCDocs] [`docs/internal/qc.md`](../../docs/internal/qc.md), ironwail-go repository.
 
-<a name="qcdocs"></a>[QCDocs] `docs/internal/qc.md`, ironwail-go repository.
+<a id="ref-qcvm"></a>[QCVM] [`docs/QCVM_ENTITY_SYNC.md`](../../docs/QCVM_ENTITY_SYNC.md), ironwail-go repository.
 
-<a name="materialsdiag"></a>[MaterialsDiag] `docs/diagnoses/qbj2_materials.md`,
-ironwail-go repository.
+<a id="ref-readme"></a>[README] [`README.md`](../../README.md), ironwail-go repository.
+
 
 [ironwail]: https://github.com/andrei-drexler/ironwail
 [gogpu]: https://github.com/gogpu/gogpu
 [scratchapixel]: https://www.scratchapixel.com/
 [webgpufundamentals]: https://webgpufundamentals.org/
+[oto]: https://github.com/ebitengine/oto
