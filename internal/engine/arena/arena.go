@@ -101,9 +101,13 @@ func (a *Arena) allocBytes(n, align int) []byte {
 }
 
 // Alloc allocates a slice of count elements of type T from the arena.
+// If a is nil, standard make([]T, count) heap allocation is returned.
 func Alloc[T any](a *Arena, count int) []T {
 	if count <= 0 {
 		return nil
+	}
+	if a == nil {
+		return make([]T, count)
 	}
 	var elem T
 	elemSize := int(unsafe.Sizeof(elem))
@@ -127,7 +131,11 @@ func Alloc[T any](a *Arena, count int) []T {
 }
 
 // New allocates a single element of type T from the arena and returns its pointer.
+// If a is nil, standard new(T) heap allocation is returned.
 func New[T any](a *Arena) *T {
+	if a == nil {
+		return new(T)
+	}
 	slice := Alloc[T](a, 1)
 	if len(slice) == 0 {
 		return nil

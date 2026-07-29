@@ -65,6 +65,17 @@ func TestArena_ZeroSizeStruct(t *testing.T) {
 	}
 }
 
+func TestArena_NilFallback(t *testing.T) {
+	slice := arena.Alloc[int64](nil, 5)
+	if len(slice) != 5 {
+		t.Fatalf("expected len 5 from nil arena Alloc, got %d", len(slice))
+	}
+	ptr := arena.New[int64](nil)
+	if ptr == nil {
+		t.Fatalf("expected non-nil pointer from nil arena New")
+	}
+}
+
 func TestArena_InvalidAllocCounts(t *testing.T) {
 	a := arena.NewArena(1024)
 

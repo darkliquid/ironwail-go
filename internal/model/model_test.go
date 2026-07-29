@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/darkliquid/ironwail-go/internal/engine/arena"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
@@ -292,5 +293,86 @@ func TestLoadSpriteRetainsSyncType(t *testing.T) {
 	testutil.AssertNoError(t, err)
 	if got := sprite.SyncType; got != STRand {
 		t.Fatalf("sprite SyncType = %v, want %v", got, STRand)
+	}
+}
+
+func TestLoadAliasModelWithArena(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	err := vfs.Init(baseDir, "id1")
+	testutil.AssertNoError(t, err)
+	defer vfs.Close()
+
+	data, err := vfs.LoadFile("progs/player.mdl")
+	testutil.AssertNoError(t, err)
+
+	ar := arena.NewArena(512 * 1024)
+	m, err := LoadAliasModelWithArena(bytes.NewReader(data), ar)
+	testutil.AssertNoError(t, err)
+
+	if m.Type != ModAlias || m.AliasHeader == nil {
+		t.Fatalf("expected valid AliasModel loaded with arena")
+	}
+	if ar.BytesAllocated() == 0 {
+		t.Fatalf("expected arena bytes allocated > 0")
+	}
+}
+
+func TestLoadAliasModelWithArenaSynthetic(t *testing.T) {
+	var data bytes.Buffer
+	write := func(value any) {
+		binary.Write(&data, binary.LittleEndian, value)
+	}
+	write(int32(MDLIdent))
+	write(int32(MDLVersion))
+	write([3]float32{1, 1, 1})
+	write([3]float32{0, 0, 0})
+	write(float32(1))
+	write([3]float32{0, 0, 0})
+	write(int32(1)) // 1 skin
+	write(int32(2)) // 2 width
+	write(int32(2)) // 2 height
+	write(int32(1)) // 1 vert
+	write(int32(1)) // 1 tri
+	write(int32(1)) // 1 frame
+	write(int32(0)) // sync
+	write(int32(0)) // flags
+	write(float32(1)) // size
+
+	// skin 0 (single)
+	write(int32(0))
+	data.Write([]byte{1, 2, 3, 4})
+
+	// stVert 0
+	write(int32(0)) // onseam
+	write(int32(0)) // s
+	write(int32(0)) // t
+
+	// triangle 0
+	write(int32(1)) // facesfront
+	write([3]int32{0, 0, 0})
+
+	// frame 0 (single)
+	write(int32(0)) // type
+	write([4]byte{0, 0, 0, 0}) // bbox min
+	write([4]byte{1, 1, 1, 0}) // bbox max
+	write([16]byte{}) // name
+	data.Write([]byte{0, 0, 0, 0}) // pose vert (TriVertX)
+
+	ar := arena.NewArena(1024)
+	m, err := LoadAliasModelWithArena(bytes.NewReader(data.Bytes()), ar)
+	if err != nil {
+		t.Fatalf("LoadAliasModelWithArena failed: %v", err)
+	}
+	if m.AliasHeader == nil || len(m.AliasHeader.STVerts) != 1 {
+		t.Fatalf("expected valid model header with STVerts")
+	}
+	if ar.BytesAllocated() == 0 {
+		t.Fatalf("expected arena bytes allocated > 0")
 	}
 }

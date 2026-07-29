@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"github.com/darkliquid/ironwail-go/internal/engine/arena"
 )
 
 const (
@@ -12,6 +14,10 @@ const (
 )
 
 func LoadAliasModel(r io.ReadSeeker) (*Model, error) {
+	return LoadAliasModelWithArena(r, nil)
+}
+
+func LoadAliasModelWithArena(r io.ReadSeeker, ar *arena.Arena) (*Model, error) {
 	var header MDLHeader
 	if err := binary.Read(r, binary.LittleEndian, &header); err != nil {
 		return nil, fmt.Errorf("failed to read alias header: %w", err)
@@ -45,21 +51,21 @@ func LoadAliasModel(r io.ReadSeeker) (*Model, error) {
 		return nil, fmt.Errorf("invalid number of frames: %d", numFrames)
 	}
 
-	skins, skinDescs, err := readAliasSkins(r, numSkins, int(header.SkinWidth), int(header.SkinHeight))
+	skins, skinDescs, err := readAliasSkins(r, ar, numSkins, int(header.SkinWidth), int(header.SkinHeight))
 	if err != nil {
 		return nil, err
 	}
 
-	stVerts, err := readAliasSTVerts(r, numVerts)
+	stVerts, err := readAliasSTVerts(r, ar, numVerts)
 	if err != nil {
 		return nil, err
 	}
-	triangles, err := readAliasTriangles(r, numTris)
+	triangles, err := readAliasTriangles(r, ar, numTris)
 	if err != nil {
 		return nil, err
 	}
 
-	frames, poses, numPoses, bounds, err := readAliasFrames(r, numFrames, numVerts, header.Scale, header.ScaleOrigin)
+	frames, poses, numPoses, bounds, err := readAliasFrames(r, ar, numFrames, numVerts, header.Scale, header.ScaleOrigin)
 	if err != nil {
 		return nil, err
 	}
@@ -141,14 +147,14 @@ func (b *aliasBounds) finalize(yawRadiusSquared, radiusSquared float32) {
 	b.ymaxs = [3]float32{yawRadius, yawRadius, b.maxs[2]}
 }
 
-func readAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) ([][]byte, []AliasSkinDesc, error) {
+func readAliasSkins(r io.ReadSeeker, ar *arena.Arena, numSkins, skinWidth, skinHeight int) ([][]byte, []AliasSkinDesc, error) {
 	skinSize := skinWidth * skinHeight
 	if skinSize < 0 {
 		return nil, nil, fmt.Errorf("invalid skin dimensions: %dx%d", skinWidth, skinHeight)
 	}
 
 	skins := make([][]byte, 0, numSkins)
-	skinDescs := make([]AliasSkinDesc, 0, numSkins)
+	skinDescs := arena.Alloc[AliasSkinDesc](ar, numSkins)[:0]
 	for i := 0; i < numSkins; i++ {
 		var skinType DAliasSkinType
 		if err := binary.Read(r, binary.LittleEndian, &skinType); err != nil {
@@ -157,7 +163,7 @@ func readAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) ([][]b
 
 		switch AliasSkinType(skinType.Type) {
 		case AliasSkinSingle:
-			skin, err := readAliasSkinPixels(r, skinSize)
+			skin, err := readAliasSkinPixels(r, ar, skinSize)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to read single skin %d: %w", i, err)
 			}
@@ -175,15 +181,15 @@ func readAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) ([][]b
 				return nil, nil, fmt.Errorf("invalid number of grouped skins for skin %d: %d", i, n)
 			}
 
-			intervals := make([]DAliasSkinInterval, n)
+			intervals := arena.Alloc[DAliasSkinInterval](ar, n)
 			if err := binary.Read(r, binary.LittleEndian, &intervals); err != nil {
 				return nil, nil, fmt.Errorf("failed to read skin group intervals %d: %w", i, err)
 			}
 
 			firstFrame := len(skins)
-			skinIntervals := make([]float32, n)
+			skinIntervals := arena.Alloc[float32](ar, n)
 			for skinIndex := 0; skinIndex < n; skinIndex++ {
-				skin, err := readAliasSkinPixels(r, skinSize)
+				skin, err := readAliasSkinPixels(r, ar, skinSize)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to read grouped skin %d:%d: %w", i, skinIndex, err)
 				}
@@ -203,32 +209,32 @@ func readAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) ([][]b
 	return skins, skinDescs, nil
 }
 
-func readAliasSkinPixels(r io.Reader, skinSize int) ([]byte, error) {
-	data := make([]byte, skinSize)
+func readAliasSkinPixels(r io.Reader, ar *arena.Arena, skinSize int) ([]byte, error) {
+	data := arena.Alloc[byte](ar, skinSize)
 	if _, err := io.ReadFull(r, data); err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 
-func readAliasSTVerts(r io.Reader, count int) ([]STVert, error) {
-	verts := make([]STVert, count)
+func readAliasSTVerts(r io.Reader, ar *arena.Arena, count int) ([]STVert, error) {
+	verts := arena.Alloc[STVert](ar, count)
 	if err := binary.Read(r, binary.LittleEndian, &verts); err != nil {
 		return nil, fmt.Errorf("failed to read ST verts: %w", err)
 	}
 	return verts, nil
 }
 
-func readAliasTriangles(r io.Reader, count int) ([]DTriangle, error) {
-	tris := make([]DTriangle, count)
+func readAliasTriangles(r io.Reader, ar *arena.Arena, count int) ([]DTriangle, error) {
+	tris := arena.Alloc[DTriangle](ar, count)
 	if err := binary.Read(r, binary.LittleEndian, &tris); err != nil {
 		return nil, fmt.Errorf("failed to read triangles: %w", err)
 	}
 	return tris, nil
 }
 
-func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]float32) ([]AliasFrameDesc, [][]TriVertX, int, aliasBounds, error) {
-	frames := make([]AliasFrameDesc, 0, numFrames)
+func readAliasFrames(r io.Reader, ar *arena.Arena, numFrames, numVerts int, scale, origin [3]float32) ([]AliasFrameDesc, [][]TriVertX, int, aliasBounds, error) {
+	frames := arena.Alloc[AliasFrameDesc](ar, numFrames)[:0]
 	poses := make([][]TriVertX, 0, numFrames)
 	bounds := initAliasBounds()
 	poseCount := 0
@@ -248,7 +254,7 @@ func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]floa
 				return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read single frame %d: %w", i, err)
 			}
 
-			poseVerts, err := readAliasPoseVerts(r, numVerts)
+			poseVerts, err := readAliasPoseVerts(r, ar, numVerts)
 			if err != nil {
 				return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read single frame pose verts %d: %w", i, err)
 			}
@@ -291,7 +297,7 @@ func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]floa
 				return nil, nil, 0, aliasBounds{}, fmt.Errorf("invalid number of grouped frames for frame %d: %d", i, n)
 			}
 
-			intervals := make([]DAliasInterval, n)
+			intervals := arena.Alloc[DAliasInterval](ar, n)
 			if err := binary.Read(r, binary.LittleEndian, &intervals); err != nil {
 				return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read frame intervals for frame %d: %w", i, err)
 			}
@@ -303,7 +309,7 @@ func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]floa
 					return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read group pose %d for frame %d: %w", poseIndex, i, err)
 				}
 
-				poseVerts, err := readAliasPoseVerts(r, numVerts)
+				poseVerts, err := readAliasPoseVerts(r, ar, numVerts)
 				if err != nil {
 					return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read group pose verts %d for frame %d: %w", poseIndex, i, err)
 				}
@@ -347,8 +353,8 @@ func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]floa
 	return frames, poses, poseCount, bounds, nil
 }
 
-func readAliasPoseVerts(r io.Reader, count int) ([]TriVertX, error) {
-	verts := make([]TriVertX, count)
+func readAliasPoseVerts(r io.Reader, ar *arena.Arena, count int) ([]TriVertX, error) {
+	verts := arena.Alloc[TriVertX](ar, count)
 	if err := binary.Read(r, binary.LittleEndian, &verts); err != nil {
 		return nil, err
 	}

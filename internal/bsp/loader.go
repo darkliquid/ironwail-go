@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"github.com/darkliquid/ironwail-go/internal/engine/arena"
 )
 
 func validateLumpRecordSize(context string, data []byte, recordSize int) error {
@@ -17,6 +19,11 @@ func validateLumpRecordSize(context string, data []byte, recordSize int) error {
 // Load reads and parses a complete BSP file from the reader.
 // It returns a File struct containing all the parsed data.
 func Load(r io.ReadSeeker) (*File, error) {
+	return LoadWithArena(r, nil)
+}
+
+// LoadWithArena reads and parses a complete BSP file using the provided arena allocator.
+func LoadWithArena(r io.ReadSeeker, ar *arena.Arena) (*File, error) {
 	reader := NewReader(r)
 
 	header, err := reader.ReadHeader()
@@ -38,43 +45,43 @@ func Load(r io.ReadSeeker) (*File, error) {
 	if err := file.loadEntities(reader); err != nil {
 		return nil, fmt.Errorf("failed to load entities: %w", err)
 	}
-	if err := file.loadPlanes(reader); err != nil {
+	if err := file.loadPlanes(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load planes: %w", err)
 	}
-	if err := file.loadVertexes(reader); err != nil {
+	if err := file.loadVertexes(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load vertexes: %w", err)
 	}
 	if err := file.loadVisibility(reader); err != nil {
 		return nil, fmt.Errorf("failed to load visibility: %w", err)
 	}
-	if err := file.loadNodes(reader); err != nil {
+	if err := file.loadNodes(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load nodes: %w", err)
 	}
-	if err := file.loadTexinfo(reader); err != nil {
+	if err := file.loadTexinfo(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load texinfo: %w", err)
 	}
-	if err := file.loadFaces(reader); err != nil {
+	if err := file.loadFaces(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load faces: %w", err)
 	}
 	if err := file.loadLighting(reader); err != nil {
 		return nil, fmt.Errorf("failed to load lighting: %w", err)
 	}
-	if err := file.loadClipnodes(reader); err != nil {
+	if err := file.loadClipnodes(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load clipnodes: %w", err)
 	}
-	if err := file.loadLeafs(reader); err != nil {
+	if err := file.loadLeafs(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load leafs: %w", err)
 	}
-	if err := file.loadMarkSurfaces(reader); err != nil {
+	if err := file.loadMarkSurfaces(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load marksurfaces: %w", err)
 	}
-	if err := file.loadEdges(reader); err != nil {
+	if err := file.loadEdges(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load edges: %w", err)
 	}
-	if err := file.loadSurfedges(reader); err != nil {
+	if err := file.loadSurfedges(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load surfedges: %w", err)
 	}
-	if err := file.loadModels(reader); err != nil {
+	if err := file.loadModels(reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load models: %w", err)
 	}
 	if err := file.loadTextures(reader); err != nil {
@@ -93,7 +100,7 @@ func (f *File) loadEntities(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadPlanes(r *Reader) error {
+func (f *File) loadPlanes(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpPlanes]
 	if lump.FileLength == 0 {
 		return nil
@@ -108,7 +115,7 @@ func (f *File) loadPlanes(r *Reader) error {
 	}
 
 	count := len(data) / dPlaneSize
-	f.Planes = make([]DPlane, count)
+	f.Planes = arena.Alloc[DPlane](ar, count)
 
 	for i := 0; i < count; i++ {
 		offset := i * dPlaneSize
@@ -125,7 +132,7 @@ func (f *File) loadPlanes(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadVertexes(r *Reader) error {
+func (f *File) loadVertexes(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpVertexes]
 	if lump.FileLength == 0 {
 		return nil
@@ -140,7 +147,7 @@ func (f *File) loadVertexes(r *Reader) error {
 	}
 
 	count := len(data) / dVertexSize
-	f.Vertexes = make([]DVertex, count)
+	f.Vertexes = arena.Alloc[DVertex](ar, count)
 
 	for i := 0; i < count; i++ {
 		offset := i * dVertexSize
@@ -164,7 +171,7 @@ func (f *File) loadVisibility(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadNodes(r *Reader) error {
+func (f *File) loadNodes(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpNodes]
 	if lump.FileLength == 0 {
 		return nil
@@ -181,7 +188,7 @@ func (f *File) loadNodes(r *Reader) error {
 				return fmt.Errorf("load nodes: funny lump size %d", len(data))
 			}
 			count := int(lump.FileLength) / dl2NodeSize
-			nodes := make([]DL2Node, count)
+			nodes := arena.Alloc[DL2Node](ar, count)
 			for i := 0; i < count; i++ {
 				offset := i * dl2NodeSize
 				nodes[i] = DL2Node{
@@ -210,7 +217,7 @@ func (f *File) loadNodes(r *Reader) error {
 				return fmt.Errorf("load nodes: funny lump size %d", len(data))
 			}
 			count := int(lump.FileLength) / dl1NodeSize
-			nodes := make([]DL1Node, count)
+			nodes := arena.Alloc[DL1Node](ar, count)
 			for i := 0; i < count; i++ {
 				offset := i * dl1NodeSize
 				nodes[i] = DL1Node{
@@ -240,7 +247,7 @@ func (f *File) loadNodes(r *Reader) error {
 			return fmt.Errorf("load nodes: funny lump size %d", len(data))
 		}
 		count := int(lump.FileLength) / dsNodeSize
-		nodes := make([]DSNode, count)
+		nodes := arena.Alloc[DSNode](ar, count)
 		for i := 0; i < count; i++ {
 			offset := i * dsNodeSize
 			nodes[i] = DSNode{
@@ -268,7 +275,7 @@ func (f *File) loadNodes(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadTexinfo(r *Reader) error {
+func (f *File) loadTexinfo(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpTexinfo]
 	if lump.FileLength == 0 {
 		return nil
@@ -283,7 +290,7 @@ func (f *File) loadTexinfo(r *Reader) error {
 	}
 
 	count := len(data) / 40
-	f.Texinfo = make([]Texinfo, count)
+	f.Texinfo = arena.Alloc[Texinfo](ar, count)
 
 	for i := 0; i < count; i++ {
 		offset := i * 40
@@ -300,7 +307,7 @@ func (f *File) loadTexinfo(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadFaces(r *Reader) error {
+func (f *File) loadFaces(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpFaces]
 	if lump.FileLength == 0 {
 		return nil
@@ -316,7 +323,7 @@ func (f *File) loadFaces(r *Reader) error {
 			return err
 		}
 		count := len(data) / dlFaceSize
-		faces := make([]DLFace, count)
+		faces := arena.Alloc[DLFace](ar, count)
 		for i := 0; i < count; i++ {
 			offset := i * dlFaceSize
 			faces[i] = DLFace{
@@ -335,7 +342,7 @@ func (f *File) loadFaces(r *Reader) error {
 			return err
 		}
 		count := len(data) / dsFaceSize
-		faces := make([]DSFace, count)
+		faces := arena.Alloc[DSFace](ar, count)
 		for i := 0; i < count; i++ {
 			offset := i * dsFaceSize
 			faces[i] = DSFace{
@@ -362,7 +369,7 @@ func (f *File) loadLighting(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadClipnodes(r *Reader) error {
+func (f *File) loadClipnodes(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpClipnodes]
 	if lump.FileLength == 0 {
 		return nil
@@ -378,7 +385,7 @@ func (f *File) loadClipnodes(r *Reader) error {
 			return err
 		}
 		count := len(data) / 12
-		clipnodes := make([]DLClipNode, count)
+		clipnodes := arena.Alloc[DLClipNode](ar, count)
 		for i := 0; i < count; i++ {
 			offset := i * 12
 			clipnodes[i] = DLClipNode{
@@ -395,7 +402,7 @@ func (f *File) loadClipnodes(r *Reader) error {
 			return err
 		}
 		count := len(data) / 8
-		clipnodes := make([]DSClipNode, count)
+		clipnodes := arena.Alloc[DSClipNode](ar, count)
 		for i := 0; i < count; i++ {
 			offset := i * 8
 			child0 := standardClipnodeChild(binary.LittleEndian.Uint16(data[offset+4:]), count)
@@ -410,7 +417,7 @@ func (f *File) loadClipnodes(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadLeafs(r *Reader) error {
+func (f *File) loadLeafs(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpLeafs]
 	if lump.FileLength == 0 {
 		return nil
@@ -427,7 +434,7 @@ func (f *File) loadLeafs(r *Reader) error {
 				return fmt.Errorf("load leafs: funny lump size %d", len(data))
 			}
 			count := int(lump.FileLength) / dl2LeafSize
-			leafs := make([]DL2Leaf, count)
+			leafs := arena.Alloc[DL2Leaf](ar, count)
 			for i := 0; i < count; i++ {
 				offset := i * dl2LeafSize
 				leafs[i] = DL2Leaf{
@@ -454,7 +461,7 @@ func (f *File) loadLeafs(r *Reader) error {
 				return fmt.Errorf("load leafs: funny lump size %d", len(data))
 			}
 			count := int(lump.FileLength) / dl1LeafSize
-			leafs := make([]DL1Leaf, count)
+			leafs := arena.Alloc[DL1Leaf](ar, count)
 			for i := 0; i < count; i++ {
 				offset := i * dl1LeafSize
 				leafs[i] = DL1Leaf{
@@ -482,7 +489,7 @@ func (f *File) loadLeafs(r *Reader) error {
 			return err
 		}
 		count := len(data) / dsLeafSize
-		leafs := make([]DSLeaf, count)
+		leafs := arena.Alloc[DSLeaf](ar, count)
 		for i := 0; i < count; i++ {
 			offset := i * dsLeafSize
 			leafs[i] = DSLeaf{
@@ -508,7 +515,7 @@ func (f *File) loadLeafs(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadMarkSurfaces(r *Reader) error {
+func (f *File) loadMarkSurfaces(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpMarksurfaces]
 	if lump.FileLength == 0 {
 		return nil
@@ -524,7 +531,7 @@ func (f *File) loadMarkSurfaces(r *Reader) error {
 			return err
 		}
 		count := len(data) / uint32Size
-		marks := make([]uint32, count)
+		marks := arena.Alloc[uint32](ar, count)
 		for i := 0; i < count; i++ {
 			marks[i] = binary.LittleEndian.Uint32(data[i*4:])
 		}
@@ -534,7 +541,7 @@ func (f *File) loadMarkSurfaces(r *Reader) error {
 			return err
 		}
 		count := len(data) / uint16Size
-		marks := make([]uint16, count)
+		marks := arena.Alloc[uint16](ar, count)
 		for i := 0; i < count; i++ {
 			marks[i] = binary.LittleEndian.Uint16(data[i*2:])
 		}
@@ -543,7 +550,7 @@ func (f *File) loadMarkSurfaces(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadEdges(r *Reader) error {
+func (f *File) loadEdges(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpEdges]
 	if lump.FileLength == 0 {
 		return nil
@@ -559,7 +566,7 @@ func (f *File) loadEdges(r *Reader) error {
 			return err
 		}
 		count := len(data) / dlEdgeSize
-		edges := make([]DLEdge, count)
+		edges := arena.Alloc[DLEdge](ar, count)
 		for i := 0; i < count; i++ {
 			offset := i * 8
 			edges[i] = DLEdge{
@@ -575,7 +582,7 @@ func (f *File) loadEdges(r *Reader) error {
 			return err
 		}
 		count := len(data) / dsEdgeSize
-		edges := make([]DSEdge, count)
+		edges := arena.Alloc[DSEdge](ar, count)
 		for i := 0; i < count; i++ {
 			offset := i * 4
 			edges[i] = DSEdge{
@@ -590,7 +597,7 @@ func (f *File) loadEdges(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadSurfedges(r *Reader) error {
+func (f *File) loadSurfedges(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpSurfedges]
 	if lump.FileLength == 0 {
 		return nil
@@ -605,7 +612,7 @@ func (f *File) loadSurfedges(r *Reader) error {
 	}
 
 	count := len(data) / int32Size
-	f.Surfedges = make([]int32, count)
+	f.Surfedges = arena.Alloc[int32](ar, count)
 	for i := 0; i < count; i++ {
 		f.Surfedges[i] = int32(binary.LittleEndian.Uint32(data[i*4:]))
 	}
@@ -620,7 +627,7 @@ func standardClipnodeChild(raw uint16, clipnodeCount int) int32 {
 	return int32(child)
 }
 
-func (f *File) loadModels(r *Reader) error {
+func (f *File) loadModels(r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpModels]
 	if lump.FileLength == 0 {
 		return nil
@@ -635,7 +642,7 @@ func (f *File) loadModels(r *Reader) error {
 		return fmt.Errorf("load models: funny lump size %d", len(data))
 	}
 	count := int(lump.FileLength) / dModelSize
-	f.Models = make([]DModel, count)
+	f.Models = arena.Alloc[DModel](ar, count)
 
 	for i := 0; i < count; i++ {
 		offset := i * dModelSize

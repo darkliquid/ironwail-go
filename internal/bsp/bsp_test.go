@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/darkliquid/ironwail-go/internal/engine/arena"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
@@ -199,7 +200,7 @@ func TestLoadBSP2FileLumpStrides(t *testing.T) {
 
 		f := &File{Version: BSP2Version_BSP2, IsBSP2: true}
 		f.Header.Lumps[LumpNodes] = Lump{FileLength: int32(len(data))}
-		if err := f.loadNodes(NewReader(bytes.NewReader(data))); err != nil {
+		if err := f.loadNodes(NewReader(bytes.NewReader(data)), nil); err != nil {
 			t.Fatalf("loadNodes: %v", err)
 		}
 		nodes, ok := f.Nodes.([]DL2Node)
@@ -233,7 +234,7 @@ func TestLoadBSP2FileLumpStrides(t *testing.T) {
 
 		f := &File{Version: BSP2Version_BSP2, IsBSP2: true}
 		f.Header.Lumps[LumpLeafs] = Lump{FileLength: int32(len(data))}
-		if err := f.loadLeafs(NewReader(bytes.NewReader(data))); err != nil {
+		if err := f.loadLeafs(NewReader(bytes.NewReader(data)), nil); err != nil {
 			t.Fatalf("loadLeafs: %v", err)
 		}
 		leafs, ok := f.Leafs.([]DL2Leaf)
@@ -272,7 +273,7 @@ func TestLoadBSP2FileLumpStrides(t *testing.T) {
 
 		f := &File{}
 		f.Header.Lumps[LumpModels] = Lump{FileLength: int32(len(data))}
-		if err := f.loadModels(NewReader(bytes.NewReader(data))); err != nil {
+		if err := f.loadModels(NewReader(bytes.NewReader(data)), nil); err != nil {
 			t.Fatalf("loadModels: %v", err)
 		}
 		if len(f.Models) != 2 {
@@ -293,7 +294,7 @@ func TestLoadFileRejectsMisalignedLumps(t *testing.T) {
 		lump int
 		bsp2 bool
 		data []byte
-		load func(*File, *Reader) error
+		load func(*File, *Reader, *arena.Arena) error
 	}{
 		{name: "planes", lump: LumpPlanes, data: make([]byte, dPlaneSize+1), load: (*File).loadPlanes},
 		{name: "vertexes", lump: LumpVertexes, data: make([]byte, dVertexSize+1), load: (*File).loadVertexes},
@@ -317,7 +318,7 @@ func TestLoadFileRejectsMisalignedLumps(t *testing.T) {
 				f.Version = BSP2Version_BSP2
 			}
 			f.Header.Lumps[tc.lump] = Lump{FileLength: int32(len(tc.data))}
-			if err := tc.load(f, NewReader(bytes.NewReader(tc.data))); err == nil {
+			if err := tc.load(f, NewReader(bytes.NewReader(tc.data)), nil); err == nil {
 				t.Fatal("load succeeded, want funny lump size error")
 			}
 		})
@@ -333,7 +334,7 @@ func TestLoadStandardClipnodesSupportsUnsignedHighNodeIndexes(t *testing.T) {
 
 	f := &File{}
 	f.Header.Lumps[LumpClipnodes] = Lump{FileLength: int32(len(data))}
-	if err := f.loadClipnodes(NewReader(bytes.NewReader(data))); err != nil {
+	if err := f.loadClipnodes(NewReader(bytes.NewReader(data)), nil); err != nil {
 		t.Fatalf("loadClipnodes: %v", err)
 	}
 	clipnodes, ok := f.Clipnodes.([]DSClipNode)
@@ -410,5 +411,51 @@ func TestLeafPVSAllVisibleUsesVisLeafCount(t *testing.T) {
 	}
 	if pvs[0] != 0xFF {
 		t.Fatalf("all-visible PVS byte = 0x%02x, want 0xFF", pvs[0])
+	}
+}
+
+func TestLoadWithArena(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	err := vfs.Init(baseDir, "id1")
+	testutil.AssertNoError(t, err)
+	defer vfs.Close()
+
+	data, err := vfs.LoadFile("maps/e1m1.bsp")
+	testutil.AssertNoError(t, err)
+
+	ar := arena.NewArena(1024 * 1024)
+	file, err := LoadWithArena(bytes.NewReader(data), ar)
+	testutil.AssertNoError(t, err)
+
+	if len(file.Planes) == 0 || len(file.Vertexes) == 0 || file.Nodes == nil {
+		t.Fatalf("expected non-empty lump slices when loaded with arena")
+	}
+	if ar.BytesAllocated() == 0 {
+		t.Fatalf("expected arena to record non-zero bytes allocated")
+	}
+}
+
+func TestLoadWithArenaSynthetic(t *testing.T) {
+	data := make([]byte, 200)
+	putI32(data, 0, BSPVersion)
+	putI32(data, 4+LumpPlanes*8, 64)
+	putI32(data, 4+LumpPlanes*8+4, 20)
+
+	ar := arena.NewArena(1024)
+	file, err := LoadWithArena(bytes.NewReader(data), ar)
+	if err != nil {
+		t.Fatalf("LoadWithArena failed: %v", err)
+	}
+	if len(file.Planes) != 1 {
+		t.Fatalf("expected 1 plane, got %d", len(file.Planes))
+	}
+	if ar.BytesAllocated() == 0 {
+		t.Fatalf("expected non-zero arena bytes allocated")
 	}
 }
