@@ -1,7 +1,7 @@
 # Implementation Plan: Arena / Region Allocators for Level Lifetimes
 
 **Priority**: #3 (Item 5 from Roadmap)  
-**Status**: Planned  
+**Status**: Completed (Merged in commit `ab41b31`)  
 **Target Milestone**: Phase 3  
 
 ---

@@ -4,7 +4,7 @@ This document defines the step-by-step implementation strategy for the major eng
 
 1. **Phase 1 (Item 2)**: Direct-VM Accessors & Zero-Sync QCVM (Steps 3–5) — **COMPLETED** (commit `570e806556cc614d9cec0ea6d2c967dd0cb3a241`)
 2. **Phase 2 (Item 3)**: Texture Atlas Storage Buffer Upgrade (BSP2 Large Map Fix)
-3. **Phase 3 (Item 5)**: Arena / Region Allocators for Level Lifetimes
+3. **Phase 3 (Item 5)**: Arena / Region Allocators for Level Lifetimes — **COMPLETED** (commit `ab41b31`)
 4. **Phase 4 (Item 4)**: CSQC (Client-Side QuakeC) Host/Client Runtime Integration
 5. **Phase 5 (Item 6)**: Parity Closure & Sign-off on `qbj3_stickflip`
 6. **Phase 6 (Item 7)**: Engine Modularisation & Go Idiom Adoption
@@ -71,7 +71,9 @@ Replace the hardcoded 256-entry uniform buffer for texture materials with a WebG
 
 ---
 
-## Phase 3: Arena / Region Allocators for Level Lifetimes
+## Phase 3: Arena / Region Allocators for Level Lifetimes [COMPLETED]
+
+**Status**: Completed (Merged in commit `ab41b31`)
 
 ### Objective
 Eliminate garbage collection pressure during level changes and gameplay by introducing a bump-allocated byte arena / region pool for map assets (BSP geometry, models, lightmaps).
