@@ -157,6 +157,7 @@ func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte,
 		r.mu.Unlock()
 		return
 	}
+	slog.Info("external skybox set requested", "subsystem", externalSkyboxLogSubsystem, "raw_name", name, "normalized_name", normalized, "previous_name", r.worldSkyExternalName)
 	r.worldSkyExternalRequestID++
 	requestID := r.worldSkyExternalRequestID
 
@@ -181,7 +182,7 @@ func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte,
 		r.mu.Unlock()
 		return
 	}
-	slog.Info("external skybox request queued", "subsystem", externalSkyboxLogSubsystem, "raw_name", name, "normalized_name", normalized, "request_id", requestID)
+	slog.Info("external skybox request queued for async load", "subsystem", externalSkyboxLogSubsystem, "raw_name", name, "normalized_name", normalized, "request_id", requestID)
 	r.mu.Unlock()
 
 	go r.loadExternalSkyboxAsync(requestID, normalized, loadFile)
@@ -189,7 +190,7 @@ func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte,
 
 func (r *Renderer) loadExternalSkyboxAsync(requestID uint64, normalized string, loadFile func(string) ([]byte, error)) {
 	start := time.Now()
-	slog.Info("external skybox async load begin", "subsystem", externalSkyboxLogSubsystem, "name", normalized, "request_id", requestID)
+	slog.Info("external skybox async load thread started", "subsystem", externalSkyboxLogSubsystem, "name", normalized, "request_id", requestID)
 	faces, loaded := loadExternalSkyboxFaces(normalized, loadFile)
 	wind, windLoaded := loadExternalSkyboxWind(normalized, loadFile)
 
@@ -209,7 +210,7 @@ func (r *Renderer) loadExternalSkyboxAsync(requestID uint64, normalized string, 
 	r.worldSkyExternalWindLoaded = windLoaded
 	r.worldSkyExternalLoaded = loaded
 	r.worldSkyExternalMode = externalSkyboxRenderFaces
-	slog.Info("external skybox async load ready for upload", "subsystem", externalSkyboxLogSubsystem, "name", normalized, "request_id", requestID, "loaded_faces", loaded, "wind_loaded", windLoaded, "wind_dist", wind.Dist, "elapsed_ms", elapsedMilliseconds(start))
+	slog.Info("external skybox async load complete, ready for GPU upload", "subsystem", externalSkyboxLogSubsystem, "name", normalized, "request_id", requestID, "loaded_faces", loaded, "wind_loaded", windLoaded, "wind_dist", wind.Dist, "elapsed_ms", elapsedMilliseconds(start))
 }
 
 func (r *Renderer) UploadPendingExternalSkybox() error {
@@ -222,6 +223,9 @@ func (r *Renderer) UploadPendingExternalSkybox() error {
 	if err := r.uploadNextGoGPUExternalSkyboxFaceLocked(r.getWGPUDevice(), r.getWGPUQueue()); err != nil {
 		slog.Warn("external gogpu skybox upload deferred", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "upload_cursor", r.worldSkyExternalUploadCursor, "error", err)
 		return err
+	}
+	if r.worldSkyExternalBindGroup != nil {
+		slog.Info("external skybox GPU upload fully complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "loaded_faces", r.worldSkyExternalLoaded)
 	}
 	return nil
 }

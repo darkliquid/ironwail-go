@@ -66,54 +66,24 @@ func (r *Renderer) createWorldExternalSkyFaceTexture(device *wgpu.Device, queue 
 	slog.Info("external sky texture create complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "label", label, "elapsed_ms", elapsedMilliseconds(start))
 
 	writeStart := time.Now()
-	slog.Info("external sky texture write begin via staging buffer", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "label", label, "width", width, "height", height, "rgba_bytes", len(rgba))
-	stagingBuf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
-		Label:            label + " Staging",
-		Size:             uint64(len(rgba)),
-		Usage:            gputypes.BufferUsageCopySrc,
-		MappedAtCreation: true,
-	})
-	if err != nil {
+	slog.Info("external sky texture write begin via queue.WriteTexture", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "label", label, "width", width, "height", height, "rgba_bytes", len(rgba))
+	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
+		Texture:  texture,
+		MipLevel: 0,
+		Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: 0},
+		Aspect:   gputypes.TextureAspectAll,
+	}, rgba, &wgpu.ImageDataLayout{
+		Offset:       0,
+		BytesPerRow:  uint32(width * 4),
+		RowsPerImage: uint32(height),
+	}, &wgpu.Extent3D{
+		Width:              uint32(width),
+		Height:             uint32(height),
+		DepthOrArrayLayers: 1,
+	}); err != nil {
 		texture.Release()
-		return nil, nil, fmt.Errorf("create external sky staging buffer: %w", err)
+		return nil, nil, fmt.Errorf("write external sky texture: %w", err)
 	}
-	if mr, mrErr := stagingBuf.MappedRange(0, uint64(len(rgba))); mrErr == nil && mr != nil {
-		copy(mr.Bytes(), rgba)
-	}
-	stagingBuf.Unmap()
-
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: label + " Encoder"})
-	if err != nil {
-		stagingBuf.Release()
-		texture.Release()
-		return nil, nil, fmt.Errorf("create external sky encoder: %w", err)
-	}
-	encoder.CopyBufferToTexture(stagingBuf, texture, []wgpu.BufferTextureCopy{
-		{
-			BufferLayout: wgpu.ImageDataLayout{
-				Offset:       0,
-				BytesPerRow:  uint32(width * 4),
-				RowsPerImage: uint32(height),
-			},
-			TextureBase: wgpu.ImageCopyTexture{
-				MipLevel: 0,
-				Aspect:   gputypes.TextureAspectAll,
-			},
-			Size: wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
-		},
-	})
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		stagingBuf.Release()
-		texture.Release()
-		return nil, nil, fmt.Errorf("finish external sky encoder: %w", err)
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		stagingBuf.Release()
-		texture.Release()
-		return nil, nil, fmt.Errorf("submit external sky encoder: %w", err)
-	}
-	stagingBuf.Release()
 	slog.Info("external sky texture write complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "label", label, "elapsed_ms", elapsedMilliseconds(writeStart))
 
 	viewStart := time.Now()

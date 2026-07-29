@@ -14,7 +14,7 @@ type WorldMaterialData struct {
 }
 
 // worldMaterialsBufferSize is the maximum size for the materials uniform buffer.
-const worldMaterialsBufferSize = 256 * int(unsafe.Sizeof(WorldMaterialData{}))
+const worldMaterialsBufferSize = 1024 * int(unsafe.Sizeof(WorldMaterialData{}))
 
 // animateWorldMaterials returns a copy of baseMaterials with active texture
 // animations applied for the given entity frame. Frame 0 selects primary
