@@ -56,6 +56,7 @@ type Game struct {
 	StaticSoundKey   string
 	MusicTrackKey    string
 	SkyboxNameKey    string
+	lastSkyboxNameKey string
 	WorldUploadKey   string
 	ShowScores       bool
 	ModDir           string

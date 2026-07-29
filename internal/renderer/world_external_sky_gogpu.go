@@ -107,55 +107,6 @@ func (r *Renderer) createWorldExternalSkyFaceTexture(device *wgpu.Device, queue 
 	return texture, view, nil
 }
 
-func (r *Renderer) uploadNextGoGPUExternalSkyboxFaceLocked(device *wgpu.Device, queue *wgpu.Queue) error {
-	if r.worldSkyExternalMode != externalSkyboxRenderFaces || r.worldSkyExternalLoaded == 0 {
-		return nil
-	}
-	if device == nil || queue == nil || r.worldLightmapSampler == nil || r.worldSkyExternalBindGroupLayout == nil {
-		slog.Warn("external skybox upload missing GPU resources", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "has_device", device != nil, "has_queue", queue != nil, "has_sampler", r.worldLightmapSampler != nil, "has_layout", r.worldSkyExternalBindGroupLayout != nil)
-		return fmt.Errorf("external sky resources not ready")
-	}
-	for r.worldSkyExternalUploadCursor < len(r.worldSkyExternalFaces) && r.worldSkyExternalViews[r.worldSkyExternalUploadCursor] != nil {
-		r.worldSkyExternalUploadCursor++
-	}
-	if r.worldSkyExternalUploadCursor < len(r.worldSkyExternalFaces) {
-		return r.uploadGoGPUExternalSkyboxFaceLocked(device, queue, r.worldSkyExternalUploadCursor)
-	}
-	bindGroup, err := r.createWorldExternalSkyBindGroup(device, r.worldLightmapSampler, r.worldSkyExternalViews)
-	if err != nil {
-		r.destroyGoGPUExternalSkyboxResourcesLocked()
-		return fmt.Errorf("create external sky bind group: %w", err)
-	}
-	r.worldSkyExternalBindGroup = bindGroup
-	return nil
-}
-
-func (r *Renderer) uploadGoGPUExternalSkyboxFaceLocked(device *wgpu.Device, queue *wgpu.Queue, i int) error {
-	face := r.worldSkyExternalFaces[i]
-	width := face.Width
-	height := face.Height
-	data := face.RGBA
-	expectedBytes := width * height * 4
-	if width <= 0 || height <= 0 || len(data) != width*height*4 {
-		slog.Warn("external skybox face has invalid upload data; using black fallback", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "face", face.Suffix, "path", face.Path, "width", width, "height", height, "rgba_bytes", len(data), "expected_bytes", expectedBytes)
-		fallbackPixel := [4]byte{0, 0, 0, 255}
-		width, height = 1, 1
-		data = fallbackPixel[:]
-	}
-	slog.Info("external skybox face upload begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "face_index", i, "face", face.Suffix, "path", face.Path, "width", width, "height", height, "rgba_bytes", len(data), "upload_cursor", r.worldSkyExternalUploadCursor)
-	texture, view, err := r.createWorldExternalSkyFaceTexture(device, queue, fmt.Sprintf("World External Sky %s", skyboxFaceSuffixes[i]), data, width, height)
-	if err != nil {
-		r.destroyGoGPUExternalSkyboxResourcesLocked()
-		slog.Warn("external skybox face upload failed", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "face_index", i, "face", face.Suffix, "path", face.Path, "error", err)
-		return err
-	}
-	r.worldSkyExternalTextures[i] = texture
-	r.worldSkyExternalViews[i] = view
-	r.worldSkyExternalUploadCursor++
-	slog.Info("external skybox face upload complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "face_index", i, "face", face.Suffix, "path", face.Path, "next_upload_cursor", r.worldSkyExternalUploadCursor)
-	return nil
-}
-
 func elapsedMilliseconds(start time.Time) float64 {
 	return float64(time.Since(start)) / float64(time.Millisecond)
 }

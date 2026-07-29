@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/input"
@@ -134,9 +135,16 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 		state.storePendingRendererFrame(dt, transientEvents)
 	})
 
+	var lastDrawTime time.Time
 	g.Renderer.OnDraw(func(dc renderer.RenderContext) {
 		g.runtimeMu.Lock()
 		defer g.runtimeMu.Unlock()
+
+		now := time.Now()
+		if !lastDrawTime.IsZero() && now.Sub(lastDrawTime) > 5*time.Second {
+			slog.Warn("frame stall detected", "gap_seconds", now.Sub(lastDrawTime).Seconds())
+		}
+		lastDrawTime = now
 
 		if state.screenshotMode && !state.screenshotCaptured {
 			if os.Getenv("PARITY_RUN") != "1" || (paritySetupDone && paritySettleCountdown == 0) {
@@ -145,7 +153,6 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 		}
 
 		g.applyRuntimeRendererState(state)
-		g.uploadDeferredRuntimeWorld()
 		g.drawRuntimeRendererFrame(dc)
 	})
 }
@@ -170,6 +177,7 @@ func (g *Game) applyRuntimeRendererState(state *runtimeRendererLoopState) {
 	camera := g.runtimeCameraState(origin, angles)
 	g.Renderer.UpdateCamera(camera, 0.1, 65536.0)
 	g.applyRuntimeRendererVisualEffects(renderDT, g.Renderer, renderEvents)
+	g.uploadDeferredRuntimeWorld()
 	g.applyRuntimeRendererSkybox(g.Renderer)
 }
 

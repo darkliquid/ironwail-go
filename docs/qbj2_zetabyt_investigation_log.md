@@ -71,3 +71,99 @@ This document records the investigative steps, hypotheses, implementations, and 
    - Standard maps (e.g. `start`, `e1m1`) render cleanly without any texture swirling, warping, spiderweb patterns, or black surfaces.
 2. **Next Steps for `qbj2_zetabyt`**:
    - Investigate window creation and Wayland/Vulkan swapchain initialization specifically for `qbj2_zetabyt` from `51a27dd` without altering submodel lightmap logic.
+
+---
+
+### Attempt 6: Skybox Upload Reorder + Lock Release + Frame Watchdog (Partial Success)
+
+* **Hypothesis**: The hang was caused by (A) skybox upload attempting to use
+  `worldSkyExternalBindGroupLayout` before `UploadWorld` created it, (B) GPU
+  operations blocking while holding `r.mu.Lock()`, and (C) redundant
+  per-frame `SetExternalSkybox` calls.
+* **Changes Made**:
+  - Reordered `applyRuntimeRendererState` so `uploadDeferredRuntimeWorld()`
+    runs before `applyRuntimeRendererSkybox()` (Phase A).
+  - Rewrote `UploadPendingExternalSkybox` to release `r.mu` during
+    `queue.WriteTexture` GPU operations — snapshot data under lock, unlock,
+    upload, re-lock to store results (Phase C).
+  - Uploaded all 6 skybox faces in a single call instead of one-per-frame
+    (Phase B).
+  - Guarded `SetExternalSkybox` against per-frame re-entry via
+    `lastSkyboxNameKey` (Phase D).
+  - Added frame stall watchdog in `OnDraw` callback (Phase E).
+* **Result / Fallout**:
+  - **Unresolved**: `qbj2_zetabyt` still hung after these changes. The
+    skybox upload path was a red herring — the async goroutine completed
+    fine, but `UploadPendingExternalSkybox` was never the blocking call.
+
+---
+
+### Attempt 7: Diagnose via Per-Phase Logging (Root Cause Found)
+
+* **Method**: Added strategic `slog.Info` calls at every phase of the `OnDraw`
+  callback, `RenderFrame`, `renderEntities` per-phase loop,
+  `ensureBrushModelGeometry`, and `ensureBrushModelLightmaps` to pinpoint the
+  exact blocking call.
+* **Findings**:
+  - `OnDraw` enters and calls `applyRuntimeRendererState` →
+    `uploadDeferredRuntimeWorld` → `UploadWorld` completes successfully
+    (geometry, textures, lightmaps, pipelines all created).
+  - `applyRuntimeRendererSkybox` calls `SetExternalSkybox` (spawns async
+    goroutine) — the goroutine completes and logs "ready for GPU upload".
+  - `drawRuntimeRendererFrame` → `RenderFrame` → `renderWorld` completes
+    and submits world render commands via `queue.Submit`.
+  - `renderEntities` begins, enters phase 0 (`gogpuEntityPhaseOpaqueBrush`)
+    → `renderOpaqueBrushEntitiesHAL` → processes entity 0 (submodel 27).
+  - `ensureBrushModelGeometry(27)` completes (12 faces, 52 vertices).
+  - `ensureBrushModelLightmaps(27, geom)` calls
+    `uploadWorldLightmapArray` → `queue.WriteTexture`.
+  - **HANG**: `queue.WriteTexture` never returns. The Vulkan queue is still
+    processing the world render pass's `queue.Submit` from `renderWorld`.
+    `queue.WriteTexture` is a synchronous operation that blocks until the
+    queue drains. Since this runs on the render thread (gogpu's locked draw
+    thread), the entire event loop freezes — no further `OnDraw` or
+    `OnUpdate` callbacks fire.
+
+* **Root Cause**: Lazy lightmap uploads for brush entity submodels were
+  happening **during the first render frame**, after `renderWorld` had
+  already submitted GPU commands. The `queue.WriteTexture` call in
+  `uploadWorldLightmapArray` blocked waiting for the queue to drain,
+  deadlocking the render thread. This only affected maps with many BSP
+  submodels (like `qbj2_zetabyt` with 750 models) where the first entity
+  processed triggered a lightmap upload. Standard maps with few/no brush
+  entities didn't trigger this path.
+
+---
+
+### Attempt 8: Pre-load Brush Entity Resources in UploadWorld (Hang Fixed, Regressions Remain)
+
+* **Hypothesis**: If all brush entity geometry and lightmaps are pre-loaded
+  during `UploadWorld` (before any frame rendering), no GPU operations will
+  occur during `renderEntities`, eliminating the `queue.WriteTexture` stall.
+* **Changes Made**:
+  - Added `preloadBrushModelResources(tree)` method that iterates all BSP
+    submodels (index 1..N), calling `ensureBrushModelGeometry` and
+    `ensureBrushModelLightmaps` for each.
+  - Called `preloadBrushModelResources(tree)` at the end of `UploadWorld`
+    in `world_upload_gogpu.go`.
+* **Result**:
+  - **Hang Fixed**: `qbj2_zetabyt` now loads and renders without freezing.
+    Multiple `OnDraw` callbacks complete successfully. The external skybox
+    renders. The process stays running.
+  - **Regression 1 — `qbj2_start` texture swirling/warping**: Some faces in
+    `qbj2_start` now show swirling/warping texture artifacts. This is likely
+    because pre-loading all submodel lightmaps changes the lightmap page
+    indexing or UV mapping for shared surfaces, similar to the Attempt 3
+    grid-flattening regression.
+  - **Regression 2 — `qbj2_zetabyt` severe performance**: The map is
+    incredibly slow — audio stutters constantly and the level is barely
+    rendered. Pre-loading 750 submodels' geometry and lightmaps during
+    `UploadWorld` creates massive GPU memory pressure and CPU-side
+    allocation overhead, likely exhausting Vulkan memory or creating too
+    many small texture allocations that fragment GPU memory.
+  - **Action Needed**: The pre-load approach is correct in principle but
+    needs optimization: (1) only pre-load submodels that are actually
+    referenced by active brush entities (not all 750 models), (2) batch
+    lightmap uploads into fewer, larger textures, (3) investigate the
+    texture swirling regression in `qbj2_start` which may be a separate
+    lightmap page conflict issue.

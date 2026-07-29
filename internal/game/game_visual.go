@@ -218,10 +218,16 @@ func (g *Game) applyRuntimeRendererSkybox(assets RendererAssets) {
 		return
 	}
 	if g.SkyboxNameKey == "" || g.Subs == nil || g.Subs.Files == nil {
-		assets.SetExternalSkybox("", nil)
+		if g.lastSkyboxNameKey != "" {
+			assets.SetExternalSkybox("", nil)
+			g.lastSkyboxNameKey = ""
+		}
 		return
 	}
-	assets.SetExternalSkybox(g.SkyboxNameKey, g.Subs.Files.LoadFile)
+	if g.SkyboxNameKey != g.lastSkyboxNameKey {
+		assets.SetExternalSkybox(g.SkyboxNameKey, g.Subs.Files.LoadFile)
+		g.lastSkyboxNameKey = g.SkyboxNameKey
+	}
 	if err := assets.UploadPendingExternalSkybox(); err != nil {
 		slog.Debug("external skybox upload deferred", "name", g.SkyboxNameKey, "error", err)
 	}

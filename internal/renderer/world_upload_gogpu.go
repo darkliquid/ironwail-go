@@ -28,7 +28,6 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 
 	slog.Debug("Uploading world geometry to GPU")
 
-	// Build geometry from BSP
 	geom, err := BuildWorldGeometry(tree)
 	if err != nil {
 		return fmt.Errorf("build world geometry: %w", err)
@@ -615,15 +614,6 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.mu.Unlock()
 
 	slog.Debug("World geometry uploaded to GPU",
-		"vertices", renderData.TotalVertices,
-		"indices", renderData.TotalIndices,
-		"faces", renderData.TotalFaces,
-		"triangles", renderData.TotalIndices/3,
-		"boundsMin", renderData.BoundsMin,
-		"boundsMax", renderData.BoundsMax,
-		"vertexBufferSize", uint64(len(geom.Vertices))*48,
-		"indexBufferSize", uint64(len(geom.Indices))*4)
-	slog.Debug("GoGPU world upload stats",
 		"gpu_upload", true,
 		"bsp_version", tree.Version,
 		"lighting_rgb", tree.LightingRGB,
@@ -655,10 +645,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		"models", len(tree.Models),
 	)
 
+	slog.Debug("UploadWorld: pre-loading brush entity geometry and lightmaps")
+	r.preloadBrushModelResources(tree)
+	slog.Debug("UploadWorld: complete")
 	return nil
 }
-
-// renderWorldInternal implements world rendering.
 // This records render commands to draw the world geometry with the configured pipeline,
 
 func (r *Renderer) createWorldUniformBindGroup(device *wgpu.Device, layout *wgpu.BindGroupLayout, uniformBuffer, materialsBuffer *wgpu.Buffer) (*wgpu.BindGroup, error) {
