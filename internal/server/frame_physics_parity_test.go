@@ -60,13 +60,13 @@ func TestFrameProcessesClientMoveBeforePhysics(t *testing.T) {
 	msg.WriteChar(-1)
 	client.Message = finalizeMessage(msg)
 
-	before := ent.Vars.Origin
+	before := ent.Origin(s)
 	if err := s.Frame(0.05); err != nil {
 		t.Fatalf("frame failed: %v", err)
 	}
 
-	if ent.Vars.Origin[0] <= before[0] {
-		t.Fatalf("expected same-frame move along +X, before=%v after=%v", before, ent.Vars.Origin)
+	if ent.Origin(s)[0] <= before[0] {
+		t.Fatalf("expected same-frame move along +X, before=%v after=%v", before, ent.Origin(s))
 	}
 }
 
@@ -154,16 +154,16 @@ func TestCheckWaterTransitionSetsOutOfWaterLevelToContentsValue(t *testing.T) {
 		}},
 	}
 
-	ent.Vars.Origin = [3]float32{0, 0, 128}
-	ent.Vars.WaterType = float32(bsp.ContentsWater)
-	ent.Vars.WaterLevel = 1
+	ent.SetOrigin(s, [3]float32{0, 0, 128})
+	ent.SetWaterType(s, float32(bsp.ContentsWater))
+	ent.SetWaterLevel(s, 1)
 
 	s.CheckWaterTransition(ent)
 
-	if got, want := ent.Vars.WaterType, float32(bsp.ContentsEmpty); got != want {
+	if got, want := ent.WaterType(s), float32(bsp.ContentsEmpty); got != want {
 		t.Fatalf("watertype = %v, want %v", got, want)
 	}
-	if got, want := ent.Vars.WaterLevel, float32(bsp.ContentsEmpty); got != want {
+	if got, want := ent.WaterLevel(s), float32(bsp.ContentsEmpty); got != want {
 		t.Fatalf("waterlevel = %v, want %v", got, want)
 	}
 }
@@ -181,20 +181,20 @@ func TestPhysicsWalkSkipsGravityUnderwater(t *testing.T) {
 		}},
 	}
 
-	ent.Vars.Flags = 0
-	ent.Vars.WaterLevel = 2
-	ent.Vars.Origin = [3]float32{0, 0, 128}
-	ent.Vars.Velocity = [3]float32{}
+	ent.SetFlags(s, 0)
+	ent.SetWaterLevel(s, 2)
+	ent.SetOrigin(s, [3]float32{0, 0, 128})
+	ent.SetVelocity(s, [3]float32{})
 	s.LinkEdict(ent, true)
 
-	before := ent.Vars.Origin
+	before := ent.Origin(s)
 	s.PhysicsWalk(ent)
 
-	if ent.Vars.Velocity[2] != 0 {
-		t.Fatalf("expected no gravity underwater, got velocity %v", ent.Vars.Velocity)
+	if ent.Velocity(s)[2] != 0 {
+		t.Fatalf("expected no gravity underwater, got velocity %v", ent.Velocity(s))
 	}
-	if ent.Vars.Origin != before {
-		t.Fatalf("expected underwater entity to stay put without movement input, before=%v after=%v", before, ent.Vars.Origin)
+	if ent.Origin(s) != before {
+		t.Fatalf("expected underwater entity to stay put without movement input, before=%v after=%v", before, ent.Origin(s))
 	}
 }
 
@@ -207,12 +207,12 @@ func TestPhysicsWalkCollidesWithWorldSolid(t *testing.T) {
 	client.Spawned = true
 	ent := client.Edict
 	ent.Free = false
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.Health = 100
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Size = [3]float32{32, 32, 56}
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetHealth(s, 100)
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSize(s, [3]float32{32, 32, 56})
 
 	pos, ok, diag := findWalkablePointWithDiagnostics(s)
 	if !ok {
@@ -238,7 +238,7 @@ func TestPhysicsWalkCollidesWithWorldSolid(t *testing.T) {
 	)
 	for _, dir := range directions {
 		farEnd := [3]float32{pos[0] + dir[0]*256, pos[1] + dir[1]*256, pos[2]}
-		farTrace := s.Move(pos, ent.Vars.Mins, ent.Vars.Maxs, farEnd, MoveNormal, ent)
+		farTrace := s.Move(pos, ent.Mins(s), ent.Maxs(s), farEnd, MoveNormal, ent)
 		if farTrace.Fraction >= 1 {
 			continue
 		}
@@ -253,7 +253,7 @@ func TestPhysicsWalkCollidesWithWorldSolid(t *testing.T) {
 			pos[1] + dir[1]*(wallDistance-70),
 			pos[2],
 		}
-		ent.Vars.Origin = start
+		ent.SetOrigin(s, start)
 		s.LinkEdict(ent, true)
 		if blocker := s.TestEntityPosition(ent); blocker != nil {
 			continue
@@ -264,7 +264,7 @@ func TestPhysicsWalkCollidesWithWorldSolid(t *testing.T) {
 			start[1] + dir[1]*60,
 			start[2],
 		}
-		trace := s.Move(start, ent.Vars.Mins, ent.Vars.Maxs, plannedEnd, MoveNormal, ent)
+		trace := s.Move(start, ent.Mins(s), ent.Maxs(s), plannedEnd, MoveNormal, ent)
 		if trace.Fraction < 1 {
 			haveCollision = true
 			expectedEnd = trace.EndPos
@@ -276,18 +276,18 @@ func TestPhysicsWalkCollidesWithWorldSolid(t *testing.T) {
 		t.Skip("could not find near-wall movement vector on start map")
 	}
 
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.Velocity = velocity
-	ent.Vars.Origin = start
+	ent.SetFlags(s, float32(FlagOnGround))
+	ent.SetVelocity(s, velocity)
+	ent.SetOrigin(s, start)
 	s.LinkEdict(ent, true)
 
 	s.PhysicsWalk(ent)
 
 	const epsilon = 0.01
 	for i := 0; i < 3; i++ {
-		delta := ent.Vars.Origin[i] - expectedEnd[i]
+		delta := ent.Origin(s)[i] - expectedEnd[i]
 		if delta < -epsilon || delta > epsilon {
-			t.Fatalf("axis %d mismatch after wall collision: got=%v expected=%v", i, ent.Vars.Origin, expectedEnd)
+			t.Fatalf("axis %d mismatch after wall collision: got=%v expected=%v", i, ent.Origin(s), expectedEnd)
 		}
 	}
 }
