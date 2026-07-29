@@ -268,7 +268,7 @@ func NewServer() *Server {
 		Friction:        4,
 		StopSpeed:       100,
 		MaxEdicts:       MaxEdicts,
-		Protocol:        ProtocolFitzQuake,
+		Protocol:        ProtocolRMQ,
 		QCFieldAlpha:         -1,
 		QCFieldScale:         -1,
 		QCFieldGravity:       -1,

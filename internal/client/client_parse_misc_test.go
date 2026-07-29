@@ -247,6 +247,8 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	ent.LeafNums[0] = 0
 
 	c := NewClient()
+	c.Protocol = server.ProtocolRMQ
+	c.ProtocolFlags = uint32(server.ProtocolFlagInt32Coord | server.ProtocolFlagShortAngle)
 	p := NewParser(c)
 
 	data := s.ClientDatagram(0)

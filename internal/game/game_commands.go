@@ -38,6 +38,7 @@ func (g *Game) registerGameplayBindCommands() {
 	g.Host.Cmd.AddCommand("sizeup", g.cmdSizeUp, "Increase screen view size")
 	g.Host.Cmd.AddCommand("sizedown", g.cmdSizeDown, "Decrease screen view size")
 	g.Host.Cmd.AddCommand("entities", g.cmdEntities, "List current client entities")
+	g.Host.Cmd.AddCommand("camdebug", g.cmdCamDebug, "Dump camera vs entity origin and interpolation state")
 	g.Host.Cmd.AddCommand("impulse", g.cmdImpulse, "Trigger an impulse command")
 	g.Host.Cmd.AddCommand("toggleconsole", g.cmdToggleConsole, "Toggle the console")
 	g.Host.Cmd.AddCommand("screenshot", g.cmdScreenshot, "Save a screenshot as PNG")
@@ -243,6 +244,65 @@ func (g *Game) cmdEntities(_ []string) {
 			state.Angles[0], state.Angles[1], state.Angles[2],
 		)
 	}
+}
+
+func (g *Game) cmdCamDebug(_ []string) {
+	if g.Client == nil {
+		console.Printf("camdebug: no client\n")
+		return
+	}
+
+	viewEnt := g.Client.ViewEntity
+	if viewEnt == 0 {
+		viewEnt = 1
+	}
+
+	state, ok := g.Client.Entities[viewEnt]
+	if !ok {
+		console.Printf("camdebug: view entity %d not in entity map!\n", viewEnt)
+		return
+	}
+
+	console.Printf("=== camdebug frame=%d ===\n", g.Host.FrameCount())
+	console.Printf("client.time=%.6f  oldtime=%.6f\n", g.Client.Time, g.Client.OldTime)
+	console.Printf("mtime[0]=%.6f  mtime[1]=%.6f  delta=%.6f\n",
+		g.Client.MTime[0], g.Client.MTime[1], g.Client.MTime[0]-g.Client.MTime[1])
+	console.Printf("localServerFast=%v  noLerp=%v  demoPlayback=%v\n",
+		g.Client.LocalServerFast, g.Client.NoLerp, g.Client.DemoPlayback)
+	console.Printf("viewEntity=%d  onGround=%v  viewHeight=%.1f\n",
+		viewEnt, g.Client.OnGround, g.Client.ViewHeight)
+	console.Printf("localViewTeleport=%v\n", g.Client.LocalViewTeleport)
+
+	console.Printf("entity.renderOrigin  = (%.2f, %.2f, %.2f)\n",
+		state.Origin[0], state.Origin[1], state.Origin[2])
+	console.Printf("entity.msgOrigin[0]  = (%.2f, %.2f, %.2f)\n",
+		state.MsgOrigins[0][0], state.MsgOrigins[0][1], state.MsgOrigins[0][2])
+	console.Printf("entity.msgOrigin[1]  = (%.2f, %.2f, %.2f)\n",
+		state.MsgOrigins[1][0], state.MsgOrigins[1][1], state.MsgOrigins[1][2])
+	console.Printf("entity.msgTime=%.6f  matchesMTime0=%v  modelIndex=%d  forceLink=%v\n",
+		state.MsgTime, state.MsgTime == g.Client.MTime[0], state.ModelIndex, state.ForceLink)
+
+	serverOrigin := [3]float32{}
+	if g.Server != nil && g.Server.Edicts != nil {
+		if ent := g.Server.Edicts[viewEnt]; ent != nil && ent.Vars != nil {
+			serverOrigin = ent.Vars.Origin
+		}
+	}
+	console.Printf("server.playerOrigin  = (%.2f, %.2f, %.2f)\n",
+		serverOrigin[0], serverOrigin[1], serverOrigin[2])
+
+	camOrigin, camAngles := g.runtimeViewState()
+	console.Printf("camera.viewOrigin   = (%.2f, %.2f, %.2f)\n",
+		camOrigin[0], camOrigin[1], camOrigin[2])
+	console.Printf("camera.viewAngles   = (%.2f, %.2f, %.2f)\n",
+		camAngles[0], camAngles[1], camAngles[2])
+
+	dx := camOrigin[0] - state.Origin[0]
+	dy := camOrigin[1] - state.Origin[1]
+	dz := camOrigin[2] - state.Origin[2]
+	console.Printf("delta(cam-entity)    = (%.2f, %.2f, %.2f)  dist=%.2f\n",
+		dx, dy, dz, math.Sqrt(float64(dx*dx+dy*dy+dz*dz)))
+	console.Printf("=========================\n")
 }
 
 func (g *Game) startupConfigPinsAnyCVar(userDir string, names []string) bool {
