@@ -727,7 +727,11 @@ func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.
 				Rect:   stdimage.Rect(0, 0, int(miptex.Width), int(miptex.Height)),
 			}
 		} else {
-			fbImg = fbBlank
+			fbImg = &stdimage.RGBA{
+				Pix:    make([]byte, int(miptex.Width)*int(miptex.Height)*4),
+				Stride: int(miptex.Width) * 4,
+				Rect:   stdimage.Rect(0, 0, int(miptex.Width), int(miptex.Height)),
+			}
 		}
 		fbAtlas.DrawAt(fbImg, ins)
 	}

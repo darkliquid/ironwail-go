@@ -224,7 +224,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
 	let fogged = mix(uniforms.fogColor, lit, fog);
-	return vec4<f32>(fogged, sampled.a * uniforms.alpha);
+	return vec4<f32>(fogged, uniforms.alpha);
 }
 `, worldUniformsWGSL, gogpuWorldDynamicLightBufferMax, alphaDiscard, planeNormalExpr, lightExpr)
 }
