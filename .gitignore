@@ -9,6 +9,7 @@
 
 # Keep license/readme files
 !/LICENSE.*
+!/NOTICE
 !/README.*
 !/AGENTS.md
 

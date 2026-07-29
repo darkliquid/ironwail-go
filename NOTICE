@@ -1,0 +1,29 @@
+Ironwail Go
+===========
+
+This program is a Go port of the Ironwail Quake engine and is distributed
+under the terms of the GNU General Public License v2.0 or later (see
+LICENSE.txt).
+
+Upstream copyright lineage
+--------------------------
+
+This work is derived from the Ironwail engine by Andrei Drexler, which is
+itself a fork of QuakeSpasm. The original copyright holders and their
+contributions are:
+
+  Copyright (C) 1996-2001 Id Software, Inc.
+  Copyright (C) 2002-2009 John Fitzgibbons and others
+  Copyright (C) 2007-2008 Kristian Duske
+  Copyright (C) 2010-2019 QuakeSpasm developers
+
+The full text of each upstream notice is preserved in the corresponding C
+source files under the `ironwail/` symlink (the C reference repository).
+
+This port
+---------
+
+  Copyright (C) 2024 Ironwail Go Port Authors
+
+The Go port is licensed under the GNU General Public License v2.0 or later,
+consistent with the upstream license.

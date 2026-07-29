@@ -1,4 +1,8 @@
 // Copyright (C) 2024 Ironwail Go Port Authors
+// Copyright (C) 1996-2001 Id Software, Inc.
+// Copyright (C) 2002-2009 John Fitzgibbons and others
+// Copyright (C) 2007-2008 Kristian Duske
+// Copyright (C) 2010-2019 QuakeSpasm developers
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 // Package ironwail provides a Go implementation of the Ironwail Quake engine.
