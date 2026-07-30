@@ -1,7 +1,7 @@
 # Implementation Plan: GPU Alias Model Animation & Renderer Performance
 
 **Priority**: #1 (Post Zero-Sync Rendering Bottleneck)  
-**Status**: Proposed / Next Up  
+**Status**: Completed (Merged in commit `cae8d3f`)  
 **Target Milestone**: Phase 1.5  
 
 ---

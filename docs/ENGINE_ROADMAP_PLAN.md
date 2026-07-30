@@ -3,7 +3,7 @@
 This document defines the step-by-step implementation strategy for the major engine projects in **ironwail-go**, ordered strictly according to the priority sequence:
 
 1. **Phase 1 (Item 2)**: Direct-VM Accessors & Zero-Sync QCVM (Steps 3–5) — **COMPLETED** (commit `da40ae2`)
-2. **Phase 1.5**: GPU Alias Model Animation & Renderer Performance — **PROPOSED / NEXT UP** (`docs/plans/09_renderer_gpu_alias_animation.md`)
+2. **Phase 1.5**: GPU Alias Model Animation & Renderer Performance — **COMPLETED** (commit `cae8d3f`)
 3. **Phase 2 (Item 3)**: Texture Atlas Storage Buffer Upgrade (BSP2 Large Map Fix) — **COMPLETED**
 4. **Phase 3 (Item 5)**: Arena / Region Allocators for Level Lifetimes — **COMPLETED** (commit `ab41b31`)
 5. **Phase 4 (Item 4)**: CSQC (Client-Side QuakeC) Host/Client Runtime Integration — **COMPLETED**
