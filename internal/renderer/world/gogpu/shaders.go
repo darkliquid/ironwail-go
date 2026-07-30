@@ -10,6 +10,7 @@ struct VertexInput {
 
 struct AliasUniforms {
     viewProjection: mat4x4<f32>,
+    modelMatrix: mat4x4<f32>,
     cameraOrigin: vec3<f32>,
     fogDensity: f32,
     fogColor: vec3<f32>,
@@ -29,10 +30,12 @@ var<uniform> uniforms: AliasUniforms;
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    output.clipPosition = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
+    var worldPos = uniforms.modelMatrix * vec4<f32>(input.position, 1.0);
+    var worldNorm = uniforms.modelMatrix * vec4<f32>(input.normal, 0.0);
+    output.clipPosition = uniforms.viewProjection * worldPos;
     output.texCoord = input.texCoord;
-    output.normal = input.normal;
-    output.worldPosition = input.position;
+    output.normal = normalize(worldNorm.xyz);
+    output.worldPosition = worldPos.xyz;
     return output;
 }
 `
@@ -40,6 +43,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 const AliasFragmentShaderWGSL = `
 struct AliasUniforms {
     viewProjection: mat4x4<f32>,
+    modelMatrix: mat4x4<f32>,
     cameraOrigin: vec3<f32>,
     fogDensity: f32,
     fogColor: vec3<f32>,

@@ -6,6 +6,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type convertibleBackendRef struct {
@@ -344,4 +345,38 @@ t.Fatalf("angles=%v probe=%v: component %d got %f want %f", tc.angles, p, i, got
 }
 })
 }
+}
+
+func TestAliasEntityModelMatrix(t *testing.T) {
+	origin := [3]float32{10, 20, 30}
+	angles := [3]float32{15, 45, 30}
+	v := [3]float32{5, 2, 8}
+
+	// 1. Yaw only
+	mYaw := AliasEntityModelMatrix(origin, angles, 1.0, false)
+	gotYaw := types.Mat4MulVec4(mYaw, types.Vec4{X: v[0], Y: v[1], Z: v[2], W: 1.0})
+	wantYawPos := RotateYaw(v, angles[1])
+	wantYawPos[0] += origin[0]
+	wantYawPos[1] += origin[1]
+	wantYawPos[2] += origin[2]
+
+	if math.Abs(float64(gotYaw.X-wantYawPos[0])) > 0.001 ||
+		math.Abs(float64(gotYaw.Y-wantYawPos[1])) > 0.001 ||
+		math.Abs(float64(gotYaw.Z-wantYawPos[2])) > 0.001 {
+		t.Errorf("Yaw matrix transform mismatch: got %v, want %v", gotYaw, wantYawPos)
+	}
+
+	// 2. Full angles
+	mFull := AliasEntityModelMatrix(origin, angles, 1.0, true)
+	gotFull := types.Mat4MulVec4(mFull, types.Vec4{X: v[0], Y: v[1], Z: v[2], W: 1.0})
+	wantFullPos := RotateAngles(v, angles)
+	wantFullPos[0] += origin[0]
+	wantFullPos[1] += origin[1]
+	wantFullPos[2] += origin[2]
+
+	if math.Abs(float64(gotFull.X-wantFullPos[0])) > 0.001 ||
+		math.Abs(float64(gotFull.Y-wantFullPos[1])) > 0.001 ||
+		math.Abs(float64(gotFull.Z-wantFullPos[2])) > 0.001 {
+		t.Errorf("Full angles matrix transform mismatch: got %v, want %v", gotFull, wantFullPos)
+	}
 }
