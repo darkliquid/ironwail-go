@@ -243,34 +243,131 @@ func compositeWorldLightmapSurfaceRGBA(rgba []byte, pageWidth int, surface World
 		return
 	}
 	styleCount := 0
-	for _, style := range surface.Styles {
+	var scales [4]float32
+	for i, style := range surface.Styles {
 		if style == 255 {
 			break
+		}
+		if int(style) < len(values) {
+			scales[i] = values[style]
 		}
 		styleCount++
 	}
 	if styleCount == 0 {
 		styleCount = 1
+		scales[0] = values[0]
 	}
+
 	faceSize := surface.Width * surface.Height * 3
 	if len(surface.Samples) < faceSize*styleCount {
 		return
 	}
+
+	// Fast path 1: Single style, scale == 1.0 (static lighting, 90%+ of surfaces)
+	if styleCount == 1 && scales[0] == 1.0 {
+		for y := 0; y < surface.Height; y++ {
+			srcRow := (y * surface.Width) * 3
+			dstRow := ((surface.Y + y) * pageWidth + surface.X) * 4
+			for x := 0; x < surface.Width; x++ {
+				src := srcRow + x*3
+				dst := dstRow + x*4
+				rgba[dst] = surface.Samples[src]
+				rgba[dst+1] = surface.Samples[src+1]
+				rgba[dst+2] = surface.Samples[src+2]
+				rgba[dst+3] = 255
+			}
+		}
+		return
+	}
+
+	// Fast path 2: Single style, scale != 1.0
+	if styleCount == 1 {
+		s0 := scales[0]
+		for y := 0; y < surface.Height; y++ {
+			srcRow := (y * surface.Width) * 3
+			dstRow := ((surface.Y + y) * pageWidth + surface.X) * 4
+			for x := 0; x < surface.Width; x++ {
+				src := srcRow + x*3
+				dst := dstRow + x*4
+				rVal := float32(surface.Samples[src]) * s0
+				gVal := float32(surface.Samples[src+1]) * s0
+				bVal := float32(surface.Samples[src+2]) * s0
+				if rVal > 255 {
+					rVal = 255
+				}
+				if gVal > 255 {
+					gVal = 255
+				}
+				if bVal > 255 {
+					bVal = 255
+				}
+				rgba[dst] = byte(rVal)
+				rgba[dst+1] = byte(gVal)
+				rgba[dst+2] = byte(bVal)
+				rgba[dst+3] = 255
+			}
+		}
+		return
+	}
+
+	// Fast path 3: 2 styles
+	if styleCount == 2 {
+		s0, s1 := scales[0], scales[1]
+		for y := 0; y < surface.Height; y++ {
+			srcRow := (y * surface.Width) * 3
+			dstRow := ((surface.Y + y) * pageWidth + surface.X) * 4
+			for x := 0; x < surface.Width; x++ {
+				src0 := srcRow + x*3
+				src1 := src0 + faceSize
+				dst := dstRow + x*4
+				rVal := float32(surface.Samples[src0])*s0 + float32(surface.Samples[src1])*s1
+				gVal := float32(surface.Samples[src0+1])*s0 + float32(surface.Samples[src1+1])*s1
+				bVal := float32(surface.Samples[src0+2])*s0 + float32(surface.Samples[src1+2])*s1
+				if rVal > 255 {
+					rVal = 255
+				}
+				if gVal > 255 {
+					gVal = 255
+				}
+				if bVal > 255 {
+					bVal = 255
+				}
+				rgba[dst] = byte(rVal)
+				rgba[dst+1] = byte(gVal)
+				rgba[dst+2] = byte(bVal)
+				rgba[dst+3] = 255
+			}
+		}
+		return
+	}
+
+	// General path: 3 or 4 styles
 	for y := 0; y < surface.Height; y++ {
+		srcRow := (y * surface.Width) * 3
+		dstRow := ((surface.Y + y) * pageWidth + surface.X) * 4
 		for x := 0; x < surface.Width; x++ {
-			sampleIndex := (y*surface.Width + x) * 3
+			sampleIndex := srcRow + x*3
 			var rSum, gSum, bSum float32
 			for styleIndex := 0; styleIndex < styleCount; styleIndex++ {
 				offset := styleIndex*faceSize + sampleIndex
-				scale := worldLightstyleScale(values, surface.Styles[styleIndex])
+				scale := scales[styleIndex]
 				rSum += float32(surface.Samples[offset]) * scale
 				gSum += float32(surface.Samples[offset+1]) * scale
 				bSum += float32(surface.Samples[offset+2]) * scale
 			}
-			dst := ((surface.Y+y)*pageWidth + (surface.X + x)) * 4
-			rgba[dst] = byte(clamp01(rSum/255.0) * 255)
-			rgba[dst+1] = byte(clamp01(gSum/255.0) * 255)
-			rgba[dst+2] = byte(clamp01(bSum/255.0) * 255)
+			dst := dstRow + x*4
+			if rSum > 255 {
+				rSum = 255
+			}
+			if gSum > 255 {
+				gSum = 255
+			}
+			if bSum > 255 {
+				bSum = 255
+			}
+			rgba[dst] = byte(rSum)
+			rgba[dst+1] = byte(gSum)
+			rgba[dst+2] = byte(bSum)
 			rgba[dst+3] = 255
 		}
 	}
