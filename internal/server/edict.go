@@ -704,9 +704,14 @@ func (em *EntityManager) parseEdictFieldValue(edict *Edict, entNum int, keyName,
 		edict.Vars = &EntVars{}
 	}
 
+	// Always parse into QCVM edict storage if VM is available
+	if err := em.parseQCVMEdictFieldValue(entNum, keyName, value); err != nil {
+		return err
+	}
+
 	fieldIndex, ok := entVarsFieldIndex[normalizeFieldName(keyName)]
 	if !ok {
-		return em.parseQCVMEdictFieldValue(entNum, keyName, value)
+		return nil
 	}
 
 	rv := reflect.ValueOf(edict.Vars).Elem().Field(fieldIndex)
