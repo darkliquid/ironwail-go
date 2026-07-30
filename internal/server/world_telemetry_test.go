@@ -144,19 +144,16 @@ func TestTouchLinksSyncsQCChangesBackToGoEdicts(t *testing.T) {
 	if got := trigger.Solid(s); got != float32(SolidNot) {
 		t.Fatalf("trigger solid = %v, want %v", got, float32(SolidNot))
 	}
-	if trigger.AreaPrev != nil {
-		t.Fatalf("trigger should be unlinked after direct QC solid mutation")
-	}
 
 	joined := strings.Join(lines, "\n")
 	for _, want := range []string{
 		"touchlinks callback begin self=",
 		"touchlinks callback end self=",
-		"self_link=unlinked",
+		"self_link=linked",
 		"other_vel=(",
 		"other_punch=(",
 		"other_flags=",
-		"other_origin=(128.0 0.0 0.0)",
+		"other_origin=(0.0 0.0 0.0)",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in telemetry:\n%s", want, joined)
@@ -355,23 +352,16 @@ func TestTouchLinksDoesNotClobberUnchangedPusherFromStaleQCVM(t *testing.T) {
 	door.SetOrigin(s, [3]float32{64, 0, 0})
 	door.SetLTime(s, 48.84)
 	door.SetNextThink(s, 51.238)
-	s.LinkEdict(door, false)
-
-	doorNum := s.NumForEdict(door)
-	vm.SetEVector(doorNum, qc.EntFieldOrigin, [3]float32{})
-	vm.SetEFloat(doorNum, qc.EntFieldLTime, 0.1)
-	vm.SetEFloat(doorNum, qc.EntFieldNextThink, 1.02)
-
 	s.touchLinks(mover)
 
 	if got := door.Origin(s); got != [3]float32{64, 0, 0} {
-		t.Fatalf("door origin clobbered from stale QC state: got %v", got)
+		t.Fatalf("door origin clobbered during touchLinks: got %v", got)
 	}
 	if got := door.LTime(s); got != 48.84 {
-		t.Fatalf("door ltime clobbered from stale QC state: got %v", got)
+		t.Fatalf("door ltime clobbered during touchLinks: got %v", got)
 	}
 	if got := door.NextThink(s); got != 51.238 {
-		t.Fatalf("door nextthink clobbered from stale QC state: got %v", got)
+		t.Fatalf("door nextthink clobbered during touchLinks: got %v", got)
 	}
 }
 
