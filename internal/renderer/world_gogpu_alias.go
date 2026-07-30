@@ -673,13 +673,69 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	}
 
 	r := dc.renderer
+	vpMatrix := r.ViewProjectionMatrix()
 	r.mu.Lock()
-	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
+	camera := r.cameraState
+	r.mu.Unlock()
+	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
+
+	// Reset persistent scratch buffers on DrawContext
+	dc.aliasPreparedScratch = dc.aliasPreparedScratch[:0]
+	dc.aliasVertexScratch = dc.aliasVertexScratch[:0]
+	dc.aliasBulkVertexData = dc.aliasBulkVertexData[:0]
+	dc.aliasBulkUniformData = dc.aliasBulkUniformData[:0]
+	dc.aliasVertexOffsets = dc.aliasVertexOffsets[:0]
+	dc.aliasVertexCounts = dc.aliasVertexCounts[:0]
+	dc.aliasUniformOffsets = dc.aliasUniformOffsets[:0]
+
+	// Single pass over draws: interpolate vertices ONCE and pack bulk buffers directly
+	currentVertexOffset := uint64(0)
+	for _, draw := range draws {
+		if draw.skin == nil || draw.skin.bindGroup == nil {
+			continue
+		}
+
+		dc.aliasVertexScratch = buildAliasVerticesInterpolatedInto(
+			dc.aliasVertexScratch[:0],
+			draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend,
+			draw.origin, draw.angles, draw.scale, draw.full,
+		)
+		if len(dc.aliasVertexScratch) == 0 {
+			continue
+		}
+
+		vertexCount := uint32(len(dc.aliasVertexScratch))
+		uOffset := uint32(len(dc.aliasPreparedScratch)) * worldUniformAlign
+
+		dc.aliasPreparedScratch = append(dc.aliasPreparedScratch, gpuPreparedAliasDraw{
+			draw:        draw,
+			skin:        draw.skin,
+			alpha:       draw.alpha,
+			vertexCount: vertexCount,
+		})
+		dc.aliasUniformOffsets = append(dc.aliasUniformOffsets, uOffset)
+		dc.aliasVertexOffsets = append(dc.aliasVertexOffsets, currentVertexOffset)
+		dc.aliasVertexCounts = append(dc.aliasVertexCounts, vertexCount)
+
+		// Pack uniform data directly into bulk buffer
+		dc.aliasBulkUniformData = appendAliasSceneUniformBytes(dc.aliasBulkUniformData, uOffset, vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)
+
+		// Pack vertex data directly into bulk buffer
+		dc.aliasBulkVertexData = appendAliasVertexBytes(dc.aliasBulkVertexData, dc.aliasVertexScratch)
+		currentVertexOffset += uint64(len(dc.aliasVertexScratch) * aliasVertexStride)
+	}
+
+	if len(dc.aliasPreparedScratch) == 0 {
+		return
+	}
+
+	r.mu.Lock()
+	if err := r.ensureAliasScratchBufferLocked(device, currentVertexOffset); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure alias scratch buffer", "error", err)
 		return
 	}
-	if err := r.ensureAliasUniformBufferLocked(device, len(prepared)); err != nil {
+	if err := r.ensureAliasUniformBufferLocked(device, len(dc.aliasPreparedScratch)); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure alias uniform buffer", "error", err)
 		return
@@ -689,58 +745,22 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	uniformBindGroup := r.aliasUniformBindGroup
 	scratchBuffer := r.aliasScratchBuffer
 	depthView := r.worldDepthTextureView
-	camera := r.cameraState
 	r.mu.Unlock()
 	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
 		return
 	}
 
-	vpMatrix := r.ViewProjectionMatrix()
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-
-	// Pre-upload all uniform data at 256-byte aligned offsets
-	// and all vertex data at consecutive offsets.
-	vertexOffsets := make([]uint64, len(prepared))
-	vertexCounts := make([]uint32, len(prepared))
-	uniformOffsets := make([]uint32, len(prepared))
-
-	// Preallocate contiguous slices for bulk upload
-	bulkUniformData := make([]byte, uint64(len(prepared))*worldUniformAlign)
-	bulkVertexData := make([]byte, 0, len(prepared)*1024) // Estimate 1KB per model
-
-	currentVertexOffset := uint64(0)
-	for i, pd := range prepared {
-		vertexScratch = buildAliasVerticesInterpolatedInto(vertexScratch[:0], pd.draw.alias, pd.draw.model, pd.draw.pose1, pd.draw.pose2, pd.draw.blend, pd.draw.origin, pd.draw.angles, pd.draw.scale, pd.draw.full)
-		if len(vertexScratch) == 0 {
-			continue
-		}
-
-		uOffset := uint32(i) * worldUniformAlign
-		uniformOffsets[i] = uOffset
-		vertexOffsets[i] = currentVertexOffset
-		vertexCounts[i] = pd.vertexCount
-
-		// Accumulate uniform data
-		uBytes := aliasSceneUniformBytes(vpMatrix, cameraOrigin, pd.alpha, fogColor, fogDensity)
-		copy(bulkUniformData[uOffset:], uBytes)
-
-		// Accumulate vertex data
-		vertexBytes := aliasVertexBytesInto(nil, vertexScratch)
-		bulkVertexData = append(bulkVertexData, vertexBytes...)
-		currentVertexOffset += uint64(len(vertexBytes))
-	}
-
 	// Bulk upload all uniforms
-	if len(prepared) > 0 {
-		if err := queue.WriteBuffer(uniformBuffer, 0, bulkUniformData); err != nil {
+	if len(dc.aliasBulkUniformData) > 0 {
+		if err := queue.WriteBuffer(uniformBuffer, 0, dc.aliasBulkUniformData); err != nil {
 			slog.Warn("failed to upload alias uniform buffer in bulk", "error", err)
 			return
 		}
 	}
 
 	// Bulk upload all vertices
-	if len(bulkVertexData) > 0 {
-		if err := queue.WriteBuffer(scratchBuffer, 0, bulkVertexData); err != nil {
+	if len(dc.aliasBulkVertexData) > 0 {
+		if err := queue.WriteBuffer(scratchBuffer, 0, dc.aliasBulkVertexData); err != nil {
 			slog.Warn("failed to upload alias vertices in bulk", "error", err)
 			return
 		}
@@ -776,11 +796,11 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
 
-	for i, pd := range prepared {
-		renderPass.SetVertexBuffer(0, scratchBuffer, vertexOffsets[i])
-		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{uniformOffsets[i]})
+	for i, pd := range dc.aliasPreparedScratch {
+		renderPass.SetVertexBuffer(0, scratchBuffer, dc.aliasVertexOffsets[i])
+		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{dc.aliasUniformOffsets[i]})
 		renderPass.SetBindGroup(1, pd.skin.bindGroup, nil)
-		renderPass.Draw(vertexCounts[i], 1, 0, 0)
+		renderPass.Draw(dc.aliasVertexCounts[i], 1, 0, 0)
 	}
 
 	if err := renderPass.End(); err != nil {
@@ -796,15 +816,28 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	}
 }
 
-func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
-	data := make([]byte, aliasSceneUniformBufferSize)
+func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+	requiredLen := int(targetOffset) + int(worldUniformAlign)
+	if cap(dst) < requiredLen {
+		newCap := requiredLen * 2
+		buf := make([]byte, requiredLen, newCap)
+		copy(buf, dst)
+		dst = buf
+	} else if len(dst) < requiredLen {
+		dst = dst[:requiredLen]
+	}
+	data := dst[targetOffset : targetOffset+aliasSceneUniformBufferSize]
 	matrixBytes := matrixToBytes(vp)
 	copy(data[:64], matrixBytes)
 	putFloat32s(data[64:76], cameraOrigin[:])
 	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
 	putFloat32s(data[80:92], fogColor[:])
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
-	return data
+	return dst
+}
+
+func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+	return appendAliasSceneUniformBytes(nil, 0, vp, cameraOrigin, alpha, fogColor, fogDensity)
 }
 
 func aliasVertexBytes(vertices []WorldVertex) []byte {
@@ -815,13 +848,22 @@ func aliasVertexBytes(vertices []WorldVertex) []byte {
 // This is one of four vertex-packing functions that must all agree on the byte
 // layout — see docs/VERTEX_LAYOUT.md.
 func aliasVertexBytesInto(dst []byte, vertices []WorldVertex) []byte {
+	return appendAliasVertexBytes(dst[:0], vertices)
+}
+
+func appendAliasVertexBytes(dst []byte, vertices []WorldVertex) []byte {
 	required := len(vertices) * aliasVertexStride
-	data := dst[:0]
-	if cap(data) < required {
-		data = make([]byte, required)
+	start := len(dst)
+	total := start + required
+	if cap(dst) < total {
+		newCap := total * 2
+		buf := make([]byte, total, newCap)
+		copy(buf, dst)
+		dst = buf
 	} else {
-		data = data[:required]
+		dst = dst[:total]
 	}
+	data := dst[start:]
 	for i, v := range vertices {
 		offset := i * aliasVertexStride
 		putFloat32s(data[offset:offset+12], v.Position[:])
@@ -831,7 +873,7 @@ func aliasVertexBytesInto(dst []byte, vertices []WorldVertex) []byte {
 		putFloat32s(data[offset+40:offset+44], []float32{v.LightmapLayer})
 		binary.LittleEndian.PutUint32(data[offset+44:offset+48], v.MaterialID)
 	}
-	return data
+	return dst
 }
 
 func buildAliasVerticesInterpolatedInto(dst []WorldVertex, alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {

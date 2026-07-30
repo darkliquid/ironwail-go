@@ -35,6 +35,22 @@ type DrawContext struct {
 	// submissions through gogpu's 2D API. The overlay is flushed as a
 	// single texture upload + draw at the end of the 2D overlay phase.
 	overlay *overlay2D
+
+	// Persistent scratch buffers for alias model rendering to avoid per-frame heap allocations.
+	aliasPreparedScratch []gpuPreparedAliasDraw
+	aliasVertexScratch   []WorldVertex
+	aliasBulkVertexData  []byte
+	aliasBulkUniformData []byte
+	aliasVertexOffsets   []uint64
+	aliasVertexCounts    []uint32
+	aliasUniformOffsets  []uint32
+}
+
+type gpuPreparedAliasDraw struct {
+	draw        gpuAliasDraw
+	skin        *gpuAliasSkin
+	alpha       float32
+	vertexCount uint32
 }
 
 func validatedGoGPURenderPipeline(device *wgpu.Device, desc *wgpu.RenderPipelineDescriptor) (*wgpu.RenderPipeline, error) {
