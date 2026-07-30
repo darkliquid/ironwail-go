@@ -107,7 +107,7 @@ func TestPhysicsWalkAppliesGravityAirborne(t *testing.T) {
 func TestAddGravityUsesQCGravityFieldWhenPresent(t *testing.T) {
 	s, _, ent := newSyntheticClientServer(t)
 	s.FrameTime = 0.1
-	ent.Vars.Velocity = [3]float32{}
+	ent.SetVelocity(s, [3]float32{})
 
 	vm := newTestQCVM()
 	s.QCVM = vm

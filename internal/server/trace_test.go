@@ -17,7 +17,7 @@ func newOwnerSkipTraceServer(t *testing.T) (*Server, *Edict, *Edict, int) {
 	if len(s.Edicts) == 0 || s.Edicts[0] == nil {
 		t.Fatal("missing world edict")
 	}
-	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	s.ClearWorld()
 
 	owner := s.AllocEdict()
@@ -27,17 +27,17 @@ func newOwnerSkipTraceServer(t *testing.T) (*Server, *Edict, *Edict, int) {
 	}
 	ownerNum := s.NumForEdict(owner)
 
-	owner.Vars.Origin = [3]float32{0, 0, 128}
-	owner.Vars.Mins = [3]float32{-16, -16, -16}
-	owner.Vars.Maxs = [3]float32{16, 16, 16}
-	owner.Vars.Solid = float32(SolidBBox)
+	owner.SetOrigin(s, [3]float32{0, 0, 128})
+	owner.SetMins(s, [3]float32{-16, -16, -16})
+	owner.SetMaxs(s, [3]float32{16, 16, 16})
+	owner.SetSolid(s, float32(SolidBBox))
 	s.LinkEdict(owner, false)
 
-	projectile.Vars.Origin = [3]float32{-64, 0, 128}
-	projectile.Vars.Mins = [3]float32{}
-	projectile.Vars.Maxs = [3]float32{}
-	projectile.Vars.Solid = float32(SolidBBox)
-	projectile.Vars.MoveType = float32(MoveTypeFlyMissile)
+	projectile.SetOrigin(s, [3]float32{-64, 0, 128})
+	projectile.SetMins(s, [3]float32{})
+	projectile.SetMaxs(s, [3]float32{})
+	projectile.SetSolid(s, float32(SolidBBox))
+	projectile.SetMoveType(s, float32(MoveTypeFlyMissile))
 	s.LinkEdict(projectile, false)
 
 	return s, owner, projectile, ownerNum
@@ -48,10 +48,10 @@ func TestMoveAgainstBoxWorld(t *testing.T) {
 
 	// Configure the world edict as a simple box from -10..-10..-10 to 10..10..10
 	world := s.Edicts[0]
-	world.Vars.Mins = [3]float32{-10, -10, -10}
-	world.Vars.Maxs = [3]float32{10, 10, 10}
+	world.SetMins(s, [3]float32{-10, -10, -10})
+	world.SetMaxs(s, [3]float32{10, 10, 10})
 	// Use non-SolidBSP so hullForEntity falls back to box hull
-	world.Vars.Solid = float32(SolidBBox)
+	world.SetSolid(s, float32(SolidBBox))
 
 	// Move from outside towards the box center
 	start := [3]float32{-20, 0, 0}
@@ -71,9 +71,9 @@ func TestMoveThroughEmptySpace(t *testing.T) {
 
 	// World still exists but set it to a distant box so path is empty
 	world := s.Edicts[0]
-	world.Vars.Mins = [3]float32{1000, 1000, 1000}
-	world.Vars.Maxs = [3]float32{1010, 1010, 1010}
-	world.Vars.Solid = float32(SolidBBox)
+	world.SetMins(s, [3]float32{1000, 1000, 1000})
+	world.SetMaxs(s, [3]float32{1010, 1010, 1010})
+	world.SetSolid(s, float32(SolidBBox))
 
 	start := [3]float32{0, 0, 0}
 	end := [3]float32{16, 0, 0}
@@ -86,9 +86,9 @@ func TestMoveThroughEmptySpace(t *testing.T) {
 
 func TestMoveMissileSkipsOwnerEdictRef(t *testing.T) {
 	s, owner, projectile, ownerNum := newOwnerSkipTraceServer(t)
-	projectile.Vars.Owner = int32(ownerNum)
+	projectile.SetOwner(s, int32(ownerNum))
 
-	trace := s.Move(projectile.Vars.Origin, projectile.Vars.Mins, projectile.Vars.Maxs, owner.Vars.Origin, MoveMissile, projectile)
+	trace := s.Move(projectile.Origin(s), projectile.Mins(s), projectile.Maxs(s), owner.Origin(s), MoveMissile, projectile)
 	if trace.Entity == owner {
 		t.Fatal("missile move clipped against owner with edict-number owner ref")
 	}
@@ -97,9 +97,9 @@ func TestMoveMissileSkipsOwnerEdictRef(t *testing.T) {
 func TestMoveMissileSkipsOwnerQCOffsetRef(t *testing.T) {
 	s, owner, projectile, ownerNum := newOwnerSkipTraceServer(t)
 	s.QCVM.EdictSize = 223
-	projectile.Vars.Owner = int32(ownerNum * s.QCVM.EdictSize)
+	projectile.SetOwner(s, int32(ownerNum*s.QCVM.EdictSize))
 
-	trace := s.Move(projectile.Vars.Origin, projectile.Vars.Mins, projectile.Vars.Maxs, owner.Vars.Origin, MoveMissile, projectile)
+	trace := s.Move(projectile.Origin(s), projectile.Mins(s), projectile.Maxs(s), owner.Origin(s), MoveMissile, projectile)
 	if trace.Entity == owner {
 		t.Fatal("missile move clipped against owner with QC offset owner ref")
 	}

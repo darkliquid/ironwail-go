@@ -16,13 +16,13 @@ func TestMovementAgainstMap(t *testing.T) {
 	}
 
 	// Place a small test move: step forward and ensure MoveStep respects BSP.
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Origin = pos
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.MoveType = float32(MoveTypeStep)
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent := s.AllocEdict()
+	ent.SetOrigin(s, pos)
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMoveType(s, float32(MoveTypeStep))
+	ent.SetFlags(s, float32(FlagOnGround))
 
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
@@ -37,11 +37,11 @@ func TestMovementAgainstMap(t *testing.T) {
 
 	// Attempt a small MoveStep; on a valid walkable point this should succeed
 	// without changing origin when move is zero and return true for grounded.
-	before := ent.Vars.Origin
+	before := ent.Origin(s)
 	if !s.MoveStep(ent, [3]float32{}, true) {
 		t.Fatalf("MoveStep failed on stationary grounded entity; %s", diag.String())
 	}
-	if ent.Vars.Origin != before {
-		t.Fatalf("MoveStep with zero move changed origin: before=%v after=%v", before, ent.Vars.Origin)
+	if ent.Origin(s) != before {
+		t.Fatalf("MoveStep with zero move changed origin: before=%v after=%v", before, ent.Origin(s))
 	}
 }

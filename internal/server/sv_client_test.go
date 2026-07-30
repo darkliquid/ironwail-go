@@ -204,7 +204,7 @@ func TestCreateBaselineRMQUsesQCScaleAndWritesSpawnBaseline2(t *testing.T) {
 		t.Fatal("AllocEdict returned nil")
 	}
 	entNum := s.NumForEdict(ent)
-	ent.Vars.ModelIndex = 1
+	ent.SetModelIndex(s, 1)
 	s.QCVM.SetEFloat(entNum, s.QCFieldScale, 2.0)
 
 	s.CreateBaseline()

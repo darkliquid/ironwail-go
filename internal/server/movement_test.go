@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/darkliquid/ironwail-go/internal/qc"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
@@ -13,35 +14,41 @@ func newMovementTestServer() *Server {
 		Gravity:     800,
 		MaxVelocity: 2000,
 		FrameTime:   0.1,
+		MaxEdicts:   64,
 		Edicts:      []*Edict{{Vars: &EntVars{}}},
 		NumEdicts:   1,
 	}
 	s.SetCompatRNG(compatrand.New())
+	s.QCVM = qc.NewVM()
+	newServerTestVM(s, 64)
+	s.ensureQCVMEdictStorage()
 	return s
 }
 
 func TestChangeYaw(t *testing.T) {
 	s := newMovementTestServer()
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Angles[1] = 10
-	ent.Vars.IdealYaw = 350
-	ent.Vars.YawSpeed = 15
+	ent := s.AllocEdict()
+	ang := ent.Angles(s)
+	ang[1] = 10
+	ent.SetAngles(s, ang)
+	ent.SetIdealYaw(s, 350)
+	ent.SetYawSpeed(s, 15)
 
 	s.changeYaw(ent)
 	// anglemod uses 16-bit quantization matching C, so 355 becomes ~355.00122
-	if got := ent.Vars.Angles[1]; got < 354.99 || got > 355.01 {
+	if got := ent.Angles(nil)[1]; got < 354.99 || got > 355.01 {
 		t.Fatalf("angles yaw = %v, want ~355", got)
 	}
 }
 
 func TestCloseEnough(t *testing.T) {
 	s := newMovementTestServer()
-	ent := &Edict{Vars: &EntVars{}}
-	goal := &Edict{Vars: &EntVars{}}
-	ent.Vars.AbsMin = [3]float32{0, 0, 0}
-	ent.Vars.AbsMax = [3]float32{16, 16, 16}
-	goal.Vars.AbsMin = [3]float32{30, 0, 0}
-	goal.Vars.AbsMax = [3]float32{46, 16, 16}
+	ent := s.AllocEdict()
+	goal := s.AllocEdict()
+	ent.SetAbsMin(s, [3]float32{0, 0, 0})
+	ent.SetAbsMax(s, [3]float32{16, 16, 16})
+	goal.SetAbsMin(s, [3]float32{30, 0, 0})
+	goal.SetAbsMax(s, [3]float32{46, 16, 16})
 
 	if s.CloseEnough(ent, goal, 13.9) {
 		t.Fatalf("CloseEnough returned true with insufficient distance")
@@ -53,17 +60,17 @@ func TestCloseEnough(t *testing.T) {
 
 func TestSVHullForEntityAndSVMoveWrappers(t *testing.T) {
 	s := newMovementTestServer()
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Origin = [3]float32{10, 20, 30}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent := s.AllocEdict()
+	ent.SetOrigin(s, [3]float32{10, 20, 30})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
 
 	h, offset := s.SV_HullForEntity(ent, [3]float32{}, [3]float32{})
 	if h == nil {
 		t.Fatalf("SV_HullForEntity returned nil hull")
 	}
-	if offset != ent.Vars.Origin {
-		t.Fatalf("offset = %v, want %v", offset, ent.Vars.Origin)
+	if offset != ent.Origin(s) {
+		t.Fatalf("offset = %v, want %v", offset, ent.Origin(s))
 	}
 
 	start := [3]float32{0, 0, 0}
@@ -98,11 +105,11 @@ func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 		{HeadNode: [bsp.MaxMapHulls]int32{0, 1, 1, 0}},
 	}}
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Origin = [3]float32{}
-	ent.Vars.Solid = float32(SolidBSP)
-	ent.Vars.MoveType = float32(MoveTypePush)
-	ent.Vars.ModelIndex = 2
+	ent := s.AllocEdict()
+	ent.SetOrigin(s, [3]float32{})
+	ent.SetSolid(s, float32(SolidBSP))
+	ent.SetMoveType(s, float32(MoveTypePush))
+	ent.SetModelIndex(s, 2)
 
 	h, _ := s.SV_HullForEntity(ent, [3]float32{-16, -16, -24}, [3]float32{16, 16, 32})
 	if h == nil {
@@ -129,13 +136,13 @@ func TestMovementOnSpawnedMap(t *testing.T) {
 		t.Skipf("no walkable point found on start map; %s", diag.String())
 	}
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Origin = pos
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.MoveType = float32(MoveTypeStep)
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent := s.AllocEdict()
+	ent.SetOrigin(s, pos)
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMoveType(s, float32(MoveTypeStep))
+	ent.SetFlags(s, float32(FlagOnGround))
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 	s.LinkEdict(ent, false)
@@ -144,7 +151,7 @@ func TestMovementOnSpawnedMap(t *testing.T) {
 		t.Fatalf("SV_TestEntityPosition found blocker at valid position; %s", diag.String())
 	}
 
-	h, _ := s.SV_HullForEntity(ent, ent.Vars.Mins, ent.Vars.Maxs)
+	h, _ := s.SV_HullForEntity(ent, ent.Mins(s), ent.Maxs(s))
 	if h == nil {
 		t.Fatalf("SV_HullForEntity returned nil on spawned map")
 	}
@@ -153,29 +160,31 @@ func TestMovementOnSpawnedMap(t *testing.T) {
 		t.Skipf("sampled position does not satisfy CheckBottom; %s", diag.String())
 	}
 
-	before := ent.Vars.Origin
+	before := ent.Origin(s)
 	if !s.MoveStep(ent, [3]float32{}, true) {
 		t.Fatalf("MoveStep failed on stationary grounded entity; %s", diag.String())
 	}
-	if ent.Vars.Origin != before {
-		t.Fatalf("MoveStep with zero move changed origin: before=%v after=%v", before, ent.Vars.Origin)
+	if ent.Origin(s) != before {
+		t.Fatalf("MoveStep with zero move changed origin: before=%v after=%v", before, ent.Origin(s))
 	}
 }
 
 func TestMoveToGoalRandomBranchUsesSharedCompatRNG(t *testing.T) {
 	s := newMovementTestServer()
 
-	goal := &Edict{Vars: &EntVars{}}
-	goal.Vars.Origin = [3]float32{64, 0, 0}
-	goal.Vars.AbsMin = [3]float32{64, 0, 0}
-	goal.Vars.AbsMax = [3]float32{64, 0, 0}
+	goal := s.AllocEdict()
+	goal.SetOrigin(s, [3]float32{64, 0, 0})
+	goal.SetAbsMin(s, [3]float32{64, 0, 0})
+	goal.SetAbsMax(s, [3]float32{64, 0, 0})
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Flags = float32(FlagFly)
-	ent.Vars.IdealYaw = 90
-	ent.Vars.Angles[1] = 90
-	ent.Vars.YawSpeed = 360
-	ent.Vars.GoalEntity = 1
+	ent := s.AllocEdict()
+	ent.SetFlags(s, float32(FlagFly))
+	ent.SetIdealYaw(s, 90)
+	ang2 := ent.Angles(s)
+	ang2[1] = 90
+	ent.SetAngles(s, ang2)
+	ent.SetYawSpeed(s, 360)
+	ent.SetGoalEntity(s, 1)
 
 	s.Edicts = append(s.Edicts, goal, ent)
 	s.NumEdicts = len(s.Edicts)
@@ -186,10 +195,10 @@ func TestMoveToGoalRandomBranchUsesSharedCompatRNG(t *testing.T) {
 	if !s.MoveToGoal(ent, 16) {
 		t.Fatal("MoveToGoal returned false")
 	}
-	if got := ent.Vars.Origin; got != [3]float32{16, 0, 0} {
+	if got := ent.Origin(s); got != [3]float32{16, 0, 0} {
 		t.Fatalf("origin = %v, want eastward chase step", got)
 	}
-	if got := ent.Vars.IdealYaw; got != 0 {
+	if got := ent.IdealYaw(nil); got != 0 {
 		t.Fatalf("IdealYaw = %v, want 0", got)
 	}
 }
@@ -197,12 +206,12 @@ func TestMoveToGoalRandomBranchUsesSharedCompatRNG(t *testing.T) {
 func TestNewChaseDirUsesCanonicalQuakeSouthwestBias(t *testing.T) {
 	s := newMovementTestServer()
 
-	actor := &Edict{Vars: &EntVars{}}
-	actor.Vars.Flags = float32(FlagFly)
-	actor.Vars.YawSpeed = 360
+	actor := s.AllocEdict()
+	actor.SetFlags(s, float32(FlagFly))
+	actor.SetYawSpeed(s, 360)
 
-	enemy := &Edict{Vars: &EntVars{}}
-	enemy.Vars.Origin = [3]float32{-64, -64, 0}
+	enemy := s.AllocEdict()
+	enemy.SetOrigin(s, [3]float32{-64, -64, 0})
 
 	s.Edicts = append(s.Edicts, actor, enemy)
 	s.NumEdicts = len(s.Edicts)
@@ -211,10 +220,10 @@ func TestNewChaseDirUsesCanonicalQuakeSouthwestBias(t *testing.T) {
 
 	wantX := float32(-13.10643)
 	wantY := float32(-9.177243)
-	if got := actor.Vars.Origin; got[0] < wantX-0.01 || got[0] > wantX+0.01 || got[1] < wantY-0.01 || got[1] > wantY+0.01 {
+	if got := actor.Origin(s); got[0] < wantX-0.01 || got[0] > wantX+0.01 || got[1] < wantY-0.01 || got[1] > wantY+0.01 {
 		t.Fatalf("origin = %v, want canonical 215-degree chase step", got)
 	}
-	if got := actor.Vars.IdealYaw; got != 215 {
+	if got := actor.IdealYaw(s); got != 215 {
 		t.Fatalf("IdealYaw = %v, want 215", got)
 	}
 }
@@ -250,7 +259,7 @@ func TestMoveStepRejectsUnsupportedStepOffPlatform(t *testing.T) {
 	s := NewServer()
 	s.WorldModel = createSyntheticPlatformWorldModel()
 	if len(s.Edicts) > 0 && s.Edicts[0] != nil && s.Edicts[0].Vars != nil {
-		s.Edicts[0].Vars.Solid = float32(SolidBSP)
+		s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
@@ -258,23 +267,23 @@ func TestMoveStepRejectsUnsupportedStepOffPlatform(t *testing.T) {
 	if ent == nil {
 		t.Fatal("failed to allocate test edict")
 	}
-	ent.Vars.Origin = [3]float32{32, 0, 24}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.MoveType = float32(MoveTypeStep)
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent.SetOrigin(s, [3]float32{32, 0, 24})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMoveType(s, float32(MoveTypeStep))
+	ent.SetFlags(s, float32(FlagOnGround))
 	s.LinkEdict(ent, false)
 
 	if !s.CheckBottom(ent) {
 		t.Fatal("expected starting position to be fully supported")
 	}
 
-	start := ent.Vars.Origin
+	start := ent.Origin(s)
 	if s.MoveStep(ent, [3]float32{-20, 0, 0}, true) {
-		t.Fatalf("MoveStep unexpectedly accepted unsupported platform step: start=%v end=%v", start, ent.Vars.Origin)
+		t.Fatalf("MoveStep unexpectedly accepted unsupported platform step: start=%v end=%v", start, ent.Origin(s))
 	}
-	if got := ent.Vars.Origin; got != start {
+	if got := ent.Origin(s); got != start {
 		t.Fatalf("origin after rejected step = %v, want %v", got, start)
 	}
 }

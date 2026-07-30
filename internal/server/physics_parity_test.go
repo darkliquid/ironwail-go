@@ -14,12 +14,12 @@ func TestPhysicsWalkJump(t *testing.T) {
 	s.FrameTime = 0.01
 	s.Gravity = 800
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Origin = [3]float32{0, 0, 0}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.MoveType = float32(MoveTypeWalk)
+	ent := s.AllocEdict()
+	ent.SetOrigin(s, [3]float32{0, 0, 0})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetFlags(s, float32(FlagOnGround))
+	ent.SetMoveType(s, float32(MoveTypeWalk))
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 
@@ -43,13 +43,13 @@ func TestPhysicsWalkStepUp(t *testing.T) {
 		Type: model.ModBrush,
 	}
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Origin = [3]float32{0, 0, 24}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Velocity = [3]float32{100, 0, 0}
+	ent := s.AllocEdict()
+	ent.SetOrigin(s, [3]float32{0, 0, 24})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetFlags(s, float32(FlagOnGround))
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetVelocity(s, [3]float32{100, 0, 0})
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 

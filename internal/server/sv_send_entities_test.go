@@ -268,42 +268,38 @@ func TestWriteEntitiesToClient_EmitsVisibleBaselineEqualBrushEntity(t *testing.T
 func TestWriteEntitiesToClient_PrioritizesCloserVisibleEntitiesWhenPacketBudgetTight(t *testing.T) {
 	t.Parallel()
 
-	far := &Edict{
-		Vars: &EntVars{
-			ModelIndex: 5,
-			Origin:     [3]float32{1000, 0, 0},
-			AbsMin:     [3]float32{999, -1, -1},
-			AbsMax:     [3]float32{1001, 1, 1},
-		},
-		NumLeafs: 1,
-	}
-	far.LeafNums[0] = 0
-	far.Baseline = EntityState{ModelIndex: 5, Origin: far.Vars.Origin, Scale: inet.ENTSCALE_DEFAULT}
+	s := newPhysicsTestServer()
 
-	near := &Edict{
-		Vars: &EntVars{
-			ModelIndex: 6,
-			Origin:     [3]float32{10, 0, 0},
-			AbsMin:     [3]float32{9, -1, -1},
-			AbsMax:     [3]float32{11, 1, 1},
-		},
-		NumLeafs: 1,
-	}
+	far := &Edict{Num: 2}
+	near := &Edict{Num: 3}
+	clientEdict := &Edict{Num: 4}
+	s.Edicts = []*Edict{s.Edicts[0], nil, far, near, clientEdict}
+	s.NumEdicts = 5
+	s.ensureQCVMEdictStorage()
+
+	far.SetModelIndex(s, 5)
+	far.SetOrigin(s, [3]float32{1000, 0, 0})
+	far.SetAbsMin(s, [3]float32{999, -1, -1})
+	far.SetAbsMax(s, [3]float32{1001, 1, 1})
+	far.NumLeafs = 1
+	far.LeafNums[0] = 0
+	far.Baseline = EntityState{ModelIndex: 5, Origin: far.Origin(s), Scale: inet.ENTSCALE_DEFAULT}
+
+	near.SetModelIndex(s, 6)
+	near.SetOrigin(s, [3]float32{10, 0, 0})
+	near.SetAbsMin(s, [3]float32{9, -1, -1})
+	near.SetAbsMax(s, [3]float32{11, 1, 1})
+	near.NumLeafs = 1
 	near.LeafNums[0] = 0
-	near.Baseline = EntityState{ModelIndex: 6, Origin: near.Vars.Origin, Scale: inet.ENTSCALE_DEFAULT}
+	near.Baseline = EntityState{ModelIndex: 6, Origin: near.Origin(s), Scale: inet.ENTSCALE_DEFAULT}
+
 
 	client := &Client{
-		Edict:        &Edict{Vars: &EntVars{VAngle: [3]float32{}, Origin: [3]float32{}, ViewOfs: [3]float32{}}},
+		Edict:        clientEdict,
 		FatPVS:       []byte{0x01},
 		EntityStates: make(map[int]EntityState),
 	}
-	s := &Server{
-		Protocol:      ProtocolFitzQuake,
-		Static:        &ServerStatic{MaxClients: 1},
-		Edicts:        []*Edict{{Vars: &EntVars{}}, nil, far, near},
-		NumEdicts:     4,
-		ModelPrecache: []string{"", "progs/player.mdl", "unused", "unused", "unused", "progs/far.mdl", "progs/near.mdl"},
-	}
+	s.ModelPrecache = []string{"", "progs/player.mdl", "unused", "unused", "unused", "progs/far.mdl", "progs/near.mdl"}
 
 	msg := NewMessageBuffer(41)
 	s.writeEntitiesToClient(client, msg)

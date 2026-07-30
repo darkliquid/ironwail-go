@@ -83,10 +83,7 @@ func (e *Edict) SetMoveType(s *Server, v float32) {
 
 func (e *Edict) Solid(s *Server) float32 {
 	if s != nil && s.QCVM != nil && s.QCVM.EdictSize > 28 {
-		v := s.QCVM.EFloat(e.Num, qc.EntFieldSolid)
-		if v != 0 || e.Vars == nil {
-			return v
-		}
+		return s.QCVM.EFloat(e.Num, qc.EntFieldSolid)
 	}
 	if e.Vars != nil {
 		return e.Vars.Solid
@@ -804,6 +801,15 @@ func (e *Edict) SetSounds(s *Server, v float32) {
 	}
 	if e.Vars != nil {
 		e.Vars.Sounds = v
+	}
+}
+
+func (e *Edict) SetYawSpeed(s *Server, v float32) {
+	if s != nil && s.QCVM != nil {
+		s.QCVM.SetEFloat(e.Num, qc.EntFieldYawSpeed, v)
+	}
+	if e.Vars != nil {
+		e.Vars.YawSpeed = v
 	}
 }
 

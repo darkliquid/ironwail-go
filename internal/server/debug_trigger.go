@@ -111,5 +111,3 @@ func (s *Server) debugTriggerFind(fieldOfs int, match string, result int) {
 			nextThink, ltime, vel[0], vel[1], vel[2])
 	}
 }
-
-

@@ -48,7 +48,7 @@ func TestSVReadClientMessageMoveCommand(t *testing.T) {
 	s := NewServer()
 	s.Time = 4.0
 
-	ent := &Edict{Vars: &EntVars{}}
+	ent := allocPhysicsTestEdict(s)
 	client := &Client{Active: true, Edict: ent}
 
 	msg := NewMessageBuffer(128)
@@ -75,8 +75,8 @@ func TestSVReadClientMessageMoveCommand(t *testing.T) {
 	if client.LastCmd.Buttons != 3 || client.LastCmd.Impulse != 7 {
 		t.Fatalf("unexpected buttons/impulse: buttons=%d impulse=%d", client.LastCmd.Buttons, client.LastCmd.Impulse)
 	}
-	if ent.Vars.Button0 != 1 || ent.Vars.Button2 != 1 || ent.Vars.Impulse != 7 {
-		t.Fatalf("edict button/impulse state not updated: b0=%v b2=%v impulse=%v", ent.Vars.Button0, ent.Vars.Button2, ent.Vars.Impulse)
+	if ent.Button0(s) != 1 || ent.Button2(s) != 1 || ent.Impulse(s) != 7 {
+		t.Fatalf("edict button/impulse state not updated: b0=%v b2=%v impulse=%v", ent.Button0(s), ent.Button2(s), ent.Impulse(s))
 	}
 	if client.NumPings != 1 {
 		t.Fatalf("num pings = %d, want 1", client.NumPings)
@@ -87,10 +87,10 @@ func TestSVClientThinkNoclip(t *testing.T) {
 	s := NewServer()
 	s.FrameTime = 0.1
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.MoveType = float32(MoveTypeNoClip)
-	ent.Vars.Health = 100
-	ent.Vars.VAngle = [3]float32{30, 0, 0}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetMoveType(s, float32(MoveTypeNoClip))
+	ent.SetHealth(s, 100)
+	ent.SetVAngle(s, [3]float32{30, 0, 0})
 
 	client := &Client{
 		Edict: ent,
@@ -103,10 +103,10 @@ func TestSVClientThinkNoclip(t *testing.T) {
 
 	s.SV_ClientThink(client)
 
-	if ent.Vars.Angles[0] != -10 {
-		t.Fatalf("pitch = %v, want -10", ent.Vars.Angles[0])
+	if ent.Angles(s)[0] != -10 {
+		t.Fatalf("pitch = %v, want -10", ent.Angles(s)[0])
 	}
-	if ent.Vars.Velocity == [3]float32{} {
+	if ent.Velocity(s) == [3]float32{} {
 		t.Fatalf("noclip move did not update velocity")
 	}
 }
@@ -148,16 +148,16 @@ func TestRunClientQCThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 
 	client := &Client{Edict: clientEnt}
-	monster.Vars.Health = 100
+	monster.SetHealth(s, 100)
 	s.Time = 1
 	s.FrameTime = 0.1
 
 	s.runClientQCThink(client, "player_postthink_test")
 
-	if got := monster.Vars.Health; got != 15 {
+	if got := monster.Health(s); got != 15 {
 		t.Fatalf("monster health = %v, want 15", got)
 	}
-	if got := monster.Vars.Enemy; got != int32(clientNum) {
+	if got := monster.Enemy(s); got != int32(clientNum) {
 		t.Fatalf("monster enemy = %v, want %d", got, clientNum)
 	}
 }
@@ -176,10 +176,10 @@ func TestSVClientThinkNoclipAltStyleUsesViewPitch(t *testing.T) {
 	s := NewServer()
 	withUserCVars(t, s, map[string]string{"sv_altnoclip": "1"})
 	s.FrameTime = 0.1
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.MoveType = float32(MoveTypeNoClip)
-	ent.Vars.Health = 100
-	ent.Vars.VAngle = [3]float32{45, 0, 0}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetMoveType(s, float32(MoveTypeNoClip))
+	ent.SetHealth(s, 100)
+	ent.SetVAngle(s, [3]float32{45, 0, 0})
 
 	client := &Client{
 		Edict: ent,
@@ -190,8 +190,8 @@ func TestSVClientThinkNoclipAltStyleUsesViewPitch(t *testing.T) {
 
 	s.SV_ClientThink(client)
 
-	if ent.Vars.Velocity[2] == 0 {
-		t.Fatalf("sv_altnoclip=1 expected pitched noclip to include vertical velocity, got %v", ent.Vars.Velocity)
+	if ent.Velocity(s)[2] == 0 {
+		t.Fatalf("sv_altnoclip=1 expected pitched noclip to include vertical velocity, got %v", ent.Velocity(s))
 	}
 }
 
@@ -199,10 +199,10 @@ func TestSVClientThinkNoclipClassicIgnoresPitch(t *testing.T) {
 	s := NewServer()
 	withUserCVars(t, s, map[string]string{"sv_altnoclip": "0"})
 	s.FrameTime = 0.1
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.MoveType = float32(MoveTypeNoClip)
-	ent.Vars.Health = 100
-	ent.Vars.VAngle = [3]float32{45, 0, 0}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetMoveType(s, float32(MoveTypeNoClip))
+	ent.SetHealth(s, 100)
+	ent.SetVAngle(s, [3]float32{45, 0, 0})
 
 	client := &Client{
 		Edict: ent,
@@ -213,11 +213,11 @@ func TestSVClientThinkNoclipClassicIgnoresPitch(t *testing.T) {
 
 	s.SV_ClientThink(client)
 
-	if ent.Vars.Velocity[2] != 0 {
-		t.Fatalf("sv_altnoclip=0 expected horizontal noclip forward move, got %v", ent.Vars.Velocity)
+	if ent.Velocity(s)[2] != 0 {
+		t.Fatalf("sv_altnoclip=0 expected horizontal noclip forward move, got %v", ent.Velocity(s))
 	}
-	if ent.Vars.Velocity[0] == 0 && ent.Vars.Velocity[1] == 0 {
-		t.Fatalf("sv_altnoclip=0 expected non-zero horizontal velocity, got %v", ent.Vars.Velocity)
+	if ent.Velocity(s)[0] == 0 && ent.Velocity(s)[1] == 0 {
+		t.Fatalf("sv_altnoclip=0 expected non-zero horizontal velocity, got %v", ent.Velocity(s))
 	}
 }
 
@@ -225,11 +225,11 @@ func TestSVClientThinkWalkForwardIgnoresPitchVerticalProjection(t *testing.T) {
 	s := NewServer()
 	s.FrameTime = 0.05
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Health = 100
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.VAngle = [3]float32{60, 0, 0}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetHealth(s, 100)
+	ent.SetFlags(s, float32(FlagOnGround))
+	ent.SetVAngle(s, [3]float32{60, 0, 0})
 
 	client := &Client{
 		Edict: ent,
@@ -240,11 +240,11 @@ func TestSVClientThinkWalkForwardIgnoresPitchVerticalProjection(t *testing.T) {
 
 	s.SV_ClientThink(client)
 
-	if ent.Vars.Velocity[2] != 0 {
-		t.Fatalf("walk velocity z = %v, want 0", ent.Vars.Velocity[2])
+	if ent.Velocity(s)[2] != 0 {
+		t.Fatalf("walk velocity z = %v, want 0", ent.Velocity(s)[2])
 	}
-	if ent.Vars.Velocity[0] == 0 && ent.Vars.Velocity[1] == 0 {
-		t.Fatalf("walk forward move did not produce horizontal velocity: %v", ent.Vars.Velocity)
+	if ent.Velocity(s)[0] == 0 && ent.Velocity(s)[1] == 0 {
+		t.Fatalf("walk forward move did not produce horizontal velocity: %v", ent.Velocity(s))
 	}
 }
 
@@ -252,12 +252,12 @@ func TestSVClientThinkGroundFrictionFeedsAccelerate(t *testing.T) {
 	s := NewServer()
 	s.FrameTime = 0.1
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Health = 100
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.VAngle = [3]float32{0, 0, 0}
-	ent.Vars.Velocity = [3]float32{100, 0, 0}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetHealth(s, 100)
+	ent.SetFlags(s, float32(FlagOnGround))
+	ent.SetVAngle(s, [3]float32{0, 0, 0})
+	ent.SetVelocity(s, [3]float32{100, 0, 0})
 
 	client := &Client{
 		Edict: ent,
@@ -268,8 +268,8 @@ func TestSVClientThinkGroundFrictionFeedsAccelerate(t *testing.T) {
 
 	s.SV_ClientThink(client)
 
-	if diff := math.Abs(float64(ent.Vars.Velocity[0] - 200)); diff > 0.001 {
-		t.Fatalf("ground accelerate used stale pre-friction speed: got %.3f want 200", ent.Vars.Velocity[0])
+	if diff := math.Abs(float64(ent.Velocity(s)[0] - 200)); diff > 0.001 {
+		t.Fatalf("ground accelerate used stale pre-friction speed: got %.3f want 200", ent.Velocity(s)[0])
 	}
 }
 
@@ -286,13 +286,13 @@ func TestRunClientsProcessesMoveOnSpawnedMap(t *testing.T) {
 	}
 
 	ent := client.Edict
-	ent.Vars.Origin = pos
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Health = 100
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent.SetOrigin(s, pos)
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetHealth(s, 100)
+	ent.SetFlags(s, float32(FlagOnGround))
 	s.LinkEdict(ent, false)
 
 	msg := NewMessageBuffer(128)
@@ -332,16 +332,16 @@ func TestLoopbackCmdMovesAuthoritativePlayerOrigin(t *testing.T) {
 	}
 
 	ent := client.Edict
-	ent.Vars.Origin = pos
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Health = 100
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent.SetOrigin(s, pos)
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetHealth(s, 100)
+	ent.SetFlags(s, float32(FlagOnGround))
 	s.LinkEdict(ent, false)
 
-	start := ent.Vars.Origin
+	start := ent.Origin(s)
 	if err := s.SubmitLoopbackCmd(0, [3]float32{0, 0, 0}, 200, 0, 0, 0, 0, float64(s.Time)); err != nil {
 		t.Fatalf("SubmitLoopbackCmd: %v", err)
 	}
@@ -349,7 +349,7 @@ func TestLoopbackCmdMovesAuthoritativePlayerOrigin(t *testing.T) {
 		t.Fatalf("Frame: %v", err)
 	}
 
-	end := ent.Vars.Origin
+	end := ent.Origin(s)
 	if end == start {
 		t.Fatalf("authoritative origin did not move: start=%v end=%v", start, end)
 	}
@@ -371,16 +371,16 @@ func TestLoopbackCmdWalkForwardWithPitchMovesHorizontally(t *testing.T) {
 	}
 
 	ent := client.Edict
-	ent.Vars.Origin = pos
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Health = 100
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent.SetOrigin(s, pos)
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetHealth(s, 100)
+	ent.SetFlags(s, float32(FlagOnGround))
 	s.LinkEdict(ent, false)
 
-	start := ent.Vars.Origin
+	start := ent.Origin(s)
 	if err := s.SubmitLoopbackCmd(0, [3]float32{45, 0, 0}, 200, 0, 0, 0, 0, float64(s.Time)); err != nil {
 		t.Fatalf("SubmitLoopbackCmd: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestLoopbackCmdWalkForwardWithPitchMovesHorizontally(t *testing.T) {
 		t.Fatalf("Frame: %v", err)
 	}
 
-	end := ent.Vars.Origin
+	end := ent.Origin(s)
 	if end == start {
 		t.Fatalf("authoritative origin did not move: start=%v end=%v", start, end)
 	}
@@ -445,13 +445,13 @@ func TestLoopbackJumpAppliesVerticalVelocity(t *testing.T) {
 	}
 
 	ent := client.Edict
-	ent.Vars.Origin = pos
-	ent.Vars.Velocity = [3]float32{}
-	ent.Vars.Flags = float32(FlagOnGround | FlagJumpReleased)
-	ent.Vars.GroundEntity = 1
+	ent.SetOrigin(s, pos)
+	ent.SetVelocity(s, [3]float32{})
+	ent.SetFlags(s, float32(FlagOnGround|FlagJumpReleased))
+	ent.SetGroundEntity(s, 1)
 	s.LinkEdict(ent, false)
 
-	start := ent.Vars.Origin
+	start := ent.Origin(s)
 	if err := s.SubmitLoopbackCmd(0, [3]float32{}, 0, 0, 0, 2, 0, float64(s.Time)); err != nil {
 		t.Fatalf("SubmitLoopbackCmd: %v", err)
 	}
@@ -459,14 +459,14 @@ func TestLoopbackJumpAppliesVerticalVelocity(t *testing.T) {
 		t.Fatalf("Frame: %v", err)
 	}
 
-	if ent.Vars.Velocity[2] <= 0 {
-		t.Fatalf("jump did not apply upward velocity: velocity=%v", ent.Vars.Velocity)
+	if ent.Velocity(s)[2] <= 0 {
+		t.Fatalf("jump did not apply upward velocity: velocity=%v", ent.Velocity(s))
 	}
-	if ent.Vars.Origin[2] <= start[2] {
-		t.Fatalf("jump did not move player upward: start=%v end=%v", start, ent.Vars.Origin)
+	if ent.Origin(s)[2] <= start[2] {
+		t.Fatalf("jump did not move player upward: start=%v end=%v", start, ent.Origin(s))
 	}
-	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
-		t.Fatalf("jump left player grounded: flags=0x%x", uint32(ent.Vars.Flags))
+	if uint32(ent.Flags(s))&FlagOnGround != 0 {
+		t.Fatalf("jump left player grounded: flags=0x%x", uint32(ent.Flags(s)))
 	}
 }
 
@@ -488,9 +488,9 @@ func TestFrameRealProgsDeathRespawnClearsPressedButtons(t *testing.T) {
 	}
 
 	ent := client.Edict
-	ent.Vars.Health = 0
-	ent.Vars.DeadFlag = float32(DeadDead)
-	ent.Vars.Velocity = [3]float32{}
+	ent.SetHealth(s, 0)
+	ent.SetDeadFlag(s, float32(DeadDead))
+	ent.SetVelocity(s, [3]float32{})
 
 	if err := s.SubmitLoopbackCmd(0, [3]float32{}, 0, 0, 0, 1, 0, float64(s.Time)); err != nil {
 		t.Fatalf("SubmitLoopbackCmd(hold attack): %v", err)
@@ -498,10 +498,10 @@ func TestFrameRealProgsDeathRespawnClearsPressedButtons(t *testing.T) {
 	if err := s.Frame(0.05); err != nil {
 		t.Fatalf("Frame(hold attack): %v", err)
 	}
-	if ent.Vars.Health > 0 {
-		t.Fatalf("held attack should not respawn immediately: health=%v", ent.Vars.Health)
+	if ent.Health(s) > 0 {
+		t.Fatalf("held attack should not respawn immediately: health=%v", ent.Health(s))
 	}
-	if got, want := DeadFlag(ent.Vars.DeadFlag), DeadDead; got != want {
+	if got, want := DeadFlag(ent.DeadFlag(s)), DeadDead; got != want {
 		t.Fatalf("deadflag after held attack = %v, want %v", got, want)
 	}
 
@@ -511,10 +511,10 @@ func TestFrameRealProgsDeathRespawnClearsPressedButtons(t *testing.T) {
 	if err := s.Frame(0.05); err != nil {
 		t.Fatalf("Frame(release): %v", err)
 	}
-	if ent.Vars.Health > 0 {
-		t.Fatalf("release should only mark respawnable: health=%v", ent.Vars.Health)
+	if ent.Health(s) > 0 {
+		t.Fatalf("release should only mark respawnable: health=%v", ent.Health(s))
 	}
-	if got, want := DeadFlag(ent.Vars.DeadFlag), DeadRespawnable; got != want {
+	if got, want := DeadFlag(ent.DeadFlag(s)), DeadRespawnable; got != want {
 		t.Fatalf("deadflag after release = %v, want %v", got, want)
 	}
 
@@ -524,14 +524,14 @@ func TestFrameRealProgsDeathRespawnClearsPressedButtons(t *testing.T) {
 	if err := s.Frame(0.05); err != nil {
 		t.Fatalf("Frame(respawn press): %v", err)
 	}
-	if ent.Vars.Health <= 0 {
-		t.Fatalf("respawn press did not restore health: health=%v", ent.Vars.Health)
+	if ent.Health(s) <= 0 {
+		t.Fatalf("respawn press did not restore health: health=%v", ent.Health(s))
 	}
-	if got, want := DeadFlag(ent.Vars.DeadFlag), DeadNo; got != want {
+	if got, want := DeadFlag(ent.DeadFlag(s)), DeadNo; got != want {
 		t.Fatalf("deadflag after respawn = %v, want %v", got, want)
 	}
-	if ent.Vars.Button0 != 0 || ent.Vars.Button1 != 0 || ent.Vars.Button2 != 0 {
-		t.Fatalf("QC respawn should clear held buttons: b0=%v b1=%v b2=%v", ent.Vars.Button0, ent.Vars.Button1, ent.Vars.Button2)
+	if ent.Button0(s) != 0 || ent.Button1(s) != 0 || ent.Button2(s) != 0 {
+		t.Fatalf("QC respawn should clear held buttons: b0=%v b1=%v b2=%v", ent.Button0(s), ent.Button1(s), ent.Button2(s))
 	}
 }
 
@@ -549,31 +549,31 @@ func TestPhysicsWalkClearsStaleGroundFlagWhenUnsupported(t *testing.T) {
 	}
 
 	pos[2] += 96
-	ent.Vars.Origin = pos
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Health = 100
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent.SetOrigin(s, pos)
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetHealth(s, 100)
+	ent.SetFlags(s, float32(FlagOnGround))
 	s.LinkEdict(ent, false)
 
 	if s.CheckBottom(ent) {
-		t.Skipf("lifted test position unexpectedly has support: origin=%v", ent.Vars.Origin)
+		t.Skipf("lifted test position unexpectedly has support: origin=%v", ent.Origin(s))
 	}
 
-	start := ent.Vars.Origin
+	start := ent.Origin(s)
 	s.FrameTime = 0.05
 	s.PhysicsWalk(ent)
 
-	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
-		t.Fatalf("stale onground flag was not cleared: flags=0x%x", uint32(ent.Vars.Flags))
+	if uint32(ent.Flags(s))&FlagOnGround != 0 {
+		t.Fatalf("stale onground flag was not cleared: flags=0x%x", uint32(ent.Flags(s)))
 	}
-	if ent.Vars.GroundEntity != 0 {
-		t.Fatalf("ground entity = %v, want 0", ent.Vars.GroundEntity)
+	if ent.GroundEntity(s) != 0 {
+		t.Fatalf("ground entity = %v, want 0", ent.GroundEntity(s))
 	}
-	if ent.Vars.Origin[2] >= start[2] {
-		t.Fatalf("entity did not fall after losing support: start=%v end=%v", start, ent.Vars.Origin)
+	if ent.Origin(s)[2] >= start[2] {
+		t.Fatalf("entity did not fall after losing support: start=%v end=%v", start, ent.Origin(s))
 	}
 }
 
@@ -660,13 +660,13 @@ func TestRunClientSpawnQCSyncsEntitiesSpawnedByClientConnect(t *testing.T) {
 	}
 
 	controller := s.EdictNum(2)
-	if controller == nil || controller.Vars == nil {
+	if controller == nil {
 		t.Fatal("ClientConnect-spawned edict was not mirrored into the server")
 	}
-	if got := s.String(controller.Vars.ClassName); got != "animcontroller" {
+	if got := s.String(controller.ClassName(s)); got != "animcontroller" {
 		t.Fatalf("spawned edict classname = %q, want animcontroller", got)
 	}
-	if got := controller.Vars.Owner; got != 1 {
+	if got := controller.Owner(s); got != 1 {
 		t.Fatalf("spawned edict owner = %d, want player edict 1", got)
 	}
 }
@@ -734,7 +734,7 @@ func TestDropClientBroadcastsRosterClearsWithoutFreeingPlayerEdict(t *testing.T)
 	dropped.Color = 77
 	dropped.OldFrags = 4
 	dropped.Edict = s.EdictNum(1)
-	dropped.Edict.Vars.Frags = 4
+	dropped.Edict.SetFrags(s, 4)
 	dropped.NetConnection = serverSock
 	observer.Active = true
 	observer.Message = NewMessageBuffer(MaxDatagram)
@@ -750,7 +750,7 @@ func TestDropClientBroadcastsRosterClearsWithoutFreeingPlayerEdict(t *testing.T)
 	if dropped.Edict.Free {
 		t.Fatal("drop should preserve player edict allocation")
 	}
-	if got := dropped.Edict.Vars.Frags; got != 0 {
+	if got := dropped.Edict.Frags(s); got != 0 {
 		t.Fatalf("player frags = %v, want 0 after roster clear", got)
 	}
 	if got := string(observer.Message.Data[:observer.Message.Len()]); !bytes.Contains([]byte(got), []byte{byte(inet.SVCUpdateName), 0}) {

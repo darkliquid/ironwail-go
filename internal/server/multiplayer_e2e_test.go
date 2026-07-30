@@ -171,18 +171,18 @@ func TestMultiplayerDeathmatchClientsFightEachOther(t *testing.T) {
 
 	// Forcibly position BotB 96 units in front of BotA so the two headless
 	// bots are at close but distinct positions regardless of map spawn layout.
-	origin0 := cl0.Edict.Vars.Origin
-	cl1.Edict.Vars.Origin = [3]float32{
+	origin0 := cl0.Edict.Origin(s)
+	cl1.Edict.SetOrigin(s, [3]float32{
 		origin0[0] + 96,
 		origin0[1],
 		origin0[2],
-	}
+	})
 	s.LinkEdict(cl1.Edict, true)
 
 	t.Logf("combat start – BotA origin=%v health=%.0f frags=%.0f",
-		cl0.Edict.Vars.Origin, cl0.Edict.Vars.Health, cl0.Edict.Vars.Frags)
+		cl0.Edict.Origin(s), cl0.Edict.Health(s), cl0.Edict.Frags(s))
 	t.Logf("combat start – BotB origin=%v health=%.0f frags=%.0f",
-		cl1.Edict.Vars.Origin, cl1.Edict.Vars.Health, cl1.Edict.Vars.Frags)
+		cl1.Edict.Origin(s), cl1.Edict.Health(s), cl1.Edict.Frags(s))
 
 	// Combat loop: ~3 simulated seconds (216 frames at 72 fps).
 	// Each frame both bots aim directly at each other and hold IN_ATTACK.
@@ -190,8 +190,8 @@ func TestMultiplayerDeathmatchClientsFightEachOther(t *testing.T) {
 	for i := 0; i < combatFrames; i++ {
 		// Compute yaw from BotA to BotB and vice-versa each frame so aiming
 		// tracks movement after respawns and physics drift.
-		dx0 := cl1.Edict.Vars.Origin[0] - cl0.Edict.Vars.Origin[0]
-		dy0 := cl1.Edict.Vars.Origin[1] - cl0.Edict.Vars.Origin[1]
+		dx0 := cl1.Edict.Origin(s)[0] - cl0.Edict.Origin(s)[0]
+		dy0 := cl1.Edict.Origin(s)[1] - cl0.Edict.Origin(s)[1]
 		yaw0 := float32(math.Atan2(float64(dy0), float64(dx0)) * 180.0 / math.Pi)
 
 		dx1 := -dx0
@@ -209,10 +209,10 @@ func TestMultiplayerDeathmatchClientsFightEachOther(t *testing.T) {
 		drainClientMessages(s, 1)
 	}
 
-	frags0 := cl0.Edict.Vars.Frags
-	frags1 := cl1.Edict.Vars.Frags
-	health0 := cl0.Edict.Vars.Health
-	health1 := cl1.Edict.Vars.Health
+	frags0 := cl0.Edict.Frags(s)
+	frags1 := cl1.Edict.Frags(s)
+	health0 := cl0.Edict.Health(s)
+	health1 := cl1.Edict.Health(s)
 
 	t.Logf("combat end – BotA frags=%.0f health=%.0f  BotB frags=%.0f health=%.0f",
 		frags0, health0, frags1, health1)

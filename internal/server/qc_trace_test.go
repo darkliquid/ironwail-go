@@ -14,8 +14,8 @@ func TestExecuteQCFunctionLogsTraceChain(t *testing.T) {
 
 	self := s.AllocEdict()
 	other := s.AllocEdict()
-	self.Vars.ClassName = vm.AllocString("monster_ogre")
-	other.Vars.ClassName = vm.AllocString("trigger_once")
+	self.SetClassName(s, vm.AllocString("monster_ogre"))
+	other.SetClassName(s, vm.AllocString("trigger_once"))
 
 	const (
 		mainFuncNum   = 2
@@ -83,7 +83,7 @@ func TestExecuteQCFunctionBuiltinTracingHonorsVerbosity(t *testing.T) {
 	vm.Globals = make([]float32, 128)
 
 	self := s.AllocEdict()
-	self.Vars.ClassName = vm.AllocString("func_button")
+	self.SetClassName(s, vm.AllocString("func_button"))
 
 	const (
 		mainFuncNum = 0

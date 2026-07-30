@@ -263,12 +263,12 @@ func NewServer() *Server {
 	vm.SetCompatRNG(compatRNG)
 
 	s := &Server{
-		Gravity:         800,
-		MaxVelocity:     2000,
-		Friction:        4,
-		StopSpeed:       100,
-		MaxEdicts:       MaxEdicts,
-		Protocol:        ProtocolRMQ,
+		Gravity:              800,
+		MaxVelocity:          2000,
+		Friction:             4,
+		StopSpeed:            100,
+		MaxEdicts:            MaxEdicts,
+		Protocol:             ProtocolRMQ,
 		QCFieldAlpha:         -1,
 		QCFieldScale:         -1,
 		QCFieldGravity:       -1,
@@ -278,12 +278,12 @@ func NewServer() *Server {
 		QCFieldCustomFlags:   -1,
 		QCFieldThCheckAttack: -1,
 		EffectsMask:          defaultEffectsMask,
-		QCVM:            vm,
-		DebugTelemetry:  NewDebugTelemetry(),
-		impactFrameSeen: make(map[impactTouchKey]struct{}),
-		compatRNG:       compatRNG,
-		CVar:            cvar.NewCVarSystem(),
-		Net:             inet.DefaultNetwork(),
+		QCVM:                 vm,
+		DebugTelemetry:       NewDebugTelemetry(),
+		impactFrameSeen:      make(map[impactTouchKey]struct{}),
+		compatRNG:            compatRNG,
+		CVar:                 cvar.NewCVarSystem(),
+		Net:                  inet.DefaultNetwork(),
 	}
 	s.acceptConnection = s.Net.CheckNewConnections
 	vm.IsServerActive = func() bool { return s.State == ServerStateActive }

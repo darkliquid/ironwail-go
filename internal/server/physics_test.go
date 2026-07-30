@@ -15,14 +15,21 @@ import (
 
 func newPhysicsTestServer() *Server {
 	s := &Server{
-		Gravity:     800,
-		MaxVelocity: 2000,
-		FrameTime:   0.1,
-		CVar:        cvar.NewCVarSystem(),
+		Gravity:      800,
+		MaxVelocity:  2000,
+		FrameTime:    0.1,
+		CVar:         cvar.NewCVarSystem(),
+		QCFieldAlpha: -1,
+		QCFieldScale: -1,
+		Static:       &ServerStatic{MaxClients: 1},
 	}
 	s.QCVM = newServerTestVM(s, 64)
-	s.Edicts = []*Edict{{Num: 0, Vars: &EntVars{}}}
+	s.MaxEdicts = 64
+	s.Edicts = []*Edict{{Num: 0}}
 	s.NumEdicts = 1
+	s.ReliableDatagram = NewMessageBuffer(1024)
+	s.Signon = NewMessageBuffer(1024)
+	s.Datagram = NewMessageBuffer(1024)
 	return s
 }
 
@@ -31,7 +38,9 @@ func allocPhysicsTestEdict(s *Server) *Edict {
 	ent := &Edict{Num: num, Vars: &EntVars{}}
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
-	s.QCVM.NumEdicts = s.NumEdicts
+	if s.QCVM != nil {
+		s.QCVM.NumEdicts = s.NumEdicts
+	}
 	return ent
 }
 
@@ -137,16 +146,16 @@ func TestPushMoveElevatorFixOffRevertsBlockedMove(t *testing.T) {
 	s, pusher, rider := newPushMoveElevatorTestServer(t)
 	withPhysicsCVars(t, s, map[string]string{"sv_gameplayfix_elevators": "0"})
 
-	startPusher := pusher.Vars.Origin
-	startRider := rider.Vars.Origin
+	startPusher := pusher.Origin(s)
+	startRider := rider.Origin(s)
 
 	s.PushMove(pusher, s.FrameTime)
 
-	if pusher.Vars.Origin != startPusher {
-		t.Fatalf("pusher moved with fix disabled: got=%v want=%v", pusher.Vars.Origin, startPusher)
+	if pusher.Origin(s) != startPusher {
+		t.Fatalf("pusher moved with fix disabled: got=%v want=%v", pusher.Origin(s), startPusher)
 	}
-	if rider.Vars.Origin != startRider {
-		t.Fatalf("rider moved with fix disabled: got=%v want=%v", rider.Vars.Origin, startRider)
+	if rider.Origin(s) != startRider {
+		t.Fatalf("rider moved with fix disabled: got=%v want=%v", rider.Origin(s), startRider)
 	}
 }
 
@@ -154,17 +163,17 @@ func TestPushMoveElevatorFixNudgesClientWhenEnabled(t *testing.T) {
 	s, pusher, rider := newPushMoveElevatorTestServer(t)
 	withPhysicsCVars(t, s, map[string]string{"sv_gameplayfix_elevators": "1"})
 
-	startPusher := pusher.Vars.Origin
-	startRider := rider.Vars.Origin
+	startPusher := pusher.Origin(s)
+	startRider := rider.Origin(s)
 
 	s.PushMove(pusher, s.FrameTime)
 
-	if !(pusher.Vars.Origin[2] > startPusher[2]) {
-		t.Fatalf("pusher did not advance with fix enabled: start=%v got=%v", startPusher, pusher.Vars.Origin)
+	if !(pusher.Origin(s)[2] > startPusher[2]) {
+		t.Fatalf("pusher did not advance with fix enabled: start=%v got=%v", startPusher, pusher.Origin(s))
 	}
-	wantRiderZ := startRider[2] + pusher.Vars.Velocity[2]*s.FrameTime + DistEpsilon
-	if diff := rider.Vars.Origin[2] - wantRiderZ; diff < -0.001 || diff > 0.001 {
-		t.Fatalf("rider z = %.5f, want %.5f (move + DistEpsilon nudge)", rider.Vars.Origin[2], wantRiderZ)
+	wantRiderZ := startRider[2] + pusher.Velocity(s)[2]*s.FrameTime + DistEpsilon
+	if diff := rider.Origin(s)[2] - wantRiderZ; diff < -0.001 || diff > 0.001 {
+		t.Fatalf("rider z = %.5f, want %.5f (move + DistEpsilon nudge)", rider.Origin(s)[2], wantRiderZ)
 	}
 }
 
@@ -173,15 +182,15 @@ func TestPushMoveElevatorFixNudgesClientWhenEnabled(t *testing.T) {
 // Where in C: SV_Physics_Toss in sv_phys.c
 func TestPhysicsTossOnGroundDoesNotMove(t *testing.T) {
 	s := newPhysicsTestServer()
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.Origin = [3]float32{1, 2, 3}
-	ent.Vars.Velocity = [3]float32{50, 60, 70}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetFlags(s, float32(FlagOnGround))
+	ent.SetOrigin(s, [3]float32{1, 2, 3})
+	ent.SetVelocity(s, [3]float32{50, 60, 70})
 
 	s.PhysicsToss(ent)
 
-	if ent.Vars.Origin != [3]float32{1, 2, 3} {
-		t.Fatalf("origin changed on ground toss: %v", ent.Vars.Origin)
+	if ent.Origin(s) != [3]float32{1, 2, 3} {
+		t.Fatalf("origin changed on ground toss: %v", ent.Origin(s))
 	}
 }
 
@@ -195,40 +204,40 @@ func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
 	if len(s.Edicts) == 0 || s.Edicts[0] == nil {
 		t.Fatal("missing world edict")
 	}
-	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	s.ClearWorld()
 
 	platform := s.AllocEdict()
 	if platform == nil {
 		t.Fatal("failed to alloc platform")
 	}
-	platform.Vars.Origin = [3]float32{0, 0, 72}
-	platform.Vars.Mins = [3]float32{-64, -64, -8}
-	platform.Vars.Maxs = [3]float32{64, 64, 8}
-	platform.Vars.Solid = float32(SolidBBox)
+	platform.SetOrigin(s, [3]float32{0, 0, 72})
+	platform.SetMins(s, [3]float32{-64, -64, -8})
+	platform.SetMaxs(s, [3]float32{64, 64, 8})
+	platform.SetSolid(s, float32(SolidBBox))
 	s.LinkEdict(platform, false)
 
 	ent := s.AllocEdict()
 	if ent == nil {
 		t.Fatal("failed to alloc mover")
 	}
-	ent.Vars.Origin = [3]float32{0, 0, 112}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Velocity = [3]float32{0, 0, -200}
+	ent.SetOrigin(s, [3]float32{0, 0, 112})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetVelocity(s, [3]float32{0, 0, -200})
 	s.LinkEdict(ent, false)
 
 	blocked := s.FlyMove(ent, s.FrameTime, nil)
 	if blocked&1 == 0 {
 		t.Fatalf("FlyMove blocked=%d, want floor contact bit set", blocked)
 	}
-	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
-		t.Fatalf("Flags unexpectedly include onground after SolidBBox contact: flags=%#x", uint32(ent.Vars.Flags))
+	if uint32(ent.Flags(s))&FlagOnGround != 0 {
+		t.Fatalf("Flags unexpectedly include onground after SolidBBox contact: flags=%#x", uint32(ent.Flags(s)))
 	}
-	if ent.Vars.GroundEntity != 0 {
-		t.Fatalf("ground entity = %d, want 0 for non-BSP contact", ent.Vars.GroundEntity)
+	if ent.GroundEntity(s) != 0 {
+		t.Fatalf("ground entity = %d, want 0 for non-BSP contact", ent.GroundEntity(s))
 	}
 }
 
@@ -237,14 +246,14 @@ func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
 // Where in C: SV_Physics_Step in sv_phys.c
 func TestPhysicsStepOnGroundSkipsFreefall(t *testing.T) {
 	s := newPhysicsTestServer()
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.Velocity = [3]float32{0, 0, 42}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetFlags(s, float32(FlagOnGround))
+	ent.SetVelocity(s, [3]float32{0, 0, 42})
 
 	s.PhysicsStep(ent)
 
-	if ent.Vars.Velocity[2] != 42 {
-		t.Fatalf("z velocity changed: %v", ent.Vars.Velocity[2])
+	if ent.Velocity(s)[2] != 42 {
+		t.Fatalf("z velocity changed: %v", ent.Velocity(s)[2])
 	}
 }
 
@@ -257,7 +266,7 @@ func TestPhysicsStepHardLandingStartsCanonicalSound(t *testing.T) {
 		t.Fatalf("init server: %v", err)
 	}
 	s.WorldModel = CreateSyntheticWorldModel()
-	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	s.ClearWorld()
 	s.SoundPrecache[1] = "demon/dland2.wav"
 
@@ -265,12 +274,12 @@ func TestPhysicsStepHardLandingStartsCanonicalSound(t *testing.T) {
 	if ent == nil {
 		t.Fatal("failed to allocate step entity")
 	}
-	ent.Vars.MoveType = float32(MoveTypeStep)
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Origin = [3]float32{0, 0, 32}
-	ent.Vars.Velocity = [3]float32{0, 0, -120}
+	ent.SetMoveType(s, float32(MoveTypeStep))
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, [3]float32{0, 0, 32})
+	ent.SetVelocity(s, [3]float32{0, 0, -120})
 	s.LinkEdict(ent, false)
 
 	s.PhysicsStep(ent)
@@ -302,13 +311,13 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 		if ent == nil {
 			t.Fatal("failed to allocate mover")
 		}
-		ent.Vars.MoveType = float32(MoveTypeWalk)
-		ent.Vars.Solid = float32(SolidSlideBox)
-		ent.Vars.Flags = float32(FlagOnGround)
-		ent.Vars.Mins = [3]float32{-16, -16, -24}
-		ent.Vars.Maxs = [3]float32{16, 16, 32}
-		ent.Vars.Origin = [3]float32{0, 0, 24}
-		ent.Vars.Velocity = [3]float32{100, 0, 0}
+		ent.SetMoveType(s, float32(MoveTypeWalk))
+		ent.SetSolid(s, float32(SolidSlideBox))
+		ent.SetFlags(s, float32(FlagOnGround))
+		ent.SetMins(s, [3]float32{-16, -16, -24})
+		ent.SetMaxs(s, [3]float32{16, 16, 32})
+		ent.SetOrigin(s, [3]float32{0, 0, 24})
+		ent.SetVelocity(s, [3]float32{100, 0, 0})
 		s.LinkEdict(ent, false)
 		return ent
 	}
@@ -317,10 +326,10 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 		if obstacle == nil {
 			t.Fatal("failed to allocate obstacle")
 		}
-		obstacle.Vars.Solid = float32(SolidBBox)
-		obstacle.Vars.Origin = [3]float32{32, 0, 8}
-		obstacle.Vars.Mins = [3]float32{-8, -32, -8}
-		obstacle.Vars.Maxs = [3]float32{8, 32, 8}
+		obstacle.SetSolid(s, float32(SolidBBox))
+		obstacle.SetOrigin(s, [3]float32{32, 0, 8})
+		obstacle.SetMins(s, [3]float32{-8, -32, -8})
+		obstacle.SetMaxs(s, [3]float32{8, 32, 8})
 		s.LinkEdict(obstacle, false)
 	}
 	newServerWithStep := func() *Server {
@@ -329,7 +338,7 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 			t.Fatalf("init server: %v", err)
 		}
 		s.WorldModel = CreateSyntheticWorldModel()
-		s.Edicts[0].Vars.Solid = float32(SolidBSP)
+		s.Edicts[0].SetSolid(s, float32(SolidBSP))
 		s.ClearWorld()
 		newObstacle(s)
 		return s
@@ -345,8 +354,8 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	noStepMover := newMover(noStep)
 	noStep.SV_WalkMove(noStepMover)
 
-	if !(stepMover.Vars.Origin[0] > noStepMover.Vars.Origin[0]+0.5) {
-		t.Fatalf("sv_nostep did not suppress step retry: stepped=%v nostep=%v", stepMover.Vars.Origin, noStepMover.Vars.Origin)
+	if !(stepMover.Origin(nil)[0] > noStepMover.Origin(nil)[0]+0.5) {
+		t.Fatalf("sv_nostep did not suppress step retry: stepped=%v nostep=%v", stepMover.Origin(nil), noStepMover.Origin(nil))
 	}
 }
 
@@ -356,39 +365,39 @@ func TestSVWalkMoveStepDownGroundsOnBSPContactForNonBSPMover(t *testing.T) {
 		t.Fatalf("init server: %v", err)
 	}
 	s.WorldModel = CreateSyntheticWorldModel()
-	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	s.ClearWorld()
 
 	obstacle := s.AllocEdict()
 	if obstacle == nil {
 		t.Fatal("failed to allocate obstacle")
 	}
-	obstacle.Vars.Solid = float32(SolidBSP)
-	obstacle.Vars.Origin = [3]float32{32, 0, 8}
-	obstacle.Vars.Mins = [3]float32{-8, -32, -8}
-	obstacle.Vars.Maxs = [3]float32{8, 32, 8}
+	obstacle.SetSolid(s, float32(SolidBSP))
+	obstacle.SetOrigin(s, [3]float32{32, 0, 8})
+	obstacle.SetMins(s, [3]float32{-8, -32, -8})
+	obstacle.SetMaxs(s, [3]float32{8, 32, 8})
 	s.LinkEdict(obstacle, false)
 
 	ent := s.AllocEdict()
 	if ent == nil {
 		t.Fatal("failed to allocate mover")
 	}
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Origin = [3]float32{0, 0, 24}
-	ent.Vars.Velocity = [3]float32{100, 0, 0}
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetFlags(s, float32(FlagOnGround))
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, [3]float32{0, 0, 24})
+	ent.SetVelocity(s, [3]float32{100, 0, 0})
 	s.LinkEdict(ent, false)
 
 	withPhysicsCVars(t, s, map[string]string{"sv_nostep": "0"})
 	s.SV_WalkMove(ent)
 
-	if uint32(ent.Vars.Flags)&FlagOnGround == 0 {
-		t.Fatalf("SV_WalkMove did not set onground after BSP contact: flags=%#x", uint32(ent.Vars.Flags))
+	if uint32(ent.Flags(s))&FlagOnGround == 0 {
+		t.Fatalf("SV_WalkMove did not set onground after BSP contact: flags=%#x", uint32(ent.Flags(s)))
 	}
-	if got, want := ent.Vars.GroundEntity, int32(s.NumForEdict(obstacle)); got != want {
+	if got, want := ent.GroundEntity(s), int32(s.NumForEdict(obstacle)); got != want {
 		t.Fatalf("ground entity = %d, want %d", got, want)
 	}
 }
@@ -487,19 +496,19 @@ func TestPhysicsForceRetouchUsesFloatCountdown(t *testing.T) {
 		t.Fatal("failed to allocate edicts")
 	}
 
-	mover.Vars.Origin = [3]float32{}
-	mover.Vars.Mins = [3]float32{-16, -16, -16}
-	mover.Vars.Maxs = [3]float32{16, 16, 16}
-	mover.Vars.Solid = float32(SolidBBox)
-	mover.Vars.MoveType = float32(MoveTypeNone)
+	mover.SetOrigin(s, [3]float32{})
+	mover.SetMins(s, [3]float32{-16, -16, -16})
+	mover.SetMaxs(s, [3]float32{16, 16, 16})
+	mover.SetSolid(s, float32(SolidBBox))
+	mover.SetMoveType(s, float32(MoveTypeNone))
 	s.LinkEdict(mover, false)
 
-	trigger.Vars.Origin = [3]float32{}
-	trigger.Vars.Mins = [3]float32{-8, -8, -8}
-	trigger.Vars.Maxs = [3]float32{8, 8, 8}
-	trigger.Vars.Solid = float32(SolidTrigger)
-	trigger.Vars.Touch = 1
-	trigger.Vars.MoveType = float32(MoveTypeNone)
+	trigger.SetOrigin(s, [3]float32{})
+	trigger.SetMins(s, [3]float32{-8, -8, -8})
+	trigger.SetMaxs(s, [3]float32{8, 8, 8})
+	trigger.SetSolid(s, float32(SolidTrigger))
+	trigger.SetTouch(s, 1)
+	trigger.SetMoveType(s, float32(MoveTypeNone))
 	s.LinkEdict(trigger, false)
 
 	vm.SetGlobal("force_retouch", float32(2))
@@ -564,14 +573,14 @@ func TestPhysicsSendIntervalMatchesFitzQuakeParity(t *testing.T) {
 			s.Time = 10
 			s.FrameTime = 0.001
 
-			ent := &Edict{Vars: &EntVars{}}
-			ent.Vars.MoveType = float32(tc.moveType)
-			ent.Vars.Frame = tc.frame
+			ent := allocPhysicsTestEdict(s)
+			ent.SetMoveType(s, float32(tc.moveType))
+			ent.SetFrame(s, tc.frame)
 			ent.OldFrame = tc.oldFrame
 			ent.OldThinkTime = s.Time
-			ent.Vars.NextThink = s.Time + tc.ticks/255
+			ent.SetNextThink(s, s.Time+tc.ticks/255)
 			if tc.moveType == MoveTypeStep {
-				ent.Vars.Flags = float32(FlagOnGround)
+				ent.SetFlags(s, float32(FlagOnGround))
 			}
 
 			s.Edicts = append(s.Edicts, ent)
@@ -581,7 +590,7 @@ func TestPhysicsSendIntervalMatchesFitzQuakeParity(t *testing.T) {
 
 			if ent.SendInterval != tc.wantSend {
 				t.Fatalf("SendInterval=%v for moveType=%v frame=%v oldFrame=%v ticks=%v nextThink=%v oldThinkTime=%v",
-					ent.SendInterval, tc.moveType, tc.frame, tc.oldFrame, tc.ticks, ent.Vars.NextThink, ent.OldThinkTime)
+					ent.SendInterval, tc.moveType, tc.frame, tc.oldFrame, tc.ticks, ent.NextThink(s), ent.OldThinkTime)
 			}
 		})
 	}
@@ -594,12 +603,12 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 	mkServer := func() (*Server, *Edict, *Edict) {
 		s := newPhysicsTestServer()
 		s.Static = &ServerStatic{MaxClients: 1}
-		clientEnt := &Edict{Vars: &EntVars{}}
-		clientEnt.Vars.MoveType = float32(MoveTypeNoClip)
-		clientEnt.Vars.Velocity = [3]float32{10, 0, 0}
-		nonClientEnt := &Edict{Vars: &EntVars{}}
-		nonClientEnt.Vars.MoveType = float32(MoveTypeNoClip)
-		nonClientEnt.Vars.Velocity = [3]float32{20, 0, 0}
+		clientEnt := allocPhysicsTestEdict(s)
+		clientEnt.SetMoveType(s, float32(MoveTypeNoClip))
+		clientEnt.SetVelocity(s, [3]float32{10, 0, 0})
+		nonClientEnt := allocPhysicsTestEdict(s)
+		nonClientEnt.SetMoveType(s, float32(MoveTypeNoClip))
+		nonClientEnt.SetVelocity(s, [3]float32{20, 0, 0})
 		s.Edicts = append(s.Edicts, clientEnt, nonClientEnt)
 		s.NumEdicts = len(s.Edicts)
 		return s, clientEnt, nonClientEnt
@@ -612,11 +621,11 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 
 		s.Physics()
 
-		if clientEnt.Vars.Origin[0] == 0 {
-			t.Fatalf("client entity did not move with freeze enabled: origin=%v", clientEnt.Vars.Origin)
+		if clientEnt.Origin(s)[0] == 0 {
+			t.Fatalf("client entity did not move with freeze enabled: origin=%v", clientEnt.Origin(s))
 		}
-		if nonClientEnt.Vars.Origin[0] != 0 {
-			t.Fatalf("non-client entity moved with freeze enabled: origin=%v", nonClientEnt.Vars.Origin)
+		if nonClientEnt.Origin(s)[0] != 0 {
+			t.Fatalf("non-client entity moved with freeze enabled: origin=%v", nonClientEnt.Origin(s))
 		}
 		if s.Time != before {
 			t.Fatalf("server time advanced with freeze enabled: before=%v after=%v", before, s.Time)
@@ -629,19 +638,19 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 
 		s.Physics()
 
-		if clientEnt.Vars.Origin[0] == 0 {
-			t.Fatalf("client entity did not move with freeze disabled: origin=%v", clientEnt.Vars.Origin)
+		if clientEnt.Origin(s)[0] == 0 {
+			t.Fatalf("client entity did not move with freeze disabled: origin=%v", clientEnt.Origin(s))
 		}
-		if nonClientEnt.Vars.Origin[0] == 0 {
-			t.Fatalf("non-client entity did not move with freeze disabled: origin=%v", nonClientEnt.Vars.Origin)
+		if nonClientEnt.Origin(s)[0] == 0 {
+			t.Fatalf("non-client entity did not move with freeze disabled: origin=%v", nonClientEnt.Origin(s))
 		}
 	})
 }
 
 func TestPhysicsSkipsInvalidMoveType(t *testing.T) {
 	s := newPhysicsTestServer()
-	bad := &Edict{Vars: &EntVars{}}
-	bad.Vars.MoveType = 999
+	bad := allocPhysicsTestEdict(s)
+	bad.SetMoveType(s, 999)
 	s.Edicts = append(s.Edicts, bad)
 	s.NumEdicts = len(s.Edicts)
 
@@ -661,8 +670,8 @@ func TestPhysicsTelemetryFrameHooks(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.MoveType = float32(MoveTypeNoClip)
+	ent := allocPhysicsTestEdict(s)
+	ent.SetMoveType(s, float32(MoveTypeNoClip))
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 
@@ -725,8 +734,8 @@ func TestPhysicsStartFrameSeesFreshEdictButtonState(t *testing.T) {
 	}
 	vm.SetGInt(captureBuiltinOfs, -1)
 
-	player := &Edict{Vars: &EntVars{}}
-	player.Vars.Button0 = 1
+	player := allocPhysicsTestEdict(s)
+	player.SetButton0(s, 1)
 	s.Edicts = append(s.Edicts, player)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts

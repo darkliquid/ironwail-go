@@ -170,10 +170,10 @@ func TestWriteClientDataToMessage_FixAngleUsesVAngle(t *testing.T) {
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolFitzQuake}
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.FixAngle = 1
-	ent.Vars.Angles = [3]float32{10, 20, 30}
-	ent.Vars.VAngle = [3]float32{90, 180, 270}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetFixAngle(s, 1)
+	ent.SetAngles(s, [3]float32{10, 20, 30})
+	ent.SetVAngle(s, [3]float32{90, 180, 270})
 
 	msg := NewMessageBuffer(256)
 	s.WriteClientDataToMessage(ent, msg)
@@ -188,14 +188,14 @@ func TestWriteClientDataToMessage_FixAngleUsesVAngle(t *testing.T) {
 
 	want := NewMessageBuffer(16)
 	flags := uint32(s.ProtocolFlags())
-	want.WriteAngle(ent.Vars.VAngle[0], flags)
-	want.WriteAngle(ent.Vars.VAngle[1], flags)
-	want.WriteAngle(ent.Vars.VAngle[2], flags)
+	want.WriteAngle(ent.VAngle(s)[0], flags)
+	want.WriteAngle(ent.VAngle(s)[1], flags)
+	want.WriteAngle(ent.VAngle(s)[2], flags)
 	if got := data[1:4]; !bytes.Equal(got, want.Data[:want.Len()]) {
 		t.Fatalf("setangle payload = %v, want %v", got, want.Data[:want.Len()])
 	}
-	if ent.Vars.FixAngle != 0 {
-		t.Fatalf("FixAngle = %v, want 0", ent.Vars.FixAngle)
+	if ent.FixAngle(s) != 0 {
+		t.Fatalf("FixAngle = %v, want 0", ent.FixAngle(s))
 	}
 }
 

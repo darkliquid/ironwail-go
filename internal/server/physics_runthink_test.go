@@ -15,10 +15,9 @@ import (
 // Where in C: N/A
 func TestRunThinkTelemetry(t *testing.T) {
 	s := newPhysicsTestServer()
-	s.QCVM = qc.NewVM()
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.NextThink = 0.05
+	ent := s.AllocEdict()
+	ent.SetNextThink(s, 0.05)
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 
@@ -71,9 +70,9 @@ func TestRunThinkPublishesQCTimeGlobal(t *testing.T) {
 		{Op: uint16(qc.OPDone)},
 	}
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.NextThink = 0.05
-	ent.Vars.Think = 1
+	ent := s.AllocEdict()
+	ent.SetNextThink(s, 0.05)
+	ent.SetThink(s, 1)
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 
@@ -113,10 +112,10 @@ func TestRunThinkSyncsEdictStateBackFromQCVM(t *testing.T) {
 	}
 	vm.SetGInt(mutateBuiltinOfs, -1)
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Solid = float32(SolidNot)
-	ent.Vars.NextThink = 0.05
-	ent.Vars.Think = 1
+	ent := s.AllocEdict()
+	ent.SetSolid(s, float32(SolidNot))
+	ent.SetNextThink(s, 0.05)
+	ent.SetThink(s, 1)
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -124,7 +123,7 @@ func TestRunThinkSyncsEdictStateBackFromQCVM(t *testing.T) {
 	if ok := s.RunThink(ent); !ok {
 		t.Fatal("RunThink unexpectedly returned false")
 	}
-	if got := ent.Vars.Solid; got != float32(SolidTrigger) {
+	if got := ent.Solid(s); got != float32(SolidTrigger) {
 		t.Fatalf("entity solid = %v, want %v after QC think", got, float32(SolidTrigger))
 	}
 }
@@ -159,10 +158,10 @@ func TestRunThinkSyncsThirdPartySchedulerFieldsFromQCVM(t *testing.T) {
 	}
 	vm.SetGInt(mutateBuiltinOfs, -1)
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.NextThink = 0.05
-	ent.Vars.Think = 1
-	target := &Edict{Vars: &EntVars{}}
+	ent := s.AllocEdict()
+	ent.SetNextThink(s, 0.05)
+	ent.SetThink(s, 1)
+	target := s.AllocEdict()
 	s.Edicts = append(s.Edicts, ent, target)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -171,13 +170,13 @@ func TestRunThinkSyncsThirdPartySchedulerFieldsFromQCVM(t *testing.T) {
 	if ok := s.RunThink(ent); !ok {
 		t.Fatal("RunThink unexpectedly returned false")
 	}
-	if got := target.Vars.Frame; got != 7 {
+	if got := target.Frame(s); got != 7 {
 		t.Fatalf("target frame = %v, want 7", got)
 	}
-	if got := target.Vars.Think; got != 9 {
+	if got := target.Think(s); got != 9 {
 		t.Fatalf("target think = %v, want 9", got)
 	}
-	if got := target.Vars.NextThink; got != 1.25 {
+	if got := target.NextThink(s); got != 1.25 {
 		t.Fatalf("target nextthink = %v, want 1.25", got)
 	}
 }
@@ -212,11 +211,11 @@ func TestRunThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
 	}
 	vm.SetGInt(mutateBuiltinOfs, -1)
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.NextThink = 0.05
-	ent.Vars.Think = 1
-	target := &Edict{Vars: &EntVars{}}
-	target.Vars.Health = 100
+	ent := s.AllocEdict()
+	ent.SetNextThink(s, 0.05)
+	ent.SetThink(s, 1)
+	target := s.AllocEdict()
+	target.SetHealth(s, 100)
 	s.Edicts = append(s.Edicts, ent, target)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -225,13 +224,13 @@ func TestRunThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
 	if ok := s.RunThink(ent); !ok {
 		t.Fatal("RunThink unexpectedly returned false")
 	}
-	if got := target.Vars.Health; got != 12 {
+	if got := target.Health(s); got != 12 {
 		t.Fatalf("target health = %v, want 12", got)
 	}
-	if got := target.Vars.Enemy; got != 1 {
+	if got := target.Enemy(s); got != 1 {
 		t.Fatalf("target enemy = %v, want 1", got)
 	}
-	if got := target.Vars.DeadFlag; got != 2 {
+	if got := target.DeadFlag(s); got != 2 {
 		t.Fatalf("target deadflag = %v, want 2", got)
 	}
 }
@@ -264,18 +263,18 @@ func TestImpactSyncsMutatedTouchStateBackFromQCVM(t *testing.T) {
 	}
 	vm.SetGInt(mutateBuiltinOfs, -1)
 
-	e1 := &Edict{Vars: &EntVars{}}
-	e1.Vars.Touch = 1
-	e1.Vars.Solid = float32(SolidTrigger)
-	e2 := &Edict{Vars: &EntVars{}}
-	e2.Vars.Solid = float32(SolidBSP)
+	e1 := s.AllocEdict()
+	e1.SetTouch(s, 1)
+	e1.SetSolid(s, float32(SolidTrigger))
+	e2 := s.AllocEdict()
+	e2.SetSolid(s, float32(SolidBSP))
 	s.Edicts = append(s.Edicts, e1, e2)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
 
 	s.Impact(e1, e2)
 
-	if got := e2.Vars.Solid; got != float32(SolidNot) {
+	if got := e2.Solid(s); got != float32(SolidNot) {
 		t.Fatalf("other entity solid = %v, want %v after QC touch", got, float32(SolidNot))
 	}
 }
@@ -302,11 +301,11 @@ func TestImpactRestoresQCExecutionContextAfterTouch(t *testing.T) {
 		{Op: uint16(qc.OPDone)},
 	}
 
-	e1 := &Edict{Vars: &EntVars{}}
-	e1.Vars.Touch = 1
-	e1.Vars.Solid = float32(SolidTrigger)
-	e2 := &Edict{Vars: &EntVars{}}
-	e2.Vars.Solid = float32(SolidBSP)
+	e1 := s.AllocEdict()
+	e1.SetTouch(s, 1)
+	e1.SetSolid(s, float32(SolidTrigger))
+	e2 := s.AllocEdict()
+	e2.SetSolid(s, float32(SolidBSP))
 	s.Edicts = append(s.Edicts, e1, e2)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -357,11 +356,11 @@ func TestImpactDeduplicatesSameFrameTouchCallbacks(t *testing.T) {
 	}
 	vm.SetGInt(countBuiltinOfs, -1)
 
-	e1 := &Edict{Vars: &EntVars{}}
-	e1.Vars.Touch = 1
-	e1.Vars.Solid = float32(SolidBSP)
-	e2 := &Edict{Vars: &EntVars{}}
-	e2.Vars.Solid = float32(SolidSlideBox)
+	e1 := s.AllocEdict()
+	e1.SetTouch(s, 1)
+	e1.SetSolid(s, float32(SolidBSP))
+	e2 := s.AllocEdict()
+	e2.SetSolid(s, float32(SolidSlideBox))
 	s.Edicts = append(s.Edicts, e1, e2)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -566,7 +565,7 @@ func TestPushMoveBlockedSyncsMutatedPusherFromQCVM(t *testing.T) {
 	if len(s.Edicts) == 0 || s.Edicts[0] == nil {
 		t.Fatal("missing world edict")
 	}
-	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	s.ClearWorld()
 
 	s.QCVM = qc.NewVM()
@@ -596,31 +595,31 @@ func TestPushMoveBlockedSyncsMutatedPusherFromQCVM(t *testing.T) {
 	if pusher == nil {
 		t.Fatal("failed to alloc pusher")
 	}
-	pusher.Vars.MoveType = float32(MoveTypePush)
-	pusher.Vars.Solid = float32(SolidBSP)
-	pusher.Vars.Velocity = [3]float32{0, 0, 64}
-	pusher.Vars.Origin = [3]float32{0, 0, 0}
-	pusher.Vars.Mins = [3]float32{-64, -64, -8}
-	pusher.Vars.Maxs = [3]float32{64, 64, 8}
-	pusher.Vars.Blocked = 1
+	pusher.SetMoveType(s, float32(MoveTypePush))
+	pusher.SetSolid(s, float32(SolidBSP))
+	pusher.SetVelocity(s, [3]float32{0, 0, 64})
+	pusher.SetOrigin(s, [3]float32{0, 0, 0})
+	pusher.SetMins(s, [3]float32{-64, -64, -8})
+	pusher.SetMaxs(s, [3]float32{64, 64, 8})
+	pusher.SetBlocked(s, 1)
 	s.LinkEdict(pusher, false)
 
 	blocker := s.AllocEdict()
 	if blocker == nil {
 		t.Fatal("failed to alloc blocker")
 	}
-	blocker.Vars.MoveType = float32(MoveTypeWalk)
-	blocker.Vars.Solid = float32(SolidSlideBox)
-	blocker.Vars.Origin = [3]float32{0, 0, 24}
-	blocker.Vars.Mins = [3]float32{-16, -16, -24}
-	blocker.Vars.Maxs = [3]float32{16, 16, 32}
+	blocker.SetMoveType(s, float32(MoveTypeWalk))
+	blocker.SetSolid(s, float32(SolidSlideBox))
+	blocker.SetOrigin(s, [3]float32{0, 0, 24})
+	blocker.SetMins(s, [3]float32{-16, -16, -24})
+	blocker.SetMaxs(s, [3]float32{16, 16, 32})
 	s.LinkEdict(blocker, false)
 
 	vm.NumEdicts = s.NumEdicts
 
 	s.PushMove(pusher, s.FrameTime)
 
-	if got := pusher.Vars.Velocity; got != [3]float32{0, 0, 200} {
+	if got := pusher.Velocity(s); got != [3]float32{0, 0, 200} {
 		t.Fatalf("pusher velocity = %v, want [0 0 200] after blocked callback", got)
 	}
 }
@@ -650,16 +649,16 @@ func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
 	}
 	vm.SetGInt(noopBuiltinOfs, -1)
 
-	e1 := &Edict{Vars: &EntVars{}}
-	e1.Vars.Touch = 1
-	e1.Vars.Solid = float32(SolidTrigger)
-	e2 := &Edict{Vars: &EntVars{}}
-	e2.Vars.Solid = float32(SolidBSP)
-	pusher := &Edict{Vars: &EntVars{}}
-	pusher.Vars.MoveType = float32(MoveTypePush)
-	pusher.Vars.Origin = [3]float32{32, 0, 0}
-	pusher.Vars.LTime = 0.3
-	pusher.Vars.NextThink = 0.6
+	e1 := s.AllocEdict()
+	e1.SetTouch(s, 1)
+	e1.SetSolid(s, float32(SolidTrigger))
+	e2 := s.AllocEdict()
+	e2.SetSolid(s, float32(SolidBSP))
+	pusher := s.AllocEdict()
+	pusher.SetMoveType(s, float32(MoveTypePush))
+	pusher.SetOrigin(s, [3]float32{32, 0, 0})
+	pusher.SetLTime(s, 0.3)
+	pusher.SetNextThink(s, 0.6)
 	s.Edicts = append(s.Edicts, e1, e2, pusher)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -671,13 +670,13 @@ func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
 
 	s.Impact(e1, e2)
 
-	if got := pusher.Vars.Origin; got != [3]float32{32, 0, 0} {
+	if got := pusher.Origin(s); got != [3]float32{32, 0, 0} {
 		t.Fatalf("pusher origin = %v, want [32 0 0]", got)
 	}
-	if got := pusher.Vars.LTime; got != 0.3 {
+	if got := pusher.LTime(s); got != 0.3 {
 		t.Fatalf("pusher ltime = %v, want 0.3", got)
 	}
-	if got := pusher.Vars.NextThink; got != 0.6 {
+	if got := pusher.NextThink(s); got != 0.6 {
 		t.Fatalf("pusher nextthink = %v, want 0.6", got)
 	}
 }
@@ -720,15 +719,15 @@ func TestImpactSyncsPusherMutationsFromQCVM(t *testing.T) {
 	}
 	vm.SetGInt(setPusherVelocityBuiltinOfs, -1)
 
-	e1 := &Edict{Vars: &EntVars{}}
-	e1.Vars.Touch = 1
-	e1.Vars.Solid = float32(SolidTrigger)
-	e2 := &Edict{Vars: &EntVars{}}
-	e2.Vars.Solid = float32(SolidBSP)
-	pusher := &Edict{Vars: &EntVars{}}
-	pusher.Vars.MoveType = float32(MoveTypePush)
-	pusher.Vars.Origin = [3]float32{32, 0, 0}
-	pusher.Vars.LTime = 0.3
+	e1 := s.AllocEdict()
+	e1.SetTouch(s, 1)
+	e1.SetSolid(s, float32(SolidTrigger))
+	e2 := s.AllocEdict()
+	e2.SetSolid(s, float32(SolidBSP))
+	pusher := s.AllocEdict()
+	pusher.SetMoveType(s, float32(MoveTypePush))
+	pusher.SetOrigin(s, [3]float32{32, 0, 0})
+	pusher.SetLTime(s, 0.3)
 	s.Edicts = append(s.Edicts, e1, e2, pusher)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -742,13 +741,13 @@ func TestImpactSyncsPusherMutationsFromQCVM(t *testing.T) {
 	s.Impact(e1, e2)
 
 	// After Impact, the pusher's mutated fields should be synced back to Go
-	if got := pusher.Vars.Velocity; got != [3]float32{0, 0, -100} {
+	if got := pusher.Velocity(s); got != [3]float32{0, 0, -100} {
 		t.Fatalf("pusher velocity = %v, want [0 0 -100]", got)
 	}
-	if got := pusher.Vars.NextThink; got != 1.5 {
+	if got := pusher.NextThink(s); got != 1.5 {
 		t.Fatalf("pusher nextthink = %v, want 1.5", got)
 	}
-	if got := pusher.Vars.Think; got != 42 {
+	if got := pusher.Think(s); got != 42 {
 		t.Fatalf("pusher think = %v, want 42", got)
 	}
 }
@@ -792,16 +791,16 @@ func TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink(t *testing.T) {
 	vm.SetGInt(setPusherVelocityBuiltinOfs, -1)
 
 	// Entity 1: non-pusher (thinker, e.g. DelayedUse)
-	thinker := &Edict{Vars: &EntVars{}}
-	thinker.Vars.MoveType = float32(MoveTypeNone)
-	thinker.Vars.Think = 1
-	thinker.Vars.NextThink = 0.05
+	thinker := s.AllocEdict()
+	thinker.SetMoveType(s, float32(MoveTypeNone))
+	thinker.SetThink(s, 1)
+	thinker.SetNextThink(s, 0.05)
 
 	// Entity 2: pusher (e.g. func_train)
-	pusher := &Edict{Vars: &EntVars{}}
-	pusher.Vars.MoveType = float32(MoveTypePush)
-	pusher.Vars.Origin = [3]float32{100, 200, 300}
-	pusher.Vars.LTime = 0.1
+	pusher := s.AllocEdict()
+	pusher.SetMoveType(s, float32(MoveTypePush))
+	pusher.SetOrigin(s, [3]float32{100, 200, 300})
+	pusher.SetLTime(s, 0.1)
 
 	s.Edicts = append(s.Edicts, thinker, pusher)
 	s.NumEdicts = len(s.Edicts)
@@ -818,20 +817,20 @@ func TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink(t *testing.T) {
 	thinkerNum := s.NumForEdict(thinker)
 	s.QCVM.SetGlobal("self", thinkerNum)
 	s.setQCTimeGlobal(1.0)
-	err := s.executeQCFunction(int(thinker.Vars.Think))
+	err := s.executeQCFunction(int(thinker.Think(s)))
 	if err != nil {
 		t.Fatalf("executeQCFunction error: %v", err)
 	}
 
 	// After executeQCFunction, the pusher's mutated fields should be synced
 	// back to Go so PhysicsPusher can move it on subsequent frames.
-	if got := pusher.Vars.Velocity; got != [3]float32{0, 0, -600} {
+	if got := pusher.Velocity(s); got != [3]float32{0, 0, -600} {
 		t.Fatalf("pusher velocity = %v, want [0 0 -600]", got)
 	}
-	if got := pusher.Vars.NextThink; got != 7.78 {
+	if got := pusher.NextThink(s); got != 7.78 {
 		t.Fatalf("pusher nextthink = %v, want 7.78", got)
 	}
-	if got := pusher.Vars.Think; got != 99 {
+	if got := pusher.Think(s); got != 99 {
 		t.Fatalf("pusher think = %v, want 99", got)
 	}
 }

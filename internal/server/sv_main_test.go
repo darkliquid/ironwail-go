@@ -220,16 +220,16 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 	}
 
 	trigger := s.EdictNum(1)
-	if trigger == nil || trigger.Vars == nil {
+	if trigger == nil {
 		t.Fatal("spawned trigger missing")
 	}
-	if got := trigger.Vars.Solid; got != float32(SolidTrigger) {
+	if got := trigger.Solid(s); got != float32(SolidTrigger) {
 		t.Fatalf("trigger solid = %v, want %v", got, float32(SolidTrigger))
 	}
-	if got := trigger.Vars.AbsMin; got != [3]float32{111, -17, -17} {
+	if got := trigger.AbsMin(nil); got != [3]float32{111, -17, -17} {
 		t.Fatalf("trigger absmin = %v", got)
 	}
-	if got := trigger.Vars.AbsMax; got != [3]float32{145, 17, 17} {
+	if got := trigger.AbsMax(nil); got != [3]float32{145, 17, 17} {
 		t.Fatalf("trigger absmax = %v", got)
 	}
 
@@ -316,16 +316,16 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T)
 	}
 
 	trigger := s.EdictNum(1)
-	if trigger == nil || trigger.Vars == nil {
+	if trigger == nil {
 		t.Fatal("spawned trigger missing")
 	}
 	if trigger.Free {
 		t.Fatal("spawned trigger unexpectedly still marked free")
 	}
-	if got := trigger.Vars.AbsMin; got != [3]float32{111, -17, -17} {
+	if got := trigger.AbsMin(nil); got != [3]float32{111, -17, -17} {
 		t.Fatalf("trigger absmin = %v", got)
 	}
-	if got := trigger.Vars.AbsMax; got != [3]float32{145, 17, 17} {
+	if got := trigger.AbsMax(nil); got != [3]float32{145, 17, 17} {
 		t.Fatalf("trigger absmax = %v", got)
 	}
 	if trigger.AreaPrev == nil || trigger.AreaNext == nil {
@@ -381,10 +381,10 @@ func TestLoadMapEntitiesPreservesQCOnlyMapFieldForSpawn(t *testing.T) {
 	}
 
 	spawned := s.EdictNum(1)
-	if spawned == nil || spawned.Vars == nil {
+	if spawned == nil {
 		t.Fatal("spawned edict missing")
 	}
-	if got := spawned.Vars.Health; got != 321 {
+	if got := spawned.Health(s); got != 321 {
 		t.Fatalf("spawned health = %v, want 321 from QC-only speed field", got)
 	}
 	if got := vm.EFloat(1, 110); got != 321 {
@@ -491,10 +491,10 @@ func TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn(t *testing.T) {
 	}
 
 	spawned := s.EdictNum(entNum)
-	if spawned == nil || spawned.Vars == nil {
+	if spawned == nil {
 		t.Fatal("spawned edict missing")
 	}
-	if got := spawned.Vars.Solid; got != float32(SolidTrigger) {
+	if got := spawned.Solid(s); got != float32(SolidTrigger) {
 		t.Fatalf("spawned solid = %v, want %v", got, float32(SolidTrigger))
 	}
 	if got := vm.EFloat(entNum, 110); got != 0 {
@@ -514,10 +514,10 @@ func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 	if e == nil {
 		t.Fatal("failed to alloc edict")
 	}
-	e.Vars.Origin = [3]float32{64, 0, 0}
-	e.Vars.Mins = [3]float32{-16, -16, -16}
-	e.Vars.Maxs = [3]float32{16, 16, 16}
-	e.Vars.Solid = float32(SolidTrigger)
+	e.SetOrigin(s, [3]float32{64, 0, 0})
+	e.SetMins(s, [3]float32{-16, -16, -16})
+	e.SetMaxs(s, [3]float32{16, 16, 16})
+	e.SetSolid(s, float32(SolidTrigger))
 	s.LinkEdict(e, false)
 	if e.AreaPrev == nil || e.AreaNext == nil {
 		t.Fatal("expected edict to be linked before free")
@@ -909,4 +909,3 @@ func TestLoadMapEntitiesParsesAlphaHack(t *testing.T) {
 		t.Fatalf("expected state.Alpha to be %d, got %d", expectedAlpha, state.Alpha)
 	}
 }
-

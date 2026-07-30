@@ -4,7 +4,6 @@ import (
 	"math"
 	"sort"
 
-	"github.com/darkliquid/ironwail-go/internal/bsp"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
@@ -104,8 +103,11 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 	}
 
 	flags := uint32(s.ProtocolFlags())
+	org := ent.Origin(s)
+	mins := ent.Mins(s)
+	maxs := ent.Maxs(s)
 	for i := 0; i < 3; i++ {
-		s.Datagram.WriteCoord(ent.Vars.Origin[i]+0.5*(ent.Vars.Mins[i]+ent.Vars.Maxs[i]), flags)
+		s.Datagram.WriteCoord(org[i]+0.5*(mins[i]+maxs[i]), flags)
 	}
 }
 
@@ -198,92 +200,116 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 // WriteClientDataToMessage serializes player-centric data (damage, view, ammo, items) for one frame.
 func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	flags := uint32(s.ProtocolFlags())
-	fixAngleSent := ent.Vars.FixAngle != 0
-	if ent.Vars.DmgTake != 0 || ent.Vars.DmgSave != 0 {
-		other := s.EdictNum(int(ent.Vars.DmgInflictor))
+	fixAngleSent := ent.FixAngle(s) != 0
+	dmgTake := ent.DmgTake(s)
+	dmgSave := ent.DmgSave(s)
+	if dmgTake != 0 || dmgSave != 0 {
+		other := s.EdictNum(int(ent.DmgInflictor(s)))
 		msg.PutByte(byte(inet.SVCDamage))
-		msg.PutByte(byte(ent.Vars.DmgSave))
-		msg.PutByte(byte(ent.Vars.DmgTake))
+		msg.PutByte(byte(dmgSave))
+		msg.PutByte(byte(dmgTake))
 		if other != nil {
+			oOrg := other.Origin(s)
+			oMins := other.Mins(s)
+			oMaxs := other.Maxs(s)
 			for i := 0; i < 3; i++ {
-				msg.WriteCoord(other.Vars.Origin[i]+0.5*(other.Vars.Mins[i]+other.Vars.Maxs[i]), flags)
+				msg.WriteCoord(oOrg[i]+0.5*(oMins[i]+oMaxs[i]), flags)
 			}
 		} else {
 			for i := 0; i < 3; i++ {
 				msg.WriteCoord(0, flags)
 			}
 		}
-		ent.Vars.DmgTake = 0
-		ent.Vars.DmgSave = 0
+		ent.SetDmgTake(s, 0)
+		ent.SetDmgSave(s, 0)
 	}
 
 	s.SetIdealPitch(ent)
 
-	if ent.Vars.FixAngle != 0 {
+	if ent.FixAngle(s) != 0 {
 		msg.PutByte(byte(inet.SVCSetAngle))
+		vAng := ent.VAngle(s)
 		for i := 0; i < 3; i++ {
-			msg.WriteAngle(ent.Vars.VAngle[i], flags)
+			msg.WriteAngle(vAng[i], flags)
 		}
-		ent.Vars.FixAngle = 0
+		ent.SetFixAngle(s, 0)
 	}
 
 	bits := uint32(0)
 
-	if ent.Vars.ViewOfs[2] != ViewHeight {
+	viewOfs := ent.ViewOfs(s)
+	idealPitch := ent.IdealPitch(s)
+	entFlags := ent.Flags(s)
+	waterLevel := ent.WaterLevel(s)
+	punchAngle := ent.PunchAngle(s)
+	velocity := ent.Velocity(s)
+	weaponFrame := ent.WeaponFrame(s)
+	armorValue := ent.ArmorValue(s)
+	weaponModel := int32(ent.WeaponModel(s))
+	currentAmmo := ent.CurrentAmmo(s)
+	ammoShells := ent.AmmoShells(s)
+	ammoNails := ent.AmmoNails(s)
+	ammoRockets := ent.AmmoRockets(s)
+	ammoCells := ent.AmmoCells(s)
+	itemsVal := ent.Items(s)
+	weaponVal := ent.Weapon(s)
+	healthVal := ent.Health(s)
+
+	if viewOfs[2] != ViewHeight {
 		bits |= inet.SU_VIEWHEIGHT
 	}
-	if ent.Vars.IdealPitch != 0 {
+	if idealPitch != 0 {
 		bits |= inet.SU_IDEALPITCH
 	}
 	bits |= inet.SU_ITEMS
 
-	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
+	if uint32(entFlags)&FlagOnGround != 0 {
 		bits |= inet.SU_ONGROUND
 	}
-	if ent.Vars.WaterLevel >= 2 {
+	if waterLevel >= 2 {
 		bits |= inet.SU_INWATER
 	}
 	for i := 0; i < 3; i++ {
-		if ent.Vars.PunchAngle[i] != 0 {
+		if punchAngle[i] != 0 {
 			bits |= inet.SU_PUNCH1 << i
 		}
-		if ent.Vars.Velocity[i] != 0 {
+		if velocity[i] != 0 {
 			bits |= inet.SU_VELOCITY1 << i
 		}
 	}
-	if ent.Vars.WeaponFrame != 0 {
+	if weaponFrame != 0 {
 		bits |= inet.SU_WEAPONFRAME
 	}
-	if ent.Vars.ArmorValue != 0 {
+	if armorValue != 0 {
 		bits |= inet.SU_ARMOR
 	}
 	bits |= inet.SU_WEAPON
 
 	// FitzQuake/RMQ extension bits — only for non-NetQuake protocols
-	weaponModelIdx := s.FindModel(s.String(ent.Vars.WeaponModel))
+	weaponModelIdx := s.FindModel(s.String(weaponModel))
 	if s.Protocol != ProtocolNetQuake {
 		if bits&inet.SU_WEAPON != 0 && weaponModelIdx&0xFF00 != 0 {
 			bits |= inet.SU_WEAPON2
 		}
-		if int(ent.Vars.ArmorValue)&0xFF00 != 0 {
+		if int(armorValue)&0xFF00 != 0 {
 			bits |= inet.SU_ARMOR2
 		}
-		if int(ent.Vars.CurrentAmmo)&0xFF00 != 0 {
+		if int(currentAmmo)&0xFF00 != 0 {
 			bits |= inet.SU_AMMO2
 		}
-		if int(ent.Vars.AmmoShells)&0xFF00 != 0 {
+		if int(ammoShells)&0xFF00 != 0 {
 			bits |= inet.SU_SHELLS2
 		}
-		if int(ent.Vars.AmmoNails)&0xFF00 != 0 {
+		if int(ammoNails)&0xFF00 != 0 {
 			bits |= inet.SU_NAILS2
 		}
-		if int(ent.Vars.AmmoRockets)&0xFF00 != 0 {
+		if int(ammoRockets)&0xFF00 != 0 {
 			bits |= inet.SU_ROCKETS2
 		}
-		if int(ent.Vars.AmmoCells)&0xFF00 != 0 {
+		if int(ammoCells)&0xFF00 != 0 {
 			bits |= inet.SU_CELLS2
 		}
-		if bits&inet.SU_WEAPONFRAME != 0 && int(ent.Vars.WeaponFrame)&0xFF00 != 0 {
+		if bits&inet.SU_WEAPONFRAME != 0 && int(weaponFrame)&0xFF00 != 0 {
 			bits |= inet.SU_WEAPONFRAME2
 		}
 		if bits&inet.SU_WEAPON != 0 && ent.Alpha != 0 { // weaponalpha = client entity alpha
@@ -299,17 +325,17 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 
 	if entNum := s.NumForEdict(ent); s.DebugTelemetry != nil &&
 		s.DebugTelemetry.ShouldLogEvent(DebugEventPhysics, s.QCVM, entNum, ent) {
-		weaponModelName := s.String(ent.Vars.WeaponModel)
+		weaponModelName := s.String(weaponModel)
 		s.DebugTelemetry.LogEventf(DebugEventPhysics, s.QCVM, entNum, ent,
 			"clientdata serialize bits=%#x onground=%t waterlevel=%d viewofs=(%.1f %.1f %.1f) idealpitch=%.1f vel=(%.1f %.1f %.1f) punch=(%.1f %.1f %.1f) fixangle_sent=%t ground=%d teleport=%.3f items=%#x weapon=%#x weaponmodel=%q weaponmodelidx=%d ammo=%d shells=%d",
-			bits, uint32(ent.Vars.Flags)&FlagOnGround != 0, int(ent.Vars.WaterLevel),
-			ent.Vars.ViewOfs[0], ent.Vars.ViewOfs[1], ent.Vars.ViewOfs[2],
-			ent.Vars.IdealPitch,
-			ent.Vars.Velocity[0], ent.Vars.Velocity[1], ent.Vars.Velocity[2],
-			ent.Vars.PunchAngle[0], ent.Vars.PunchAngle[1], ent.Vars.PunchAngle[2],
-			fixAngleSent, int(ent.Vars.GroundEntity), ent.Vars.TeleportTime,
-			uint32(ent.Vars.Items), uint32(ent.Vars.Weapon), weaponModelName, weaponModelIdx,
-			int(ent.Vars.CurrentAmmo), int(ent.Vars.AmmoShells))
+			bits, uint32(entFlags)&FlagOnGround != 0, int(waterLevel),
+			viewOfs[0], viewOfs[1], viewOfs[2],
+			idealPitch,
+			velocity[0], velocity[1], velocity[2],
+			punchAngle[0], punchAngle[1], punchAngle[2],
+			fixAngleSent, int(ent.GroundEntity(s)), ent.TeleportTime(s),
+			uint32(itemsVal), uint32(weaponVal), weaponModelName, weaponModelIdx,
+			int(currentAmmo), int(ammoShells))
 	}
 
 	msg.PutByte(byte(inet.SVCClientData))
@@ -323,41 +349,41 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	}
 
 	if bits&inet.SU_VIEWHEIGHT != 0 {
-		msg.WriteChar(int8(ent.Vars.ViewOfs[2]))
+		msg.WriteChar(int8(viewOfs[2]))
 	}
 	if bits&inet.SU_IDEALPITCH != 0 {
-		msg.WriteChar(int8(ent.Vars.IdealPitch))
+		msg.WriteChar(int8(idealPitch))
 	}
 	for i := 0; i < 3; i++ {
 		if bits&(inet.SU_PUNCH1<<i) != 0 {
-			msg.WriteChar(int8(ent.Vars.PunchAngle[i]))
+			msg.WriteChar(int8(punchAngle[i]))
 		}
 		if bits&(inet.SU_VELOCITY1<<i) != 0 {
-			msg.WriteChar(int8(ent.Vars.Velocity[i] / 16))
+			msg.WriteChar(int8(velocity[i] / 16))
 		}
 	}
 
-	items := uint32(ent.Vars.Items)
+	items := uint32(itemsVal)
 	msg.WriteLong(int32(items))
 
 	if bits&inet.SU_WEAPONFRAME != 0 {
-		msg.PutByte(byte(ent.Vars.WeaponFrame))
+		msg.PutByte(byte(weaponFrame))
 	}
 	if bits&inet.SU_ARMOR != 0 {
-		msg.PutByte(byte(ent.Vars.ArmorValue))
+		msg.PutByte(byte(armorValue))
 	}
 	if bits&inet.SU_WEAPON != 0 {
 		msg.PutByte(byte(weaponModelIdx))
 	}
 
-	msg.WriteShort(int16(ent.Vars.Health))
-	msg.PutByte(byte(ent.Vars.CurrentAmmo))
-	msg.PutByte(byte(ent.Vars.AmmoShells))
-	msg.PutByte(byte(ent.Vars.AmmoNails))
-	msg.PutByte(byte(ent.Vars.AmmoRockets))
-	msg.PutByte(byte(ent.Vars.AmmoCells))
+	msg.WriteShort(int16(healthVal))
+	msg.PutByte(byte(currentAmmo))
+	msg.PutByte(byte(ammoShells))
+	msg.PutByte(byte(ammoNails))
+	msg.PutByte(byte(ammoRockets))
+	msg.PutByte(byte(ammoCells))
 
-	weaponValue := int32(ent.Vars.Weapon)
+	weaponValue := int32(weaponVal)
 	if s.standardQuakeWeaponEncoding() {
 		msg.PutByte(byte(weaponValue))
 	} else {
@@ -376,25 +402,25 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 		msg.PutByte(byte(weaponModelIdx >> 8))
 	}
 	if bits&inet.SU_ARMOR2 != 0 {
-		msg.PutByte(byte(int(ent.Vars.ArmorValue) >> 8))
+		msg.PutByte(byte(int(armorValue) >> 8))
 	}
 	if bits&inet.SU_AMMO2 != 0 {
-		msg.PutByte(byte(int(ent.Vars.CurrentAmmo) >> 8))
+		msg.PutByte(byte(int(currentAmmo) >> 8))
 	}
 	if bits&inet.SU_SHELLS2 != 0 {
-		msg.PutByte(byte(int(ent.Vars.AmmoShells) >> 8))
+		msg.PutByte(byte(int(ammoShells) >> 8))
 	}
 	if bits&inet.SU_NAILS2 != 0 {
-		msg.PutByte(byte(int(ent.Vars.AmmoNails) >> 8))
+		msg.PutByte(byte(int(ammoNails) >> 8))
 	}
 	if bits&inet.SU_ROCKETS2 != 0 {
-		msg.PutByte(byte(int(ent.Vars.AmmoRockets) >> 8))
+		msg.PutByte(byte(int(ammoRockets) >> 8))
 	}
 	if bits&inet.SU_CELLS2 != 0 {
-		msg.PutByte(byte(int(ent.Vars.AmmoCells) >> 8))
+		msg.PutByte(byte(int(ammoCells) >> 8))
 	}
 	if bits&inet.SU_WEAPONFRAME2 != 0 {
-		msg.PutByte(byte(int(ent.Vars.WeaponFrame) >> 8))
+		msg.PutByte(byte(int(weaponFrame) >> 8))
 	}
 	if bits&inet.SU_WEAPONALPHA != 0 {
 		msg.PutByte(ent.Alpha) // weaponalpha = client entity alpha
@@ -437,7 +463,7 @@ func encodeScale(a float32) byte {
 
 // entityStateForClient builds render/network state for an edict as seen by a specific client.
 func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool) {
-	if ent == nil || ent.Free || ent.Vars == nil {
+	if ent == nil || ent.Free {
 		return EntityState{}, false
 	}
 
@@ -455,13 +481,13 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 	}
 
 	state := EntityState{
-		Origin:     ent.Vars.Origin,
-		Angles:     ent.Vars.Angles,
-		ModelIndex: int(ent.Vars.ModelIndex),
-		Frame:      int(ent.Vars.Frame),
-		Colormap:   int(ent.Vars.Colormap),
-		Skin:       int(ent.Vars.Skin),
-		Effects:    int(ent.Vars.Effects) & s.effectsMask(),
+		Origin:     ent.Origin(s),
+		Angles:     ent.Angles(s),
+		ModelIndex: int(ent.ModelIndex(s)),
+		Frame:      int(ent.Frame(s)),
+		Colormap:   int(ent.Colormap(s)),
+		Skin:       int(ent.Skin(s)),
+		Effects:    int(ent.Effects(s)) & s.effectsMask(),
 		Alpha:      ent.Alpha,
 		Scale:      ent.Scale,
 	}
@@ -504,36 +530,40 @@ type entitySendCandidate struct {
 	sortKey       int
 }
 
-func entitySendSortBasis(client *Client) (origin, forward [3]float32, ok bool) {
-	if client == nil || client.Edict == nil || client.Edict.Vars == nil {
+func (s *Server) entitySendSortBasis(client *Client) (origin, forward [3]float32, ok bool) {
+	if client == nil || client.Edict == nil {
 		return origin, forward, false
 	}
-	origin = client.Edict.Vars.Origin
-	origin[0] += client.Edict.Vars.ViewOfs[0]
-	origin[1] += client.Edict.Vars.ViewOfs[1]
-	origin[2] += client.Edict.Vars.ViewOfs[2]
+	origin = client.Edict.Origin(s)
+	vOfs := client.Edict.ViewOfs(s)
+	origin[0] += vOfs[0]
+	origin[1] += vOfs[1]
+	origin[2] += vOfs[2]
 	var right, up [3]float32
-	AngleVectors(client.Edict.Vars.VAngle, &forward, &right, &up)
+	vAng := client.Edict.VAngle(s)
+	AngleVectors(vAng, &forward, &right, &up)
 	return origin, forward, true
 }
 
-func entitySendSortKey(ent *Edict, origin, forward [3]float32) int {
-	if ent == nil || ent.Vars == nil {
+func (s *Server) entitySendSortKey(ent *Edict, origin, forward [3]float32) int {
+	if ent == nil {
 		return 0
 	}
 
 	distSq := float32(0)
 	sizeSq := float32(0)
+	absMin := ent.AbsMin(s)
+	absMax := ent.AbsMax(s)
 	for i := 0; i < 3; i++ {
 		clamped := origin[i]
-		if clamped < ent.Vars.AbsMin[i] {
-			clamped = ent.Vars.AbsMin[i]
-		} else if clamped > ent.Vars.AbsMax[i] {
-			clamped = ent.Vars.AbsMax[i]
+		if clamped < absMin[i] {
+			clamped = absMin[i]
+		} else if clamped > absMax[i] {
+			clamped = absMax[i]
 		}
 		delta := clamped - origin[i]
 		distSq += delta * delta
-		size := ent.Vars.AbsMax[i] - ent.Vars.AbsMin[i]
+		size := absMax[i] - absMin[i]
 		sizeSq += size * size
 	}
 	if sizeSq < 1 {
@@ -543,9 +573,9 @@ func entitySendSortKey(ent *Edict, origin, forward [3]float32) int {
 
 	forwardDist := float32(0)
 	for i := 0; i < 3; i++ {
-		edge := ent.Vars.AbsMax[i]
+		edge := absMax[i]
 		if forward[i] < 0 {
-			edge = ent.Vars.AbsMin[i]
+			edge = absMin[i]
 		}
 		forwardDist += (edge - origin[i]) * forward[i]
 	}
@@ -716,7 +746,7 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 	if client.EntityStates == nil {
 		client.EntityStates = make(map[int]EntityState)
 	}
-	sortOrigin, sortForward, haveSortBasis := entitySendSortBasis(client)
+	sortOrigin, sortForward, haveSortBasis := s.entitySendSortBasis(client)
 	candidates := make([]entitySendCandidate, 0, s.NumEdicts)
 
 	for entNum := 1; entNum < s.NumEdicts; entNum++ {
@@ -736,20 +766,20 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		var lerpFinish byte
 		hasLerpFinish := ent.SendInterval
 		if hasLerpFinish {
-			lerpFinish, hasLerpFinish = encodeLerpFinish(ent.Vars.NextThink, s.Time)
+			lerpFinish, hasLerpFinish = encodeLerpFinish(ent.NextThink(s), s.Time)
 		}
 		candidate := entitySendCandidate{
 			entNum:        entNum,
 			ent:           ent,
 			state:         state,
-			moveType:      ent.Vars.MoveType,
+			moveType:      ent.MoveType(s),
 			lerpFinish:    lerpFinish,
 			hasLerpFinish: hasLerpFinish,
 		}
 		if ent == client.Edict {
 			candidate.sortKey = -1
 		} else if haveSortBasis {
-			candidate.sortKey = entitySendSortKey(ent, sortOrigin, sortForward)
+			candidate.sortKey = s.entitySendSortKey(ent, sortOrigin, sortForward)
 		} else {
 			candidate.sortKey = entNum
 		}
@@ -780,16 +810,16 @@ func (s *Server) updateClientStats(client *Client) {
 	}
 	ent := client.Edict
 	if ent != nil {
-		client.Stats[inet.StatHealth] = int32(ent.Vars.Health)
-		client.Stats[inet.StatItems] = int32(ent.Vars.Items)
-		client.Stats[inet.StatArmor] = int32(ent.Vars.ArmorValue)
-		client.Stats[inet.StatWeapon] = int32(s.FindModel(s.String(ent.Vars.WeaponModel)))
-		client.Stats[inet.StatAmmo] = int32(ent.Vars.CurrentAmmo)
-		client.Stats[inet.StatShells] = int32(ent.Vars.AmmoShells)
-		client.Stats[inet.StatNails] = int32(ent.Vars.AmmoNails)
-		client.Stats[inet.StatRockets] = int32(ent.Vars.AmmoRockets)
-		client.Stats[inet.StatCells] = int32(ent.Vars.AmmoCells)
-		client.Stats[inet.StatActiveWeapon] = int32(ent.Vars.Weapon)
+		client.Stats[inet.StatHealth] = int32(ent.Health(s))
+		client.Stats[inet.StatItems] = int32(ent.Items(s))
+		client.Stats[inet.StatArmor] = int32(ent.ArmorValue(s))
+		client.Stats[inet.StatWeapon] = int32(s.FindModel(s.String(int32(ent.WeaponModel(s)))))
+		client.Stats[inet.StatAmmo] = int32(ent.CurrentAmmo(s))
+		client.Stats[inet.StatShells] = int32(ent.AmmoShells(s))
+		client.Stats[inet.StatNails] = int32(ent.AmmoNails(s))
+		client.Stats[inet.StatRockets] = int32(ent.AmmoRockets(s))
+		client.Stats[inet.StatCells] = int32(ent.AmmoCells(s))
+		client.Stats[inet.StatActiveWeapon] = int32(ent.Weapon(s))
 	}
 	s.updateClientGlobalStats(client)
 }
@@ -850,10 +880,11 @@ func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	// Build PVS for this client
 	client.FatPVS = nil
 	if client.Edict != nil {
-		org := client.Edict.Vars.Origin
-		org[0] += client.Edict.Vars.ViewOfs[0]
-		org[1] += client.Edict.Vars.ViewOfs[1]
-		org[2] += client.Edict.Vars.ViewOfs[2]
+		org := client.Edict.Origin(s)
+		vOfs := client.Edict.ViewOfs(s)
+		org[0] += vOfs[0]
+		org[1] += vOfs[1]
+		org[2] += vOfs[2]
 		s.SV_AddToFatPVS(org, client)
 	}
 
@@ -867,107 +898,3 @@ func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	s.recordDevStatsPacketSize(msg.Len())
 }
 
-// SV_AddToFatPVS builds an expanded visibility set around a point to reduce pop-in during movement.
-func (s *Server) SV_AddToFatPVS(org [3]float32, client *Client) {
-	if s.WorldTree == nil || len(s.WorldTree.Nodes) == 0 {
-		return
-	}
-	s.sv_AddToFatPVSRecursive(org, bsp.TreeChild{Index: 0, IsLeaf: false}, client)
-}
-
-// sv_AddToFatPVSRecursive walks BSP recursively and ORs visible leaves into the client's FatPVS mask.
-func (s *Server) sv_AddToFatPVSRecursive(org [3]float32, child bsp.TreeChild, client *Client) {
-	for {
-		if child.IsLeaf {
-			leaf := &s.WorldTree.Leafs[child.Index]
-			if leaf.Contents != bsp.ContentsSolid {
-				pvs := s.WorldTree.LeafPVS(leaf)
-				if client.FatPVS == nil || len(client.FatPVS) != len(pvs) {
-					client.FatPVS = make([]byte, len(pvs))
-					copy(client.FatPVS, pvs)
-				} else {
-					for i := range pvs {
-						client.FatPVS[i] |= pvs[i]
-					}
-				}
-			}
-			return
-		}
-
-		node := &s.WorldTree.Nodes[child.Index]
-		plane := &s.WorldTree.Planes[node.PlaneNum]
-		var d float32
-		if plane.Type < 3 {
-			d = org[plane.Type] - plane.Dist
-		} else {
-			d = VecDot(org, plane.Normal) - plane.Dist
-		}
-
-		if d > 8 {
-			child = node.Children[0]
-		} else if d < -8 {
-			child = node.Children[1]
-		} else {
-			// go down both
-			s.sv_AddToFatPVSRecursive(org, node.Children[0], client)
-			child = node.Children[1]
-		}
-	}
-}
-
-// SV_VisibleToClient checks whether any entity leaf intersects the client's precomputed FatPVS.
-func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
-	if ent == nil || client.FatPVS == nil {
-		return false
-	}
-	if ent.NumLeafs >= MaxEntityLeafs {
-		return true
-	}
-	if ent.NumLeafs == 0 {
-		return false
-	}
-
-	for i := 0; i < ent.NumLeafs; i++ {
-		leafIdx := ent.LeafNums[i]
-		if leafIdx < 0 {
-			continue
-		}
-		byteIdx := leafIdx >> 3
-		if byteIdx >= len(client.FatPVS) {
-			continue
-		}
-		if (client.FatPVS[byteIdx] & (1 << (uint(leafIdx) & 7))) != 0 {
-			return true
-		}
-	}
-
-	return false
-}
-
-// SV_EdictInPVS checks whether any of the edict's leaf numbers are visible
-// in the given PVS byte array. Returns true if any leaf is set.
-func (s *Server) SV_EdictInPVS(test *Edict, pvs []byte) bool {
-	if test == nil || len(pvs) == 0 {
-		return false
-	}
-	if test.NumLeafs >= MaxEntityLeafs {
-		return true
-	}
-	if test.NumLeafs == 0 {
-		return false
-	}
-	for i := 0; i < test.NumLeafs; i++ {
-		leafIdx := test.LeafNums[i]
-		if leafIdx < 0 {
-			continue
-		}
-		byteIdx := leafIdx >> 3
-		if byteIdx < 0 || byteIdx >= len(pvs) {
-			continue
-		}
-		if (pvs[byteIdx] & (1 << (uint(leafIdx) & 7))) != 0 {
-			return true
-		}
-	}
-	return false
-}

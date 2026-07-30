@@ -216,14 +216,14 @@ func validateWalkableStandingOrigin(s *Server, origin [3]float32, sample walkabl
 		return [3]float32{}, false, sample
 	}
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Origin = origin
-	ent.Vars.Mins = walkablePlayerMins
-	ent.Vars.Maxs = walkablePlayerMaxs
-	ent.Vars.Size = [3]float32{32, 32, 56}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.AbsMin = [3]float32{origin[0] - 16, origin[1] - 16, origin[2] - 24}
-	ent.Vars.AbsMax = [3]float32{origin[0] + 16, origin[1] + 16, origin[2] + 32}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetOrigin(s, origin)
+	ent.SetMins(s, walkablePlayerMins)
+	ent.SetMaxs(s, walkablePlayerMaxs)
+	ent.SetSize(s, [3]float32{32, 32, 56})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetAbsMin(s, [3]float32{origin[0] - 16, origin[1] - 16, origin[2] - 24})
+	ent.SetAbsMax(s, [3]float32{origin[0] + 16, origin[1] + 16, origin[2] + 32})
 	if blocker := s.SV_TestEntityPosition(ent); blocker != nil {
 		sample.Reason = "lifted-entity-blocked"
 		return [3]float32{}, false, sample
@@ -238,7 +238,6 @@ func validateWalkableStandingOrigin(s *Server, origin [3]float32, sample walkabl
 	sample.Reason = "lifted-not-stationary"
 	return [3]float32{}, false, sample
 }
-
 
 func validateWalkableSpawnPoint(s *Server, origin [3]float32, sample walkableSampleFailure) ([3]float32, bool, walkableSampleFailure) {
 	worldMins, _, ok := s.modelBounds(s.ModelName)
@@ -268,16 +267,16 @@ func validateWalkableSpawnPoint(s *Server, origin [3]float32, sample walkableSam
 }
 
 func supportsStationaryMoveStep(s *Server, pos [3]float32) bool {
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Origin = pos
-	ent.Vars.Mins = walkablePlayerMins
-	ent.Vars.Maxs = walkablePlayerMaxs
-	ent.Vars.Size = [3]float32{32, 32, 56}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.MoveType = float32(MoveTypeStep)
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.AbsMin = [3]float32{pos[0] - 16, pos[1] - 16, pos[2] - 24}
-	ent.Vars.AbsMax = [3]float32{pos[0] + 16, pos[1] + 16, pos[2] + 32}
+	ent := allocPhysicsTestEdict(s)
+	ent.SetOrigin(s, pos)
+	ent.SetMins(s, walkablePlayerMins)
+	ent.SetMaxs(s, walkablePlayerMaxs)
+	ent.SetSize(s, [3]float32{32, 32, 56})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetMoveType(s, float32(MoveTypeStep))
+	ent.SetFlags(s, float32(FlagOnGround))
+	ent.SetAbsMin(s, [3]float32{pos[0] - 16, pos[1] - 16, pos[2] - 24})
+	ent.SetAbsMax(s, [3]float32{pos[0] + 16, pos[1] + 16, pos[2] + 32})
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 	defer func() {
@@ -289,11 +288,11 @@ func supportsStationaryMoveStep(s *Server, pos [3]float32) bool {
 	if blocker := s.SV_TestEntityPosition(ent); blocker != nil {
 		return false
 	}
-	original := ent.Vars.Origin
+	original := ent.Origin(s)
 	if !s.MoveStep(ent, [3]float32{}, true) {
 		return false
 	}
-	return ent.Vars.Origin == original
+	return ent.Origin(s) == original
 }
 
 var quotedEntityPairRE = regexp.MustCompile(`"([^"]+)"\s+"([^"]*)"`)
@@ -429,12 +428,12 @@ func findWalkablePointWithDiagnostics(s *Server) ([3]float32, bool, walkablePoin
 		return [3]float32{}, false, diag
 	}
 
-	if spawn := s.findLocalSpawnPoint(); spawn != nil && spawn.Vars != nil {
+	if spawn := s.findLocalSpawnPoint(); spawn != nil {
 		sample := walkableSampleFailure{
 			XI: -1,
 			YI: -1,
 		}
-		if pos, ok, sample := validateWalkableSpawnPoint(s, spawn.Vars.Origin, sample); ok {
+		if pos, ok, sample := validateWalkableSpawnPoint(s, spawn.Origin(s), sample); ok {
 			diag.setChosen(sample)
 			return pos, true, diag
 		} else {
@@ -562,8 +561,8 @@ func newSyntheticWalkableDiagnosticsServer(t *testing.T) *Server {
 	s.WorldTree = &bsp.Tree{
 		Entities: []byte("{\n\"classname\" \"info_player_start\"\n\"origin\" \"32 0 24\"\n}\n"),
 	}
-	if len(s.Edicts) > 0 && s.Edicts[0] != nil && s.Edicts[0].Vars != nil {
-		s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
+		s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 	return s
@@ -595,7 +594,7 @@ func TestFindWalkablePointFallsBackBelowSolidTopSliceInSyntheticWorld(t *testing
 func TestFindWalkablePointUsesSpawnpointOnStartMap(t *testing.T) {
 	s := newStartMapDiagnosticsServer(t)
 	spawn := s.findLocalSpawnPoint()
-	if spawn == nil || spawn.Vars == nil {
+	if spawn == nil {
 		t.Fatal("expected local spawnpoint entity on start map")
 	}
 
@@ -615,15 +614,15 @@ func TestFindWalkablePointUsesSpawnpointOnStartMap(t *testing.T) {
 	if diag.ChosenSample.XI != -1 || diag.ChosenSample.YI != -1 {
 		t.Fatalf("expected helper to use findLocalSpawnPoint first, got chosen sample %+v; %s", *diag.ChosenSample, diag.String())
 	}
-	if diag.ChosenSample.Start[0] != spawn.Vars.Origin[0] || diag.ChosenSample.Start[1] != spawn.Vars.Origin[1] {
-		t.Fatalf("chosen sample start = %v, want spawnpoint x/y %v; %s", diag.ChosenSample.Start, spawn.Vars.Origin, diag.String())
+	if diag.ChosenSample.Start[0] != spawn.Origin(s)[0] || diag.ChosenSample.Start[1] != spawn.Origin(s)[1] {
+		t.Fatalf("chosen sample start = %v, want spawnpoint x/y %v; %s", diag.ChosenSample.Start, spawn.Origin(s), diag.String())
 	}
 
-	ent := &Edict{Vars: &EntVars{}}
-	ent.Vars.Origin = pos
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
+	ent := allocPhysicsTestEdict(s)
+	ent.SetOrigin(s, pos)
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
 	s.LinkEdict(ent, false)
 	if blocker := s.SV_TestEntityPosition(ent); blocker != nil {
 		t.Fatalf("spawnpoint-derived walkable point blocked by %+v; %s", blocker, diag.String())
@@ -647,8 +646,8 @@ func TestFindWalkablePointTriesMultipleEntityLumpSpawnCandidates(t *testing.T) {
 "origin" "32 0 24"
 }`),
 	}
-	if len(s.Edicts) > 0 && s.Edicts[0] != nil && s.Edicts[0].Vars != nil {
-		s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
+		s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
@@ -685,8 +684,8 @@ func TestFindWalkablePointFallsBackAcrossEntityLumpSpawnCandidatesWithoutPakAsse
 "origin" "64 0 24"
 }`),
 	}
-	if len(s.Edicts) > 0 && s.Edicts[0] != nil && s.Edicts[0].Vars != nil {
-		s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
+		s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 

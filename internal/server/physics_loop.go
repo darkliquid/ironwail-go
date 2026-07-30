@@ -114,7 +114,7 @@ func (s *Server) Physics() {
 		// Without this, IntermissionThink in QC never fires during intermission
 		// (player movetype = MOVETYPE_NONE) and attack/enter cannot progress the level.
 		var clientForPostThink *Client
-		if MoveType(ent.Vars.MoveType) != MoveTypeWalk {
+		if MoveType(ent.MoveType(s)) != MoveTypeWalk {
 			if pc := s.playerClient(ent); pc != nil {
 				phaseBegin()
 				s.runClientQCThinkWithMode(pc, "PlayerPreThink", false)
@@ -128,7 +128,7 @@ func (s *Server) Physics() {
 			}
 		}
 
-		moveType := MoveType(ent.Vars.MoveType)
+		moveType := MoveType(ent.MoveType(s))
 		switch moveType {
 		case MoveTypePush:
 			physicsPushCount++
@@ -161,7 +161,7 @@ func (s *Server) Physics() {
 			s.PhysicsWalk(ent)
 			phaseEnd(&physicsWalkMS)
 		default:
-			slog.Warn("server physics: bad movetype; skipping entity", "movetype", int(ent.Vars.MoveType), "edict", i)
+			slog.Warn("server physics: bad movetype; skipping entity", "movetype", int(ent.MoveType(s)), "edict", i)
 			continue
 		}
 
@@ -171,7 +171,7 @@ func (s *Server) Physics() {
 		// MOVETYPE_NONE during intermission) need it here so trigger touches
 		// fire even for stationary clients.
 		if clientForPostThink != nil && !ent.Free {
-			if MoveType(ent.Vars.MoveType) != MoveTypeWalk {
+			if MoveType(ent.MoveType(s)) != MoveTypeWalk {
 				phaseBegin()
 				s.LinkEdict(ent, true)
 				phaseEnd(&forceRetouchMS)
@@ -183,12 +183,14 @@ func (s *Server) Physics() {
 
 		phaseBegin()
 		ent.SendInterval = false
-		if !ent.Free && ent.Vars.NextThink > s.Time &&
-			(moveType == MoveTypeStep || moveType == MoveTypeWalk || ent.Vars.Frame != ent.OldFrame) {
+		nextThink := ent.NextThink(s)
+		frame := ent.Frame(s)
+		if !ent.Free && nextThink > s.Time &&
+			(moveType == MoveTypeStep || moveType == MoveTypeWalk || frame != ent.OldFrame) {
 			// Encode the interval to next think as a byte (0-255).
 			// Values 25 and 26 are close enough to 0.1 (the client default)
 			// that sending them would be redundant.
-			j := int(math.Round(float64((ent.Vars.NextThink - ent.OldThinkTime) * 255)))
+			j := int(math.Round(float64((nextThink - ent.OldThinkTime) * 255)))
 			if j >= 0 && j < 256 && j != 25 && j != 26 {
 				ent.SendInterval = true
 			}
