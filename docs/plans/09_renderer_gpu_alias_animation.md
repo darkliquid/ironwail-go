@@ -1,7 +1,7 @@
 # Implementation Plan: GPU Alias Model Animation & Renderer Performance
 
 **Priority**: #1 (Post Zero-Sync Rendering Bottleneck)  
-**Status**: Completed (Merged in commit `cae8d3f`)  
+**Status**: Partially Completed — Wave 1 done (`24a34f3`), Wave 2 partially done (`4c40eb4`, GPU matrix transforms only; CPU keyframe interpolation remains), Wave 3 partially done (`cae8d3f`, CPU loop optimization only; GPU lightstyle uniform not yet implemented)
 **Target Milestone**: Phase 1.5  
 
 ---
@@ -52,21 +52,24 @@ Transition alias model keyframe interpolation, vertex transformation, and matrix
 
 ## 3. Phased Execution Plan
 
-### Phase 1: Allocation & Scratch Buffer Reuse (Wave 1)
-- [ ] Create `AliasScratchBuffer` in `DrawContext` with 64KB initial size.
-- [ ] Refactor `buildAliasVerticesInterpolatedInto` to use `AliasScratchBuffer` instead of allocating per entity.
-- [ ] Verify zero heap allocations in `aliasVertexBytesInto` via `go test -bench`.
+### Phase 1: Allocation & Scratch Buffer Reuse (Wave 1) — COMPLETED (commit `24a34f3`)
+- [x] Create `AliasScratchBuffer` in `DrawContext` with 64KB initial size.
+- [x] Refactor `buildAliasVerticesInterpolatedInto` to use `AliasScratchBuffer` instead of allocating per entity.
+- [x] Verify zero heap allocations in `aliasVertexBytesInto` via `go test -bench`.
 
-### Phase 2: GPU Keyframe Shader Migration (Wave 2)
+### Phase 2: GPU Keyframe Shader Migration (Wave 2) — PARTIALLY DONE (commit `4c40eb4`)
 - [ ] Extend MDL model loader to generate GPU vertex buffers for all keyframes (`KeyframeBuffers`).
 - [ ] Add instance uniform struct `AliasInstanceParams`: `[16]float32 matrix`, `int frame1`, `int frame2`, `float32 lerp`.
-- [ ] Update `alias.wgsl` vertex shader to read keyframe positions and perform lerp + matrix transformation on GPU.
-- [ ] Remove `alias.RotateYaw`, `alias.InterpolateVertexPosition`, `alias.BuildVerticesInterpolatedInto` CPU loops from hot rendering path.
+- [x] Update WGSL alias vertex shader to apply 4x4 model matrix transformation on GPU (`AliasEntityModelMatrix` helper added).
+- [x] Remove `alias.RotateYaw` / `RotateAngles` CPU trig calls from hot rendering path (matrix math offloaded to GPU).
+- [ ] Perform keyframe lerp `mix(frame1_pos, frame2_pos, lerp)` inside the GPU vertex shader (currently still done CPU-side via `InterpolateVertexPosition`).
+- [ ] Remove `alias.InterpolateVertexPosition`, `alias.BuildVerticesInterpolatedInto` CPU loops from hot rendering path.
 
-### Phase 3: Dynamic Lightstyle Uniform Shader Upgrade (Wave 3)
+### Phase 3: Dynamic Lightstyle Uniform Shader Upgrade (Wave 3) — PARTIALLY DONE (commit `cae8d3f`)
 - [ ] Add `@group(0) @binding(3) var<uniform> lightstyles: array<vec4<f32>, 64>;` to world fragment shader.
 - [ ] Update `Server.Frame` / `Renderer.OnDraw` to update lightstyle array uniform per frame (64 floats) instead of re-compositing surface lightmap RGBA textures.
 - [ ] Remove `compositeWorldLightmapSurfaceRGBA` dirty surface re-composition loop.
+- [x] Optimize `compositeWorldLightmapSurfaceRGBA` with loop unrolling and precomputed scales (CPU-side optimization, not full GPU migration).
 
 ---
 

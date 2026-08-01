@@ -1,6 +1,7 @@
 # Fix Remaining Test Failures After EntVars Deletion
 
 **Priority**: High — 62 failing tests across 3 packages blocking green CI
+**Status**: Completed (All 45 test packages pass green — fixed in commits `86a1a27` through `f5de2c5`)
 **Prerequisite**: Commit `47df06d` (EntVars struct deleted, production code builds clean)
 **Estimated effort**: 1 focused session
 

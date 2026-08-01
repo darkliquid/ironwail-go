@@ -1,7 +1,7 @@
 # Phase 3: Complete Zero-Sync QCVM — EntVars Removal
 
 **Priority**: Critical (fixes trigger/door/button regressions)
-**Status**: Planning
+**Status**: Completed (Merged in commit `47df06d` — EntVars struct deleted, all production code migrated to QCVM accessors)
 **Depends on**: Phase 1 & 2 (done — `syncQCVMGlobals` extracted, `touchLinks`/`LinkEdict` migrated)
 
 ---

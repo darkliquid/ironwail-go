@@ -1,6 +1,7 @@
 # Follow-Up Plan: Complete EntVars Deletion (Phase 3 Wave 9)
 
 **Priority**: High (architectural cleanup, removes ~400 lines of sync code)
+**Status**: Completed (Merged in commit `47df06d`)
 **Prerequisite**: Commit `5efdd1a` (stable baseline — build clean, all tests pass)
 **Estimated effort**: 1-2 focused sessions
 

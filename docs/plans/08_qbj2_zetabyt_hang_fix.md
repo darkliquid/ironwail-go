@@ -1,7 +1,7 @@
 # Implementation Plan: Fix `qbj2_zetabyt` Map Load Hang
 
 **Priority**: P0 (blocking — map completely hangs the engine on load)
-**Status**: Planned
+**Status**: Completed (Fixed in commits `f865138` and `ea76301`)
 **Target Milestone**: Pre-Phase 5
 
 ---
