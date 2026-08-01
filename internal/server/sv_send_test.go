@@ -96,9 +96,7 @@ func TestEntityStateForClient_ReadsQCAlphaScale(t *testing.T) {
 		QCFieldAlpha: 0,
 		QCFieldScale: 1,
 	}
-	newServerTestVM(s, 8)
-	ent := &Edict{
-			}
+	ent := &Edict{Num: 1}
 
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {

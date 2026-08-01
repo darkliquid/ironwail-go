@@ -29,7 +29,7 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
-	newServerTestVM(s, 9000)
+	s.QCVM.NumEdicts = 9001
 
 	const (
 		entNum   = 8192
@@ -38,6 +38,7 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 	)
 	s.SoundPrecache[soundNum] = "misc/large.wav"
 	ent := &Edict{Num: entNum}
+	ent.SetOrigin(s, [3]float32{10, 0, 0})
 	ent.SetMins(s, [3]float32{-2, -4, -6})
 	ent.SetMaxs(s, [3]float32{2, 4, 6})
 	s.Edicts = make([]*Edict, entNum+1)

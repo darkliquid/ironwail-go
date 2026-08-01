@@ -101,6 +101,7 @@ func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
 		NumEdicts: 2,
 	}
 	newServerTestVM(s, 8)
+	ent.SetOrigin(s, [3]float32{64, 0, 0})
 
 	currentState, ok := s.entityStateForClient(1, ent)
 	if !ok {

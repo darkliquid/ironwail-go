@@ -101,7 +101,8 @@ func TestSpawnCommandWritesSkyboxName(t *testing.T) {
 
 func TestWriteSpawnSetAngleUsesSpawnAnglesForFreshSpawn(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake}
-	client := &Client{Edict: &Edict{}}
+	newServerTestVM(s, 8)
+	client := &Client{Edict: &Edict{Num: 1}}
 	client.Edict.SetAngles(s, [3]float32{10, 20, 30})
 	client.Edict.SetVAngle(s, [3]float32{90, 180, 270})
 
@@ -125,7 +126,8 @@ func TestWriteSpawnSetAngleUsesSpawnAnglesForFreshSpawn(t *testing.T) {
 
 func TestWriteSpawnSetAngleUsesViewAnglesForLoadGame(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake, LoadGame: true}
-	client := &Client{Edict: &Edict{}}
+	newServerTestVM(s, 8)
+	client := &Client{Edict: &Edict{Num: 1}}
 	client.Edict.SetAngles(s, [3]float32{10, 20, 30})
 	client.Edict.SetVAngle(s, [3]float32{90, 180, 270})
 
