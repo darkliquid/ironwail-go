@@ -260,6 +260,7 @@ func (s *Server) RestoreSaveGameState(state *SaveGameState) error {
 	s.Edicts = make([]*Edict, len(state.Edicts))
 	for i, saved := range state.Edicts {
 		ent := &Edict{
+			Num:            i,
 			Free:           saved.Free,
 			Alpha:          saved.Alpha,
 			Scale:          saved.Scale,

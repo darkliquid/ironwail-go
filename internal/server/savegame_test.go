@@ -90,34 +90,34 @@ func TestSaveGameStateRoundTripsGameplayState(t *testing.T) {
 	if restoredPlayer == nil {
 		t.Fatal("restored player edict missing")
 	}
-	if got := restoredPlayer.Health(srv); got != 87 {
+	if got := restoredPlayer.Health(restored); got != 87 {
 		t.Fatalf("restored health = %v, want 87", got)
 	}
-	if got := restoredPlayer.CurrentAmmo(srv); got != 19 {
+	if got := restoredPlayer.CurrentAmmo(restored); got != 19 {
 		t.Fatalf("restored current ammo = %v, want 19", got)
 	}
-	if got := restoredPlayer.AmmoShells(srv); got != 31 {
+	if got := restoredPlayer.AmmoShells(restored); got != 31 {
 		t.Fatalf("restored shells = %v, want 31", got)
 	}
-	if got := restoredPlayer.AmmoNails(srv); got != 42 {
+	if got := restoredPlayer.AmmoNails(restored); got != 42 {
 		t.Fatalf("restored nails = %v, want 42", got)
 	}
-	if got := restoredPlayer.AmmoRockets(srv); got != 5 {
+	if got := restoredPlayer.AmmoRockets(restored); got != 5 {
 		t.Fatalf("restored rockets = %v, want 5", got)
 	}
-	if got := restoredPlayer.AmmoCells(srv); got != 63 {
+	if got := restoredPlayer.AmmoCells(restored); got != 63 {
 		t.Fatalf("restored cells = %v, want 63", got)
 	}
-	if got := restoredPlayer.Weapon(srv); got != 7 {
+	if got := restoredPlayer.Weapon(restored); got != 7 {
 		t.Fatalf("restored weapon = %v, want 7", got)
 	}
-	if got := restoredPlayer.Items(srv); got != (0x0001 | 0x0004 | 0x0100) {
+	if got := restoredPlayer.Items(restored); got != (0x0001 | 0x0004 | 0x0100) {
 		t.Fatalf("restored items = %v, want %v", got, float32(0x0001|0x0004|0x0100))
 	}
-	if got := restoredPlayer.ArmorType(srv); got != 0.8 {
+	if got := restoredPlayer.ArmorType(restored); got != 0.8 {
 		t.Fatalf("restored armor type = %v, want 0.8", got)
 	}
-	if got := restoredPlayer.ArmorValue(srv); got != 145 {
+	if got := restoredPlayer.ArmorValue(restored); got != 145 {
 		t.Fatalf("restored armor value = %v, want 145", got)
 	}
 
