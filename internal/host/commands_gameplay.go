@@ -48,9 +48,10 @@ func (h *Host) CmdGod(subs *Subsystems) {
 	if ent == nil {
 		return
 	}
-	ent.Vars.Flags = float32(uint32(ent.Vars.Flags) ^ server.FlagGodMode)
+	srv, _ := subs.Server.(*server.Server)
+	ent.SetFlags(srv, float32(uint32(ent.Flags(srv))^server.FlagGodMode))
 	if subs.Console != nil {
-		if uint32(ent.Vars.Flags)&server.FlagGodMode != 0 {
+		if uint32(ent.Flags(srv))&server.FlagGodMode != 0 {
 			subs.Console.Print("godmode ON\n")
 		} else {
 			subs.Console.Print("godmode OFF\n")
@@ -68,13 +69,14 @@ func (h *Host) CmdNoClip(subs *Subsystems) {
 	if ent == nil {
 		return
 	}
-	if server.MoveType(ent.Vars.MoveType) == server.MoveTypeNoClip {
-		ent.Vars.MoveType = float32(server.MoveTypeWalk)
+	srv, _ := subs.Server.(*server.Server)
+	if server.MoveType(ent.MoveType(srv)) == server.MoveTypeNoClip {
+		ent.SetMoveType(srv, float32(server.MoveTypeWalk))
 		if subs.Console != nil {
 			subs.Console.Print("noclip OFF\n")
 		}
 	} else {
-		ent.Vars.MoveType = float32(server.MoveTypeNoClip)
+		ent.SetMoveType(srv, float32(server.MoveTypeNoClip))
 		if subs.Console != nil {
 			subs.Console.Print("noclip ON\n")
 		}
@@ -91,13 +93,14 @@ func (h *Host) CmdFly(subs *Subsystems) {
 	if ent == nil {
 		return
 	}
-	if server.MoveType(ent.Vars.MoveType) == server.MoveTypeFly {
-		ent.Vars.MoveType = float32(server.MoveTypeWalk)
+	srv, _ := subs.Server.(*server.Server)
+	if server.MoveType(ent.MoveType(srv)) == server.MoveTypeFly {
+		ent.SetMoveType(srv, float32(server.MoveTypeWalk))
 		if subs.Console != nil {
 			subs.Console.Print("fly OFF\n")
 		}
 	} else {
-		ent.Vars.MoveType = float32(server.MoveTypeFly)
+		ent.SetMoveType(srv, float32(server.MoveTypeFly))
 		if subs.Console != nil {
 			subs.Console.Print("fly ON\n")
 		}
@@ -114,9 +117,10 @@ func (h *Host) CmdNotarget(subs *Subsystems) {
 	if ent == nil {
 		return
 	}
-	ent.Vars.Flags = float32(uint32(ent.Vars.Flags) ^ server.FlagNoTarget)
+	srv, _ := subs.Server.(*server.Server)
+	ent.SetFlags(srv, float32(uint32(ent.Flags(srv))^server.FlagNoTarget))
 	if subs.Console != nil {
-		if uint32(ent.Vars.Flags)&server.FlagNoTarget != 0 {
+		if uint32(ent.Flags(srv))&server.FlagNoTarget != 0 {
 			subs.Console.Print("notarget ON\n")
 		} else {
 			subs.Console.Print("notarget OFF\n")
@@ -132,8 +136,10 @@ func (h *Host) CmdTracepos(subs *Subsystems) {
 		return
 	}
 
-	forward, _, _ := qtypes.AngleVectors(qtypes.Vec3{X: ent.Vars.VAngle[0], Y: ent.Vars.VAngle[1], Z: ent.Vars.VAngle[2]})
-	start := ent.Vars.Origin
+	srv, _ := subs.Server.(*server.Server)
+	entVAngle := ent.VAngle(srv)
+	forward, _, _ := qtypes.AngleVectors(qtypes.Vec3{X: entVAngle[0], Y: entVAngle[1], Z: entVAngle[2]})
+	start := ent.Origin(srv)
 	start[2] += 22 // eye height
 	end := [3]float32{
 		start[0] + forward.X*8192,
@@ -141,14 +147,13 @@ func (h *Host) CmdTracepos(subs *Subsystems) {
 		start[2] + forward.Z*8192,
 	}
 
-	srv, _ := subs.Server.(*server.Server)
 	trace := srv.Move(start, [3]float32{}, [3]float32{}, end, server.MoveType(server.MoveNormal), ent)
 
 	subs.Console.Print(fmt.Sprintf("trace at: %.1f %.1f %.1f\n", trace.EndPos[0], trace.EndPos[1], trace.EndPos[2]))
 	subs.Console.Print(fmt.Sprintf("fraction: %.4f\n", trace.Fraction))
 	if trace.Entity != nil {
 		entNum := srv.NumForEdict(trace.Entity)
-		className := srv.String(trace.Entity.Vars.ClassName)
+		className := srv.String(trace.Entity.ClassName(srv))
 		subs.Console.Print(fmt.Sprintf("hit entity %d: %s\n", entNum, className))
 	} else {
 		subs.Console.Print("hit world\n")
@@ -373,21 +378,22 @@ func (h *Host) CmdGive(item, value string, subs *Subsystems) {
 		val = 100
 	}
 
+	srv, _ := subs.Server.(*server.Server)
 	switch item {
 	case "h":
-		ent.Vars.Health += val
+		ent.SetHealth(srv, ent.Health(srv)+val)
 		subs.Console.Print(fmt.Sprintf("Gave %.0f health\n", val))
 	case "s":
-		ent.Vars.AmmoShells += val
+		ent.SetAmmoShells(srv, ent.AmmoShells(srv)+val)
 		subs.Console.Print(fmt.Sprintf("Gave %.0f shells\n", val))
 	case "n":
-		ent.Vars.AmmoNails += val
+		ent.SetAmmoNails(srv, ent.AmmoNails(srv)+val)
 		subs.Console.Print(fmt.Sprintf("Gave %.0f nails\n", val))
 	case "r":
-		ent.Vars.AmmoRockets += val
+		ent.SetAmmoRockets(srv, ent.AmmoRockets(srv)+val)
 		subs.Console.Print(fmt.Sprintf("Gave %.0f rockets\n", val))
 	case "c":
-		ent.Vars.AmmoCells += val
+		ent.SetAmmoCells(srv, ent.AmmoCells(srv)+val)
 		subs.Console.Print(fmt.Sprintf("Gave %.0f cells\n", val))
 	default:
 		subs.Console.Print(fmt.Sprintf("give %s %s (not supported)\n", item, value))

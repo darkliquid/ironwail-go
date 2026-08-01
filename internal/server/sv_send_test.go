@@ -241,8 +241,7 @@ func TestBuildClientDatagramUsesEyePositionForFatPVS(t *testing.T) {
 			Models:     []bsp.DModel{{VisLeafs: 2}},
 		},
 	}
-	client := &Client{Edict: &Edict{		ViewOfs: [3]float32{128, 0, 0},
-	}}}
+	client := &Client{Edict: &Edict{}}
 	msg := NewMessageBuffer(128)
 
 	s.buildClientDatagram(client, msg)
@@ -355,9 +354,9 @@ func TestWriteEntitiesToClientCullOtherPlayersByPVS(t *testing.T) {
 		ModelPrecache: []string{"", "progs/player.mdl"},
 		NumEdicts:     3,
 		Edicts: []*Edict{
-			{Vars: &EntVars{}},
-			{Vars: &EntVars{Origin: [3]float32{0, 0, 0}, ModelIndex: 1}},
-			{Vars: &EntVars{Origin: [3]float32{64, 0, 0}, ModelIndex: 1}},
+			{},
+			{Num: 1},
+			{Num: 2},
 		},
 	}
 	s.Static.Clients = []*Client{{Edict: s.Edicts[1], FatPVS: []byte{0x01}, EntityStates: map[int]EntityState{}}}

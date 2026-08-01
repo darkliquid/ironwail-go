@@ -82,7 +82,7 @@ func (s *Server) AllocEdict() *Edict {
 	for i, e := range s.Edicts {
 		if e.Free && (e.FreeTime < 2 || s.Time-e.FreeTime > 0.5) {
 			UnlinkEdict(e)
-			*e = Edict{Num: i, Vars: &EntVars{}}
+			*e = Edict{Num: i}
 			s.NumEdicts = max(s.NumEdicts, i+1)
 			s.ensureQCVMEdictStorage()
 			clearQCVMEdictData(s.QCVM, i)
@@ -95,7 +95,7 @@ func (s *Server) AllocEdict() *Edict {
 		return nil
 	}
 
-	e := &Edict{Num: len(s.Edicts), Vars: &EntVars{}}
+	e := &Edict{Num: len(s.Edicts)}
 	s.Edicts = append(s.Edicts, e)
 	s.NumEdicts = len(s.Edicts)
 	s.ensureQCVMEdictStorage()
@@ -110,7 +110,6 @@ func (s *Server) FreeEdict(e *Edict) {
 		return
 	}
 	UnlinkEdict(e)
-	e.Vars = &EntVars{}
 	e.Alpha = inet.ENTALPHA_DEFAULT
 	e.Scale = inet.ENTSCALE_DEFAULT
 	e.Free = true
@@ -193,8 +192,8 @@ func (s *Server) SetClientName(clientNum int, name string) {
 		name = name[:15]
 	}
 	client.Name = name
-	if client.Edict != nil && client.Edict.Vars != nil && s.QCVM != nil {
-		client.Edict.Vars.NetName = s.QCVM.AllocString(name)
+	if client.Edict != nil && s.QCVM != nil {
+		client.Edict.SetNetName(s, s.QCVM.AllocString(name))
 	}
 	s.broadcastClientNameUpdate(clientNum, name)
 }
@@ -220,8 +219,8 @@ func (s *Server) SetClientColor(clientNum int, color int) {
 		return
 	}
 	client.Color = color
-	if client.Edict != nil && client.Edict.Vars != nil {
-		client.Edict.Vars.Team = float32((color & 15) + 1)
+	if client.Edict != nil {
+		client.Edict.SetTeam(s, float32((color&15)+1))
 	}
 	s.broadcastClientColorUpdate(clientNum, color)
 }
@@ -254,13 +253,13 @@ func (s *Server) KillClient(clientNum int) bool {
 	if client == nil || !client.Active || client.Edict == nil || client.Edict.Free {
 		return false
 	}
-	if client.Edict.Vars.Health <= 0 {
+	if client.Edict.Health(s) <= 0 {
 		s.SV_ClientPrintf(client, "Can't suicide -- already dead!\n")
 		return false
 	}
 	if err := s.runClientKillQC(client); err != nil {
-		client.Edict.Vars.Health = 0
-		client.Edict.Vars.DeadFlag = float32(DeadDead)
+		client.Edict.SetHealth(s, 0)
+		client.Edict.SetDeadFlag(s, float32(DeadDead))
 		return true
 	}
 	return true

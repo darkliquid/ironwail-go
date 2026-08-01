@@ -284,10 +284,10 @@ func (g *Game) updateHUDFromServer() {
 		return
 	}
 	g.HUD.SetState(hud.State{
-		Health:      int(ent.Vars.Health),
-		Armor:       int(ent.Vars.ArmorValue),
-		Ammo:        int(ent.Vars.CurrentAmmo),
-		WeaponModel: int(ent.Vars.Weapon),
+		Health:      int(ent.Health(g.Server)),
+		Armor:       int(ent.ArmorValue(g.Server)),
+		Ammo:        int(ent.CurrentAmmo(g.Server)),
+		WeaponModel: int(ent.Weapon(g.Server)),
 	})
 }
 

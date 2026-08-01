@@ -145,7 +145,7 @@ func (s *Server) RestoreTextSaveGameState(state *TextSaveGameState) error {
 			if entnum < em.numEdicts {
 				em.ED_ClearEdict(entnum)
 			} else {
-				s.Edicts[entnum] = &Edict{Vars: &EntVars{}, Scale: 16}
+				s.Edicts[entnum] = &Edict{Scale: 16}
 				clearQCVMEdictData(s.QCVM, entnum)
 			}
 			data, err = em.ED_ParseEdict(blockData, entnum)

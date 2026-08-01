@@ -54,16 +54,15 @@ func TestCheckAutosaveTriggersAtConfiguredInterval(t *testing.T) {
 	h.signOns = 1
 	h.realtime = 100
 
-	server := &autosaveTestServer{
+	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict: &server.Edict{Vars: &server.EntVars{
-			Health:   100,
-			MoveType: float32(server.MoveTypeWalk),
-		}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 100)
+	srv.edict.SetMoveType(nil, float32(server.MoveTypeWalk))
 	commands := &autosaveCommandBuffer{}
-	subs := &Subsystems{Server: server, Commands: commands}
+	subs := &Subsystems{Server: srv, Commands: commands}
 
 	h.checkAutosave(subs)
 	if len(commands.added) != 1 || commands.added[0] != "save \"autosave/start\" 0\n" {
@@ -91,13 +90,14 @@ func TestCheckAutosaveSkippedInMultiplayer(t *testing.T) {
 	h.signOns = 1
 	h.realtime = 100
 
-	server := &autosaveTestServer{
+	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 2,
-		edict:      &server.Edict{Vars: &server.EntVars{Health: 100}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 100)
 	commands := &autosaveCommandBuffer{}
-	subs := &Subsystems{Server: server, Commands: commands}
+	subs := &Subsystems{Server: srv, Commands: commands}
 
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
@@ -114,13 +114,14 @@ func TestCheckAutosaveSkippedWhenDisabled(t *testing.T) {
 	h.signOns = 1
 	h.realtime = 100
 
-	server := &autosaveTestServer{
+	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict:      &server.Edict{Vars: &server.EntVars{Health: 100}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 100)
 	commands := &autosaveCommandBuffer{}
-	subs := &Subsystems{Server: server, Commands: commands}
+	subs := &Subsystems{Server: srv, Commands: commands}
 
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
@@ -136,15 +137,16 @@ func TestCheckAutosaveSkippedDuringIntermission(t *testing.T) {
 	h.signOns = 1
 	h.realtime = 100
 
-	server := &autosaveTestServer{
+	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict:      &server.Edict{Vars: &server.EntVars{Health: 100}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 100)
 	client := newLocalLoopbackClient()
 	client.inner.Intermission = 1
 	commands := &autosaveCommandBuffer{}
-	subs := &Subsystems{Server: server, Client: client, Commands: commands}
+	subs := &Subsystems{Server: srv, Client: client, Commands: commands}
 
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
@@ -160,13 +162,14 @@ func TestCheckAutosaveSkippedForDeadPlayer(t *testing.T) {
 	h.signOns = 1
 	h.realtime = 100
 
-	server := &autosaveTestServer{
+	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict:      &server.Edict{Vars: &server.EntVars{Health: 0}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 0)
 	commands := &autosaveCommandBuffer{}
-	subs := &Subsystems{Server: server, Commands: commands}
+	subs := &Subsystems{Server: srv, Commands: commands}
 
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
@@ -185,11 +188,10 @@ func TestCheckAutosaveSkippedForMoveTypeNonePlayer(t *testing.T) {
 	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict: &server.Edict{Vars: &server.EntVars{
-			Health:   100,
-			MoveType: float32(server.MoveTypeNone),
-		}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 100)
+	srv.edict.SetMoveType(nil, float32(server.MoveTypeNone))
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: srv, Commands: commands}
 
@@ -210,11 +212,7 @@ func TestCheckAutosaveSkippedForFastPlayer(t *testing.T) {
 	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict: &server.Edict{Vars: &server.EntVars{
-			Health:   100,
-			MoveType: float32(server.MoveTypeWalk),
-			Velocity: [3]float32{101, 0, 0},
-		}},
+		edict: &server.Edict{},
 	}
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: srv, Commands: commands}
@@ -235,11 +233,10 @@ func TestCheckAutosaveWaitsAfterRecentDamage(t *testing.T) {
 	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict: &server.Edict{Vars: &server.EntVars{
-			Health:   100,
-			MoveType: float32(server.MoveTypeWalk),
-		}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 100)
+	srv.edict.SetMoveType(nil, float32(server.MoveTypeWalk))
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: srv, Commands: commands}
 
@@ -249,7 +246,7 @@ func TestCheckAutosaveWaitsAfterRecentDamage(t *testing.T) {
 		t.Fatalf("initial autosave queued %d commands before minimum elapsed time, want 0", got)
 	}
 
-	srv.edict.Vars.Health = 90
+	srv.edict.SetHealth(nil, 90)
 	h.realtime = 2
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
@@ -279,25 +276,24 @@ func TestCheckAutosaveWaitsAfterRecentShot(t *testing.T) {
 	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict: &server.Edict{Vars: &server.EntVars{
-			Health:   100,
-			MoveType: float32(server.MoveTypeWalk),
-		}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 100)
+	srv.edict.SetMoveType(nil, float32(server.MoveTypeWalk))
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: srv, Commands: commands}
 
 	h.realtime = 1
 	h.checkAutosave(subs)
 
-	srv.edict.Vars.Button0 = 1
+	srv.edict.SetButton0(nil, 1)
 	h.realtime = 2
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
 		t.Fatalf("autosave queued %d commands immediately after shot, want 0", got)
 	}
 
-	srv.edict.Vars.Button0 = 0
+	srv.edict.SetButton0(nil, 0)
 	h.realtime = 4
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
@@ -323,11 +319,10 @@ func TestCheckAutosaveCheatTimeDoesNotAdvanceScore(t *testing.T) {
 	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict: &server.Edict{Vars: &server.EntVars{
-			Health:   100,
-			MoveType: float32(server.MoveTypeNoClip),
-		}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 100)
+	srv.edict.SetMoveType(nil, float32(server.MoveTypeNoClip))
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: srv, Commands: commands}
 
@@ -336,7 +331,7 @@ func TestCheckAutosaveCheatTimeDoesNotAdvanceScore(t *testing.T) {
 		t.Fatalf("noclip autosave queued %d commands, want 0", got)
 	}
 
-	srv.edict.Vars.MoveType = float32(server.MoveTypeWalk)
+	srv.edict.SetMoveType(nil, float32(server.MoveTypeWalk))
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
 		t.Fatalf("autosave queued %d commands without enough non-cheat elapsed time, want 0", got)
@@ -360,12 +355,11 @@ func TestCheckAutosaveTeleportBoostCanTriggerEarlySave(t *testing.T) {
 	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict: &server.Edict{Vars: &server.EntVars{
-			Health:       100,
-			MoveType:     float32(server.MoveTypeWalk),
-			TeleportTime: 3.5,
-		}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 100)
+	srv.edict.SetMoveType(nil, float32(server.MoveTypeWalk))
+	srv.edict.SetTeleportTime(nil, 3.5)
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: srv, Commands: commands}
 
@@ -385,19 +379,18 @@ func TestCheckAutosaveWaitsAfterHazardDamageAbove100Health(t *testing.T) {
 	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict: &server.Edict{Vars: &server.EntVars{
-			Health:    120,
-			MoveType:  float32(server.MoveTypeWalk),
-			WaterType: float32(bsp.ContentsLava),
-		}},
+		edict:      &server.Edict{},
 	}
+	srv.edict.SetHealth(nil, 120)
+	srv.edict.SetMoveType(nil, float32(server.MoveTypeWalk))
+	srv.edict.SetWaterType(nil, float32(bsp.ContentsLava))
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: srv, Commands: commands}
 
 	h.realtime = 1
 	h.checkAutosave(subs)
 
-	srv.edict.Vars.Health = 118
+	srv.edict.SetHealth(nil, 118)
 	h.realtime = 2
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {

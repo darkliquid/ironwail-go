@@ -242,10 +242,11 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 	}
 	if srv.Static != nil {
 		for _, client := range srv.Static.Clients {
-			if client == nil || !client.Active || client.Edict == nil || client.Edict.Vars == nil {
+			if client == nil || !client.Active || client.Edict == nil {
 				continue
 			}
-			if client.Edict.Vars.Health <= 0 {
+			srv, _ := subs.Server.(*server.Server)
+			if client.Edict.Health(srv) <= 0 {
 				subs.Console.Print("Can't savegame with a dead player\n")
 				return
 			}

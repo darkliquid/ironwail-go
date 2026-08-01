@@ -153,7 +153,7 @@ func TestBuildSignonBuffers_WritesSpawnBaselines(t *testing.T) {
 		},
 		NumEdicts: 2,
 		Edicts: []*Edict{
-			{Free: true, Vars: &EntVars{}}, // skipped
+			{Free: true}, // skipped
 			{
 							},
 		},

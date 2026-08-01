@@ -52,7 +52,7 @@ func (m *mockServer) SetClientName(clientNum int, name string)          {}
 func (m *mockServer) ClientColor(clientNum int) int                  { return 0 }
 func (m *mockServer) SetClientColor(clientNum int, color int)           {}
 func (m *mockServer) ClientPing(clientNum int) float32               { return 0 }
-func (m *mockServer) EdictNum(n int) *server.Edict                      { return &server.Edict{Vars: &server.EntVars{}} }
+func (m *mockServer) EdictNum(n int) *server.Edict                      { return &server.Edict{} }
 func (m *mockServer) MapName() string {
 	if m.mapName != "" {
 		return m.mapName

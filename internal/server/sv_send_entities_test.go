@@ -86,9 +86,8 @@ func TestWriteEntityUpdate_SetsUStepForStepMoveType(t *testing.T) {
 func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
 	t.Parallel()
 
-	ent := &Edict{
-				},
-	}
+	ent := &Edict{}
+
 	client := &Client{
 		Edict:        ent,
 		EntityStates: make(map[int]EntityState),
@@ -96,7 +95,7 @@ func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
 	s := &Server{
 		Protocol:  ProtocolFitzQuake,
 		Static:    &ServerStatic{MaxClients: 1},
-		Edicts:    []*Edict{{Vars: &EntVars{}}, ent},
+		Edicts:    []*Edict{{}, ent},
 		NumEdicts: 2,
 	}
 
@@ -137,7 +136,7 @@ func TestWriteEntitiesToClient_OmitsLerpFinishWithoutSendInterval(t *testing.T) 
 		Protocol:      ProtocolFitzQuake,
 		Static:        &ServerStatic{MaxClients: 0},
 		ModelPrecache: []string{"", "*1"},
-		Edicts:        []*Edict{{Vars: &EntVars{}}, ent},
+		Edicts:        []*Edict{{}, ent},
 		NumEdicts:     2,
 	}
 	state, ok := s.entityStateForClient(1, ent)
@@ -179,7 +178,7 @@ func TestWriteEntitiesToClient_EmitsLerpFinishOnlyWhenSendIntervalSet(t *testing
 		Protocol:      ProtocolFitzQuake,
 		Static:        &ServerStatic{MaxClients: 0},
 		ModelPrecache: []string{"", "*1"},
-		Edicts:        []*Edict{{Vars: &EntVars{}}, ent},
+		Edicts:        []*Edict{{}, ent},
 		NumEdicts:     2,
 	}
 	state, ok := s.entityStateForClient(1, ent)
@@ -207,7 +206,6 @@ func TestWriteEntitiesToClient_EmitsVisibleBaselineEqualBrushEntity(t *testing.T
 	t.Parallel()
 
 	ent := &Edict{
-				},
 		NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 0
@@ -220,7 +218,7 @@ func TestWriteEntitiesToClient_EmitsVisibleBaselineEqualBrushEntity(t *testing.T
 		Protocol:      ProtocolFitzQuake,
 		Static:        &ServerStatic{MaxClients: 0},
 		ModelPrecache: []string{"", "*1"},
-		Edicts:        []*Edict{{Vars: &EntVars{}}, ent},
+		Edicts:        []*Edict{{}, ent},
 		NumEdicts:     2,
 	}
 	state, ok := s.entityStateForClient(1, ent)

@@ -41,7 +41,7 @@ func (s *Server) writeSpawnClientRoster(_ *Client, msg *MessageBuffer) {
 		if rosterClient != nil {
 			name = rosterClient.Name
 			if rosterClient.Edict != nil {
-				frags = int(rosterClient.Edict.Vars.Frags)
+				frags = int(rosterClient.Edict.Frags(s))
 			}
 			color = rosterClient.Color
 		}
@@ -97,9 +97,9 @@ func (s *Server) writeSpawnSetAngle(client *Client, msg *MessageBuffer) {
 	}
 	msg.PutByte(byte(inet.SVCSetAngle))
 	flags := uint32(s.ProtocolFlags())
-	angles := client.Edict.Vars.Angles
+	angles := client.Edict.Angles(s)
 	if s.LoadGame {
-		angles = client.Edict.Vars.VAngle
+		angles = client.Edict.VAngle(s)
 	}
 	msg.WriteAngle(angles[0], flags)
 	msg.WriteAngle(angles[1], flags)
@@ -110,10 +110,10 @@ func (s *Server) findLocalSpawnPoint() *Edict {
 	for _, className := range []string{"info_player_start", "testplayerstart"} {
 		for entNum := 1; entNum < s.NumEdicts; entNum++ {
 			ent := s.Edicts[entNum]
-			if ent == nil || ent.Free || ent.Vars == nil {
+			if ent == nil || ent.Free {
 				continue
 			}
-			if s.String(ent.Vars.ClassName) == className {
+			if s.String(ent.ClassName(s)) == className {
 				return ent
 			}
 		}
@@ -133,47 +133,44 @@ func (s *Server) initClientSpawnFallback(client *Client) error {
 
 	ent := client.Edict
 	ent.Free = false
-	savedFrags := float32(0)
-	if ent.Vars != nil {
-		savedFrags = ent.Vars.Frags
-	}
-	if ent.Vars == nil {
-		ent.Vars = &EntVars{}
-	} else {
-		*ent.Vars = EntVars{}
-	}
-	ent.Vars.Colormap = float32(entNum)
-	ent.Vars.Team = float32((client.Color & 15) + 1)
-	ent.Vars.Frags = savedFrags
-	ent.Vars.Health = 100
-	ent.Vars.TakeDamage = 1
-	ent.Vars.MoveType = float32(MoveTypeWalk)
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.ViewOfs = [3]float32{0, 0, ViewHeight}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Size = [3]float32{32, 32, 56}
-	ent.Vars.Velocity = [3]float32{}
-	ent.Vars.AVelocity = [3]float32{}
-	ent.Vars.FixAngle = 1
+	savedFrags := ent.Frags(s)
+	ent.SetColormap(s, float32(entNum))
+	ent.SetTeam(s, float32((client.Color&15)+1))
+	ent.SetFrags(s, savedFrags)
+	ent.SetHealth(s, 100)
+	ent.SetTakeDamage(s, 1)
+	ent.SetMoveType(s, float32(MoveTypeWalk))
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetViewOfs(s, [3]float32{0, 0, ViewHeight})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSize(s, [3]float32{32, 32, 56})
+	ent.SetVelocity(s, [3]float32{})
+	ent.SetAVelocity(s, [3]float32{})
+	ent.SetFixAngle(s, 1)
 
-	if spawn := s.findLocalSpawnPoint(); spawn != nil && spawn.Vars != nil {
-		ent.Vars.Origin = spawn.Vars.Origin
-		ent.Vars.Angles = spawn.Vars.Angles
-		ent.Vars.VAngle = spawn.Vars.Angles
+	if spawn := s.findLocalSpawnPoint(); spawn != nil {
+		spawnOrigin := spawn.Origin(s)
+		spawnAngles := spawn.Angles(s)
+		ent.SetOrigin(s, spawnOrigin)
+		ent.SetAngles(s, spawnAngles)
+		ent.SetVAngle(s, spawnAngles)
 	}
-	ent.Vars.AbsMin = [3]float32{ent.Vars.Origin[0] + ent.Vars.Mins[0], ent.Vars.Origin[1] + ent.Vars.Mins[1], ent.Vars.Origin[2] + ent.Vars.Mins[2]}
-	ent.Vars.AbsMax = [3]float32{ent.Vars.Origin[0] + ent.Vars.Maxs[0], ent.Vars.Origin[1] + ent.Vars.Maxs[1], ent.Vars.Origin[2] + ent.Vars.Maxs[2]}
+	entOrigin := ent.Origin(s)
+	entMins := ent.Mins(s)
+	entMaxs := ent.Maxs(s)
+	ent.SetAbsMin(s, [3]float32{entOrigin[0] + entMins[0], entOrigin[1] + entMins[1], entOrigin[2] + entMins[2]})
+	ent.SetAbsMax(s, [3]float32{entOrigin[0] + entMaxs[0], entOrigin[1] + entMaxs[1], entOrigin[2] + entMaxs[2]})
 
 	if client.Name == "" {
 		client.Name = "player"
 	}
 	if s.QCVM != nil {
-		ent.Vars.ClassName = s.QCVM.AllocString("player")
-		ent.Vars.NetName = s.QCVM.AllocString(client.Name)
+		ent.SetClassName(s, s.QCVM.AllocString("player"))
+		ent.SetNetName(s, s.QCVM.AllocString(client.Name))
 		if playerModel := s.FindModel("progs/player.mdl"); playerModel != 0 {
-			ent.Vars.ModelIndex = float32(playerModel)
-			ent.Vars.Model = s.QCVM.AllocString("progs/player.mdl")
+			ent.SetModelIndex(s, float32(playerModel))
+			ent.SetModel(s, s.QCVM.AllocString("progs/player.mdl"))
 		}
 	}
 
@@ -267,9 +264,6 @@ func (s *Server) syncClientAnimControllerFromQCVM(clientEntNum int) {
 	if animEnt == nil || animEnt.Free {
 		return
 	}
-	if animEnt.Vars == nil {
-		animEnt.Vars = &EntVars{}
-	}
 	s.syncEdictFromQCVM(animEntNum, animEnt)
 }
 
@@ -280,10 +274,10 @@ func (s *Server) runClientPutInServerQC(client *Client) error {
 	if err := s.runClientQCFunction(client, "PutClientInServer", true); err != nil {
 		return err
 	}
-	if client == nil || client.Edict == nil || client.Edict.Vars == nil {
+	if client == nil || client.Edict == nil {
 		return nil
 	}
-	if client.Edict.Vars.Health <= 0 || s.String(client.Edict.Vars.ClassName) == "" {
+	if client.Edict.Health(s) <= 0 || s.String(client.Edict.ClassName(s)) == "" {
 		return s.initClientSpawnFallback(client)
 	}
 	s.LinkEdict(client.Edict, true)
@@ -383,11 +377,11 @@ func (s *Server) SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward
 	client.NumPings++
 
 	if client.Edict != nil {
-		client.Edict.Vars.VAngle = viewAngles
-		client.Edict.Vars.Button0 = float32(uint8(buttons) & 1)
-		client.Edict.Vars.Button2 = float32((uint8(buttons) & 2) >> 1)
+		client.Edict.SetVAngle(s, viewAngles)
+		client.Edict.SetButton0(s, float32(uint8(buttons)&1))
+		client.Edict.SetButton2(s, float32((uint8(buttons)&2)>>1))
 		if impulse != 0 {
-			client.Edict.Vars.Impulse = float32(uint8(impulse))
+			client.Edict.SetImpulse(s, float32(uint8(impulse)))
 		}
 	}
 

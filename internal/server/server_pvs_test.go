@@ -16,8 +16,7 @@ func TestEdictInPVSVisibleLeaf(t *testing.T) {
 	}
 
 	ent := &Edict{
-		Vars:     &EntVars{},
-		NumLeafs: 1,
+				NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 3 // leaf 3 -> byte 0, bit 3
 
@@ -36,8 +35,7 @@ func TestEdictInPVSNotVisible(t *testing.T) {
 	}
 
 	ent := &Edict{
-		Vars:     &EntVars{},
-		NumLeafs: 1,
+				NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 3
 
@@ -53,13 +51,13 @@ func TestSyncEdictFromQCVM_EmptyModelClearsStaleModelIndex(t *testing.T) {
 	vm := newServerTestVM(s, 4)
 	s.QCVM = vm
 
-	ent := &Edict{Vars: &EntVars{}}
-	s.Edicts = []*Edict{{Vars: &EntVars{}}, ent}
+	ent := &Edict{}
+	s.Edicts = []*Edict{{}, ent}
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.Vars.Model = vm.AllocString("progs/test.mdl")
-	ent.Vars.ModelIndex = 7
+	ent.SetModel(s, vm.AllocString("progs/test.mdl"))
+	ent.SetModelIndex(s, 7)
 	s.syncEdictToQCVM(1, ent)
 
 	vm.SetEInt(1, qc.EntFieldModel, 0)
@@ -67,10 +65,10 @@ func TestSyncEdictFromQCVM_EmptyModelClearsStaleModelIndex(t *testing.T) {
 
 	s.syncEdictFromQCVM(1, ent)
 
-	if got := ent.Vars.Model; got != 0 {
+	if got := ent.Model(s); got != 0 {
 		t.Fatalf("Model = %d, want 0 after QC raw clear", got)
 	}
-	if got := ent.Vars.ModelIndex; got != 0 {
+	if got := ent.ModelIndex(s); got != 0 {
 		t.Fatalf("ModelIndex = %v, want 0 after QC raw clear", got)
 	}
 }
@@ -82,8 +80,7 @@ func TestEdictInPVSNoLeafs(t *testing.T) {
 	}
 
 	ent := &Edict{
-		Vars:     &EntVars{},
-		NumLeafs: 0,
+				NumLeafs: 0,
 	}
 
 	pvs := make([]byte, 4)
@@ -99,8 +96,7 @@ func TestEdictInPVSNilPVS(t *testing.T) {
 	}
 
 	ent := &Edict{
-		Vars:     &EntVars{},
-		NumLeafs: 1,
+				NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 5
 
@@ -116,8 +112,7 @@ func TestEdictInPVSMultipleLeafsOneVisible(t *testing.T) {
 	}
 
 	ent := &Edict{
-		Vars:     &EntVars{},
-		NumLeafs: 3,
+				NumLeafs: 3,
 	}
 	ent.LeafNums[0] = 2  // byte 0, bit 2
 	ent.LeafNums[1] = 10 // byte 1, bit 2
@@ -138,8 +133,7 @@ func TestEdictInPVSUsesVisLeafNumbering(t *testing.T) {
 	}
 
 	ent := &Edict{
-		Vars:     &EntVars{},
-		NumLeafs: 1,
+				NumLeafs: 1,
 	}
 	// Visleaf index 0 corresponds to BSP leaf index 1.
 	ent.LeafNums[0] = 0
@@ -157,8 +151,7 @@ func TestEdictInPVSMaxLeafsStillRequiresVisibleBits(t *testing.T) {
 	}
 
 	ent := &Edict{
-		Vars:     &EntVars{},
-		NumLeafs: MaxEntityLeafs,
+				NumLeafs: MaxEntityLeafs,
 	}
 
 	if !s.SV_EdictInPVS(ent, make([]byte, 1)) {

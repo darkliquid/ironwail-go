@@ -1,6 +1,9 @@
 package host
 
-import inet "github.com/darkliquid/ironwail-go/internal/net"
+import (
+	"github.com/darkliquid/ironwail-go/internal/server"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+)
 
 func (h *Host) updateServerBrowserNetworking(subs *Subsystems) {
 	if !h.serverActive || subs == nil || subs.Server == nil || subs.Server.MaxClients() <= 1 {
@@ -46,8 +49,9 @@ func (h *Host) makeServerInfoProvider(subs *Subsystems) *inet.ServerInfoProvider
 				return "", 0, 0, 0, 0, false
 			}
 			color := subs.Server.ClientColor(index)
-			if edict := subs.Server.EdictNum(index + 1); edict != nil && edict.Vars != nil {
-				frags = int32(edict.Vars.Frags)
+			if edict := subs.Server.EdictNum(index + 1); edict != nil {
+				srv, _ := subs.Server.(*server.Server)
+				frags = int32(edict.Frags(srv))
 			}
 			return subs.Server.ClientName(index), byte((color >> 4) & 0x0f), byte(color & 0x0f), frags, subs.Server.ClientPing(index), true
 		},

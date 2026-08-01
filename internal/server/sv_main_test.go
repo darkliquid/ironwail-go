@@ -233,10 +233,9 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 		t.Fatalf("trigger absmax = %v", got)
 	}
 
-	probe := &Edict{Vars: &EntVars{
-		AbsMin: [3]float32{120, -4, -4},
-		AbsMax: [3]float32{136, 4, 4},
-	}}
+	probe := &Edict{}
+	probe.SetAbsMin(s, [3]float32{120, -4, -4})
+	probe.SetAbsMax(s, [3]float32{136, 4, 4})
 	touches := make([]*Edict, 0, 2)
 	s.areaTriggerEdicts(probe, &s.Areanodes[0], &touches, s.NumEdicts)
 	if len(touches) != 1 || touches[0] != trigger {
@@ -524,10 +523,9 @@ func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 	}
 
 	s.FreeEdict(e)
-	probe := &Edict{Vars: &EntVars{
-		AbsMin: [3]float32{48, -4, -4},
-		AbsMax: [3]float32{80, 4, 4},
-	}}
+	probe := &Edict{}
+	probe.SetAbsMin(s, [3]float32{48, -4, -4})
+	probe.SetAbsMax(s, [3]float32{80, 4, 4})
 	touches := make([]*Edict, 0, 2)
 	s.areaTriggerEdicts(probe, &s.Areanodes[0], &touches, s.NumEdicts)
 	if len(touches) != 0 {

@@ -27,7 +27,6 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/cmdsys"
@@ -115,6 +114,7 @@ type Server struct {
 	QCFieldSpeed         int
 	QCFieldCustomFlags   int
 	QCFieldThCheckAttack int
+	QCFieldMap           int
 
 	// EffectsMask filters EntVars.Effects before serializing entity updates.
 	// Defaults to 0xFF (all low 8 bits allowed) and can be narrowed when loaded
@@ -140,11 +140,6 @@ type Server struct {
 
 	modelCache map[string]cachedModelInfo
 
-	// qcSyncCaches memoizes per-VM sync bindings derived from the loaded
-	// progs.dat field layout. Keyed by *qc.VM so a Server that swaps in a
-	// new VM picks up a fresh cache automatically.
-	qcSyncCaches sync.Map
-
 	// Cmd is the command system used for server-issued commands such as
 	// changelevel and QC localcmd/stuffcmd fallbacks. Wired by the host/game
 	// after construction; nil-safe consumers must guard against the zero
@@ -160,26 +155,6 @@ type Server struct {
 	// phased DI migration to `inet.DefaultNetwork()` so that tests and
 	// package-level free functions see the same state.
 	Net *inet.Network
-}
-
-type entFieldKind uint8
-
-const (
-	entFieldFloat32 entFieldKind = iota
-	entFieldInt32
-	entFieldVec3
-)
-
-type entFieldBinding struct {
-	fieldIndex int
-	ofs        int
-	kind       entFieldKind
-}
-
-type qcSyncCache struct {
-	fieldOffsets   map[string]int
-	entVarBindings []entFieldBinding
-	modelIndexOfs  int
 }
 
 type modelAssetFileSystem interface {
@@ -277,6 +252,7 @@ func NewServer() *Server {
 		QCFieldSpeed:         -1,
 		QCFieldCustomFlags:   -1,
 		QCFieldThCheckAttack: -1,
+		QCFieldMap:           -1,
 		EffectsMask:          defaultEffectsMask,
 		QCVM:                 vm,
 		DebugTelemetry:       NewDebugTelemetry(),
@@ -292,7 +268,7 @@ func NewServer() *Server {
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations
 	// return entity indices starting at 1, matching the VM's
 	// expectations where entity 0 is the level itself.
-	world := &Edict{Num: 0, Vars: &EntVars{}}
+	world := &Edict{Num: 0}
 	s.Edicts = append(s.Edicts, world)
 	s.NumEdicts = 1
 
@@ -442,8 +418,8 @@ func NewServer() *Server {
 				dz := center[2] - org[2]
 				if dx*dx+dy*dy+dz*dz <= radSq {
 					vm.SetEInt(entNum, qc.EntFieldChain, int32(chain))
-					if ent := s.EdictNum(entNum); ent != nil && ent.Vars != nil {
-						ent.Vars.Chain = int32(chain)
+					if ent := s.EdictNum(entNum); ent != nil {
+						ent.SetChain(s, int32(chain))
 					}
 					chain = entNum
 				}
@@ -456,7 +432,7 @@ func NewServer() *Server {
 			}
 			self := int(vm.GInt(qc.OFSSelf))
 			if self > 0 && self < vm.NumEdicts {
-				if selfEnt := s.EdictNum(self); selfEnt != nil && selfEnt.Vars != nil && !selfEnt.Free {
+				if selfEnt := s.EdictNum(self); selfEnt != nil && !selfEnt.Free {
 					s.syncEdictFromQCVM(self, selfEnt)
 				}
 			}
@@ -469,7 +445,7 @@ func NewServer() *Server {
 				return 0
 			}
 			client := s.Static.Clients[slot-1]
-			if client == nil || !client.Active || client.Edict == nil || client.Edict.Free || client.Edict.Vars.Health <= 0 {
+			if client == nil || !client.Active || client.Edict == nil || client.Edict.Free || client.Edict.Health(s) <= 0 {
 				return 0
 			}
 			entNum := s.NumForEdict(client.Edict)
@@ -478,13 +454,15 @@ func NewServer() *Server {
 			}
 			if s.WorldTree != nil && len(s.WorldTree.Nodes) > 0 && len(s.checkClientPVS) > 0 {
 				selfEnt := s.EdictNum(self)
-				if selfEnt == nil || selfEnt.Vars == nil {
+				if selfEnt == nil {
 					return 0
 				}
+				selfOrg := selfEnt.Origin(s)
+				selfView := selfEnt.ViewOfs(s)
 				view := [3]float32{
-					selfEnt.Vars.Origin[0] + selfEnt.Vars.ViewOfs[0],
-					selfEnt.Vars.Origin[1] + selfEnt.Vars.ViewOfs[1],
-					selfEnt.Vars.Origin[2] + selfEnt.Vars.ViewOfs[2],
+					selfOrg[0] + selfView[0],
+					selfOrg[1] + selfView[1],
+					selfOrg[2] + selfView[2],
 				}
 				leaf := s.WorldTree.PointInLeaf(view)
 				leafIdx := s.worldLeafIndex(leaf)
@@ -513,7 +491,7 @@ func NewServer() *Server {
 				return false
 			}
 			e := s.EdictNum(entNum)
-			if e == nil || e.Vars == nil {
+			if e == nil {
 				return false
 			}
 			s.syncEdictFromQCVM(entNum, e)
@@ -524,10 +502,10 @@ func NewServer() *Server {
 		},
 		Aim: func(vm *qc.VM, entNum int, missileSpeed float32) [3]float32 {
 			ent := s.EdictNum(entNum)
-			if ent == nil || ent.Vars == nil {
+			if ent == nil {
 				return vm.GVector(qc.OFSGlobalVForward)
 			}
-			start := ent.Vars.Origin
+			start := ent.Origin(s)
 			start[2] += 20
 			bestDir := vm.GVector(qc.OFSGlobalVForward)
 			end := VecAdd(start, VecScale(bestDir, 2048))
@@ -536,9 +514,10 @@ func NewServer() *Server {
 			if s.CVar != nil {
 				teamplay = s.CVar.FloatValue("teamplay") != 0
 			}
-			if trace.Entity != nil && trace.Entity.Vars != nil &&
-				TakeDamage(int(trace.Entity.Vars.TakeDamage)) == DamageAim &&
-				(!teamplay || ent.Vars.Team <= 0 || ent.Vars.Team != trace.Entity.Vars.Team) {
+			entTeam := ent.Team(s)
+			if trace.Entity != nil &&
+				TakeDamage(int(trace.Entity.TakeDamage(s))) == DamageAim &&
+				(!teamplay || entTeam <= 0 || entTeam != trace.Entity.Team(s)) {
 				return bestDir
 			}
 
@@ -549,19 +528,23 @@ func NewServer() *Server {
 			var bestEnt *Edict
 			for i := 1; i < s.NumEdicts && i < vm.NumEdicts; i++ {
 				check := s.EdictNum(i)
-				if check == nil || check.Free || check.Vars == nil || check == ent {
+				if check == nil || check.Free || check == ent {
 					continue
 				}
-				if TakeDamage(int(check.Vars.TakeDamage)) != DamageAim {
+				if TakeDamage(int(check.TakeDamage(s))) != DamageAim {
 					continue
 				}
-				if teamplay && ent.Vars.Team > 0 && ent.Vars.Team == check.Vars.Team {
+				checkTeam := check.Team(s)
+				if teamplay && entTeam > 0 && entTeam == checkTeam {
 					continue
 				}
+				checkOrg := check.Origin(s)
+				checkMins := check.Mins(s)
+				checkMaxs := check.Maxs(s)
 				targetCenter := [3]float32{
-					check.Vars.Origin[0] + 0.5*(check.Vars.Mins[0]+check.Vars.Maxs[0]),
-					check.Vars.Origin[1] + 0.5*(check.Vars.Mins[1]+check.Vars.Maxs[1]),
-					check.Vars.Origin[2] + 0.5*(check.Vars.Mins[2]+check.Vars.Maxs[2]),
+					checkOrg[0] + 0.5*(checkMins[0]+checkMaxs[0]),
+					checkOrg[1] + 0.5*(checkMins[1]+checkMaxs[1]),
+					checkOrg[2] + 0.5*(checkMins[2]+checkMaxs[2]),
 				}
 				dir := VecSub(targetCenter, start)
 				if VecNormalize(&dir) == 0 {
@@ -580,7 +563,7 @@ func NewServer() *Server {
 			if bestEnt == nil {
 				return bestDir
 			}
-			dir := VecSub(bestEnt.Vars.Origin, ent.Vars.Origin)
+			dir := VecSub(bestEnt.Origin(s), ent.Origin(s))
 			dist := VecDot(dir, bestDir)
 			end = VecScale(bestDir, dist)
 			end[2] = dir[2]
@@ -593,11 +576,11 @@ func NewServer() *Server {
 				return false
 			}
 			e := s.EdictNum(self)
-			if e == nil || e.Vars == nil || e.Free {
+			if e == nil || e.Free {
 				return false
 			}
 			s.syncEdictFromQCVM(self, e)
-			flags := uint32(e.Vars.Flags)
+			flags := uint32(e.Flags(s))
 			if flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
 				return false
 			}
@@ -628,22 +611,23 @@ func NewServer() *Server {
 			}
 			// If the server has an Edict, run a downward trace using the
 			// server Move helpers to land on the floor properly.
-			if e := s.EdictNum(self); e != nil && e.Vars != nil {
+			if e := s.EdictNum(self); e != nil {
 				s.syncEdictFromQCVM(self, e)
-				start := e.Vars.Origin
+				start := e.Origin(s)
 				end := start
 				end[2] -= 256
-				trace := s.SV_Move(start, e.Vars.Mins, e.Vars.Maxs, end, MoveType(MoveNormal), e)
+				trace := s.SV_Move(start, e.Mins(s), e.Maxs(s), end, MoveType(MoveNormal), e)
 				if trace.Fraction == 1 || trace.AllSolid {
 					return false
 				}
 				newOrg := trace.EndPos
-				e.Vars.Origin = newOrg
-				e.Vars.Flags = float32(uint32(e.Vars.Flags) | FlagOnGround)
+				e.SetOrigin(s, newOrg)
+				newFlags := uint32(e.Flags(s)) | FlagOnGround
+				e.SetFlags(s, float32(newFlags))
 				if trace.Entity != nil {
-					e.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
+					e.SetGroundEntity(s, int32(s.NumForEdict(trace.Entity)))
 				} else {
-					e.Vars.GroundEntity = 0
+					e.SetGroundEntity(s, 0)
 				}
 				s.LinkEdict(e, false)
 				s.syncEdictToQCVM(self, e)
@@ -663,11 +647,13 @@ func NewServer() *Server {
 			maxs := vm.EVector(entNum, qc.EntFieldMaxs)
 			vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{org[0] + mins[0], org[1] + mins[1], org[2] + mins[2]})
 			vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{org[0] + maxs[0], org[1] + maxs[1], org[2] + maxs[2]})
-			if e := s.EdictNum(entNum); e != nil && e.Vars != nil {
+			if e := s.EdictNum(entNum); e != nil {
 				s.syncEdictFromQCVM(entNum, e)
-				e.Vars.Origin = org
-				e.Vars.AbsMin = [3]float32{org[0] + e.Vars.Mins[0], org[1] + e.Vars.Mins[1], org[2] + e.Vars.Mins[2]}
-				e.Vars.AbsMax = [3]float32{org[0] + e.Vars.Maxs[0], org[1] + e.Vars.Maxs[1], org[2] + e.Vars.Maxs[2]}
+				e.SetOrigin(s, org)
+				mins := e.Mins(s)
+				maxs := e.Maxs(s)
+				e.SetAbsMin(s, [3]float32{org[0] + mins[0], org[1] + mins[1], org[2] + mins[2]})
+				e.SetAbsMax(s, [3]float32{org[0] + maxs[0], org[1] + maxs[1], org[2] + maxs[2]})
 				s.LinkEdict(e, false)
 			}
 		},
@@ -679,13 +665,13 @@ func NewServer() *Server {
 			origin := vm.EVector(entNum, qc.EntFieldOrigin)
 			vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
 			vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
-			if e := s.EdictNum(entNum); e != nil && e.Vars != nil {
+			if e := s.EdictNum(entNum); e != nil {
 				s.syncEdictFromQCVM(entNum, e)
-				e.Vars.Mins = mins
-				e.Vars.Maxs = maxs
-				e.Vars.Size = size
-				e.Vars.AbsMin = [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]}
-				e.Vars.AbsMax = [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]}
+				e.SetMins(s, mins)
+				e.SetMaxs(s, maxs)
+				e.SetSize(s, size)
+				e.SetAbsMin(s, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
+				e.SetAbsMax(s, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
 				// C's SetMinMaxSize calls SV_LinkEdict(e, false) to update
 				// the spatial partition after bounds change.
 				s.LinkEdict(e, false)
@@ -709,40 +695,42 @@ func NewServer() *Server {
 			vm.SetEInt(entNum, qc.EntFieldModel, modelString)
 			vm.SetEFloat(entNum, qc.EntFieldModelIndex, float32(modelIndex))
 
-			if e := s.EdictNum(entNum); e != nil && e.Vars != nil {
+			if e := s.EdictNum(entNum); e != nil {
 				s.syncEdictFromQCVM(entNum, e)
-				e.Vars.Model = modelString
-				e.Vars.ModelIndex = float32(modelIndex)
+				e.SetModel(s, modelString)
+				e.SetModelIndex(s, float32(modelIndex))
 				if mins, maxs, ok := s.modelBounds(modelName); ok {
-					e.Vars.Mins = mins
-					e.Vars.Maxs = maxs
+					e.SetMins(s, mins)
+					e.SetMaxs(s, maxs)
 				} else {
 					if info, err := s.cacheModelInfo(modelName); err == nil && info.known {
-						e.Vars.Mins = info.mins
-						e.Vars.Maxs = info.maxs
+						e.SetMins(s, info.mins)
+						e.SetMaxs(s, info.maxs)
 					} else {
-						e.Vars.Mins = [3]float32{}
-						e.Vars.Maxs = [3]float32{}
+						e.SetMins(s, [3]float32{})
+						e.SetMaxs(s, [3]float32{})
 					}
 				}
-				e.Vars.Size = [3]float32{
-					e.Vars.Maxs[0] - e.Vars.Mins[0],
-					e.Vars.Maxs[1] - e.Vars.Mins[1],
-					e.Vars.Maxs[2] - e.Vars.Mins[2],
-				}
+				finalMins := e.Mins(s)
+				finalMaxs := e.Maxs(s)
+				e.SetSize(s, [3]float32{
+					finalMaxs[0] - finalMins[0],
+					finalMaxs[1] - finalMins[1],
+					finalMaxs[2] - finalMins[2],
+				})
 				s.LinkEdict(e, false)
 
 				// Only push the fields SetModel actually modified back to
 				// the QCVM. A full syncEdictToQCVM here would clobber any
 				// QC-set fields (e.g. solid, touch, movetype) that were
 				// changed between builtins within the same QC function.
-				vm.SetEVector(entNum, qc.EntFieldMins, e.Vars.Mins)
-				vm.SetEVector(entNum, qc.EntFieldMaxs, e.Vars.Maxs)
-				vm.SetEVector(entNum, qc.EntFieldSize, e.Vars.Size)
+				vm.SetEVector(entNum, qc.EntFieldMins, e.Mins(s))
+				vm.SetEVector(entNum, qc.EntFieldMaxs, e.Maxs(s))
+				vm.SetEVector(entNum, qc.EntFieldSize, e.Size(s))
 				// LinkEdict updates AbsMin/AbsMax (including fat-1 for BSP
 				// entities); push those back so QC sees consistent bounds.
-				vm.SetEVector(entNum, qc.EntFieldAbsMin, e.Vars.AbsMin)
-				vm.SetEVector(entNum, qc.EntFieldAbsMax, e.Vars.AbsMax)
+				vm.SetEVector(entNum, qc.EntFieldAbsMin, e.AbsMin(s))
+				vm.SetEVector(entNum, qc.EntFieldAbsMax, e.AbsMax(s))
 			}
 		},
 		PrecacheSound: func(vm *qc.VM, sample string) {
@@ -886,17 +874,17 @@ func NewServer() *Server {
 		},
 		MakeStatic: func(vm *qc.VM, entNum int) {
 			ent := s.EdictNum(entNum)
-			if ent == nil || ent.Vars == nil || ent.Free {
+			if ent == nil || ent.Free {
 				return
 			}
 			state := EntityState{
-				Origin:     ent.Vars.Origin,
-				Angles:     ent.Vars.Angles,
-				ModelIndex: int(ent.Vars.ModelIndex),
-				Frame:      int(ent.Vars.Frame),
-				Colormap:   int(ent.Vars.Colormap),
-				Skin:       int(ent.Vars.Skin),
-				Effects:    int(ent.Vars.Effects) & s.effectsMask(),
+				Origin:     ent.Origin(s),
+				Angles:     ent.Angles(s),
+				ModelIndex: int(ent.ModelIndex(s)),
+				Frame:      int(ent.Frame(s)),
+				Colormap:   int(ent.Colormap(s)),
+				Skin:       int(ent.Skin(s)),
+				Effects:    int(ent.Effects(s)) & s.effectsMask(),
 				Alpha:      ent.Alpha,
 				Scale:      ent.Scale,
 			}
@@ -949,12 +937,12 @@ func NewServer() *Server {
 		MoveToGoal: func(vm *qc.VM, dist float32) {
 			entNum := int(vm.GInt(qc.OFSSelf))
 			ent := s.EdictNum(entNum)
-			if ent == nil || ent.Vars == nil || ent.Free {
+			if ent == nil || ent.Free {
 				return
 			}
 			s.syncEdictFromQCVM(entNum, ent)
-			if goalNum := int(ent.Vars.GoalEntity); goalNum > 0 {
-				if goal := s.EdictNum(goalNum); goal != nil && goal.Vars != nil && !goal.Free {
+			if goalNum := int(ent.GoalEntity(s)); goalNum > 0 {
+				if goal := s.EdictNum(goalNum); goal != nil && !goal.Free {
 					s.syncEdictFromQCVM(goalNum, goal)
 				}
 			}
@@ -972,7 +960,7 @@ func NewServer() *Server {
 		ChangeYaw: func(vm *qc.VM) {
 			entNum := int(vm.GInt(qc.OFSSelf))
 			ent := s.EdictNum(entNum)
-			if ent == nil || ent.Vars == nil || ent.Free {
+			if ent == nil || ent.Free {
 				return
 			}
 			s.syncEdictFromQCVM(entNum, ent)

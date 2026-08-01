@@ -285,7 +285,7 @@ func (g *Game) cmdCamDebug(_ []string) {
 	serverOrigin := [3]float32{}
 	if g.Server != nil && g.Server.Edicts != nil {
 		if ent := g.Server.Edicts[viewEnt]; ent != nil {
-			serverOrigin = ent.Vars.Origin
+			serverOrigin = ent.Origin(g.Server)
 		}
 	}
 	console.Printf("server.playerOrigin  = (%.2f, %.2f, %.2f)\n",

@@ -230,19 +230,19 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	if clientSlot.Edict == nil {
 		t.Fatal("missing client edict")
 	}
-	clientSlot.Edict.Vars.Health = 100
-	clientSlot.Edict.Vars.Origin = [3]float32{1, 2, 3}
+	clientSlot.Edict.SetHealth(s, 100)
+	clientSlot.Edict.SetOrigin(s, [3]float32{1, 2, 3})
 
 	ent := s.AllocEdict()
 	if ent == nil {
 		t.Fatal("failed to alloc entity")
 	}
-	ent.Vars.ModelIndex = 2
-	ent.Vars.Origin = [3]float32{10, 20, 30}
-	ent.Vars.Angles = [3]float32{0, 45, 0}
-	ent.Vars.Frame = 4
-	ent.Vars.Skin = 2
-	ent.Vars.Effects = 8
+	ent.SetModelIndex(s, 2)
+	ent.SetOrigin(s, [3]float32{10, 20, 30})
+	ent.SetAngles(s, [3]float32{0, 45, 0})
+	ent.SetFrame(s, 4)
+	ent.SetSkin(s, 2)
+	ent.SetEffects(s, 8)
 	ent.NumLeafs = 1
 	ent.LeafNums[0] = 0
 
@@ -283,7 +283,9 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	}
 
 	s.Time = 1.6
-	ent.Vars.Origin[0] = 42
+	org := ent.Origin(s)
+	org[0] = 42
+	ent.SetOrigin(s, org)
 	data = s.ClientDatagram(0)
 	if err := p.ParseServerMessage(data); err != nil {
 		t.Fatalf("ParseServerMessage second datagram: %v", err)

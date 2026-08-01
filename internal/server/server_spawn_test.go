@@ -29,7 +29,7 @@ func TestSpawnCommandWritesInitialSnapshot(t *testing.T) {
 	client := s.Static.Clients[0]
 	client.Name = "player"
 	client.Color = 7
-	client.Edict.Vars.Frags = 3
+	client.Edict.SetFrags(s, 3)
 
 	if err := s.SubmitLoopbackStringCommand(0, "prespawn"); err != nil {
 		t.Fatalf("prespawn: %v", err)
@@ -99,9 +99,9 @@ func TestSpawnCommandWritesSkyboxName(t *testing.T) {
 
 func TestWriteSpawnSetAngleUsesSpawnAnglesForFreshSpawn(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake}
-	client := &Client{Edict: &Edict{Vars: &EntVars{}}}
-	client.Edict.Vars.Angles = [3]float32{10, 20, 30}
-	client.Edict.Vars.VAngle = [3]float32{90, 180, 270}
+	client := &Client{Edict: &Edict{}}
+	client.Edict.SetAngles(s, [3]float32{10, 20, 30})
+	client.Edict.SetVAngle(s, [3]float32{90, 180, 270})
 
 	msg := NewMessageBuffer(16)
 	s.writeSpawnSetAngle(client, msg)
@@ -123,9 +123,9 @@ func TestWriteSpawnSetAngleUsesSpawnAnglesForFreshSpawn(t *testing.T) {
 
 func TestWriteSpawnSetAngleUsesViewAnglesForLoadGame(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake, LoadGame: true}
-	client := &Client{Edict: &Edict{Vars: &EntVars{}}}
-	client.Edict.Vars.Angles = [3]float32{10, 20, 30}
-	client.Edict.Vars.VAngle = [3]float32{90, 180, 270}
+	client := &Client{Edict: &Edict{}}
+	client.Edict.SetAngles(s, [3]float32{10, 20, 30})
+	client.Edict.SetVAngle(s, [3]float32{90, 180, 270})
 
 	msg := NewMessageBuffer(16)
 	s.writeSpawnSetAngle(client, msg)
@@ -332,7 +332,7 @@ func TestKillClientRejectsAlreadyDead(t *testing.T) {
 
 	s.ConnectClient(0)
 	client := s.Static.Clients[0]
-	client.Edict.Vars.Health = 0
+	client.Edict.SetHealth(s, 0)
 
 	if ok := s.KillClient(0); ok {
 		t.Fatal("KillClient succeeded for dead client")
@@ -383,7 +383,7 @@ func TestSetClientColorBroadcastsReliableScoreboardUpdate(t *testing.T) {
 
 	s.SetClientColor(0, 0x23)
 
-	if got := int(s.Static.Clients[0].Edict.Vars.Team); got != 4 {
+	if got := int(s.Static.Clients[0].Edict.Team(s)); got != 4 {
 		t.Fatalf("team = %d, want 4 from bottom color nibble", got)
 	}
 	for i, client := range s.Static.Clients[:2] {
@@ -475,8 +475,8 @@ func TestPutClientInServerRealProgsNoPanic(t *testing.T) {
 	}
 
 	s.syncEdictFromQCVM(entNum, client.Edict)
-	if client.Edict.Vars.Health <= 0 {
-		t.Fatalf("player health = %v, want > 0 after PutClientInServer", client.Edict.Vars.Health)
+	if client.Edict.Health(s) <= 0 {
+		t.Fatalf("player health = %v, want > 0 after PutClientInServer", client.Edict.Health(s))
 	}
 }
 
@@ -491,10 +491,10 @@ func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
 	client.Spawned = true
 
 	player := client.Edict
-	if player == nil || player.Vars == nil {
+	if player == nil {
 		t.Fatal("client missing spawned edict")
 	}
-	if got := s.String(player.Vars.ClassName); got != "player" {
+	if got := s.String(player.ClassName(s)); got != "player" {
 		t.Fatalf("spawned player classname = %q, want %q", got, "player")
 	}
 
@@ -502,14 +502,14 @@ func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
 	var wantLevel string
 	for entNum := 1; entNum < s.NumEdicts; entNum++ {
 		ent := s.EdictNum(entNum)
-		if ent == nil || ent.Free || ent.Vars == nil {
+		if ent == nil || ent.Free {
 			continue
 		}
-		if s.String(ent.Vars.ClassName) != "trigger_changelevel" {
+		if s.String(ent.ClassName(s)) != "trigger_changelevel" {
 			continue
 		}
 		trigger = ent
-		wantLevel = s.String(ent.Vars.Map)
+		wantLevel = s.String(ent.Map(s))
 		break
 	}
 	if trigger == nil {
@@ -533,13 +533,13 @@ func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
 	cs.Execute()
 	gotLevels = nil
 
-	player.Vars.Origin = [3]float32{
-		(trigger.Vars.AbsMin[0] + trigger.Vars.AbsMax[0]) * 0.5,
-		(trigger.Vars.AbsMin[1] + trigger.Vars.AbsMax[1]) * 0.5,
-		trigger.Vars.AbsMin[2] - player.Vars.Mins[2] + 1,
-	}
-	player.Vars.Velocity = [3]float32{}
-	player.Vars.Flags = float32(uint32(player.Vars.Flags) | uint32(FlagOnGround))
+	player.SetOrigin(s, [3]float32{
+		(trigger.AbsMin(s)[0] + trigger.AbsMax(s)[0]) * 0.5,
+		(trigger.AbsMin(s)[1] + trigger.AbsMax(s)[1]) * 0.5,
+		trigger.AbsMin(s)[2] - player.Mins(s)[2] + 1,
+	})
+	player.SetVelocity(s, [3]float32{})
+	player.SetFlags(s, float32(uint32(player.Flags(s)) | uint32(FlagOnGround)))
 	s.LinkEdict(player, false)
 	s.touchLinks(player)
 	cs.Execute()
@@ -612,18 +612,18 @@ func TestRunClientSpawnQCRelinksClientAfterQCSpawnMove(t *testing.T) {
 	if trigger == nil {
 		t.Fatal("failed to allocate trigger edict")
 	}
-	trigger.Vars.Origin = [3]float32{128, 0, 24}
-	trigger.Vars.Mins = [3]float32{-16, -16, -24}
-	trigger.Vars.Maxs = [3]float32{16, 16, 32}
-	trigger.Vars.Solid = float32(SolidTrigger)
-	trigger.Vars.Touch = 2
+	trigger.SetOrigin(s, [3]float32{128, 0, 24})
+	trigger.SetMins(s, [3]float32{-16, -16, -24})
+	trigger.SetMaxs(s, [3]float32{16, 16, 32})
+	trigger.SetSolid(s, float32(SolidTrigger))
+	s.QCVM.SetEInt(trigger.Num, qc.EntFieldTouch, 2)
 	s.LinkEdict(trigger, false)
 
 	if err := s.runClientSpawnQC(client); err != nil {
 		t.Fatalf("runClientSpawnQC() error = %v", err)
 	}
 
-	if got := client.Edict.Vars.Origin; got != ([3]float32{128, 0, 0}) {
+	if got := client.Edict.Origin(s); got != ([3]float32{128, 0, 0}) {
 		t.Fatalf("player origin = %v, want [128 0 0]", got)
 	}
 	if client.Edict.AreaPrev == nil || client.Edict.AreaNext == nil {

@@ -64,16 +64,16 @@ func (g *Game) runtimeViewState() (origin, angles [3]float32) {
 
 	if g.Server != nil {
 		for _, ent := range g.Server.Edicts {
-			if ent == nil || ent.Free || ent.Vars.ClassName == 0 {
+			if ent == nil || ent.Free || ent.ClassName(g.Server) == 0 {
 				continue
 			}
-			className := g.Server.String(ent.Vars.ClassName)
+			className := g.Server.String(ent.ClassName(g.Server))
 			if className != "info_player_start" && className != "info_player_deathmatch" {
 				continue
 			}
-			origin = ent.Vars.Origin
+			origin = ent.Origin(g.Server)
 			origin[2] += 22
-			angles = ent.Vars.Angles
+			angles = ent.Angles(g.Server)
 			foundPlayerStart = true
 			break
 		}

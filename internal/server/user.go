@@ -54,20 +54,23 @@ type clientMoveContext struct {
 }
 
 func (s *Server) SetIdealPitch(ent *Edict) {
-	if ent == nil || uint32(ent.Vars.Flags)&FlagOnGround == 0 {
+	if ent == nil || uint32(ent.Flags(s))&FlagOnGround == 0 {
 		return
 	}
 
-	angle := float64(ent.Vars.Angles[1]) * math.Pi * 2 / 360
+	entAngles := ent.Angles(s)
+	angle := float64(entAngles[1]) * math.Pi * 2 / 360
 	sinVal := float32(math.Sin(angle))
 	cosVal := float32(math.Cos(angle))
 
+	entOrigin := ent.Origin(s)
+	entViewOfs := ent.ViewOfs(s)
 	var z [maxForwardSamples]float32
 	for i := 0; i < maxForwardSamples; i++ {
 		top := [3]float32{
-			ent.Vars.Origin[0] + cosVal*float32(i+3)*12,
-			ent.Vars.Origin[1] + sinVal*float32(i+3)*12,
-			ent.Vars.Origin[2] + ent.Vars.ViewOfs[2],
+			entOrigin[0] + cosVal*float32(i+3)*12,
+			entOrigin[1] + sinVal*float32(i+3)*12,
+			entOrigin[2] + entViewOfs[2],
 		}
 		bottom := [3]float32{top[0], top[1], top[2] - 160}
 
@@ -96,7 +99,7 @@ func (s *Server) SetIdealPitch(ent *Edict) {
 	}
 
 	if dir == 0 {
-		ent.Vars.IdealPitch = 0
+		ent.SetIdealPitch(s, 0)
 		return
 	}
 
@@ -104,7 +107,7 @@ func (s *Server) SetIdealPitch(ent *Edict) {
 		return
 	}
 
-	ent.Vars.IdealPitch = -dir * idealPitchScale
+	ent.SetIdealPitch(s, -dir*idealPitchScale)
 }
 
 func (s *Server) userFriction(ctx *clientMoveContext) {
@@ -117,7 +120,7 @@ func (s *Server) userFriction(ctx *clientMoveContext) {
 	start := [3]float32{
 		ctx.origin[0] + vel[0]/speed*16,
 		ctx.origin[1] + vel[1]/speed*16,
-		ctx.origin[2] + ctx.player.Vars.Mins[2],
+		ctx.origin[2] + ctx.player.Mins(s)[2],
 	}
 	stop := [3]float32{start[0], start[1], start[2] - 34}
 
@@ -139,14 +142,16 @@ func (s *Server) userFriction(ctx *clientMoveContext) {
 	}
 	newspeed /= speed
 
-	ctx.player.Vars.Velocity[0] *= newspeed
-	ctx.player.Vars.Velocity[1] *= newspeed
-	ctx.player.Vars.Velocity[2] *= newspeed
-	ctx.velocity = ctx.player.Vars.Velocity
+	vel = ctx.player.Velocity(s)
+	vel[0] *= newspeed
+	vel[1] *= newspeed
+	vel[2] *= newspeed
+	ctx.player.SetVelocity(s, vel)
+	ctx.velocity = vel
 }
 
 func (s *Server) accelerate(wishspeed float32, wishdir [3]float32, ctx *clientMoveContext) {
-	currentSpeed := VecDot(ctx.player.Vars.Velocity, wishdir)
+	currentSpeed := VecDot(ctx.player.Velocity(s), wishdir)
 	addspeed := wishspeed - currentSpeed
 	if addspeed <= 0 {
 		return
@@ -157,10 +162,12 @@ func (s *Server) accelerate(wishspeed float32, wishdir [3]float32, ctx *clientMo
 		accelspeed = addspeed
 	}
 
-	ctx.player.Vars.Velocity[0] += accelspeed * wishdir[0]
-	ctx.player.Vars.Velocity[1] += accelspeed * wishdir[1]
-	ctx.player.Vars.Velocity[2] += accelspeed * wishdir[2]
-	ctx.velocity = ctx.player.Vars.Velocity
+	vel := ctx.player.Velocity(s)
+	vel[0] += accelspeed * wishdir[0]
+	vel[1] += accelspeed * wishdir[1]
+	vel[2] += accelspeed * wishdir[2]
+	ctx.player.SetVelocity(s, vel)
+	ctx.velocity = vel
 }
 
 func (s *Server) airAccelerate(wishspeed float32, wishvel [3]float32, ctx *clientMoveContext) {
@@ -180,23 +187,26 @@ func (s *Server) airAccelerate(wishspeed float32, wishvel [3]float32, ctx *clien
 		accelspeed = addspeed
 	}
 
-	ctx.player.Vars.Velocity[0] += accelspeed * wishvel[0]
-	ctx.player.Vars.Velocity[1] += accelspeed * wishvel[1]
-	ctx.player.Vars.Velocity[2] += accelspeed * wishvel[2]
-	ctx.velocity = ctx.player.Vars.Velocity
+	vel := ctx.player.Velocity(s)
+	vel[0] += accelspeed * wishvel[0]
+	vel[1] += accelspeed * wishvel[1]
+	vel[2] += accelspeed * wishvel[2]
+	ctx.player.SetVelocity(s, vel)
+	ctx.velocity = vel
 }
 
 func (s *Server) dropPunchAngle(ent *Edict) {
-	len := VecNormalize(&ent.Vars.PunchAngle)
+	punch := ent.PunchAngle(s)
+	len := VecNormalize(&punch)
 	len -= 10 * s.FrameTime
 	if len < 0 {
 		len = 0
 	}
-	ent.Vars.PunchAngle = VecScale(ent.Vars.PunchAngle, len)
+	ent.SetPunchAngle(s, VecScale(punch, len))
 }
 
 func (s *Server) waterMove(ctx *clientMoveContext) {
-	AngleVectors(ctx.player.Vars.VAngle, &ctx.forward, &ctx.right, &ctx.up)
+	AngleVectors(ctx.player.VAngle(s), &ctx.forward, &ctx.right, &ctx.up)
 
 	var wishvel [3]float32
 	for i := 0; i < 3; i++ {
@@ -223,7 +233,9 @@ func (s *Server) waterMove(ctx *clientMoveContext) {
 		if newspeed < 0 {
 			newspeed = 0
 		}
-		ctx.player.Vars.Velocity = VecScale(ctx.player.Vars.Velocity, newspeed/speed)
+		vel := VecScale(ctx.player.Velocity(s), newspeed/speed)
+		ctx.player.SetVelocity(s, vel)
+		ctx.velocity = vel
 	}
 
 	if wishspeed == 0 {
@@ -241,23 +253,29 @@ func (s *Server) waterMove(ctx *clientMoveContext) {
 		accelspeed = addspeed
 	}
 
-	ctx.player.Vars.Velocity[0] += accelspeed * wishvel[0]
-	ctx.player.Vars.Velocity[1] += accelspeed * wishvel[1]
-	ctx.player.Vars.Velocity[2] += accelspeed * wishvel[2]
+	vel := ctx.player.Velocity(s)
+	vel[0] += accelspeed * wishvel[0]
+	vel[1] += accelspeed * wishvel[1]
+	vel[2] += accelspeed * wishvel[2]
+	ctx.player.SetVelocity(s, vel)
+	ctx.velocity = vel
 }
 
 func (s *Server) waterJump(ent *Edict) {
-	if s.Time > ent.Vars.TeleportTime || ent.Vars.WaterLevel <= 0 {
-		ent.Vars.Flags = float32(uint32(ent.Vars.Flags) & ^uint32(FlagWaterJump))
-		ent.Vars.TeleportTime = 0
+	if s.Time > ent.TeleportTime(s) || ent.WaterLevel(s) <= 0 {
+		ent.SetFlags(s, float32(uint32(ent.Flags(s))&^uint32(FlagWaterJump)))
+		ent.SetTeleportTime(s, 0)
 	}
 
-	ent.Vars.Velocity[0] = ent.Vars.MoveDir[0]
-	ent.Vars.Velocity[1] = ent.Vars.MoveDir[1]
+	moveDir := ent.MoveDir(s)
+	vel := ent.Velocity(s)
+	vel[0] = moveDir[0]
+	vel[1] = moveDir[1]
+	ent.SetVelocity(s, vel)
 }
 
 func (s *Server) noclipMove(ctx *clientMoveContext) {
-	viewAngles := ctx.player.Vars.VAngle
+	viewAngles := ctx.player.VAngle(s)
 	// Ironwail parity: sv_altnoclip 0 keeps noclip movement horizontal by
 	// ignoring pitch for forward/strafe vectors.
 	if cv := s.CVar.Get("sv_altnoclip"); cv != nil && !cv.Bool() {
@@ -265,24 +283,27 @@ func (s *Server) noclipMove(ctx *clientMoveContext) {
 	}
 	AngleVectors(viewAngles, &ctx.forward, &ctx.right, &ctx.up)
 
-	ctx.player.Vars.Velocity[0] = ctx.forward[0]*ctx.cmd.ForwardMove + ctx.right[0]*ctx.cmd.SideMove
-	ctx.player.Vars.Velocity[1] = ctx.forward[1]*ctx.cmd.ForwardMove + ctx.right[1]*ctx.cmd.SideMove
-	ctx.player.Vars.Velocity[2] = ctx.forward[2]*ctx.cmd.ForwardMove + ctx.right[2]*ctx.cmd.SideMove
-	ctx.player.Vars.Velocity[2] += ctx.cmd.UpMove * 2
+	vel := ctx.player.Velocity(s)
+	vel[0] = ctx.forward[0]*ctx.cmd.ForwardMove + ctx.right[0]*ctx.cmd.SideMove
+	vel[1] = ctx.forward[1]*ctx.cmd.ForwardMove + ctx.right[1]*ctx.cmd.SideMove
+	vel[2] = ctx.forward[2]*ctx.cmd.ForwardMove + ctx.right[2]*ctx.cmd.SideMove
+	vel[2] += ctx.cmd.UpMove * 2
 
-	if VecLen(ctx.player.Vars.Velocity) > svMaxSpeed {
-		VecNormalize(&ctx.player.Vars.Velocity)
-		ctx.player.Vars.Velocity = VecScale(ctx.player.Vars.Velocity, svMaxSpeed)
+	if VecLen(vel) > svMaxSpeed {
+		VecNormalize(&vel)
+		vel = VecScale(vel, svMaxSpeed)
 	}
+	ctx.player.SetVelocity(s, vel)
+	ctx.velocity = vel
 }
 
 func (s *Server) airMove(ctx *clientMoveContext) {
-	AngleVectors(ctx.player.Vars.Angles, &ctx.forward, &ctx.right, &ctx.up)
+	AngleVectors(ctx.player.Angles(s), &ctx.forward, &ctx.right, &ctx.up)
 
 	fmove := ctx.cmd.ForwardMove
 	smove := ctx.cmd.SideMove
 
-	if s.Time < ctx.player.Vars.TeleportTime && fmove < 0 {
+	if s.Time < ctx.player.TeleportTime(s) && fmove < 0 {
 		fmove = 0
 	}
 
@@ -291,7 +312,7 @@ func (s *Server) airMove(ctx *clientMoveContext) {
 		wishvel[i] = ctx.forward[i]*fmove + ctx.right[i]*smove
 	}
 
-	if MoveType(ctx.player.Vars.MoveType) != MoveTypeWalk {
+	if MoveType(ctx.player.MoveType(s)) != MoveTypeWalk {
 		wishvel[2] = ctx.cmd.UpMove
 	} else {
 		wishvel[2] = 0
@@ -304,8 +325,9 @@ func (s *Server) airMove(ctx *clientMoveContext) {
 		wishspeed = svMaxSpeed
 	}
 
-	if MoveType(ctx.player.Vars.MoveType) == MoveTypeNoClip {
-		ctx.player.Vars.Velocity = wishvel
+	if MoveType(ctx.player.MoveType(s)) == MoveTypeNoClip {
+		ctx.player.SetVelocity(s, wishvel)
+		ctx.velocity = wishvel
 		return
 	}
 
@@ -359,41 +381,44 @@ func (s *Server) SV_ClientThink(client *Client) {
 	}
 
 	ent := client.Edict
-	if MoveType(ent.Vars.MoveType) == MoveTypeNone {
+	if MoveType(ent.MoveType(s)) == MoveTypeNone {
 		return
 	}
 
 	ctx := &clientMoveContext{
 		player:   ent,
-		origin:   ent.Vars.Origin,
-		velocity: ent.Vars.Velocity,
+		origin:   ent.Origin(s),
+		velocity: ent.Velocity(s),
 		cmd:      client.LastCmd,
-		onground: uint32(ent.Vars.Flags)&FlagOnGround != 0,
+		onground: uint32(ent.Flags(s))&FlagOnGround != 0,
 	}
 
 	s.dropPunchAngle(ent)
 
-	if ent.Vars.Health <= 0 {
+	if ent.Health(s) <= 0 {
 		return
 	}
 
-	vAngle := VecAdd(ent.Vars.VAngle, ent.Vars.PunchAngle)
-	ent.Vars.Angles[2] = CalcRoll(s.CVar, ent.Vars.Angles, ent.Vars.Velocity) * 4
-	if ent.Vars.FixAngle == 0 {
-		ent.Vars.Angles[0] = -vAngle[0] / 3
-		ent.Vars.Angles[1] = vAngle[1]
+	punchAngle := ent.PunchAngle(s)
+	vAngle := VecAdd(ent.VAngle(s), punchAngle)
+	angles := ent.Angles(s)
+	angles[2] = CalcRoll(s.CVar, angles, ent.Velocity(s)) * 4
+	if ent.FixAngle(s) == 0 {
+		angles[0] = -vAngle[0] / 3
+		angles[1] = vAngle[1]
 	}
+	ent.SetAngles(s, angles)
 
-	if uint32(ent.Vars.Flags)&FlagWaterJump != 0 {
+	if uint32(ent.Flags(s))&FlagWaterJump != 0 {
 		s.waterJump(ent)
 		return
 	}
 
-	if MoveType(ent.Vars.MoveType) == MoveTypeNoClip {
+	if MoveType(ent.MoveType(s)) == MoveTypeNoClip {
 		s.noclipMove(ctx)
 		return
 	}
-	if ent.Vars.WaterLevel >= 2 {
+	if ent.WaterLevel(s) >= 2 {
 		s.waterMove(ctx)
 		return
 	}
@@ -497,7 +522,7 @@ func (s *Server) ReadClientMove(client *Client, buf *MessageBuffer) UserCmd {
 	}
 
 	if client.Edict != nil {
-		client.Edict.Vars.VAngle = cmd.ViewAngles
+		client.Edict.SetVAngle(s, cmd.ViewAngles)
 	}
 
 	cmd.ForwardMove = float32(buf.ReadShort())
@@ -507,14 +532,14 @@ func (s *Server) ReadClientMove(client *Client, buf *MessageBuffer) UserCmd {
 	bits := buf.Byte()
 	cmd.Buttons = bits
 	if client.Edict != nil {
-		client.Edict.Vars.Button0 = float32(bits & 1)
-		client.Edict.Vars.Button2 = float32((bits & 2) >> 1)
+		client.Edict.SetButton0(s, float32(bits&1))
+		client.Edict.SetButton2(s, float32((bits&2)>>1))
 	}
 
 	impulse := buf.Byte()
 	cmd.Impulse = impulse
 	if impulse != 0 && client.Edict != nil {
-		client.Edict.Vars.Impulse = float32(impulse)
+		client.Edict.SetImpulse(s, float32(impulse))
 	}
 
 	return cmd
@@ -553,7 +578,7 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 			if c == nil || !c.Active || c.Edict == nil {
 				continue
 			}
-			if c.Edict.Vars.Team == client.Edict.Vars.Team {
+			if c.Edict.Team(s) == client.Edict.Team(s) {
 				s.SV_ClientPrintf(c, "(team) %s: %s\n", client.Name, msg)
 			}
 		}
@@ -592,7 +617,7 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 		} else {
 			client.Name = newName
 			if client.Edict != nil && s.QCVM != nil {
-				client.Edict.Vars.NetName = s.QCVM.AllocString(client.Name)
+				client.Edict.SetNetName(s, s.QCVM.AllocString(client.Name))
 			}
 		}
 		return true
@@ -607,7 +632,7 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 		} else {
 			client.Color = color
 			if client.Edict != nil {
-				client.Edict.Vars.Team = float32((color & 15) + 1)
+				client.Edict.SetTeam(s, float32((color&15)+1))
 			}
 		}
 		return true
@@ -826,10 +851,10 @@ func (s *Server) DropClient(client *Client, crash bool) {
 
 	clientName := client.Name
 	clientColor := client.Color
-	if client.Edict != nil && client.Edict.Vars != nil {
-		client.Edict.Vars.NetName = 0
-		client.Edict.Vars.Team = 0
-		client.Edict.Vars.Frags = 0
+	if client.Edict != nil {
+		client.Edict.SetNetName(s, 0)
+		client.Edict.SetTeam(s, 0)
+		client.Edict.SetFrags(s, 0)
 	}
 
 	client.Active = false

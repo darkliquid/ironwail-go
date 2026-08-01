@@ -35,11 +35,9 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 		soundNum = 300
 	)
 	s.SoundPrecache[soundNum] = "misc/large.wav"
-	ent := &Edict{
-					Mins:   [3]float32{-2, -4, -6},
-			Maxs:   [3]float32{2, 4, 6},
-		},
-	}
+	ent := &Edict{}
+	ent.SetMins(s, [3]float32{-2, -4, -6})
+	ent.SetMaxs(s, [3]float32{2, 4, 6})
 	s.Edicts = make([]*Edict, entNum+1)
 	s.Edicts[entNum] = ent
 
@@ -192,7 +190,7 @@ func TestSpawnServerLoadsMapEntitiesIntoQCVM(t *testing.T) {
 		}
 		if className == "trigger_changelevel" {
 			foundChangeLevel = true
-			if got := s.String(ent.Vars.Map); got == "" {
+			if got := s.String(ent.Map(s)); got == "" {
 				t.Fatalf("trigger_changelevel %d missing map key after entity parse", entNum)
 			}
 		}
@@ -252,7 +250,7 @@ func TestSpawnServerE2M2MonstersDoNotStartInSolid(t *testing.T) {
 		}
 		if blocker := s.TestEntityPosition(ent); blocker != nil {
 			blockerClass := ""
-			if blocker.Vars != nil {
+			if blocker != nil {
 				blockerClass = s.String(blocker.ClassName(s))
 			}
 			t.Fatalf("monster %d (%s) spawned in solid at %v blocker=%d (%s)", entNum, className, ent.Origin(s), s.NumForEdict(blocker), blockerClass)
@@ -617,7 +615,7 @@ func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.
 	if spawn == nil {
 		t.Fatal("AllocEdict returned nil")
 	}
-	if spawn.Vars == nil {
+	if spawn == nil {
 			}
 	spawn.SetClassName(s, s.QCVM.AllocString("info_player_start"))
 	spawn.SetOrigin(s, [3]float32{480, -320, 64})

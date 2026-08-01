@@ -127,10 +127,10 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 
 	// Prepare multiple entities for search tests
 	s.Edicts = []*Edict{
-		{Vars: &EntVars{}},
-		{Vars: &EntVars{}},
-		{Vars: &EntVars{}},
-		{Vars: &EntVars{}},
+		{},
+		{},
+		{},
+		{},
 	}
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = 4
@@ -217,10 +217,10 @@ func TestServerHooksSearchFunctionsSkipFreedEdicts(t *testing.T) {
 	qc.RegisterBuiltins(vm)
 
 	s.Edicts = []*Edict{
-		{Vars: &EntVars{}},
-		{Vars: &EntVars{}},
-		{Vars: &EntVars{}, Free: true},
-		{Vars: &EntVars{}},
+		{},
+		{},
+		{Free: true},
+		{},
 	}
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -268,17 +268,17 @@ func TestServerHooksCheckBottomSyncsEntityFromQCVM(t *testing.T) {
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
 	s.WorldModel = CreateSyntheticWorldModel()
-	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	s.ClearWorld()
 
 	ent := s.AllocEdict()
 	if ent == nil {
 		t.Fatal("AllocEdict returned nil")
 	}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.Origin = [3]float32{0, 0, 24}
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetOrigin(s, [3]float32{0, 0, 24})
 	s.LinkEdict(ent, false)
 
 	entNum := s.NumForEdict(ent)
@@ -386,9 +386,9 @@ func TestServerHooksSetOriginImportsPendingQCBoundsForLink(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 	s.ClearWorld()
 
-	ent.Vars.Origin = [3]float32{0, 0, 0}
-	ent.Vars.Mins = [3]float32{-1, -1, -1}
-	ent.Vars.Maxs = [3]float32{1, 1, 1}
+	ent.SetOrigin(s, [3]float32{0, 0, 0})
+	ent.SetMins(s, [3]float32{-1, -1, -1})
+	ent.SetMaxs(s, [3]float32{1, 1, 1})
 	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetEVector(entNum, qc.EntFieldMins, [3]float32{-16, -8, -4})
@@ -401,10 +401,10 @@ func TestServerHooksSetOriginImportsPendingQCBoundsForLink(t *testing.T) {
 		fn(vm)
 	}
 
-	if got := ent.Vars.AbsMin; got != [3]float32{83, 41, 20} {
+	if got := ent.AbsMin(s); got != [3]float32{83, 41, 20} {
 		t.Fatalf("server absmin = %v, want bounds from QC mins with link expansion", got)
 	}
-	if got := ent.Vars.AbsMax; got != [3]float32{117, 59, 38} {
+	if got := ent.AbsMax(s); got != [3]float32{117, 59, 38} {
 		t.Fatalf("server absmax = %v, want bounds from QC maxs with link expansion", got)
 	}
 }
@@ -423,9 +423,9 @@ func TestServerHooksSetSizeImportsPendingQCOriginForLink(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 	s.ClearWorld()
 
-	ent.Vars.Origin = [3]float32{0, 0, 0}
-	ent.Vars.Mins = [3]float32{-1, -1, -1}
-	ent.Vars.Maxs = [3]float32{1, 1, 1}
+	ent.SetOrigin(s, [3]float32{0, 0, 0})
+	ent.SetMins(s, [3]float32{-1, -1, -1})
+	ent.SetMaxs(s, [3]float32{1, 1, 1})
 	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{200, 20, 8})
@@ -438,10 +438,10 @@ func TestServerHooksSetSizeImportsPendingQCOriginForLink(t *testing.T) {
 		fn(vm)
 	}
 
-	if got := ent.Vars.AbsMin; got != [3]float32{183, 3, -17} {
+	if got := ent.AbsMin(s); got != [3]float32{183, 3, -17} {
 		t.Fatalf("server absmin = %v, want bounds from QC origin with link expansion", got)
 	}
-	if got := ent.Vars.AbsMax; got != [3]float32{217, 37, 41} {
+	if got := ent.AbsMax(s); got != [3]float32{217, 37, 41} {
 		t.Fatalf("server absmax = %v, want bounds from QC origin with link expansion", got)
 	}
 }
@@ -460,7 +460,7 @@ func TestServerHooksSetModelImportsPendingQCOriginForLink(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 	s.ClearWorld()
 
-	ent.Vars.Origin = [3]float32{0, 0, 0}
+	ent.SetOrigin(s, [3]float32{0, 0, 0})
 	s.syncEdictToQCVM(entNum, ent)
 	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{64, 32, 16})
 
@@ -493,8 +493,8 @@ func TestServerHooksSetModelImportsPendingQCOriginForLink(t *testing.T) {
 func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	s := NewServer()
 	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
+	if world := s.EdictNum(0); world != nil {
+		world.SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
@@ -508,11 +508,11 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.Vars.Origin = [3]float32{0, 0, 24}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent.SetOrigin(s, [3]float32{0, 0, 24})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	ent.SetFlags(s, float32(FlagOnGround))
 	s.LinkEdict(ent, false)
 	s.syncEdictToQCVM(entNum, ent)
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
@@ -527,9 +527,9 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 		t.Fatalf("walkmove did not change origin: %v", got)
 	}
 
-	ent.Vars.Origin = [3]float32{0, 0, 96}
-	ent.Vars.Flags = 0
-	ent.Vars.GroundEntity = 0
+	ent.SetOrigin(s, [3]float32{0, 0, 96})
+	ent.SetFlags(s, 0)
+	ent.SetGroundEntity(s, 0)
 	s.LinkEdict(ent, false)
 	s.syncEdictToQCVM(entNum, ent)
 	if fn := vm.Builtins[34]; fn != nil {
@@ -549,8 +549,8 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *testing.T) {
 	s := NewServer()
 	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
+	if world := s.EdictNum(0); world != nil {
+		world.SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
@@ -564,12 +564,14 @@ func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *tes
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.Vars.Origin = [3]float32{0, 0, 24}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
-	ent.Vars.Angles[1] = 45
-	ent.Vars.IdealYaw = 123
+	ent.SetOrigin(s, [3]float32{0, 0, 24})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
+	angles := ent.Angles(s)
+	angles[1] = 45
+	ent.SetAngles(s, angles)
+	ent.SetIdealYaw(s, 123)
 	s.syncEdictToQCVM(entNum, ent)
 	vm.SetEFloat(entNum, qc.EntFieldFlags, float32(FlagOnGround))
 	vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{0, 33, 0})
@@ -599,8 +601,8 @@ func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *tes
 func TestServerHooksDropToFloorImportsPendingQCState(t *testing.T) {
 	s := NewServer()
 	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
+	if world := s.EdictNum(0); world != nil {
+		world.SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
@@ -614,10 +616,10 @@ func TestServerHooksDropToFloorImportsPendingQCState(t *testing.T) {
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.Vars.Origin = [3]float32{0, 0, 96}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.SetOrigin(s, [3]float32{0, 0, 96})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
 	s.LinkEdict(ent, false)
 	s.syncEdictToQCVM(entNum, ent)
 
@@ -649,10 +651,10 @@ func TestServerHooksWalkMoveRequiresMovementFlags(t *testing.T) {
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.Vars.Origin = [3]float32{0, 0, 0}
-	ent.Vars.Mins = [3]float32{-16, -16, -24}
-	ent.Vars.Maxs = [3]float32{16, 16, 32}
-	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.SetOrigin(s, [3]float32{0, 0, 0})
+	ent.SetMins(s, [3]float32{-16, -16, -24})
+	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetSolid(s, float32(SolidSlideBox))
 	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
@@ -672,8 +674,8 @@ func TestServerHooksWalkMoveRequiresMovementFlags(t *testing.T) {
 func TestServerHooksWalkMoveRestoresQCContextAfterNestedTouch(t *testing.T) {
 	s := NewServer()
 	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
+	if world := s.EdictNum(0); world != nil {
+		world.SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
@@ -702,17 +704,17 @@ func TestServerHooksWalkMoveRestoresQCContextAfterNestedTouch(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 
 	moverNum := s.NumForEdict(mover)
-	mover.Vars.Origin = [3]float32{0, 0, 24}
-	mover.Vars.Mins = [3]float32{-16, -16, -24}
-	mover.Vars.Maxs = [3]float32{16, 16, 32}
-	mover.Vars.Solid = float32(SolidSlideBox)
-	mover.Vars.Flags = float32(FlagOnGround)
+	mover.SetOrigin(s, [3]float32{0, 0, 24})
+	mover.SetMins(s, [3]float32{-16, -16, -24})
+	mover.SetMaxs(s, [3]float32{16, 16, 32})
+	mover.SetSolid(s, float32(SolidSlideBox))
+	mover.SetFlags(s, float32(FlagOnGround))
 
-	trigger.Vars.Origin = [3]float32{24, 0, 24}
-	trigger.Vars.Mins = [3]float32{-16, -16, -24}
-	trigger.Vars.Maxs = [3]float32{16, 16, 32}
-	trigger.Vars.Solid = float32(SolidTrigger)
-	trigger.Vars.Touch = 1
+	trigger.SetOrigin(s, [3]float32{24, 0, 24})
+	trigger.SetMins(s, [3]float32{-16, -16, -24})
+	trigger.SetMaxs(s, [3]float32{16, 16, 32})
+	trigger.SetSolid(s, float32(SolidTrigger))
+	s.QCVM.SetEInt(trigger.Num, qc.EntFieldTouch, 1)
 
 	s.LinkEdict(mover, false)
 	s.LinkEdict(trigger, false)

@@ -60,9 +60,7 @@ func TestStartSoundNetQuakeUsesLegacyEncoding(t *testing.T) {
 		channel  = 3
 		soundNum = 42
 	)
-	ent := &Edict{
-				},
-	}
+	ent := &Edict{}
 	s.Edicts = make([]*Edict, entNum+1)
 	s.Edicts[entNum] = ent
 	s.SoundPrecache[soundNum] = "misc/small.wav"

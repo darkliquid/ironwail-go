@@ -1,37 +1,18 @@
 package server
 
 import (
-	"reflect"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 func (s *Server) syncEdictToQCVM(entNum int, ent *Edict) {
-	vm := s.QCVM
-	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
-		return
-	}
-	cache := s.qcSyncCacheForVM(vm)
-	syncEntVarsToQC(vm, entNum, ent.Vars, cache.entVarBindings)
-	if ent.Free && cache.modelIndexOfs >= 0 {
-		vm.SetEFloat(entNum, cache.modelIndexOfs, 0)
-	}
 }
 
 // syncEdictFromQCVM pulls one VM edict's fields back into the Go Edict struct.
-// It is used after QC mutates fields so server physics/network code can continue
-// from the updated authoritative values produced by QuakeC logic.
+// With accessor-based dual-write, QCVM data is already authoritative; this
+// is now a no-op kept for call-site compatibility.
 func (s *Server) syncEdictFromQCVM(entNum int, ent *Edict) {
-	vm := s.QCVM
-	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
-		return
-	}
-	cache := s.qcSyncCacheForVM(vm)
-	syncEntVarsFromQC(vm, entNum, ent.Vars, cache.entVarBindings)
-	if ent.Vars.Model == 0 || vm.String(ent.Vars.Model) == "" {
-		ent.Vars.ModelIndex = 0
-	}
 }
 
 func clearQCVMEdictData(vm *qc.VM, entNum int) {
@@ -61,11 +42,7 @@ func (s *Server) syncSpawnedEdictsFromQCVM(startEntNum int) {
 		if ent == nil || ent.Free {
 			continue
 		}
-		if ent.Vars == nil {
-			ent.Vars = &EntVars{}
-		}
-		s.syncEdictFromQCVM(entNum, ent)
-		if entNum == 0 || int(ent.Vars.Solid) == int(SolidNot) {
+		if entNum == 0 || int(ent.Solid(s)) == int(SolidNot) {
 			continue
 		}
 		s.LinkEdict(ent, false)
@@ -120,11 +97,11 @@ func (s *Server) newCheckClient() int {
 			i++
 			continue
 		}
-		if client.Edict.Vars.Health <= 0 {
+		if client.Edict.Health(s) <= 0 {
 			i++
 			continue
 		}
-		if uint32(client.Edict.Vars.Flags)&FlagNoTarget != 0 {
+		if uint32(client.Edict.Flags(s))&FlagNoTarget != 0 {
 			i++
 			continue
 		}
@@ -136,12 +113,13 @@ func (s *Server) newCheckClient() int {
 		return 0
 	}
 	client := s.Static.Clients[i-1]
-	if client == nil || client.Edict == nil || client.Edict.Free || client.Edict.Vars.Health <= 0 {
+	if client == nil || client.Edict == nil || client.Edict.Free || client.Edict.Health(s) <= 0 {
 		return 0
 	}
 	if s.WorldTree != nil && len(s.WorldTree.Nodes) > 0 {
-		org := client.Edict.Vars.Origin
-		org = [3]float32{org[0] + client.Edict.Vars.ViewOfs[0], org[1] + client.Edict.Vars.ViewOfs[1], org[2] + client.Edict.Vars.ViewOfs[2]}
+		org := client.Edict.Origin(s)
+		viewOfs := client.Edict.ViewOfs(s)
+		org = [3]float32{org[0] + viewOfs[0], org[1] + viewOfs[1], org[2] + viewOfs[2]}
 		if leaf := s.WorldTree.PointInLeaf(org); leaf != nil {
 			s.checkClientPVS = append(s.checkClientPVS[:0], s.WorldTree.LeafPVS(leaf)...)
 		}
@@ -149,66 +127,6 @@ func (s *Server) newCheckClient() int {
 	return s.NumForEdict(client.Edict)
 }
 
-// qcFieldOffsets builds a normalized field-name → VM offset table for entvars.
-// QuakeC field layouts are data-driven from progs.dat; this lookup lets reflection
-// code map Go struct field names onto runtime VM offsets safely.
-func buildQCFieldOffsets(vm *qc.VM) map[string]int {
-	offsets := make(map[string]int, len(defaultEntFieldOffsets)+len(vm.FieldDefs))
-	for key, ofs := range defaultEntFieldOffsets {
-		offsets[key] = ofs
-	}
-	for _, def := range vm.FieldDefs {
-		name := vm.String(def.Name)
-		if name == "" {
-			continue
-		}
-		offsets[normalizeFieldName(name)] = int(def.Ofs)
-	}
-	return offsets
-}
-
-func (s *Server) qcSyncCacheForVM(vm *qc.VM) *qcSyncCache {
-	if vm == nil {
-		return nil
-	}
-	if cached, ok := s.qcSyncCaches.Load(vm); ok {
-		return cached.(*qcSyncCache)
-	}
-
-	fieldOffsets := buildQCFieldOffsets(vm)
-	rt := reflect.TypeOf(EntVars{})
-	bindings := make([]entFieldBinding, 0, rt.NumField())
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
-		ofs, ok := fieldOffsets[normalizeFieldName(field.Name)]
-		if !ok {
-			continue
-		}
-		switch field.Type.Kind() {
-		case reflect.Float32:
-			bindings = append(bindings, entFieldBinding{fieldIndex: i, ofs: ofs, kind: entFieldFloat32})
-		case reflect.Int32:
-			bindings = append(bindings, entFieldBinding{fieldIndex: i, ofs: ofs, kind: entFieldInt32})
-		case reflect.Array:
-			if field.Type.Len() == 3 && field.Type.Elem().Kind() == reflect.Float32 {
-				bindings = append(bindings, entFieldBinding{fieldIndex: i, ofs: ofs, kind: entFieldVec3})
-			}
-		}
-	}
-
-	cache := &qcSyncCache{
-		fieldOffsets:   fieldOffsets,
-		entVarBindings: bindings,
-		modelIndexOfs:  -1,
-	}
-	if ofs, ok := fieldOffsets[normalizeFieldName("ModelIndex")]; ok {
-		cache.modelIndexOfs = ofs
-	}
-	if existing, loaded := s.qcSyncCaches.LoadOrStore(vm, cache); loaded {
-		return existing.(*qcSyncCache)
-	}
-	return cache
-}
 
 var defaultEntFieldOffsets = map[string]int{
 	normalizeFieldName("ModelIndex"):   qc.EntFieldModelIndex,
@@ -290,54 +208,6 @@ var defaultEntFieldOffsets = map[string]int{
 	normalizeFieldName("Noise3"):       qc.EntFieldNoise3,
 }
 
-// syncEntVarsToQC reflects over EntVars and writes each mapped field into VM edict memory.
-// This generic reflection pass avoids hand-writing dozens of assignments and keeps
-// the Go-side EntVars schema synchronized with QuakeC-visible entity fields.
-func syncEntVarsToQC(vm *qc.VM, entNum int, vars *EntVars, bindings []entFieldBinding) {
-	if vm == nil || vars == nil {
-		return
-	}
-	rv := reflect.ValueOf(vars).Elem()
-	for _, binding := range bindings {
-		value := rv.Field(binding.fieldIndex)
-		switch binding.kind {
-		case entFieldFloat32:
-			vm.SetEFloat(entNum, binding.ofs, float32(value.Float()))
-		case entFieldInt32:
-			vm.SetEInt(entNum, binding.ofs, int32(value.Int()))
-		case entFieldVec3:
-			vm.SetEVector(entNum, binding.ofs, [3]float32{
-				float32(value.Index(0).Float()),
-				float32(value.Index(1).Float()),
-				float32(value.Index(2).Float()),
-			})
-		}
-	}
-}
-
-// syncEntVarsFromQC reflects over EntVars and imports values from VM edict memory.
-// It is the inverse of syncEntVarsToQC and keeps engine systems (physics, networking,
-// savegames) in lockstep with whatever game DLL logic changed in QuakeC this frame.
-func syncEntVarsFromQC(vm *qc.VM, entNum int, vars *EntVars, bindings []entFieldBinding) {
-	if vm == nil || vars == nil {
-		return
-	}
-	rv := reflect.ValueOf(vars).Elem()
-	for _, binding := range bindings {
-		value := rv.Field(binding.fieldIndex)
-		switch binding.kind {
-		case entFieldFloat32:
-			value.SetFloat(float64(vm.EFloat(entNum, binding.ofs)))
-		case entFieldInt32:
-			value.SetInt(int64(vm.EInt(entNum, binding.ofs)))
-		case entFieldVec3:
-			vec := vm.EVector(entNum, binding.ofs)
-			value.Index(0).SetFloat(float64(vec[0]))
-			value.Index(1).SetFloat(float64(vec[1]))
-			value.Index(2).SetFloat(float64(vec[2]))
-		}
-	}
-}
 
 // ensureQCVMEdictStorage grows VM edict backing storage to match server edict capacity.
 // QuakeC addresses entities by index into a flat byte block; this guarantees indexes

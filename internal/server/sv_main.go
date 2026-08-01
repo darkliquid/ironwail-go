@@ -209,7 +209,7 @@ func (s *Server) Init(maxClients int) error {
 
 	s.Edicts = make([]*Edict, maxClients+1)
 	for i := range s.Edicts {
-		s.Edicts[i] = &Edict{Vars: &EntVars{}, Scale: 16}
+		s.Edicts[i] = &Edict{Scale: 16}
 	}
 	s.NumEdicts = len(s.Edicts)
 
@@ -325,7 +325,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	}
 
 	if s.Edicts[0] == nil {
-		s.Edicts[0] = &Edict{Vars: &EntVars{}, Scale: 16}
+		s.Edicts[0] = &Edict{Scale: 16}
 	}
 	world := s.Edicts[0]
 	world.Free = false

@@ -125,10 +125,10 @@ func TestMultiplayerDedicatedServerConnectsTwoHeadlessClients(t *testing.T) {
 	if !cl1.Active || !cl1.Spawned {
 		t.Errorf("BotB: Active=%v Spawned=%v, want both true", cl1.Active, cl1.Spawned)
 	}
-	if cl0.Edict == nil || cl0.Edict.Vars == nil {
+	if cl0.Edict == nil {
 		t.Error("BotA edict is nil after signon")
 	}
-	if cl1.Edict == nil || cl1.Edict.Vars == nil {
+	if cl1.Edict == nil {
 		t.Error("BotB edict is nil after signon")
 	}
 }
@@ -162,10 +162,10 @@ func TestMultiplayerDeathmatchClientsFightEachOther(t *testing.T) {
 		drainClientMessages(s, 1)
 	}
 
-	if cl0.Edict == nil || cl0.Edict.Vars == nil {
+	if cl0.Edict == nil {
 		t.Fatal("BotA edict missing after settle")
 	}
-	if cl1.Edict == nil || cl1.Edict.Vars == nil {
+	if cl1.Edict == nil {
 		t.Fatal("BotB edict missing after settle")
 	}
 

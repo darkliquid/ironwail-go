@@ -35,7 +35,7 @@ func newPhysicsTestServer() *Server {
 
 func allocPhysicsTestEdict(s *Server) *Edict {
 	num := len(s.Edicts)
-	ent := &Edict{Num: num, Vars: &EntVars{}}
+	ent := &Edict{Num: num}
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 	if s.QCVM != nil {

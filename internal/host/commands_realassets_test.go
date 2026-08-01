@@ -126,7 +126,7 @@ func TestCmdMapE2M2RealAssetsKeepsMonstersOutOfSolid(t *testing.T) {
 		}
 		if blocker := srv.TestEntityPosition(ent); blocker != nil {
 			blockerClass := ""
-			if blocker.Vars != nil {
+			if blocker != nil {
 				blockerClass = srv.String(blocker.ClassName(srv))
 			}
 			t.Fatalf("monster %d (%s) spawned in solid after CmdMap at %v blocker=%d (%s)", entNum, className, ent.Origin(srv), srv.NumForEdict(blocker), blockerClass)
@@ -832,7 +832,7 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 			continue
 		}
 		trigger = ent
-		wantLevel = srv.String(ent.Vars.Map)
+		wantLevel = srv.String(ent.Map(srv))
 		break
 	}
 	if trigger == nil {

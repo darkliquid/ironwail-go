@@ -54,8 +54,8 @@ func TestFindTouchedLeafsUsesBoxOnPlaneSideForNonAxialPlanes(t *testing.T) {
 		Planes: []model.MPlane{{Normal: [3]float32{invSqrt2, -invSqrt2, 0}, Dist: 0, Type: 3}},
 	}
 
-	ent := &Edict{		AbsMax: [3]float32{4, 3, 1},
-	}}
+	ent := &Edict{}
+	ent.SetAbsMax(s, [3]float32{4, 3, 1})
 
 	s.findTouchedLeafs(ent, bsp.TreeChild{Index: 0, IsLeaf: false})
 

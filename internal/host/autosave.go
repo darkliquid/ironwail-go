@@ -41,10 +41,11 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 		return
 	}
 	player := subs.Server.EdictNum(1)
-	if player == nil || player.Vars == nil {
+	if player == nil {
 		return
 	}
-	if player.Vars.Health <= 0 {
+	srv, _ := subs.Server.(*server.Server)
+	if player.Health(srv) <= 0 {
 		return
 	}
 
@@ -53,7 +54,7 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 		return
 	}
 	now, frameDelta := h.autosaveClock(subs)
-	health := float64(player.Vars.Health)
+	health := float64(player.Health(srv))
 	if h.clientState == caActive {
 		h.updateAutosaveSecretState(subs, frameDelta)
 	}
@@ -62,17 +63,17 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 		h.autosave.prevHealth = health
 	}
 	healthChange := health - h.autosave.prevHealth
-	if healthChange < 0 && (healthChange < -3 || health < 100 || isHazardWater(player.Vars.WaterType)) {
+	if healthChange < 0 && (healthChange < -3 || health < 100 || isHazardWater(player.WaterType(srv))) {
 		h.autosave.hurtTime = now
 	}
 	h.autosave.prevHealth = health
 
-	if player.Vars.Button0 != 0 {
+	if player.Button0(srv) != 0 {
 		h.autosave.shootTime = now
 	}
 
-	flags := uint32(player.Vars.Flags)
-	if server.MoveType(player.Vars.MoveType) == server.MoveTypeNoClip || flags&(server.FlagGodMode|server.FlagNoTarget) != 0 {
+	flags := uint32(player.Flags(srv))
+	if server.MoveType(player.MoveType(srv)) == server.MoveTypeNoClip || flags&(server.FlagGodMode|server.FlagNoTarget) != 0 {
 		h.autosave.cheatTime += frameDelta
 		return
 	}
@@ -82,13 +83,14 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	if now-h.autosave.shootTime < 3 {
 		return
 	}
-	if server.MoveType(player.Vars.MoveType) == server.MoveTypeNone {
+	if server.MoveType(player.MoveType(srv)) == server.MoveTypeNone {
 		return
 	}
+	playerVel := player.Velocity(srv)
 	speed := math.Sqrt(
-		float64(player.Vars.Velocity[0]*player.Vars.Velocity[0] +
-			player.Vars.Velocity[1]*player.Vars.Velocity[1] +
-			player.Vars.Velocity[2]*player.Vars.Velocity[2]),
+		float64(playerVel[0]*playerVel[0] +
+			playerVel[1]*playerVel[1] +
+			playerVel[2]*playerVel[2]),
 	)
 	if speed > 100 {
 		return
@@ -100,12 +102,12 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	}
 
 	score := elapsed / intervalSeconds
-	effectiveHealth := math.Min(100, health+float64(player.Vars.ArmorType*player.Vars.ArmorValue)) / 100
+	effectiveHealth := math.Min(100, health+float64(player.ArmorType(srv)*player.ArmorValue(srv))) / 100
 	score *= effectiveHealth
 	score += math.Max(0, healthChange) / 100
 	score -= (speed / 100) * 0.25
 	score += h.autosave.secretBoost * 0.25
-	score += clamp(1-(now-float64(player.Vars.TeleportTime))/1.5, 0, 1) * 0.5
+	score += clamp(1-(now-float64(player.TeleportTime(srv)))/1.5, 0, 1) * 0.5
 	if score < 1 {
 		return
 	}

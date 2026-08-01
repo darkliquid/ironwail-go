@@ -15,7 +15,7 @@ func newMovementTestServer() *Server {
 		MaxVelocity: 2000,
 		FrameTime:   0.1,
 		MaxEdicts:   64,
-		Edicts:      []*Edict{{Vars: &EntVars{}}},
+		Edicts:      []*Edict{{}},
 		NumEdicts:   1,
 	}
 	s.SetCompatRNG(compatrand.New())
@@ -258,7 +258,7 @@ func createSyntheticPlatformWorldModel() *model.Model {
 func TestMoveStepRejectsUnsupportedStepOffPlatform(t *testing.T) {
 	s := NewServer()
 	s.WorldModel = createSyntheticPlatformWorldModel()
-	if len(s.Edicts) > 0 && s.Edicts[0] != nil && s.Edicts[0].Vars != nil {
+	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
 		s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()

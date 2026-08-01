@@ -52,7 +52,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log/slog"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -60,12 +59,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
-// entVarsFieldIndex is a pre-computed reflection lookup table that maps
-// normalised field names (lowercased, underscores stripped) to struct field
-// indices within EntVars. It is built once at package init time by
-// buildEntVarsFieldIndex so that parseEdictFieldValue can resolve a map key
-// to its target struct field in O(1) without repeated reflection.
-var entVarsFieldIndex = buildEntVarsFieldIndex()
 
 // stringEntFieldNames lists entity fields whose int32 values are indices
 // into the QuakeC VM string table rather than raw numeric values. When
@@ -188,15 +181,6 @@ func (em *EntityManager) ED_Free(entNum int) error {
 	// Don't add client slots (0 to maxClients-1) to free list
 	if entNum >= em.maxClients {
 		// Clear key fields
-		if edict.Vars != nil {
-			edict.Vars.Model = 0
-			edict.Vars.TakeDamage = 0
-			edict.Vars.Frame = 0
-			edict.Vars.Origin = [3]float32{}
-			edict.Vars.Angles = [3]float32{}
-			edict.Vars.NextThink = -1
-			edict.Vars.Solid = 0
-		}
 		if em.vm != nil && em.vm.EdictSize > 28 {
 			em.vm.SetEInt(entNum, qc.EntFieldModel, 0)
 			em.vm.SetEFloat(entNum, qc.EntFieldTakeDamage, 0)
@@ -256,8 +240,11 @@ func (em *EntityManager) ED_ClearEdict(entNum int) {
 	edict.Free = false
 
 	// Zero all QuakeC fields
-	edict.Vars = &EntVars{}
-	// In Go, the EntVars struct is already zero-initialized on creation
+	if em.vm != nil && em.vm.EdictSize > 28 {
+		for i := 0; i < em.vm.EdictSize; i += 4 {
+			em.vm.SetEFloat(entNum, i, 0)
+		}
+	}
 
 	// Reset rendering state
 	edict.Alpha = 0  // ENTALPHA_DEFAULT
@@ -393,11 +380,7 @@ func (em *EntityManager) ED_ParseEdict(data string, entNum int) (string, error) 
 
 	// Don't clear entity 0 (worldspawn)
 	if entNum > 0 {
-		if edict.Vars == nil {
-			edict.Vars = &EntVars{}
-		}
 		// Zero all fields (in Go, we just replace with new struct)
-		edict.Vars = &EntVars{}
 		// Match C Quake's "clear before parse" behavior for non-world edicts so
 		// reused VM slots don't leak QC-only fields into the next entity. Known
 		// fields will be mirrored back into QC before spawn; QC-defined fields
@@ -571,23 +554,6 @@ func (em *EntityManager) fieldDef(keyName string) (int, qc.EType, bool) {
 	return 0, 0, false
 }
 
-// buildEntVarsFieldIndex uses reflection to iterate over every exported
-// field of the EntVars struct and builds a map from normalised field name
-// (lowercased, underscores stripped) to the field's positional index. This
-// function is called exactly once at package init time; the resulting map
-// is stored in entVarsFieldIndex so that parseEdictFieldValue can resolve
-// any map-file key to its target struct field without repeated reflection
-// or linear scans.
-func buildEntVarsFieldIndex() map[string]int {
-	index := make(map[string]int)
-	entType := reflect.TypeOf(EntVars{})
-	for i := 0; i < entType.NumField(); i++ {
-		f := entType.Field(i)
-		index[normalizeFieldName(f.Name)] = i
-	}
-	return index
-}
-
 // normalizeFieldName strips underscores and lowercases the input string to
 // produce a canonical form suitable for case-insensitive,
 // underscore-insensitive field name matching. This mirrors the original
@@ -695,13 +661,9 @@ func parseStringFallbackInt32(raw string) int32 {
 // After setting either the "mins" or "maxs" field, the entity's Size vector
 // is automatically recalculated as (Maxs - Mins) on each axis. This keeps
 // Size consistent whenever a bounding box corner changes, which is required
-// by the physics and collision systems.
 func (em *EntityManager) parseEdictFieldValue(edict *Edict, entNum int, keyName, value string) error {
 	if edict == nil {
 		return fmt.Errorf("nil edict")
-	}
-	if edict.Vars == nil {
-		edict.Vars = &EntVars{}
 	}
 
 	// Always parse into QCVM edict storage if VM is available
@@ -709,86 +671,10 @@ func (em *EntityManager) parseEdictFieldValue(edict *Edict, entNum int, keyName,
 		return err
 	}
 
-	fieldIndex, ok := entVarsFieldIndex[normalizeFieldName(keyName)]
-	if !ok {
-		return nil
-	}
-
-	rv := reflect.ValueOf(edict.Vars).Elem().Field(fieldIndex)
-	switch rv.Kind() {
-	case reflect.Float32:
-		f, err := parseFloat32(value)
-		if err != nil {
-			return err
-		}
-		rv.SetFloat(float64(f))
-	case reflect.Int32:
-		if em.vm != nil {
-			if _, ok := stringEntFieldNames[normalizeFieldName(keyName)]; ok {
-				rv.SetInt(int64(em.vm.AllocString(value)))
-				return nil
-			}
-		}
-		if fieldType, ok := em.fieldType(keyName); ok {
-			switch fieldType {
-			case qc.EvString:
-				if em.vm != nil {
-					rv.SetInt(int64(em.vm.AllocString(value)))
-					return nil
-				}
-			case qc.EvField:
-				if em.vm != nil {
-					if fieldOfs := em.vm.FindField(value); fieldOfs >= 0 {
-						rv.SetInt(int64(fieldOfs))
-						return nil
-					}
-				}
-				return nil
-			case qc.EvFunction:
-				if em.vm != nil {
-					if funcNum := em.vm.FindFunction(value); funcNum >= 0 {
-						rv.SetInt(int64(funcNum))
-						return nil
-					}
-				}
-				return nil
-			case qc.EvEntity, qc.EvPointer, qc.EvExtInteger:
-				if i, err := parseInt32(value); err == nil {
-					rv.SetInt(int64(i))
-					return nil
-				}
-				return nil
-			}
-		}
-		if i, err := parseInt32(value); err == nil {
-			rv.SetInt(int64(i))
-		} else {
-			rv.SetInt(int64(parseStringFallbackInt32(value)))
-		}
-	case reflect.Array:
-		if rv.Len() != 3 || rv.Type().Elem().Kind() != reflect.Float32 {
-			return fmt.Errorf("unsupported array field type %s", rv.Type())
-		}
-		vec, err := parseVec3(value)
-		if err != nil {
-			return err
-		}
-		for i := 0; i < 3; i++ {
-			rv.Index(i).SetFloat(float64(vec[i]))
-		}
-	default:
-		return fmt.Errorf("unsupported field kind %s", rv.Kind())
-	}
-
 	// Recalculate entity bounding-box Size whenever either corner changes.
 	// The physics code (SV_Physics, SV_ClipMoveToEntity) relies on Size
 	// being the delta (Maxs − Mins) and does not recompute it on the fly.
 	if normalizeFieldName(keyName) == "mins" || normalizeFieldName(keyName) == "maxs" {
-		if edict.Vars != nil {
-			edict.Vars.Size[0] = edict.Vars.Maxs[0] - edict.Vars.Mins[0]
-			edict.Vars.Size[1] = edict.Vars.Maxs[1] - edict.Vars.Mins[1]
-			edict.Vars.Size[2] = edict.Vars.Maxs[2] - edict.Vars.Mins[2]
-		}
 		if em.vm != nil && em.vm.EdictSize > 28 {
 			mins := em.vm.EVector(edict.Num, qc.EntFieldMins)
 			maxs := em.vm.EVector(edict.Num, qc.EntFieldMaxs)

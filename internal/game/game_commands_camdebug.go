@@ -230,10 +230,10 @@ func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit,
 			if ent == nil || ent.Free {
 				continue
 			}
-			modelIdx := int(ent.Vars.ModelIndex)
+			modelIdx := int(ent.ModelIndex(g.Server))
 			if modelIdx > 0 && modelIdx < len(tree.Models) {
 				submodel := &tree.Models[modelIdx]
-				traceModelFaces(modelIdx, edictIdx, submodel.FirstFace, submodel.NumFaces, ent.Vars.Origin)
+				traceModelFaces(modelIdx, edictIdx, submodel.FirstFace, submodel.NumFaces, ent.Origin(g.Server))
 			}
 		}
 	}

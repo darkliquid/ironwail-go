@@ -407,7 +407,7 @@ func TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink(t *testing.T) {
 	}
 	vm.SetGInt(mutateBuiltinOfs, -1)
 
-	ent := &Edict{Num: 1, Vars: &EntVars{}}
+	ent := &Edict{Num: 1}
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -458,8 +458,8 @@ func TestPhysicsPusherSyncsThirdPartyPusherStateBackFromQCVM(t *testing.T) {
 	}
 	vm.SetGInt(mutateBuiltinOfs, -1)
 
-	e1 := &Edict{Num: 1, Vars: &EntVars{}}
-	target := &Edict{Num: 2, Vars: &EntVars{}}
+	e1 := &Edict{Num: 1}
+	target := &Edict{Num: 2}
 	s.Edicts = append(s.Edicts, e1, target)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
@@ -526,7 +526,7 @@ func TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM(t *testing.T) {
 	}
 	vm.SetGInt(spawnBuiltinOfs, -1)
 
-	ent := &Edict{Num: 1, Vars: &EntVars{}}
+	ent := &Edict{Num: 1}
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts

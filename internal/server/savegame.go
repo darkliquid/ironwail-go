@@ -17,7 +17,6 @@ package server
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
@@ -92,7 +91,7 @@ type SaveEdictState struct {
 	OldFrame       float32
 	OldThinkTime   float32
 	FreeTime       float32
-	Vars           EntVars
+	RawQCVMData    []byte
 	Strings        map[string]string
 }
 
@@ -270,17 +269,20 @@ func (s *Server) RestoreSaveGameState(state *SaveGameState) error {
 			OldFrame:       saved.OldFrame,
 			OldThinkTime:   saved.OldThinkTime,
 			FreeTime:       saved.FreeTime,
-			Vars:           &EntVars{},
 		}
 		// Scale 0 is invalid; 16 means 1.0× in the Quake byte encoding
 		// (the network protocol transmits scale as a byte, where 16 = 100%).
 		if ent.Scale == 0 {
 			ent.Scale = 16
 		}
-		// Bulk-copy all EntVars fields (including stale string indices),
-		// then overwrite the string fields with freshly allocated indices.
-		*ent.Vars = saved.Vars
-		applySavedEdictStrings(ent.Vars, saved.Strings, s.QCVM)
+		// Restore raw QCVM edict data, then re-allocate string indices.
+		if s.QCVM != nil && len(saved.RawQCVMData) > 0 {
+			data := s.QCVM.EdictData(i)
+			if data != nil && len(data) >= len(saved.RawQCVMData) {
+				copy(data, saved.RawQCVMData)
+			}
+			applySavedEdictStringsQCVM(i, saved.Strings, s.QCVM)
+		}
 		s.Edicts[i] = ent
 	}
 	s.NumEdicts = len(s.Edicts)
@@ -312,7 +314,7 @@ func (s *Server) RestoreSaveGameState(state *SaveGameState) error {
 			ent.Free = false
 			continue
 		}
-		if ent.Free || ent.Vars == nil {
+		if ent.Free {
 			continue
 		}
 		s.LinkEdict(ent, false)
@@ -348,44 +350,37 @@ func captureSaveEdictState(ent *Edict, vm *qc.VM) SaveEdictState {
 	state.OldFrame = ent.OldFrame
 	state.OldThinkTime = ent.OldThinkTime
 	state.FreeTime = ent.FreeTime
-	if ent.Vars != nil {
-		state.Vars = *ent.Vars
-		state.Strings = captureSavedEdictStrings(ent.Vars, vm)
+	if vm != nil && vm.EdictSize > 0 {
+		data := vm.EdictData(ent.Num)
+		if data != nil {
+			state.RawQCVMData = append([]byte(nil), data...)
+			state.Strings = captureSavedEdictStringsQCVM(ent.Num, vm)
+		}
 	}
 	return state
 }
 
-// captureSavedEdictStrings resolves int string handles back to text so saves are VM-agnostic.
-// captureSavedEdictStrings uses reflection to iterate over every field in
-// EntVars and identify the ones that hold QC string indices (matched against
-// the stringEntFieldNames set). For each such field, the integer index is
-// resolved to its actual string content via vm.String, and the result is
-// stored in a map keyed by the Go struct field name.
-//
-// Reflection is used here because EntVars is a large auto-generated struct
-// mirroring the QC entity fields, and maintaining a hand-written list of
-// string fields would be fragile. The stringEntFieldNames set acts as a
-// filter so we only touch fields that are known to be QC string types.
-//
-// Zero-index strings are skipped (index 0 is the empty string in QC).
-func captureSavedEdictStrings(vars *EntVars, vm *qc.VM) map[string]string {
-	if vars == nil || vm == nil {
+// captureSavedEdictStringsQCVM resolves QC string field indices back to text
+// by reading the edict's QCVM data directly. It uses defaultEntFieldOffsets
+// and stringEntFieldNames to identify which fields are string-typed, reads
+// their int32 values from the VM, and resolves them to text via vm.String.
+func captureSavedEdictStringsQCVM(entNum int, vm *qc.VM) map[string]string {
+	if vm == nil {
 		return nil
 	}
 	strings := make(map[string]string)
-	rv := reflect.ValueOf(vars).Elem()
-	rt := rv.Type()
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
-		if _, ok := stringEntFieldNames[normalizeFieldName(field.Name)]; !ok {
+	for fieldName := range stringEntFieldNames {
+		normalized := normalizeFieldName(fieldName)
+		ofs, ok := defaultEntFieldOffsets[normalized]
+		if !ok {
 			continue
 		}
-		idx := int32(rv.Field(i).Int())
+		idx := vm.EInt(entNum, ofs)
 		if idx == 0 {
 			continue
 		}
 		if value := vm.String(idx); value != "" {
-			strings[field.Name] = value
+			strings[normalized] = value
 		}
 	}
 	if len(strings) == 0 {
@@ -394,33 +389,22 @@ func captureSavedEdictStrings(vars *EntVars, vm *qc.VM) map[string]string {
 	return strings
 }
 
-// applySavedEdictStrings re-allocates saved text back into VM string table and patches EntVars.
-// applySavedEdictStrings is the inverse of captureSavedEdictStrings. Given
-// a map of field-name → text pairs (from the save file), it allocates a
-// fresh string index in the current VM for each value via vm.AllocString
-// and writes it into the corresponding EntVars field using reflection.
-//
-// This is the critical step that makes QC string indices portable across
-// VM instances: the old indices (which are still present in the bulk-copied
-// EntVars) are overwritten with newly allocated indices that are valid in
-// the current VM's string table.
-//
-// Empty strings are mapped to index 0 (the QC empty-string sentinel).
-func applySavedEdictStrings(vars *EntVars, strings map[string]string, vm *qc.VM) {
-	if vars == nil || vm == nil || len(strings) == 0 {
+// applySavedEdictStringsQCVM re-allocates saved text into the VM string table
+// and writes the new indices back into the edict's QCVM data.
+func applySavedEdictStringsQCVM(entNum int, strings map[string]string, vm *qc.VM) {
+	if vm == nil || len(strings) == 0 {
 		return
 	}
-	rv := reflect.ValueOf(vars).Elem()
-	for name, value := range strings {
-		field := rv.FieldByName(name)
-		if !field.IsValid() || !field.CanSet() || field.Kind() != reflect.Int32 {
+	for fieldName, value := range strings {
+		ofs, ok := defaultEntFieldOffsets[fieldName]
+		if !ok {
 			continue
 		}
-		if value == "" {
-			field.SetInt(0)
-			continue
+		var idx int32
+		if value != "" {
+			idx = vm.AllocString(value)
 		}
-		field.SetInt(int64(vm.AllocString(value)))
+		vm.SetEInt(entNum, ofs, idx)
 	}
 }
 

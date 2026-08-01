@@ -17,5 +17,6 @@ func (s *Server) cacheQCFieldOffsets() {
 	s.QCFieldSpeed = s.QCVM.FindField("speed")
 	s.QCFieldCustomFlags = s.QCVM.FindField("customflags")
 	s.QCFieldThCheckAttack = s.QCVM.FindField("th_checkattack")
+	s.QCFieldMap = s.QCVM.FindField("map")
 	s.EffectsMask = s.detectEffectsMaskFromQC()
 }

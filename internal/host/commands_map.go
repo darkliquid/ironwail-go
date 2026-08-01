@@ -12,6 +12,7 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
 func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
@@ -443,7 +444,8 @@ func (h *Host) autoLoadLastSave(subs *Subsystems, force bool, onDecline func()) 
 			return true
 		}
 		player := subs.Server.EdictNum(1)
-		if mode < 3 && player != nil && player.Vars != nil && player.Vars.Health > 0 {
+		srv, _ := subs.Server.(*server.Server)
+		if mode < 3 && player != nil && player.Health(srv) > 0 {
 			return false
 		}
 	}

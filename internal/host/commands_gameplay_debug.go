@@ -19,10 +19,10 @@ func (h *Host) findViewthing(subs *Subsystems) *server.Edict {
 	}
 	for i := 1; i < srv.NumEdicts; i++ {
 		ent := srv.EdictNum(i)
-		if ent == nil || ent.Free || ent.Vars == nil {
+		if ent == nil || ent.Free {
 			continue
 		}
-		if srv.String(ent.Vars.ClassName) == "viewthing" {
+		if srv.String(ent.ClassName(srv)) == "viewthing" {
 			return ent
 		}
 	}
@@ -46,7 +46,8 @@ func (h *Host) CmdViewframe(frame int, subs *Subsystems) {
 	if frame < 0 {
 		frame = 0
 	}
-	ent.Vars.Frame = float32(frame)
+	srv, _ := subs.Server.(*server.Server)
+	ent.SetFrame(srv, float32(frame))
 	subs.Console.Print(fmt.Sprintf("frame %d\n", frame))
 }
 
@@ -64,8 +65,9 @@ func (h *Host) CmdViewnext(subs *Subsystems) {
 		subs.Console.Print("viewnext: no viewthing on map\n")
 		return
 	}
-	frame := int(ent.Vars.Frame) + 1
-	ent.Vars.Frame = float32(frame)
+	srv, _ := subs.Server.(*server.Server)
+	frame := int(ent.Frame(srv)) + 1
+	ent.SetFrame(srv, float32(frame))
 	subs.Console.Print(fmt.Sprintf("frame %d\n", frame))
 }
 
@@ -83,11 +85,12 @@ func (h *Host) CmdViewprev(subs *Subsystems) {
 		subs.Console.Print("viewprev: no viewthing on map\n")
 		return
 	}
-	frame := int(ent.Vars.Frame) - 1
+	srv, _ := subs.Server.(*server.Server)
+	frame := int(ent.Frame(srv)) - 1
 	if frame < 0 {
 		frame = 0
 	}
-	ent.Vars.Frame = float32(frame)
+	ent.SetFrame(srv, float32(frame))
 	subs.Console.Print(fmt.Sprintf("frame %d\n", frame))
 }
 
@@ -99,7 +102,10 @@ func (h *Host) CmdViewpos(subs *Subsystems) {
 	if ent == nil {
 		return
 	}
-	subs.Console.Print(fmt.Sprintf("viewpos: %.2f %.2f %.2f (yaw: %.2f pitch: %.2f)\n", ent.Vars.Origin[0], ent.Vars.Origin[1], ent.Vars.Origin[2], ent.Vars.VAngle[1], ent.Vars.VAngle[0]))
+	srv, _ := subs.Server.(*server.Server)
+	entOrigin := ent.Origin(srv)
+	entVAngle := ent.VAngle(srv)
+	subs.Console.Print(fmt.Sprintf("viewpos: %.2f %.2f %.2f (yaw: %.2f pitch: %.2f)\n", entOrigin[0], entOrigin[1], entOrigin[2], entVAngle[1], entVAngle[0]))
 }
 
 func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
@@ -127,55 +133,59 @@ func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
 		filtered = append(filtered, float32(v))
 	}
 
+	srv, _ := subs.Server.(*server.Server)
+	entOrigin := ent.Origin(srv)
+	entVAngle := ent.VAngle(srv)
 	if len(filtered) != 3 && len(filtered) != 6 {
 		if subs.Console != nil {
 			subs.Console.Print("usage:\n")
 			subs.Console.Print("   setpos <x> <y> <z>\n")
 			subs.Console.Print("   setpos <x> <y> <z> <pitch> <yaw> <roll>\n")
 			subs.Console.Print(fmt.Sprintf("current values:\n   %d %d %d %d %d %d\n",
-				int(math.Round(float64(ent.Vars.Origin[0]))),
-				int(math.Round(float64(ent.Vars.Origin[1]))),
-				int(math.Round(float64(ent.Vars.Origin[2]))),
-				int(math.Round(float64(ent.Vars.VAngle[0]))),
-				int(math.Round(float64(ent.Vars.VAngle[1]))),
-				int(math.Round(float64(ent.Vars.VAngle[2])))))
+					int(math.Round(float64(entOrigin[0]))),
+					int(math.Round(float64(entOrigin[1]))),
+					int(math.Round(float64(entOrigin[2]))),
+					int(math.Round(float64(entVAngle[0]))),
+					int(math.Round(float64(entVAngle[1]))),
+					int(math.Round(float64(entVAngle[2])))))
 		}
 		return
 	}
 
 	// Auto-enable noclip so the player doesn't fall through the world
 	// when teleporting to arbitrary positions.
-	if server.MoveType(ent.Vars.MoveType) != server.MoveTypeNoClip {
-		ent.Vars.MoveType = float32(server.MoveTypeNoClip)
+	if server.MoveType(ent.MoveType(srv)) != server.MoveTypeNoClip {
+		ent.SetMoveType(srv, float32(server.MoveTypeNoClip))
 		if subs.Console != nil {
 			subs.Console.Print("noclip ON\n")
 		}
 	}
 
 	// Clear velocity
-	ent.Vars.Velocity = [3]float32{}
+	ent.SetVelocity(srv, [3]float32{})
 
 	// Set origin
-	ent.Vars.Origin[0] = filtered[0]
-	ent.Vars.Origin[1] = filtered[1]
-	ent.Vars.Origin[2] = filtered[2]
+	entOrigin[0] = filtered[0]
+	entOrigin[1] = filtered[1]
+	entOrigin[2] = filtered[2]
+	ent.SetOrigin(srv, entOrigin)
 
 	// Optionally set angles
 	if len(filtered) == 6 {
-		ent.Vars.Angles[0] = filtered[3]
-		ent.Vars.Angles[1] = filtered[4]
-		ent.Vars.Angles[2] = filtered[5]
+		entAngles := ent.Angles(srv)
+		entAngles[0] = filtered[3]
+		entAngles[1] = filtered[4]
+		entAngles[2] = filtered[5]
+		ent.SetAngles(srv, entAngles)
 		// Keep server and immediate local view queries aligned. C updates client
 		// view through fixangle; mirroring VAngle here avoids transient stale
 		// orientation when scripts issue setpos and immediately capture output.
-		ent.Vars.VAngle = [3]float32{filtered[3], filtered[4], filtered[5]}
-		ent.Vars.FixAngle = 1
+		ent.SetVAngle(srv, [3]float32{filtered[3], filtered[4], filtered[5]})
+		ent.SetFixAngle(srv, 1)
 	}
 
 	// Relink entity in world
-	if srv, ok := subs.Server.(*server.Server); ok {
-		srv.LinkEdict(ent, false)
-	}
+	srv.LinkEdict(ent, false)
 }
 
 func (h *Host) CmdPrEnts(subs *Subsystems) {
@@ -192,7 +202,7 @@ func (h *Host) CmdPrEnts(subs *Subsystems) {
 		if ent == nil || ent.Free {
 			continue
 		}
-		className := srv.String(ent.Vars.ClassName)
+		className := srv.String(ent.ClassName(srv))
 		subs.Console.Print(fmt.Sprintf("%d: %s\n", i, className))
 	}
 }
@@ -213,16 +223,14 @@ func (h *Host) CmdEdictCount(subs *Subsystems) {
 			continue
 		}
 		active++
-		if ent.Vars != nil {
-			if ent.Vars.Solid != 0 {
-				solid++
-			}
-			if ent.Vars.Model != 0 {
-				models++
-			}
-			if server.MoveType(ent.Vars.MoveType) == server.MoveTypeStep {
-				step++
-			}
+		if ent.Solid(srv) != 0 {
+			solid++
+		}
+		if ent.Model(srv) != 0 {
+			models++
+		}
+		if server.MoveType(ent.MoveType(srv)) == server.MoveTypeStep {
+			step++
 		}
 	}
 

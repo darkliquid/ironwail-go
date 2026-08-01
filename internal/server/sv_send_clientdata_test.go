@@ -27,19 +27,17 @@ func TestWriteClientDataToMessage_NetQuakeOmitsExtensions(t *testing.T) {
 		ModelPrecache: modelPrecache,
 	}
 	ent := &Edict{
-		Vars: &EntVars{
-			WeaponModel: weaponModel,
-			WeaponFrame: 0x234,
-			ArmorValue:  0x345,
-			Health:      100,
-			CurrentAmmo: 0x456,
-			AmmoShells:  0x567,
-			AmmoNails:   0x678,
-			AmmoRockets: 0x789,
-			AmmoCells:   0x89a,
-		},
-		Alpha: 0x7f,
+				Alpha: 0x7f,
 	}
+	ent.SetWeaponModel(s, weaponModel)
+	ent.SetWeaponFrame(s, 0x234)
+	ent.SetArmorValue(s, 0x345)
+	ent.SetHealth(s, 100)
+	ent.SetCurrentAmmo(s, 0x456)
+	ent.SetAmmoShells(s, 0x567)
+	ent.SetAmmoNails(s, 0x678)
+	ent.SetAmmoRockets(s, 0x789)
+	ent.SetAmmoCells(s, 0x89a)
 
 	msg := NewMessageBuffer(512)
 	s.WriteClientDataToMessage(ent, msg)
@@ -78,11 +76,9 @@ func TestWriteClientDataToMessage_FitzSendsWeapon2(t *testing.T) {
 		ModelPrecache: modelPrecache,
 	}
 	ent := &Edict{
-		Vars: &EntVars{
-			WeaponModel: weaponModel,
-			Health:      100,
-		},
-	}
+			}
+	ent.SetWeaponModel(s, weaponModel)
+	ent.SetHealth(s, 100)
 
 	msg := NewMessageBuffer(256)
 	s.WriteClientDataToMessage(ent, msg)
@@ -120,19 +116,17 @@ func TestWriteClientDataToMessage_FitzExtensionsPayloadOrder(t *testing.T) {
 		ModelPrecache: modelPrecache,
 	}
 	ent := &Edict{
-		Vars: &EntVars{
-			WeaponModel: weaponModel,
-			WeaponFrame: 0x234,
-			ArmorValue:  0x345,
-			Health:      100,
-			CurrentAmmo: 0x456,
-			AmmoShells:  0x567,
-			AmmoNails:   0x678,
-			AmmoRockets: 0x789,
-			AmmoCells:   0x89a,
-		},
-		Alpha: 0x7f,
+				Alpha: 0x7f,
 	}
+	ent.SetWeaponModel(s, weaponModel)
+	ent.SetWeaponFrame(s, 0x234)
+	ent.SetArmorValue(s, 0x345)
+	ent.SetHealth(s, 100)
+	ent.SetCurrentAmmo(s, 0x456)
+	ent.SetAmmoShells(s, 0x567)
+	ent.SetAmmoNails(s, 0x678)
+	ent.SetAmmoRockets(s, 0x789)
+	ent.SetAmmoCells(s, 0x89a)
 
 	msg := NewMessageBuffer(512)
 	s.WriteClientDataToMessage(ent, msg)
@@ -204,12 +198,10 @@ func TestWriteClientDataToMessage_SendsBaseWeaponBitmask(t *testing.T) {
 
 	s := &Server{Protocol: ProtocolNetQuake}
 	ent := &Edict{
-		Vars: &EntVars{
-			Weapon:      1 << 5,
-			Health:      100,
-			CurrentAmmo: 5,
-		},
-	}
+			}
+	ent.SetWeapon(s, 1 << 5)
+	ent.SetHealth(s, 100)
+	ent.SetCurrentAmmo(s, 5)
 
 	msg := NewMessageBuffer(128)
 	s.WriteClientDataToMessage(ent, msg)
@@ -228,12 +220,10 @@ func TestWriteClientDataToMessage_MissionPackEncodesWeaponAsBitNumber(t *testing
 		FileSystem: testGameDirFS{gameDir: "rogue"},
 	}
 	ent := &Edict{
-		Vars: &EntVars{
-			Weapon:      1 << 5,
-			Health:      100,
-			CurrentAmmo: 5,
-		},
-	}
+			}
+	ent.SetWeapon(s, 1 << 5)
+	ent.SetHealth(s, 100)
+	ent.SetCurrentAmmo(s, 5)
 
 	msg := NewMessageBuffer(128)
 	s.WriteClientDataToMessage(ent, msg)
@@ -249,12 +239,10 @@ func TestWriteClientDataToMessage_SendsFullActiveWeaponStatWhenBitmaskExceedsByt
 
 	s := &Server{Protocol: ProtocolNetQuake}
 	ent := &Edict{
-		Vars: &EntVars{
-			Weapon:      1 << 8,
-			Health:      100,
-			CurrentAmmo: 5,
-		},
-	}
+			}
+	ent.SetWeapon(s, 1 << 8)
+	ent.SetHealth(s, 100)
+	ent.SetCurrentAmmo(s, 5)
 
 	msg := NewMessageBuffer(128)
 	s.WriteClientDataToMessage(ent, msg)
@@ -292,20 +280,17 @@ func TestWriteClientDataToMessage_LogsPhysicsTelemetry(t *testing.T) {
 		debugTelemetryEnableCVar = oldEnable
 	})
 
-	ent := &Edict{
-		Vars: &EntVars{
-			Flags:        FlagPartialGround,
-			ViewOfs:      [3]float32{0, 0, 22},
-			IdealPitch:   7,
-			Velocity:     [3]float32{0, 1840, 0},
-			PunchAngle:   [3]float32{105, 0, 32},
-			FixAngle:     1,
-			GroundEntity: 99,
-			TeleportTime: 1.25,
-			Health:       100,
-		},
-	}
-	s.Edicts = []*Edict{{Vars: &EntVars{}}, ent}
+	ent := &Edict{}
+	ent.SetIdealPitch(s, 7)
+	ent.SetVelocity(s, [3]float32{0, 1840, 0})
+	ent.SetFlags(s, FlagPartialGround)
+	ent.SetViewOfs(s, [3]float32{0, 0, 22})
+	ent.SetPunchAngle(s, [3]float32{105, 0, 32})
+	ent.SetFixAngle(s, 1)
+	ent.SetGroundEntity(s, 99)
+	ent.SetTeleportTime(s, 1.25)
+	ent.SetHealth(s, 100)
+	s.Edicts = []*Edict{{}, ent}
 
 	msg := NewMessageBuffer(256)
 	s.WriteClientDataToMessage(ent, msg)
@@ -334,8 +319,7 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 	vm.SetEFloat(1, 0, 0.001) // tiny positive alpha rounds to ENTALPHA_ZERO
 
 	ent := &Edict{
-		Vars: &EntVars{},
-	}
+			}
 	client := &Client{
 		Edict: ent,
 	}
@@ -364,8 +348,7 @@ func TestWriteEntitiesToClient_DoesNotEmitRetireForFreedBaselineOnlyEntity(t *te
 	t.Parallel()
 
 	ent := &Edict{
-		Vars:     &EntVars{},
-		Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
+				Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
 	}
 	client := &Client{}
 	s := &Server{
@@ -390,8 +373,7 @@ func TestWriteEntitiesToClient_DoesNotEmitStickyRetireForOmittedTrackedEntity(t 
 	t.Parallel()
 
 	ent := &Edict{
-		Vars:     &EntVars{},
-		Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
+				Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
 	}
 	client := &Client{EntityStates: map[int]EntityState{1: ent.Baseline}}
 	s := &Server{
