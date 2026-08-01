@@ -170,7 +170,8 @@ func TestWriteEntitiesToClient_EmitsLerpFinishOnlyWhenSendIntervalSet(t *testing
 	t.Parallel()
 
 	ent := &Edict{
-				SendInterval: true,
+		Num:          1,
+		SendInterval: true,
 		NumLeafs:     1,
 	}
 	ent.LeafNums[0] = 0
@@ -189,6 +190,7 @@ func TestWriteEntitiesToClient_EmitsLerpFinishOnlyWhenSendIntervalSet(t *testing
 	}
 	newServerTestVM(s, 8)
 	ent.SetModelIndex(s, 1)
+	ent.SetNextThink(s, 10.5)
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
 		t.Fatal("entityStateForClient returned ok=false for visible brush entity")

@@ -326,8 +326,7 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 	vm := newTestQCVM()
 	vm.SetEFloat(1, 0, 0.001) // tiny positive alpha rounds to ENTALPHA_ZERO
 
-	ent := &Edict{
-			}
+	ent := &Edict{Num: 1, Alpha: 0} // ENTALPHA_ZERO
 	client := &Client{
 		Edict: ent,
 	}
@@ -340,7 +339,7 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 		Edicts:       []*Edict{{}, ent},
 		NumEdicts:    2,
 	}
-	newServerTestVM(s, 8)
+	ent.SetModelIndex(s, 1)
 
 	msg := NewMessageBuffer(256)
 	s.writeEntitiesToClient(client, msg)
