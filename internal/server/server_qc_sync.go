@@ -28,16 +28,37 @@ func clearQCVMEdictData(vm *qc.VM, entNum int) {
 
 // ensureDefaultQCVMEdictStorage sets up QCVM edict storage with default
 // parameters when no progs.dat has been loaded yet. This ensures accessor
-// methods work during tests and early initialization.
+// methods work during tests and early initialization. When progs.dat has
+// already been loaded (EdictSize > 0), it still allocates the Edicts byte
+// array if it hasn't been allocated yet — this happens in the production
+// init order where LoadProgs is called before Init.
 func (s *Server) ensureDefaultQCVMEdictStorage() {
-	if s.QCVM == nil || s.QCVM.EdictSize > 0 {
+	if s.QCVM == nil {
 		return
 	}
-	s.QCVM.EntityFields = 128
-	s.QCVM.EdictSize = 28 + s.QCVM.EntityFields*4
-	s.QCVM.MaxEdicts = max(s.MaxEdicts, s.NumEdicts)
-	s.QCVM.NumEdicts = s.NumEdicts
-	s.QCVM.Edicts = make([]byte, s.QCVM.EdictSize*s.QCVM.MaxEdicts)
+	if s.QCVM.EdictSize == 0 {
+		s.QCVM.EntityFields = 128
+		s.QCVM.EdictSize = 28 + s.QCVM.EntityFields*4
+	}
+	maxEdicts := s.MaxEdicts
+	if maxEdicts < s.NumEdicts {
+		maxEdicts = s.NumEdicts
+	}
+	if maxEdicts <= 0 {
+		maxEdicts = s.NumEdicts
+	}
+	if s.QCVM.MaxEdicts < maxEdicts {
+		s.QCVM.MaxEdicts = maxEdicts
+	}
+	if s.QCVM.NumEdicts < s.NumEdicts {
+		s.QCVM.NumEdicts = s.NumEdicts
+	}
+	needed := s.QCVM.EdictSize * s.QCVM.MaxEdicts
+	if needed > 0 && len(s.QCVM.Edicts) < needed {
+		grown := make([]byte, needed)
+		copy(grown, s.QCVM.Edicts)
+		s.QCVM.Edicts = grown
+	}
 }
 
 func (s *Server) syncSpawnedEdictsFromQCVM(startEntNum int) {
