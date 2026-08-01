@@ -358,7 +358,9 @@ func (s *Server) ensureQCVMEdictStorage() {
 	}
 	needed := s.QCVM.EdictSize * s.QCVM.MaxEdicts
 	if len(s.QCVM.Edicts) < needed {
-		s.QCVM.Edicts = make([]byte, needed)
+		grown := make([]byte, needed)
+		copy(grown, s.QCVM.Edicts)
+		s.QCVM.Edicts = grown
 	}
 	if s.QCVM.NumEdicts < s.NumEdicts {
 		s.QCVM.NumEdicts = s.NumEdicts
@@ -373,6 +375,25 @@ func (s *Server) syncQCVMState() {
 		return
 	}
 	s.ensureQCVMEdictStorage()
+	s.syncQCVMGlobals()
+
+	for entNum := 0; entNum < s.NumEdicts; entNum++ {
+		s.syncEdictToQCVM(entNum, s.EdictNum(entNum))
+	}
+}
+
+// syncQCVMGlobals publishes core server globals (time, world, mapname,
+// serverflags, coop, deathmatch) into the QC VM without touching per-entity
+// storage. This is the per-frame equivalent of C's pr_global_struct->time =
+// sv.time before StartFrame runs. It must NOT sync per-entity fields because
+// that would overwrite QC bytecode mutations (nextthink, think, velocity,
+// etc.) that were written via OP_STORE_* during the previous frame's QC
+// callbacks.
+func (s *Server) syncQCVMGlobals() {
+	if s.QCVM == nil {
+		return
+	}
+	s.ensureQCVMEdictStorage()
 	s.QCVM.SetGlobal("world", 0)
 	s.QCVM.SetGlobal("mapname", s.QCVM.AllocString(s.Name))
 	s.QCVM.SetGlobal("time", s.Time)
@@ -380,18 +401,12 @@ func (s *Server) syncQCVMState() {
 		s.QCVM.SetGlobal("serverflags", s.Static.ServerFlags)
 	}
 
-	// C Ironwail sets coop/deathmatch globals before ED_LoadFromFile so
-	// QC spawn functions can branch on game mode.
 	coopVal := s.CVar.FloatValue("coop")
 	dmVal := s.CVar.FloatValue("deathmatch")
 	if coopVal != 0 {
 		s.QCVM.SetGlobal("coop", float32(coopVal))
 	} else {
 		s.QCVM.SetGlobal("deathmatch", float32(dmVal))
-	}
-
-	for entNum := 0; entNum < s.NumEdicts; entNum++ {
-		s.syncEdictToQCVM(entNum, s.EdictNum(entNum))
 	}
 }
 

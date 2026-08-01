@@ -54,7 +54,7 @@ func TestMatchesClassnameFilter(t *testing.T) {
 
 func TestDebugTelemetryLogEventHonorsFiltersAndFormatsSnapshot(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Vars: &EntVars{Origin: [3]float32{128, 64, 32}}}
+	ent := &Edict{}}
 	ent.Vars.ClassName = vm.AllocString("trigger_multiple")
 	ent.Vars.TargetName = vm.AllocString("door1")
 	ent.Vars.Target = vm.AllocString("torch1")
@@ -104,7 +104,7 @@ func TestDebugTelemetrySummaryAndQCFormatting(t *testing.T) {
 		{Name: vm.AllocString("monster_use"), FirstStatement: 42},
 	}
 
-	ent := &Edict{Vars: &EntVars{Origin: [3]float32{8, 16, 24}}}
+	ent := &Edict{}}
 	ent.Vars.ClassName = vm.AllocString("monster_ogre")
 	ent.Vars.TargetName = vm.AllocString("ogre1")
 
@@ -213,7 +213,7 @@ func TestDebugTelemetrySummaryModeTwoLogsEmptyFrames(t *testing.T) {
 
 func TestDebugTelemetryCachesConfigPerFrame(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Vars: &EntVars{}}
+	ent := &Edict{}
 	ent.Vars.ClassName = vm.AllocString("trigger_multiple")
 
 	configReads := 0
@@ -248,7 +248,7 @@ func TestDebugTelemetryCachesConfigPerFrame(t *testing.T) {
 
 func TestDebugTelemetryCoalescesConsecutiveDuplicateEvents(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Vars: &EntVars{}}
+	ent := &Edict{}
 	ent.Vars.ClassName = vm.AllocString("trigger_multiple")
 
 	lines := make([]string, 0, 8)
@@ -290,7 +290,7 @@ func TestDebugTelemetryCoalescesConsecutiveDuplicateEvents(t *testing.T) {
 
 func TestDebugTelemetryCoalescingFlushesAtEndFrame(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Vars: &EntVars{}}
+	ent := &Edict{}
 	ent.Vars.ClassName = vm.AllocString("trigger_teleport")
 
 	lines := make([]string, 0, 8)
@@ -324,7 +324,7 @@ func TestDebugTelemetryCoalescingFlushesAtEndFrame(t *testing.T) {
 
 func TestDebugTelemetryBatchesProductionOutputPerFrame(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Vars: &EntVars{}}
+	ent := &Edict{}
 	ent.Vars.ClassName = vm.AllocString("trigger_multiple")
 
 	chunks := make([]string, 0, 1)

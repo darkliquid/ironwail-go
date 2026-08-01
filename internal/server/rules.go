@@ -30,7 +30,7 @@ func (s *Server) CheckRules() {
 			if client == nil || !client.Active || client.Edict == nil || client.Edict.Free {
 				continue
 			}
-			if float64(client.Edict.Vars.Frags) >= fragLimit {
+			if float64(client.Edict.Frags(s)) >= fragLimit {
 				s.issueMatchEnd("fraglimit")
 				return
 			}
@@ -59,7 +59,7 @@ func (s *Server) issueMatchEnd(reason string) {
 	if nextLevel < 0 {
 		return
 	}
-	s.syncQCVMState()
+	s.syncQCVMGlobals()
 	s.QCVM.Time = float64(s.Time)
 	s.QCVM.SetGlobal("time", s.Time)
 	s.QCVM.SetGlobal("frametime", s.FrameTime)
@@ -85,7 +85,7 @@ func (s *Server) handleDeathmatchRespawn(client *Client) bool {
 	}
 
 	ent := client.Edict
-	dead := ent.Vars.Health <= 0 || DeadFlag(ent.Vars.DeadFlag) >= DeadDead
+	dead := ent.Health(s) <= 0 || DeadFlag(ent.DeadFlag(s)) >= DeadDead
 	if !dead {
 		return false
 	}
@@ -96,7 +96,7 @@ func (s *Server) handleDeathmatchRespawn(client *Client) bool {
 		// instead of the older Go-only PutClientInServer shortcut.
 		return true
 	}
-	if DeadFlag(ent.Vars.DeadFlag) < DeadRespawnable {
+	if DeadFlag(ent.DeadFlag(s)) < DeadRespawnable {
 		return true
 	}
 

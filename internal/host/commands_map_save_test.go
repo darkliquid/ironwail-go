@@ -457,27 +457,27 @@ func TestCmdEdictCountPrintsCanonicalSummary(t *testing.T) {
 	if modelEnt == nil {
 		t.Fatal("AllocEdict modelEnt = nil")
 	}
-	modelEnt.Vars.Model = srv.QCVM.AllocString("progs/ogre.mdl")
-	modelEnt.Vars.Solid = float32(server.SolidSlideBox)
-	modelEnt.Vars.MoveType = float32(server.MoveTypeStep)
+	modelEnt.SetModel(srv, srv.QCVM.AllocString("progs/ogre.mdl"))
+	modelEnt.SetSolid(srv, float32(server.SolidSlideBox))
+	modelEnt.SetMoveType(srv, float32(server.MoveTypeStep))
 
 	solidEnt := srv.AllocEdict()
 	if solidEnt == nil {
 		t.Fatal("AllocEdict solidEnt = nil")
 	}
-	solidEnt.Vars.Solid = float32(server.SolidBSP)
+	solidEnt.SetSolid(srv, float32(server.SolidBSP))
 	server.ResetCheckBottomStats()
 	grounded := srv.AllocEdict()
 	if grounded == nil {
 		t.Fatal("AllocEdict grounded = nil")
 	}
-	grounded.Vars.Origin = [3]float32{0, 0, 24}
-	grounded.Vars.Mins = [3]float32{-16, -16, -24}
-	grounded.Vars.Maxs = [3]float32{16, 16, 32}
-	grounded.Vars.Solid = float32(server.SolidSlideBox)
-	grounded.Vars.MoveType = float32(server.MoveTypeStep)
+	grounded.SetOrigin(srv, [3]float32{0, 0, 24})
+	grounded.SetMins(srv, [3]float32{-16, -16, -24})
+	grounded.SetMaxs(srv, [3]float32{16, 16, 32})
+	grounded.SetSolid(srv, float32(server.SolidSlideBox))
+	grounded.SetMoveType(srv, float32(server.MoveTypeStep))
 	srv.WorldModel = server.CreateSyntheticWorldModel()
-	srv.Edicts[0].Vars.Solid = float32(server.SolidBSP)
+	srv.Edicts[0].SetSolid(srv, float32(server.SolidBSP))
 	srv.ClearWorld()
 	srv.LinkEdict(grounded, false)
 	if !srv.CheckBottom(grounded) {
@@ -487,10 +487,10 @@ func TestCmdEdictCountPrintsCanonicalSummary(t *testing.T) {
 	if air == nil {
 		t.Fatal("AllocEdict air = nil")
 	}
-	air.Vars.Origin = [3]float32{0, 0, 256}
-	air.Vars.Mins = [3]float32{-16, -16, -24}
-	air.Vars.Maxs = [3]float32{16, 16, 32}
-	air.Vars.Solid = float32(server.SolidSlideBox)
+	air.SetOrigin(srv, [3]float32{0, 0, 256})
+	air.SetMins(srv, [3]float32{-16, -16, -24})
+	air.SetMaxs(srv, [3]float32{16, 16, 32})
+	air.SetSolid(srv, float32(server.SolidSlideBox))
 	srv.LinkEdict(air, false)
 	if srv.CheckBottom(air) {
 		t.Fatal("expected elevated entity to fail CheckBottom")

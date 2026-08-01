@@ -87,9 +87,7 @@ func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
 	t.Parallel()
 
 	ent := &Edict{
-		Vars: &EntVars{
-			Origin: [3]float32{10, 0, 0},
-		},
+				},
 	}
 	client := &Client{
 		Edict:        ent,
@@ -126,12 +124,7 @@ func TestWriteEntitiesToClient_OmitsLerpFinishWithoutSendInterval(t *testing.T) 
 	t.Parallel()
 
 	ent := &Edict{
-		Vars: &EntVars{
-			Model:      1,
-			ModelIndex: 1,
-			NextThink:  10.5,
-		},
-		NumLeafs: 1,
+				NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 0
 
@@ -172,12 +165,7 @@ func TestWriteEntitiesToClient_EmitsLerpFinishOnlyWhenSendIntervalSet(t *testing
 	t.Parallel()
 
 	ent := &Edict{
-		Vars: &EntVars{
-			Model:      1,
-			ModelIndex: 1,
-			NextThink:  10.5,
-		},
-		SendInterval: true,
+				SendInterval: true,
 		NumLeafs:     1,
 	}
 	ent.LeafNums[0] = 0
@@ -219,11 +207,7 @@ func TestWriteEntitiesToClient_EmitsVisibleBaselineEqualBrushEntity(t *testing.T
 	t.Parallel()
 
 	ent := &Edict{
-		Vars: &EntVars{
-			Model:      1,
-			ModelIndex: 1,
-			Origin:     [3]float32{0, 0, 0},
-		},
+				},
 		NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 0

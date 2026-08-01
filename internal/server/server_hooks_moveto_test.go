@@ -28,12 +28,12 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	s.SoundPrecache[1] = "ambience/drip.wav"
 
 	ent := s.AllocEdict()
-	ent.Vars.Origin = [3]float32{1, 2, 3}
-	ent.Vars.Angles = [3]float32{0, 90, 0}
-	ent.Vars.ModelIndex = 7
-	ent.Vars.Frame = 2
-	ent.Vars.Colormap = 3
-	ent.Vars.Skin = 4
+	ent.SetOrigin(s, [3]float32{1, 2, 3})
+	ent.SetAngles(s, [3]float32{0, 90, 0})
+	ent.SetModelIndex(s, 7)
+	ent.SetFrame(s, 2)
+	ent.SetColormap(s, 3)
+	ent.SetSkin(s, 4)
 
 	vm := newServerTestVM(s, 16)
 	vm.NumEdicts = s.NumEdicts
@@ -71,8 +71,8 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 
 	s.Protocol = ProtocolNetQuake
 	unsupported := s.AllocEdict()
-	unsupported.Vars.ModelIndex = 300
-	unsupported.Vars.Frame = 2
+	unsupported.SetModelIndex(s, 300)
+	unsupported.SetFrame(s, 2)
 	vm.NumEdicts = s.NumEdicts
 	before = clientMsg.Len()
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(unsupported)))
@@ -286,24 +286,24 @@ func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
 	s := NewServer()
 
 	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
+	if world := s.EdictNum(0); world != nil {
+		world.SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
 	self := s.AllocEdict()
 	goal := s.AllocEdict()
-	self.Vars.Origin = [3]float32{0, 0, 16}
-	self.Vars.Mins = [3]float32{-1, -1, 0}
-	self.Vars.Maxs = [3]float32{1, 1, 56}
-	self.Vars.Solid = float32(SolidBSP)
-	self.Vars.Flags = 0
-	self.Vars.IdealYaw = 0
-	self.Vars.YawSpeed = 360
-	goal.Vars.Origin = [3]float32{64, 0, 16}
-	goal.Vars.Mins = [3]float32{-1, -1, 0}
-	goal.Vars.Maxs = [3]float32{1, 1, 56}
-	self.Vars.GoalEntity = int32(s.NumForEdict(goal))
+	self.SetOrigin(s, [3]float32{0, 0, 16})
+	self.SetMins(s, [3]float32{-1, -1, 0})
+	self.SetMaxs(s, [3]float32{1, 1, 56})
+	self.SetSolid(s, float32(SolidBSP))
+	self.SetFlags(s, 0)
+	self.SetIdealYaw(s, 0)
+	self.SetYawSpeed(s, 360)
+	goal.SetOrigin(s, [3]float32{64, 0, 16})
+	goal.SetMins(s, [3]float32{-1, -1, 0})
+	goal.SetMaxs(s, [3]float32{1, 1, 56})
+	self.SetGoalEntity(s, int32(s.NumForEdict(goal)))
 
 	s.LinkEdict(self, false)
 	s.LinkEdict(goal, false)
@@ -311,6 +311,7 @@ func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
 	vm := newServerTestVM(s, 16)
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
+	s.syncEdictToQCVM(0, s.Edicts[0])
 
 	selfNum := s.NumForEdict(self)
 	vm.SetGInt(qc.OFSSelf, int32(selfNum))
@@ -324,11 +325,11 @@ func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
 	} else {
 		fn(vm)
 	}
-	if got := self.Vars.Origin[0]; got <= 0 {
-		t.Fatalf("movetogoal did not use QC-only movement flags: origin=%v", self.Vars.Origin)
+	if got := self.Origin(s)[0]; got <= 0 {
+		t.Fatalf("movetogoal did not use QC-only movement flags: origin=%v", self.Origin(s))
 	}
-	if got := vm.EVector(selfNum, qc.EntFieldOrigin); got != self.Vars.Origin {
-		t.Fatalf("vm origin not synchronized after movetogoal: got=%v want=%v", got, self.Vars.Origin)
+	if got := vm.EVector(selfNum, qc.EntFieldOrigin); got != self.Origin(s) {
+		t.Fatalf("vm origin not synchronized after movetogoal: got=%v want=%v", got, self.Origin(s))
 	}
 }
 
@@ -336,24 +337,24 @@ func TestServerHooksMoveToGoalImportsPendingQCGoalEdict(t *testing.T) {
 	s := NewServer()
 
 	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
+	if world := s.EdictNum(0); world != nil {
+		world.SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
 	self := s.AllocEdict()
 	goal := s.AllocEdict()
-	self.Vars.Origin = [3]float32{0, 0, 16}
-	self.Vars.Mins = [3]float32{-1, -1, 0}
-	self.Vars.Maxs = [3]float32{1, 1, 56}
-	self.Vars.Solid = float32(SolidBSP)
-	self.Vars.Flags = float32(FlagOnGround)
-	self.Vars.IdealYaw = 0
-	self.Vars.YawSpeed = 360
-	goal.Vars.Origin = [3]float32{-64, 0, 16}
-	goal.Vars.Mins = [3]float32{-1, -1, 0}
-	goal.Vars.Maxs = [3]float32{1, 1, 56}
-	self.Vars.GoalEntity = int32(s.NumForEdict(goal))
+	self.SetOrigin(s, [3]float32{0, 0, 16})
+	self.SetMins(s, [3]float32{-1, -1, 0})
+	self.SetMaxs(s, [3]float32{1, 1, 56})
+	self.SetSolid(s, float32(SolidBSP))
+	self.SetFlags(s, float32(FlagOnGround))
+	self.SetIdealYaw(s, 0)
+	self.SetYawSpeed(s, 360)
+	goal.SetOrigin(s, [3]float32{-64, 0, 16})
+	goal.SetMins(s, [3]float32{-1, -1, 0})
+	goal.SetMaxs(s, [3]float32{1, 1, 56})
+	self.SetGoalEntity(s, int32(s.NumForEdict(goal)))
 
 	s.LinkEdict(self, false)
 	s.LinkEdict(goal, false)
@@ -375,7 +376,7 @@ func TestServerHooksMoveToGoalImportsPendingQCGoalEdict(t *testing.T) {
 		fn(vm)
 	}
 
-	if got := goal.Vars.Origin; got != [3]float32{64, 0, 16} {
+	if got := goal.Origin(s); got != [3]float32{64, 0, 16} {
 		t.Fatalf("movetogoal did not import QC-only goal edict origin: %v", got)
 	}
 }
@@ -393,9 +394,9 @@ func TestServerHooksChangeYawImportsPendingQCState(t *testing.T) {
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.Vars.Angles[1] = 10
-	ent.Vars.IdealYaw = 20
-	ent.Vars.YawSpeed = 1
+	a := ent.Angles(s); a[1] = 10; ent.SetAngles(s, a)
+	ent.SetIdealYaw(s, 20)
+	ent.SetYawSpeed(s, 1)
 	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
@@ -408,7 +409,7 @@ func TestServerHooksChangeYawImportsPendingQCState(t *testing.T) {
 		fn(vm)
 	}
 	// anglemod uses 16-bit quantization matching C, so 355 becomes ~355.00122
-	if got := ent.Vars.Angles[1]; got < 354.99 || got > 355.01 {
+	if got := ent.Angles(s)[1]; got < 354.99 || got > 355.01 {
 		t.Fatalf("changeyaw yaw = %v, want ~355", got)
 	}
 	if got := vm.EVector(entNum, qc.EntFieldAngles); got[1] < 354.99 || got[1] > 355.01 {
@@ -420,8 +421,8 @@ func TestServerHooksMoveToGoalRestoresQCContextAfterNestedTouch(t *testing.T) {
 	s := NewServer()
 
 	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
+	if world := s.EdictNum(0); world != nil {
+		world.SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
@@ -452,24 +453,24 @@ func TestServerHooksMoveToGoalRestoresQCContextAfterNestedTouch(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 
 	selfNum := s.NumForEdict(self)
-	self.Vars.Origin = [3]float32{0, 0, 24}
-	self.Vars.Mins = [3]float32{-16, -16, -24}
-	self.Vars.Maxs = [3]float32{16, 16, 32}
-	self.Vars.Solid = float32(SolidSlideBox)
-	self.Vars.Flags = float32(FlagOnGround)
-	self.Vars.IdealYaw = 0
-	self.Vars.YawSpeed = 360
+	self.SetOrigin(s, [3]float32{0, 0, 24})
+	self.SetMins(s, [3]float32{-16, -16, -24})
+	self.SetMaxs(s, [3]float32{16, 16, 32})
+	self.SetSolid(s, float32(SolidSlideBox))
+	self.SetFlags(s, float32(FlagOnGround))
+	self.SetIdealYaw(s, 0)
+	self.SetYawSpeed(s, 360)
 
-	goal.Vars.Origin = [3]float32{64, 0, 24}
-	goal.Vars.Mins = [3]float32{-16, -16, -24}
-	goal.Vars.Maxs = [3]float32{16, 16, 32}
-	self.Vars.GoalEntity = int32(s.NumForEdict(goal))
+	goal.SetOrigin(s, [3]float32{64, 0, 24})
+	goal.SetMins(s, [3]float32{-16, -16, -24})
+	goal.SetMaxs(s, [3]float32{16, 16, 32})
+	self.SetGoalEntity(s, int32(s.NumForEdict(goal)))
 
-	trigger.Vars.Origin = [3]float32{24, 0, 24}
-	trigger.Vars.Mins = [3]float32{-16, -16, -24}
-	trigger.Vars.Maxs = [3]float32{16, 16, 32}
-	trigger.Vars.Solid = float32(SolidTrigger)
-	trigger.Vars.Touch = 1
+	trigger.SetOrigin(s, [3]float32{24, 0, 24})
+	trigger.SetMins(s, [3]float32{-16, -16, -24})
+	trigger.SetMaxs(s, [3]float32{16, 16, 32})
+	trigger.SetSolid(s, float32(SolidTrigger))
+	trigger.SetTouch(s, 1)
 
 	s.LinkEdict(self, false)
 	s.LinkEdict(goal, false)

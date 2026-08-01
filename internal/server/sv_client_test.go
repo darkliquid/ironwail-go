@@ -155,11 +155,7 @@ func TestBuildSignonBuffers_WritesSpawnBaselines(t *testing.T) {
 		Edicts: []*Edict{
 			{Free: true, Vars: &EntVars{}}, // skipped
 			{
-				Vars: &EntVars{
-					ModelIndex: 2,
-					Frame:      3,
-				},
-			},
+							},
 		},
 		ModelPrecache: []string{"", "progs/player.mdl"},
 	}
@@ -291,25 +287,25 @@ func TestUpdateToReliableMessages_BroadcastsChangedPlayerFragsToAllActiveClients
 
 	s.Static.Clients[0] = &Client{
 		Active:   true,
-		Edict:    &Edict{Vars: &EntVars{Frags: 5}},
+		Edict:    &Edict{},
 		OldFrags: 0, // changed
 		Message:  NewMessageBuffer(MaxDatagram),
 	}
 	s.Static.Clients[1] = &Client{
 		Active:   true,
-		Edict:    &Edict{Vars: &EntVars{Frags: 10}},
+		Edict:    &Edict{},
 		OldFrags: 10, // unchanged
 		Message:  NewMessageBuffer(MaxDatagram),
 	}
 	s.Static.Clients[2] = &Client{
 		Active:   true,
-		Edict:    &Edict{Vars: &EntVars{Frags: -2}},
+		Edict:    &Edict{},
 		OldFrags: -2, // unchanged
 		Message:  NewMessageBuffer(MaxDatagram),
 	}
 	s.Static.Clients[3] = &Client{
 		Active:   false,
-		Edict:    &Edict{Vars: &EntVars{Frags: 99}},
+		Edict:    &Edict{},
 		OldFrags: 0,
 		Message:  NewMessageBuffer(MaxDatagram),
 	}

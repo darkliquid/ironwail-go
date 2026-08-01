@@ -18,7 +18,7 @@ func TestStartSoundNetQuakeDropsLargeSoundIndex(t *testing.T) {
 	s.SoundPrecache = make([]string, soundNum+1)
 	s.SoundPrecache[soundNum] = "misc/large.wav"
 
-	ent := &Edict{Vars: &EntVars{}}
+	ent := &Edict{}
 	s.Edicts[1] = ent
 
 	s.StartSound(ent, 1, "misc/large.wav", DefaultSoundVolume, DefaultSoundAttenuation)
@@ -37,7 +37,7 @@ func TestStartSoundNetQuakeDropsLargeEntity(t *testing.T) {
 
 	const entNum = 8192
 	s.Edicts = make([]*Edict, entNum+1)
-	ent := &Edict{Vars: &EntVars{}}
+	ent := &Edict{}
 	s.Edicts[entNum] = ent
 	s.SoundPrecache[1] = "misc/small.wav"
 
@@ -61,9 +61,7 @@ func TestStartSoundNetQuakeUsesLegacyEncoding(t *testing.T) {
 		soundNum = 42
 	)
 	ent := &Edict{
-		Vars: &EntVars{
-			Origin: [3]float32{1, 2, 3},
-		},
+				},
 	}
 	s.Edicts = make([]*Edict, entNum+1)
 	s.Edicts[entNum] = ent
@@ -148,7 +146,7 @@ func TestStartSoundDropsChannelAbove7ForNetQuake(t *testing.T) {
 	s.SoundPrecache = make([]string, 2)
 	s.SoundPrecache[1] = "sound/test.wav"
 
-	ent := &Edict{Vars: &EntVars{}}
+	ent := &Edict{}
 	s.Edicts[1] = ent
 
 	// Channel 7 should work for NetQuake.
@@ -176,7 +174,7 @@ func TestStartSoundRejectsChannelAbove7ForFitzQuake(t *testing.T) {
 	s.SoundPrecache = make([]string, 2)
 	s.SoundPrecache[1] = "sound/test.wav"
 
-	ent := &Edict{Vars: &EntVars{}}
+	ent := &Edict{}
 	s.Edicts[1] = ent
 
 	// Channel 8 should be rejected regardless of protocol — C engine

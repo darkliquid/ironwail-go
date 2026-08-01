@@ -60,7 +60,7 @@ func (s *Server) SendServerInfo(client *Client) {
 	}
 
 	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
-		client.Message.WriteString(s.String(int32(s.Edicts[0].Vars.Message)))
+		client.Message.WriteString(s.String(s.Edicts[0].Message(s)))
 	} else {
 		client.Message.WriteString("")
 	}
@@ -89,8 +89,8 @@ func (s *Server) SendServerInfo(client *Client) {
 
 	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
 		client.Message.PutByte(byte(inet.SVCCDTrack))
-		client.Message.PutByte(byte(s.Edicts[0].Vars.Sounds))
-		client.Message.PutByte(byte(s.Edicts[0].Vars.Sounds))
+		client.Message.PutByte(byte(s.Edicts[0].Sounds(s)))
+		client.Message.PutByte(byte(s.Edicts[0].Sounds(s)))
 	}
 
 	client.Message.PutByte(byte(inet.SVCSetView))
@@ -621,7 +621,7 @@ func (s *Server) UpdateToReliableMessages() {
 		if changedClient == nil || !changedClient.Active {
 			continue
 		}
-		currentFrags := int(changedClient.Edict.Vars.Frags)
+		currentFrags := int(changedClient.Edict.Frags(s))
 		if changedClient.OldFrags == currentFrags {
 			continue
 		}
@@ -658,7 +658,7 @@ func (s *Server) CleanupEnts() {
 	for i := 1; i < s.NumEdicts; i++ {
 		ent := s.Edicts[i]
 		if ent != nil {
-			ent.Vars.Effects = float32(uint32(ent.Vars.Effects) & ^uint32(EffectMuzzleFlash))
+			ent.SetEffects(s, float32(uint32(ent.Effects(s)) & ^uint32(EffectMuzzleFlash)))
 		}
 	}
 }
@@ -670,16 +670,16 @@ func (s *Server) CreateBaseline() {
 		if ent == nil || ent.Free {
 			continue
 		}
-		if entNum > s.Static.MaxClients && ent.Vars.ModelIndex == 0 {
+		if entNum > s.Static.MaxClients && ent.ModelIndex(s) == 0 {
 			continue
 		}
 
 		for i := 0; i < 3; i++ {
-			ent.Baseline.Origin[i] = ent.Vars.Origin[i]
-			ent.Baseline.Angles[i] = ent.Vars.Angles[i]
+			ent.Baseline.Origin[i] = ent.Origin(s)[i]
+			ent.Baseline.Angles[i] = ent.Angles(s)[i]
 		}
-		ent.Baseline.Frame = int(ent.Vars.Frame)
-		ent.Baseline.Skin = int(ent.Vars.Skin)
+		ent.Baseline.Frame = int(ent.Frame(s))
+		ent.Baseline.Skin = int(ent.Skin(s))
 
 		if entNum > 0 && entNum <= s.Static.MaxClients {
 			ent.Baseline.Colormap = entNum
@@ -688,7 +688,7 @@ func (s *Server) CreateBaseline() {
 			ent.Baseline.Scale = 16
 		} else {
 			ent.Baseline.Colormap = 0
-			ent.Baseline.ModelIndex = s.FindModel(s.String(int32(ent.Vars.Model)))
+			ent.Baseline.ModelIndex = s.FindModel(s.String(int32(ent.Model(s))))
 			ent.Baseline.Alpha = ent.Alpha
 			ent.Baseline.Scale = 16
 			if s.Protocol == ProtocolRMQ && s.QCVM != nil && s.QCFieldScale >= 0 {

@@ -34,7 +34,7 @@ func TestCheckRulesEndsMatchOnFraglimit(t *testing.T) {
 
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 10
+	s.Static.Clients[0].Edict.SetFrags(s, 10)
 
 	s.CheckRules()
 	if !s.Static.ChangeLevelIssued {
@@ -86,24 +86,24 @@ func TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress(t *testing.T) {
 
 	ent := client.Edict
 	ent.Free = false
-	ent.Vars.Health = 0
-	ent.Vars.DeadFlag = float32(DeadDead)
+	ent.SetHealth(s, 0)
+	ent.SetDeadFlag(s, float32(DeadDead))
 
 	waiting := s.handleDeathmatchRespawn(client)
 	if !waiting {
 		t.Fatal("dead client should wait until QC marks it respawnable")
 	}
-	if ent.Vars.Health > 0 {
-		t.Fatalf("client respawned before deadflag was ready: health=%v", ent.Vars.Health)
+	if ent.Health(s) > 0 {
+		t.Fatalf("client respawned before deadflag was ready: health=%v", ent.Health(s))
 	}
 
-	ent.Vars.DeadFlag = float32(DeadRespawnable)
+	ent.SetDeadFlag(s, float32(DeadRespawnable))
 	waiting = s.handleDeathmatchRespawn(client)
 	if !waiting {
 		t.Fatal("dead client should still wait for respawn input")
 	}
-	if ent.Vars.Health > 0 {
-		t.Fatalf("client respawned before button press: health=%v", ent.Vars.Health)
+	if ent.Health(s) > 0 {
+		t.Fatalf("client respawned before button press: health=%v", ent.Health(s))
 	}
 
 	client.LastCmd.Buttons = 1
@@ -111,10 +111,10 @@ func TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress(t *testing.T) {
 	if waiting {
 		t.Fatal("client should no longer be blocked after respawn")
 	}
-	if ent.Vars.Health <= 0 {
-		t.Fatalf("client health = %v, want respawned health", ent.Vars.Health)
+	if ent.Health(s) <= 0 {
+		t.Fatalf("client health = %v, want respawned health", ent.Health(s))
 	}
-	if got, want := DeadFlag(ent.Vars.DeadFlag), DeadNo; got != want {
+	if got, want := DeadFlag(ent.DeadFlag(s)), DeadNo; got != want {
 		t.Fatalf("deadflag = %v, want %v", got, want)
 	}
 }
@@ -137,7 +137,7 @@ func TestCheckRulesNoTriggerInCoop(t *testing.T) {
 
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 20
+	s.Static.Clients[0].Edict.SetFrags(s, 20)
 	s.Time = 300
 
 	s.CheckRules()
@@ -164,7 +164,7 @@ func TestCheckRulesNoTriggerWhenDisabled(t *testing.T) {
 
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 999
+	s.Static.Clients[0].Edict.SetFrags(s, 999)
 	s.Time = 99999
 
 	s.CheckRules()
@@ -191,7 +191,7 @@ func TestCheckRulesFraglimitExactlyMet(t *testing.T) {
 
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 20
+	s.Static.Clients[0].Edict.SetFrags(s, 20)
 
 	s.CheckRules()
 	if !s.Static.ChangeLevelIssued {
@@ -217,7 +217,7 @@ func TestCheckRulesFraglimitNotMetBelowThreshold(t *testing.T) {
 
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 19
+	s.Static.Clients[0].Edict.SetFrags(s, 19)
 
 	s.CheckRules()
 	if s.Static.ChangeLevelIssued {
@@ -267,7 +267,7 @@ func TestCheckRulesSkipsWhenChangeLevelAlreadyIssued(t *testing.T) {
 	s.Static.ChangeLevelIssued = true
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 20
+	s.Static.Clients[0].Edict.SetFrags(s, 20)
 
 	// Should be a no-op since ChangeLevelIssued is already true.
 	s.CheckRules()
@@ -293,7 +293,7 @@ func TestCheckRulesFraglimitChecksAllClients(t *testing.T) {
 	// Client 0: below limit.
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 5
+	s.Static.Clients[0].Edict.SetFrags(s, 5)
 
 	// Client 1: inactive.
 	s.Static.Clients[1].Active = false
@@ -301,7 +301,7 @@ func TestCheckRulesFraglimitChecksAllClients(t *testing.T) {
 	// Client 2: at limit.
 	s.Static.Clients[2].Active = true
 	s.Static.Clients[2].Spawned = true
-	s.Static.Clients[2].Edict.Vars.Frags = 10
+	s.Static.Clients[2].Edict.SetFrags(s, 10)
 
 	s.CheckRules()
 	if !s.Static.ChangeLevelIssued {
@@ -327,7 +327,7 @@ func TestCheckRulesNegativeFraglimitIgnored(t *testing.T) {
 
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 50
+	s.Static.Clients[0].Edict.SetFrags(s, 50)
 
 	s.CheckRules()
 	if s.Static.ChangeLevelIssued {
@@ -376,7 +376,7 @@ func TestCheckRulesCoopOverridesDeathmatch(t *testing.T) {
 
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 20
+	s.Static.Clients[0].Edict.SetFrags(s, 20)
 	s.Time = 300
 
 	s.CheckRules()
@@ -403,7 +403,7 @@ func TestCheckRulesSkipsFreedEdicts(t *testing.T) {
 
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = true
-	s.Static.Clients[0].Edict.Vars.Frags = 20
+	s.Static.Clients[0].Edict.SetFrags(s, 20)
 	s.Static.Clients[0].Edict.Free = true // Freed edict should be skipped.
 
 	s.CheckRules()

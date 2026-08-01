@@ -136,8 +136,8 @@ func (s *Server) logQCTraceEvent(vm *qc.VM, event qc.TraceCallEvent) {
 	otherEnt, otherEntNum := s.traceEntityForNum(otherNum)
 
 	msg := fmt.Sprintf("self=%d other=%d", selfEntNum, otherEntNum)
-	if otherEnt != nil && otherEnt.Vars != nil {
-		msg = fmt.Sprintf("%s other_classname=%q", msg, qcString(vm, otherEnt.Vars.ClassName))
+	if otherEnt != nil {
+		msg = fmt.Sprintf("%s other_classname=%q", msg, qcString(vm, otherEnt.ClassName(s)))
 	}
 
 	s.DebugTelemetry.LogQCEventf(

@@ -63,8 +63,8 @@ func TestLocalLoopbackClientFrameAndSendCommand(t *testing.T) {
 	if got.Impulse != 7 {
 		t.Fatalf("impulse = %d, want 7", got.Impulse)
 	}
-	if s.Static.Clients[0].Edict.Vars.Button0 != 1 || s.Static.Clients[0].Edict.Vars.Button2 != 1 {
-		t.Fatalf("edict button state = (%v,%v), want (1,1)", s.Static.Clients[0].Edict.Vars.Button0, s.Static.Clients[0].Edict.Vars.Button2)
+	if s.Static.Clients[0].Edict.Button0(s) != 1 || s.Static.Clients[0].Edict.Button2(s) != 1 {
+		t.Fatalf("edict button state = (%v,%v), want (1,1)", s.Static.Clients[0].Edict.Button0(s), s.Static.Clients[0].Edict.Button2(s))
 	}
 	if s.Static.Clients[0].NumPings != 1 {
 		t.Fatalf("NumPings = %d, want 1", s.Static.Clients[0].NumPings)

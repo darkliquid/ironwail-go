@@ -59,7 +59,7 @@ func (s *Server) Physics() {
 		// In C, StartFrame runs against the authoritative edict state that was just
 		// updated by SV_RunClients. Keep the QC VM snapshot in sync here so
 		// intermission/QC frame logic can observe fresh button presses immediately.
-		s.syncQCVMState()
+		s.syncQCVMGlobals()
 		if startFrame := s.QCVM.FindFunction("StartFrame"); startFrame >= 0 {
 			if telemetryActive {
 				s.DebugTelemetry.LogEventf(DebugEventFrame, s.QCVM, 0, s.EdictNum(0),

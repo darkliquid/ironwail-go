@@ -64,7 +64,7 @@ func (g *Game) runtimeViewState() (origin, angles [3]float32) {
 
 	if g.Server != nil {
 		for _, ent := range g.Server.Edicts {
-			if ent == nil || ent.Free || ent.Vars == nil || ent.Vars.ClassName == 0 {
+			if ent == nil || ent.Free || ent.Vars.ClassName == 0 {
 				continue
 			}
 			className := g.Server.String(ent.Vars.ClassName)

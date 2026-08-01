@@ -458,7 +458,7 @@ func TestCmdSaveRejectsDeadPlayer(t *testing.T) {
 	h.SetServerActive(true)
 	srv.Active = true
 	srv.Static.Clients[0].Active = true
-	srv.Static.Clients[0].Edict.Vars.Health = 0
+	srv.Static.Clients[0].Edict.SetHealth(srv, 0)
 
 	h.CmdSave("dead", subs)
 

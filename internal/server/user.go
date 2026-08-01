@@ -438,7 +438,7 @@ func (s *Server) runClientQCThinkWithMode(client *Client, funcName string, fullS
 	}
 
 	if fullSync {
-		s.syncQCVMState()
+		s.syncQCVMGlobals()
 	}
 	s.syncEdictToQCVM(entNum, client.Edict)
 	s.QCVM.Time = float64(s.Time)

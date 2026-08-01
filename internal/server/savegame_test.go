@@ -55,16 +55,16 @@ func TestSaveGameStateRoundTripsGameplayState(t *testing.T) {
 	srv.Static.ServerFlags = 0x24
 
 	player := srv.EdictNum(1)
-	player.Vars.Health = 87
-	player.Vars.CurrentAmmo = 19
-	player.Vars.AmmoShells = 31
-	player.Vars.AmmoNails = 42
-	player.Vars.AmmoRockets = 5
-	player.Vars.AmmoCells = 63
-	player.Vars.Weapon = 7
-	player.Vars.Items = 0x0001 | 0x0004 | 0x0100
-	player.Vars.ArmorType = 0.8
-	player.Vars.ArmorValue = 145
+	player.SetHealth(srv, 87)
+	player.SetCurrentAmmo(srv, 19)
+	player.SetAmmoShells(srv, 31)
+	player.SetAmmoNails(srv, 42)
+	player.SetAmmoRockets(srv, 5)
+	player.SetAmmoCells(srv, 63)
+	player.SetWeapon(srv, 7)
+	player.SetItems(srv, 0x0001 | 0x0004 | 0x0100)
+	player.SetArmorType(srv, 0.8)
+	player.SetArmorValue(srv, 145)
 
 	srv.Static.Clients[0].Name = "Ranger"
 	srv.Static.Clients[0].Color = 12
@@ -87,37 +87,37 @@ func TestSaveGameStateRoundTripsGameplayState(t *testing.T) {
 	}
 
 	restoredPlayer := restored.EdictNum(1)
-	if restoredPlayer == nil || restoredPlayer.Vars == nil {
+	if restoredPlayer == nil {
 		t.Fatal("restored player edict missing")
 	}
-	if got := restoredPlayer.Vars.Health; got != 87 {
+	if got := restoredPlayer.Health(srv); got != 87 {
 		t.Fatalf("restored health = %v, want 87", got)
 	}
-	if got := restoredPlayer.Vars.CurrentAmmo; got != 19 {
+	if got := restoredPlayer.CurrentAmmo(srv); got != 19 {
 		t.Fatalf("restored current ammo = %v, want 19", got)
 	}
-	if got := restoredPlayer.Vars.AmmoShells; got != 31 {
+	if got := restoredPlayer.AmmoShells(srv); got != 31 {
 		t.Fatalf("restored shells = %v, want 31", got)
 	}
-	if got := restoredPlayer.Vars.AmmoNails; got != 42 {
+	if got := restoredPlayer.AmmoNails(srv); got != 42 {
 		t.Fatalf("restored nails = %v, want 42", got)
 	}
-	if got := restoredPlayer.Vars.AmmoRockets; got != 5 {
+	if got := restoredPlayer.AmmoRockets(srv); got != 5 {
 		t.Fatalf("restored rockets = %v, want 5", got)
 	}
-	if got := restoredPlayer.Vars.AmmoCells; got != 63 {
+	if got := restoredPlayer.AmmoCells(srv); got != 63 {
 		t.Fatalf("restored cells = %v, want 63", got)
 	}
-	if got := restoredPlayer.Vars.Weapon; got != 7 {
+	if got := restoredPlayer.Weapon(srv); got != 7 {
 		t.Fatalf("restored weapon = %v, want 7", got)
 	}
-	if got := restoredPlayer.Vars.Items; got != (0x0001 | 0x0004 | 0x0100) {
+	if got := restoredPlayer.Items(srv); got != (0x0001 | 0x0004 | 0x0100) {
 		t.Fatalf("restored items = %v, want %v", got, float32(0x0001|0x0004|0x0100))
 	}
-	if got := restoredPlayer.Vars.ArmorType; got != 0.8 {
+	if got := restoredPlayer.ArmorType(srv); got != 0.8 {
 		t.Fatalf("restored armor type = %v, want 0.8", got)
 	}
-	if got := restoredPlayer.Vars.ArmorValue; got != 145 {
+	if got := restoredPlayer.ArmorValue(srv); got != 145 {
 		t.Fatalf("restored armor value = %v, want 145", got)
 	}
 

@@ -60,14 +60,14 @@ func (s *Server) CalcStats(client *Client, statsi []int, statsf []float32, stats
 		StatActiveWeapon = 10
 	)
 
-	statsf[StatHealth] = ent.Vars.Health
-	statsi[StatWeapon] = int(ent.Vars.WeaponModel)
-	statsf[StatAmmo] = ent.Vars.CurrentAmmo
-	statsf[StatArmor] = ent.Vars.ArmorValue
-	statsf[StatWeaponFrame] = ent.Vars.WeaponFrame
-	statsf[StatShells] = ent.Vars.AmmoShells
-	statsf[StatNails] = ent.Vars.AmmoNails
-	statsf[StatRockets] = ent.Vars.AmmoRockets
-	statsf[StatCells] = ent.Vars.AmmoCells
-	statsf[StatActiveWeapon] = ent.Vars.Weapon
+	statsf[StatHealth] = ent.Health(s)
+	statsi[StatWeapon] = int(ent.WeaponModel(s))
+	statsf[StatAmmo] = ent.CurrentAmmo(s)
+	statsf[StatArmor] = ent.ArmorValue(s)
+	statsf[StatWeaponFrame] = ent.WeaponFrame(s)
+	statsf[StatShells] = ent.AmmoShells(s)
+	statsf[StatNails] = ent.AmmoNails(s)
+	statsf[StatRockets] = ent.AmmoRockets(s)
+	statsf[StatCells] = ent.AmmoCells(s)
+	statsf[StatActiveWeapon] = ent.Weapon(s)
 }

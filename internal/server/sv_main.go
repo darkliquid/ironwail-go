@@ -562,10 +562,10 @@ func (s *Server) loadMapEntities(raw string) error {
 		remaining = next
 
 		ent := s.EdictNum(entNum)
-		if entNum == 0 && (ent == nil || ent.Vars == nil || ent.Free) {
+		if entNum == 0 && (ent == nil || ent.Free) {
 			return fmt.Errorf("worldspawn parse produced invalid entity 0")
 		}
-		if ent == nil || ent.Vars == nil {
+		if ent == nil {
 			continue
 		}
 

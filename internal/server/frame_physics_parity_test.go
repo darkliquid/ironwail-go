@@ -27,6 +27,11 @@ func newSyntheticClientServer(t *testing.T) (*Server, *Client, *Edict) {
 	client.Spawned = true
 	client.Message = NewMessageBuffer(256)
 
+	// Ensure edict Num fields are correct for accessor-based QCVM writes.
+	// Init creates edicts with Num=0; NumForEdict caches the correct index.
+	_ = s.NumForEdict(s.Edicts[0])
+	_ = s.NumForEdict(s.Edicts[1])
+
 	ent := client.Edict
 	ent.Free = false
 	ent.SetMoveType(s, float32(MoveTypeWalk))

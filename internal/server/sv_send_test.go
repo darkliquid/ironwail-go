@@ -67,8 +67,7 @@ func TestEntityStateForClient_AlphaScaleDefaultsWhenFieldsMissing(t *testing.T) 
 		QCFieldScale: -1,
 	}
 	ent := &Edict{
-		Vars:  &EntVars{},
-		Alpha: 77,
+				Alpha: 77,
 		Scale: 99,
 	}
 
@@ -97,8 +96,7 @@ func TestEntityStateForClient_ReadsQCAlphaScale(t *testing.T) {
 		QCFieldScale: 1,
 	}
 	ent := &Edict{
-		Vars: &EntVars{},
-	}
+			}
 
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
@@ -119,10 +117,7 @@ func TestEntityStateForClient_AppliesEffectsMask(t *testing.T) {
 		EffectsMask: 0x0f,
 	}
 	ent := &Edict{
-		Vars: &EntVars{
-			Effects: float32(EffectMuzzleFlash | EffectPentaLight),
-		},
-	}
+			}
 
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
@@ -246,9 +241,7 @@ func TestBuildClientDatagramUsesEyePositionForFatPVS(t *testing.T) {
 			Models:     []bsp.DModel{{VisLeafs: 2}},
 		},
 	}
-	client := &Client{Edict: &Edict{Vars: &EntVars{
-		Origin:  [3]float32{-64, 0, 0},
-		ViewOfs: [3]float32{128, 0, 0},
+	client := &Client{Edict: &Edict{		ViewOfs: [3]float32{128, 0, 0},
 	}}}
 	msg := NewMessageBuffer(128)
 
@@ -381,7 +374,7 @@ func TestWriteEntitiesToClientCullOtherPlayersByPVS(t *testing.T) {
 
 func TestBuildClientDatagramSkipsDatagramWhenRemoteMTUWouldOverflow(t *testing.T) {
 	s := &Server{Datagram: NewMessageBuffer(MaxDatagram)}
-	client := &Client{Edict: &Edict{Vars: &EntVars{}}}
+	client := &Client{Edict: &Edict{}}
 	base := NewMessageBuffer(MaxDatagram)
 	base.MaxSize = DatagramMTU
 	s.buildClientDatagram(client, base)

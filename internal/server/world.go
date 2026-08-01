@@ -105,7 +105,7 @@ func hullForBox(mins, maxs [3]float32) *model.Hull {
 // to the testing object's origin to get a point to use with the returned hull.
 func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]float32) *model.Hull {
 	// Decide which clipping hull to use, based on the size
-	if int(ent.Vars.Solid) == int(SolidBSP) {
+	if int(ent.Solid(s)) == int(SolidBSP) {
 		// Explicit hulls in the BSP model.
 		size := [3]float32{
 			maxs[0] - mins[0],
@@ -128,7 +128,7 @@ func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]flo
 				if hullNum >= 0 && hullNum < m.NumHulls() {
 					hull = m.Hull(hullNum)
 				}
-				modelIndex := int(ent.Vars.ModelIndex)
+				modelIndex := int(ent.ModelIndex(s))
 				if ent == s.Edicts[0] || modelIndex <= 1 {
 					modelIndex = 1
 				}
@@ -139,47 +139,54 @@ func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]flo
 					}
 				}
 				if len(hull.ClipNodes) > 0 && hull.FirstClipNode >= 0 {
-					offset[0] = hull.ClipMins[0] - mins[0] + ent.Vars.Origin[0]
-					offset[1] = hull.ClipMins[1] - mins[1] + ent.Vars.Origin[1]
-					offset[2] = hull.ClipMins[2] - mins[2] + ent.Vars.Origin[2]
+					origin := ent.Origin(s)
+					offset[0] = hull.ClipMins[0] - mins[0] + origin[0]
+					offset[1] = hull.ClipMins[1] - mins[1] + origin[1]
+					offset[2] = hull.ClipMins[2] - mins[2] + origin[2]
 					return &hull
 				}
 			}
 		}
 
 		// Fallback to box hull
+		entMins := ent.Mins(s)
+		entMaxs := ent.Maxs(s)
+		origin := ent.Origin(s)
 		hullMins := [3]float32{
-			ent.Vars.Mins[0] - maxs[0],
-			ent.Vars.Mins[1] - maxs[1],
-			ent.Vars.Mins[2] - maxs[2],
+			entMins[0] - maxs[0],
+			entMins[1] - maxs[1],
+			entMins[2] - maxs[2],
 		}
 		hullMaxs := [3]float32{
-			ent.Vars.Maxs[0] - mins[0],
-			ent.Vars.Maxs[1] - mins[1],
-			ent.Vars.Maxs[2] - mins[2],
+			entMaxs[0] - mins[0],
+			entMaxs[1] - mins[1],
+			entMaxs[2] - mins[2],
 		}
-		offset[0] = ent.Vars.Origin[0]
-		offset[1] = ent.Vars.Origin[1]
-		offset[2] = ent.Vars.Origin[2]
+		offset[0] = origin[0]
+		offset[1] = origin[1]
+		offset[2] = origin[2]
 		return hullForBox(hullMins, hullMaxs)
 	}
 
 	// Create a temp hull from bounding box sizes
+	entMins := ent.Mins(s)
+	entMaxs := ent.Maxs(s)
+	origin := ent.Origin(s)
 	hullMins := [3]float32{
-		ent.Vars.Mins[0] - maxs[0],
-		ent.Vars.Mins[1] - maxs[1],
-		ent.Vars.Mins[2] - maxs[2],
+		entMins[0] - maxs[0],
+		entMins[1] - maxs[1],
+		entMins[2] - maxs[2],
 	}
 	hullMaxs := [3]float32{
-		ent.Vars.Maxs[0] - mins[0],
-		ent.Vars.Maxs[1] - mins[1],
-		ent.Vars.Maxs[2] - mins[2],
+		entMaxs[0] - mins[0],
+		entMaxs[1] - mins[1],
+		entMaxs[2] - mins[2],
 	}
 	hull := hullForBox(hullMins, hullMaxs)
 
-	offset[0] = ent.Vars.Origin[0]
-	offset[1] = ent.Vars.Origin[1]
-	offset[2] = ent.Vars.Origin[2]
+	offset[0] = origin[0]
+	offset[1] = origin[1]
+	offset[2] = origin[2]
 	return hull
 }
 
@@ -522,89 +529,66 @@ func UnlinkEdict(ent *Edict) {
 
 // LinkEdict adds an entity to the area grid.
 func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
-	// Unlink from old position
+	if s == nil || ent == nil {
+		return
+	}
 	UnlinkEdict(ent)
-
-	// Don't add the world
-	if ent == s.Edicts[0] {
-		return
-	}
-	if ent.Free {
+	if ent == s.Edicts[0] || ent.Free {
 		return
 	}
 
-	// Set the abs box
-	ent.Vars.AbsMin[0] = ent.Vars.Origin[0] + ent.Vars.Mins[0]
-	ent.Vars.AbsMin[1] = ent.Vars.Origin[1] + ent.Vars.Mins[1]
-	ent.Vars.AbsMin[2] = ent.Vars.Origin[2] + ent.Vars.Mins[2]
-	ent.Vars.AbsMax[0] = ent.Vars.Origin[0] + ent.Vars.Maxs[0]
-	ent.Vars.AbsMax[1] = ent.Vars.Origin[1] + ent.Vars.Maxs[1]
-	ent.Vars.AbsMax[2] = ent.Vars.Origin[2] + ent.Vars.Maxs[2]
+	origin := ent.Origin(s)
+	mins := ent.Mins(s)
+	maxes := ent.Maxs(s)
+	absMin := [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]}
+	absMax := [3]float32{origin[0] + maxes[0], origin[1] + maxes[1], origin[2] + maxes[2]}
 
-	// to make items easier to pick up and allow them to be grabbed off
-	// of shelves, the abs sizes are expanded
-	if int(ent.Vars.Flags)&FlagItem != 0 {
-		ent.Vars.AbsMin[0] -= 15
-		ent.Vars.AbsMin[1] -= 15
-		ent.Vars.AbsMax[0] += 15
-		ent.Vars.AbsMax[1] += 15
+	// Expand abs box: items get +15 on XY, everything else gets +/-1 on all axes
+	if uint32(ent.Flags(s))&FlagItem != 0 {
+		absMin[0] -= 15; absMin[1] -= 15
+		absMax[0] += 15; absMax[1] += 15
 	} else {
-		// because movement is clipped an epsilon away from an actual edge,
-		// we must fully check even when bounding boxes don't quite touch
-		ent.Vars.AbsMin[0] -= 1
-		ent.Vars.AbsMin[1] -= 1
-		ent.Vars.AbsMin[2] -= 1
-		ent.Vars.AbsMax[0] += 1
-		ent.Vars.AbsMax[1] += 1
-		ent.Vars.AbsMax[2] += 1
+		absMin[0] -= 1; absMin[1] -= 1; absMin[2] -= 1
+		absMax[0] += 1; absMax[1] += 1; absMax[2] += 1
 	}
+	ent.SetAbsMin(s, absMin)
+	ent.SetAbsMax(s, absMax)
 
 	// Link to PVS leafs
 	ent.NumLeafs = 0
-	if ent.Vars.ModelIndex != 0 && s.WorldTree != nil && len(s.WorldTree.Nodes) > 0 {
+	if ent.ModelIndex(s) != 0 && s.WorldTree != nil && len(s.WorldTree.Nodes) > 0 {
 		s.findTouchedLeafs(ent, bsp.TreeChild{Index: 0, IsLeaf: false})
 	}
-
-	if int(ent.Vars.Solid) == int(SolidNot) {
+	if int(ent.Solid(s)) == int(SolidNot) || len(s.Areanodes) == 0 {
 		return
 	}
 
 	// Find the first node that the ent's box crosses
-	if len(s.Areanodes) == 0 {
-		return
-	}
-
 	node := &s.Areanodes[0]
 	for node.Axis != -1 {
-		if ent.Vars.AbsMin[node.Axis] > node.Dist {
-			if node.Children[0] == nil {
-				break
+		if absMin[node.Axis] > node.Dist {
+			if node.Children[0] != nil {
+				node = node.Children[0]
 			}
-			node = node.Children[0]
-		} else if ent.Vars.AbsMax[node.Axis] < node.Dist {
-			if node.Children[1] == nil {
-				break
+		} else if absMax[node.Axis] < node.Dist {
+			if node.Children[1] != nil {
+				node = node.Children[1]
 			}
-			node = node.Children[1]
-		} else {
-			break // crosses the node
+		}
+		if node.Axis == -1 || (absMin[node.Axis] <= node.Dist && absMax[node.Axis] >= node.Dist) {
+			break
 		}
 	}
 
 	// Link it in
-	if int(ent.Vars.Solid) == int(SolidTrigger) {
-		sentinel := &node.TriggerEdicts
-		ent.AreaNext = sentinel
-		ent.AreaPrev = sentinel.AreaPrev
-		ent.AreaPrev.AreaNext = ent
-		ent.AreaNext.AreaPrev = ent
-	} else {
-		sentinel := &node.SolidEdicts
-		ent.AreaNext = sentinel
-		ent.AreaPrev = sentinel.AreaPrev
-		ent.AreaPrev.AreaNext = ent
-		ent.AreaNext.AreaPrev = ent
+	sentinel := &node.SolidEdicts
+	if int(ent.Solid(s)) == int(SolidTrigger) {
+		sentinel = &node.TriggerEdicts
 	}
+	ent.AreaNext = sentinel
+	ent.AreaPrev = sentinel.AreaPrev
+	ent.AreaPrev.AreaNext = ent
+	ent.AreaNext.AreaPrev = ent
 
 	if touchTriggers {
 		s.touchLinks(ent)
@@ -612,19 +596,23 @@ func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
 }
 
 func (s *Server) areaTriggerEdicts(ent *Edict, node *AreaNode, list *[]*Edict, listCap int) {
+	entAbsMin := ent.AbsMin(s)
+	entAbsMax := ent.AbsMax(s)
 	for touch := node.TriggerEdicts.AreaNext; touch != nil && touch != &node.TriggerEdicts; touch = touch.AreaNext {
 		if touch == ent {
 			continue
 		}
-		if touch.Vars.Touch == 0 || int(touch.Vars.Solid) != int(SolidTrigger) {
+		if touch.Touch(s) == 0 || int(touch.Solid(s)) != int(SolidTrigger) {
 			continue
 		}
-		if ent.Vars.AbsMin[0] > touch.Vars.AbsMax[0] ||
-			ent.Vars.AbsMin[1] > touch.Vars.AbsMax[1] ||
-			ent.Vars.AbsMin[2] > touch.Vars.AbsMax[2] ||
-			ent.Vars.AbsMax[0] < touch.Vars.AbsMin[0] ||
-			ent.Vars.AbsMax[1] < touch.Vars.AbsMin[1] ||
-			ent.Vars.AbsMax[2] < touch.Vars.AbsMin[2] {
+		touchAbsMin := touch.AbsMin(s)
+		touchAbsMax := touch.AbsMax(s)
+		if entAbsMin[0] > touchAbsMax[0] ||
+			entAbsMin[1] > touchAbsMax[1] ||
+			entAbsMin[2] > touchAbsMax[2] ||
+			entAbsMax[0] < touchAbsMin[0] ||
+			entAbsMax[1] < touchAbsMin[1] ||
+			entAbsMax[2] < touchAbsMin[2] {
 			continue
 		}
 
@@ -638,10 +626,10 @@ func (s *Server) areaTriggerEdicts(ent *Edict, node *AreaNode, list *[]*Edict, l
 		return
 	}
 
-	if ent.Vars.AbsMax[node.Axis] > node.Dist && node.Children[0] != nil {
+	if entAbsMax[node.Axis] > node.Dist && node.Children[0] != nil {
 		s.areaTriggerEdicts(ent, node.Children[0], list, listCap)
 	}
-	if ent.Vars.AbsMin[node.Axis] < node.Dist && node.Children[1] != nil {
+	if entAbsMin[node.Axis] < node.Dist && node.Children[1] != nil {
 		s.areaTriggerEdicts(ent, node.Children[1], list, listCap)
 	}
 }
@@ -652,19 +640,23 @@ func (s *Server) touchLinks(ent *Edict) {
 	}
 
 	entNum := s.NumForEdict(ent)
-	moverClassName := qcString(s.QCVM, ent.Vars.ClassName)
+	moverClassName := ent.ClassNameString(s)
 	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
+	entAbsMin := ent.AbsMin(s)
+	entAbsMax := ent.AbsMax(s)
+	entTouchFn := ent.Touch(s)
+	entSolid := ent.Solid(s)
 	if telemetryEnabled {
 		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 			"touchlinks begin mover_classname=%q touchfn=%d solid=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
-			moverClassName, ent.Vars.Touch, int(ent.Vars.Solid),
-			ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
-			ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2])
+			moverClassName, entTouchFn, int(entSolid),
+			entAbsMin[0], entAbsMin[1], entAbsMin[2],
+			entAbsMax[0], entAbsMax[1], entAbsMax[2])
 		defer s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 			"touchlinks end mover_classname=%q solid=%d touchfn=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
-			moverClassName, int(ent.Vars.Solid), ent.Vars.Touch,
-			ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
-			ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2])
+			moverClassName, int(entSolid), entTouchFn,
+			entAbsMin[0], entAbsMin[1], entAbsMin[2],
+			entAbsMax[0], entAbsMax[1], entAbsMax[2])
 	}
 
 	touches := make([]*Edict, 0, s.NumEdicts)
@@ -677,12 +669,12 @@ func (s *Server) touchLinks(ent *Edict) {
 		svDebugPushDumpTriggersOnce(s)
 		SvdbgPushLogf("touchlinks ent=%d classname=%q candidates=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
 			entNum, moverClassName, len(touches),
-			ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
-			ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2])
+			entAbsMin[0], entAbsMin[1], entAbsMin[2],
+			entAbsMax[0], entAbsMax[1], entAbsMax[2])
 	}
 	for _, touch := range touches {
 		touchNum := s.NumForEdict(touch)
-		touchClassName := qcString(s.QCVM, touch.Vars.ClassName)
+		touchClassName := touch.ClassNameString(s)
 		if touch == ent {
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
@@ -690,80 +682,76 @@ func (s *Server) touchLinks(ent *Edict) {
 			}
 			continue
 		}
-		if touch.Vars.Touch == 0 {
+		touchTouchFn := touch.Touch(s)
+		touchSolid := touch.Solid(s)
+		if touchTouchFn == 0 {
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 					"touchlinks scan reject candidate=%d other=%d reason=no-touch classname=%q solid=%d",
-					touchNum, entNum, touchClassName, int(touch.Vars.Solid))
+					touchNum, entNum, touchClassName, int(touchSolid))
 			}
 			continue
 		}
-		if int(touch.Vars.Solid) != int(SolidTrigger) {
+		if int(touchSolid) != int(SolidTrigger) {
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 					"touchlinks scan reject candidate=%d other=%d reason=not-trigger classname=%q solid=%d",
-					touchNum, entNum, touchClassName, int(touch.Vars.Solid))
+					touchNum, entNum, touchClassName, int(touchSolid))
 			}
 			continue
 		}
-		if ent.Vars.AbsMin[0] > touch.Vars.AbsMax[0] ||
-			ent.Vars.AbsMin[1] > touch.Vars.AbsMax[1] ||
-			ent.Vars.AbsMin[2] > touch.Vars.AbsMax[2] ||
-			ent.Vars.AbsMax[0] < touch.Vars.AbsMin[0] ||
-			ent.Vars.AbsMax[1] < touch.Vars.AbsMin[1] ||
-			ent.Vars.AbsMax[2] < touch.Vars.AbsMin[2] {
+		touchAbsMin := touch.AbsMin(s)
+		touchAbsMax := touch.AbsMax(s)
+		if entAbsMin[0] > touchAbsMax[0] || entAbsMin[1] > touchAbsMax[1] || entAbsMin[2] > touchAbsMax[2] ||
+			entAbsMax[0] < touchAbsMin[0] || entAbsMax[1] < touchAbsMin[1] || entAbsMax[2] < touchAbsMin[2] {
 			if telemetryEnabled {
 				reason := "axis2"
-				switch {
-				case ent.Vars.AbsMin[0] > touch.Vars.AbsMax[0] || ent.Vars.AbsMax[0] < touch.Vars.AbsMin[0]:
+				if entAbsMin[0] > touchAbsMax[0] || entAbsMax[0] < touchAbsMin[0] {
 					reason = "axis0"
-				case ent.Vars.AbsMin[1] > touch.Vars.AbsMax[1] || ent.Vars.AbsMax[1] < touch.Vars.AbsMin[1]:
+				} else if entAbsMin[1] > touchAbsMax[1] || entAbsMax[1] < touchAbsMin[1] {
 					reason = "axis1"
 				}
 				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 					"touchlinks overlap-reject candidate=%d other=%d reason=%s candidate_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f)",
 					touchNum, entNum, reason,
-					touch.Vars.AbsMin[0], touch.Vars.AbsMin[1], touch.Vars.AbsMin[2],
-					touch.Vars.AbsMax[0], touch.Vars.AbsMax[1], touch.Vars.AbsMax[2],
-					ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
-					ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2],
-				)
+					touchAbsMin[0], touchAbsMin[1], touchAbsMin[2],
+					touchAbsMax[0], touchAbsMax[1], touchAbsMax[2],
+					entAbsMin[0], entAbsMin[1], entAbsMin[2],
+					entAbsMax[0], entAbsMax[1], entAbsMax[2])
 			}
 			continue
 		}
 
 		if telemetryEnabled {
+			ef := ent.Flags(s)
+			eg := ent.GroundEntity(s)
+			ev := ent.Velocity(s)
+			ep := ent.PunchAngle(s)
+			eo := ent.Origin(s)
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
-				"touchlinks callback begin self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d other_flags=%#x other_ground=%d other_vel=(%.1f %.1f %.1f) other_punch=(%.1f %.1f %.1f) other_fixangle=%d other_teleport=%.3f self_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f)",
-				touchNum, touchClassName, entNum, moverClassName, touch.Vars.Touch, int(touch.Vars.Solid), int(ent.Vars.Solid),
-				uint32(ent.Vars.Flags), int(ent.Vars.GroundEntity),
-				ent.Vars.Velocity[0], ent.Vars.Velocity[1], ent.Vars.Velocity[2],
-				ent.Vars.PunchAngle[0], ent.Vars.PunchAngle[1], ent.Vars.PunchAngle[2],
-				int(ent.Vars.FixAngle), ent.Vars.TeleportTime,
-				touch.Vars.AbsMin[0], touch.Vars.AbsMin[1], touch.Vars.AbsMin[2],
-				touch.Vars.AbsMax[0], touch.Vars.AbsMax[1], touch.Vars.AbsMax[2],
-				ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
-				ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2])
+				"touchlinks callback begin self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d other_flags=%#x other_ground=%d other_vel=(%.1f %.1f %.1f) other_punch=(%.1f %.1f %.1f) other_fixangle=%d other_teleport=%.3f self_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_origin=(%.1f %.1f %.1f)",
+				touchNum, touchClassName, entNum, moverClassName, touchTouchFn, int(touchSolid), int(entSolid),
+				uint32(ef), int(eg), ev[0], ev[1], ev[2], ep[0], ep[1], ep[2],
+				int(ent.FixAngle(s)), ent.TeleportTime(s),
+				touchAbsMin[0], touchAbsMin[1], touchAbsMin[2], touchAbsMax[0], touchAbsMax[1], touchAbsMax[2],
+				entAbsMin[0], entAbsMin[1], entAbsMin[2], entAbsMax[0], entAbsMax[1], entAbsMax[2],
+				eo[0], eo[1], eo[2])
 		}
 
 		s.debugTriggerTouch("touchlinks", touch, ent)
-
-		// sv_debug_push: log when a trigger callback is about to fire
 		SvdbgPushLogf("touchlinks ent=%d candidate=%d classname=%q FIRING touchfn=%d",
-			entNum, touchNum, touchClassName, touch.Vars.Touch)
+			entNum, touchNum, touchClassName, touchTouchFn)
 
 		ctx := captureQCExecutionContext(s.QCVM)
-
 		s.QCVM.SetGlobal("self", touchNum)
 		s.QCVM.SetGlobal("other", entNum)
 		s.setQCTimeGlobal(s.Time)
 		prevNumEdicts := s.NumEdicts
-		if err := s.executeQCFunction(int(touch.Vars.Touch)); err != nil {
-			slog.Warn("touchlinks callback failed", "self", touchNum, "other", entNum, "func", touch.Vars.Touch, "err", err)
+		if err := s.executeQCFunction(int(touchTouchFn)); err != nil {
+			slog.Warn("touchlinks callback failed", "self", touchNum, "other", entNum, "func", touchTouchFn, "err", err)
 		} else {
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
-
 		restoreQCExecutionContext(s.QCVM, ctx)
 
 		if telemetryEnabled {
@@ -771,15 +759,18 @@ func (s *Server) touchLinks(ent *Edict) {
 			if touch.AreaPrev == nil {
 				linkState = "unlinked"
 			}
+			ef := ent.Flags(s)
+			eg := ent.GroundEntity(s)
+			ev := ent.Velocity(s)
+			ep := ent.PunchAngle(s)
+			to := touch.Origin(s)
+			eo := ent.Origin(s)
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 				"touchlinks callback end self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d self_link=%s other_flags=%#x other_ground=%d other_vel=(%.1f %.1f %.1f) other_punch=(%.1f %.1f %.1f) other_fixangle=%d other_teleport=%.3f self_origin=(%.1f %.1f %.1f) other_origin=(%.1f %.1f %.1f)",
-				touchNum, touchClassName, entNum, moverClassName, touch.Vars.Touch, int(touch.Vars.Solid), int(ent.Vars.Solid), linkState,
-				uint32(ent.Vars.Flags), int(ent.Vars.GroundEntity),
-				ent.Vars.Velocity[0], ent.Vars.Velocity[1], ent.Vars.Velocity[2],
-				ent.Vars.PunchAngle[0], ent.Vars.PunchAngle[1], ent.Vars.PunchAngle[2],
-				int(ent.Vars.FixAngle), ent.Vars.TeleportTime,
-				touch.Vars.Origin[0], touch.Vars.Origin[1], touch.Vars.Origin[2],
-				ent.Vars.Origin[0], ent.Vars.Origin[1], ent.Vars.Origin[2])
+				touchNum, touchClassName, entNum, moverClassName, touchTouchFn, int(touchSolid), int(entSolid), linkState,
+				uint32(ef), int(eg), ev[0], ev[1], ev[2], ep[0], ep[1], ep[2],
+				int(ent.FixAngle(s)), ent.TeleportTime(s),
+				to[0], to[1], to[2], eo[0], eo[1], eo[2])
 		}
 	}
 }
@@ -808,7 +799,7 @@ func (s *Server) findTouchedLeafs(ent *Edict, child bsp.TreeChild) {
 
 	node := &s.WorldTree.Nodes[child.Index]
 	plane := &s.WorldTree.Planes[node.PlaneNum]
-	sides := boxOnPlaneSide(ent.Vars.AbsMin, ent.Vars.AbsMax, &model.MPlane{
+	sides := boxOnPlaneSide(ent.AbsMin(s), ent.AbsMax(s), &model.MPlane{
 		Normal: plane.Normal,
 		Dist:   plane.Dist,
 		Type:   uint8(plane.Type),
@@ -844,41 +835,44 @@ func moveBounds(start, mins, maxs, end [3]float32) (boxmins, boxmaxs [3]float32)
 func (s *Server) clipToLinks(node *AreaNode, clip *moveClip) {
 	// Touch linked edicts
 	for ent := node.SolidEdicts.AreaNext; ent != nil && ent != &node.SolidEdicts; ent = ent.AreaNext {
-		if ent.Vars.Solid == float32(SolidNot) {
+		entSolid := ent.Solid(s)
+		if entSolid == float32(SolidNot) {
 			continue
 		}
 		if ent == clip.passedict {
 			continue
 		}
-		if ent.Vars.Solid == float32(SolidTrigger) {
+		if entSolid == float32(SolidTrigger) {
 			continue // Triggers shouldn't be in solid list
 		}
 
-		if clip.moveType == MoveNoMonsters && ent.Vars.Solid != float32(SolidBSP) {
+		if clip.moveType == MoveNoMonsters && entSolid != float32(SolidBSP) {
 			continue
 		}
 
 		// Check bounding box overlap
-		if clip.boxMins[0] > ent.Vars.AbsMax[0] ||
-			clip.boxMins[1] > ent.Vars.AbsMax[1] ||
-			clip.boxMins[2] > ent.Vars.AbsMax[2] ||
-			clip.boxMaxs[0] < ent.Vars.AbsMin[0] ||
-			clip.boxMaxs[1] < ent.Vars.AbsMin[1] ||
-			clip.boxMaxs[2] < ent.Vars.AbsMin[2] {
+		entAbsMin := ent.AbsMin(s)
+		entAbsMax := ent.AbsMax(s)
+		if clip.boxMins[0] > entAbsMax[0] ||
+			clip.boxMins[1] > entAbsMax[1] ||
+			clip.boxMins[2] > entAbsMax[2] ||
+			clip.boxMaxs[0] < entAbsMin[0] ||
+			clip.boxMaxs[1] < entAbsMin[1] ||
+			clip.boxMaxs[2] < entAbsMin[2] {
 			continue
 		}
 
 		// Point entities never interact
-		if clip.passedict != nil && clip.passedict.Vars.Size[0] != 0 && ent.Vars.Size[0] == 0 {
+		if clip.passedict != nil && clip.passedict.Size(s)[0] != 0 && ent.Size(s)[0] == 0 {
 			continue
 		}
 
 		// Don't clip against own missiles or owner
 		if clip.passedict != nil {
-			if owner := s.edictFromEntRef(ent.Vars.Owner); owner == clip.passedict {
+			if owner := s.edictFromEntRef(ent.Owner(s)); owner == clip.passedict {
 				continue
 			}
-			if owner := s.edictFromEntRef(clip.passedict.Vars.Owner); owner == ent {
+			if owner := s.edictFromEntRef(clip.passedict.Owner(s)); owner == ent {
 				continue
 			}
 		}
@@ -889,7 +883,7 @@ func (s *Server) clipToLinks(node *AreaNode, clip *moveClip) {
 		}
 
 		var trace TraceResult
-		if int(ent.Vars.Flags)&FlagMonster != 0 {
+		if int(ent.Flags(s))&FlagMonster != 0 {
 			trace = s.clipMoveToEntity(ent, clip.start, clip.mins2, clip.maxs2, clip.end)
 		} else {
 			trace = s.clipMoveToEntity(ent, clip.start, clip.mins, clip.maxs, clip.end)
@@ -979,7 +973,8 @@ func (s *Server) Move(start, mins, maxs, end [3]float32, moveType MoveType, pass
 
 // TestEntityPosition tests if an entity is stuck in solid.
 func (s *Server) TestEntityPosition(ent *Edict) *Edict {
-	trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, ent.Vars.Origin, MoveNormal, ent)
+	origin := ent.Origin(s)
+	trace := s.Move(origin, ent.Mins(s), ent.Maxs(s), origin, MoveNormal, ent)
 
 	if trace.StartSolid {
 		if trace.Entity != nil {

@@ -36,9 +36,7 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 	)
 	s.SoundPrecache[soundNum] = "misc/large.wav"
 	ent := &Edict{
-		Vars: &EntVars{
-			Origin: [3]float32{10, 20, 30},
-			Mins:   [3]float32{-2, -4, -6},
+					Mins:   [3]float32{-2, -4, -6},
 			Maxs:   [3]float32{2, 4, 6},
 		},
 	}
@@ -168,10 +166,10 @@ func TestSpawnServerLoadsMapEntitiesIntoQCVM(t *testing.T) {
 		t.Fatalf("spawn server: %v", err)
 	}
 
-	if got := s.String(s.Edicts[0].Vars.ClassName); got != "worldspawn" {
+	if got := s.String(s.Edicts[0].ClassName(s)); got != "worldspawn" {
 		t.Fatalf("world classname = %q, want %q", got, "worldspawn")
 	}
-	if got := s.String(s.Edicts[0].Vars.Message); got == "" {
+	if got := s.String(s.Edicts[0].Message(s)); got == "" {
 		t.Fatal("world message was not loaded into QC strings")
 	}
 	if got := s.QCVM.GString(qc.OFSMapName); got != "start" {
@@ -185,10 +183,10 @@ func TestSpawnServerLoadsMapEntitiesIntoQCVM(t *testing.T) {
 	foundChangeLevel := false
 	for entNum := 1; entNum < s.NumEdicts; entNum++ {
 		ent := s.EdictNum(entNum)
-		if ent == nil || ent.Free || ent.Vars == nil {
+		if ent == nil || ent.Free {
 			continue
 		}
-		className := s.String(ent.Vars.ClassName)
+		className := s.String(ent.ClassName(s))
 		if className == "info_player_start" {
 			foundStart = true
 		}
@@ -241,23 +239,23 @@ func TestSpawnServerE2M2MonstersDoNotStartInSolid(t *testing.T) {
 	monsterCount := 0
 	for entNum := 1; entNum < s.NumEdicts; entNum++ {
 		ent := s.EdictNum(entNum)
-		if ent == nil || ent.Free || ent.Vars == nil {
+		if ent == nil || ent.Free {
 			continue
 		}
-		className := s.String(ent.Vars.ClassName)
+		className := s.String(ent.ClassName(s))
 		if len(className) < len("monster_") || className[:len("monster_")] != "monster_" {
 			continue
 		}
 		monsterCount++
-		if ent.Vars.Origin == [3]float32{} {
+		if ent.Origin(s) == ([3]float32{}) {
 			t.Fatalf("monster %d (%s) spawned at origin", entNum, className)
 		}
 		if blocker := s.TestEntityPosition(ent); blocker != nil {
 			blockerClass := ""
 			if blocker.Vars != nil {
-				blockerClass = s.String(blocker.Vars.ClassName)
+				blockerClass = s.String(blocker.ClassName(s))
 			}
-			t.Fatalf("monster %d (%s) spawned in solid at %v blocker=%d (%s)", entNum, className, ent.Vars.Origin, s.NumForEdict(blocker), blockerClass)
+			t.Fatalf("monster %d (%s) spawned in solid at %v blocker=%d (%s)", entNum, className, ent.Origin(s), s.NumForEdict(blocker), blockerClass)
 		}
 	}
 	if monsterCount == 0 {
@@ -351,9 +349,9 @@ func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testi
 	serverClient := s.Static.Clients[0]
 	serverClient.Loopback = true
 	serverClient.Spawned = true
-	serverClient.Edict.Vars.ModelIndex = 1
-	serverClient.Edict.Vars.Colormap = 1
-	serverClient.Edict.Vars.Origin = [3]float32{100, 200, 300}
+	serverClient.Edict.SetModelIndex(s, 1)
+	serverClient.Edict.SetColormap(s, 1)
+	serverClient.Edict.SetOrigin(s, [3]float32{100, 200, 300})
 
 	parserClient := cl.NewClient()
 	parser := cl.NewParser(parserClient)
@@ -366,7 +364,7 @@ func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testi
 		t.Fatalf("initial parsed origin = %v, want [100 200 300]", got)
 	}
 
-	serverClient.Edict.Vars.Origin = [3]float32{104, 208, 296}
+	serverClient.Edict.SetOrigin(s, [3]float32{104, 208, 296})
 	s.SendClientMessages()
 
 	delta := s.ClientLoopbackMessage(0)
@@ -511,13 +509,13 @@ func TestSubmitLoopbackStringCommandSpawnRunsQCPlayerSpawn(t *testing.T) {
 	if client.Spawned {
 		t.Fatal("client marked spawned before begin")
 	}
-	if got := s.String(client.Edict.Vars.ClassName); got != "player" {
+	if got := s.String(client.Edict.ClassName(s)); got != "player" {
 		t.Fatalf("player classname = %q, want %q", got, "player")
 	}
-	if client.Edict.Vars.Health <= 0 {
-		t.Fatalf("player health = %v, want > 0", client.Edict.Vars.Health)
+	if client.Edict.Health(s) <= 0 {
+		t.Fatalf("player health = %v, want > 0", client.Edict.Health(s))
 	}
-	if client.Edict.Vars.MoveType == 0 {
+	if client.Edict.MoveType(s) == 0 {
 		t.Fatal("player movetype was not initialized by QC spawn")
 	}
 	if client.Message == nil || client.Message.Len() < 2 {
@@ -570,9 +568,9 @@ func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
 	client := s.Static.Clients[0]
 	client.Name = "Player"
 	client.Color = 3
-	client.Edict.Vars.Origin = [3]float32{128, 64, 32}
-	client.Edict.Vars.Health = 37
-	client.Edict.Vars.MoveType = float32(MoveTypeNoClip)
+	client.Edict.SetOrigin(s, [3]float32{128, 64, 32})
+	client.Edict.SetHealth(s, 37)
+	client.Edict.SetMoveType(s, float32(MoveTypeNoClip))
 
 	if err := s.SubmitLoopbackStringCommand(0, "prespawn"); err != nil {
 		t.Fatalf("SubmitLoopbackStringCommand(prespawn): %v", err)
@@ -584,13 +582,13 @@ func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
 		t.Fatalf("SubmitLoopbackStringCommand(begin): %v", err)
 	}
 
-	if got := client.Edict.Vars.Origin; got != ([3]float32{128, 64, 32}) {
+	if got := client.Edict.Origin(s); got != ([3]float32{128, 64, 32}) {
 		t.Fatalf("player origin = %v, want preserved", got)
 	}
-	if got := client.Edict.Vars.Health; got != 37 {
+	if got := client.Edict.Health(s); got != 37 {
 		t.Fatalf("player health = %v, want 37", got)
 	}
-	if got := client.Edict.Vars.MoveType; got != float32(MoveTypeNoClip) {
+	if got := client.Edict.MoveType(s); got != float32(MoveTypeNoClip) {
 		t.Fatalf("player movetype = %v, want %v", got, float32(MoveTypeNoClip))
 	}
 	if !client.Spawned {
@@ -612,7 +610,7 @@ func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.
 	client := s.Static.Clients[0]
 	client.Name = "Player"
 	client.Color = 3
-	client.Edict.Vars.Origin = [3]float32{128, 64, 32}
+	client.Edict.SetOrigin(s, [3]float32{128, 64, 32})
 	client.SpawnParms[0] = 42
 
 	spawn := s.AllocEdict()
@@ -620,11 +618,10 @@ func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.
 		t.Fatal("AllocEdict returned nil")
 	}
 	if spawn.Vars == nil {
-		spawn.Vars = &EntVars{}
-	}
-	spawn.Vars.ClassName = s.QCVM.AllocString("info_player_start")
-	spawn.Vars.Origin = [3]float32{480, -320, 64}
-	spawn.Vars.Angles = [3]float32{0, 90, 0}
+			}
+	spawn.SetClassName(s, s.QCVM.AllocString("info_player_start"))
+	spawn.SetOrigin(s, [3]float32{480, -320, 64})
+	spawn.SetAngles(s, [3]float32{0, 90, 0})
 
 	if err := s.SubmitLoopbackStringCommand(0, "prespawn"); err != nil {
 		t.Fatalf("SubmitLoopbackStringCommand(prespawn): %v", err)
@@ -636,13 +633,13 @@ func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.
 		t.Fatalf("SubmitLoopbackStringCommand(begin): %v", err)
 	}
 
-	if got := client.Edict.Vars.Origin; got != spawn.Vars.Origin {
-		t.Fatalf("player origin = %v, want respawn at %v", got, spawn.Vars.Origin)
+	if got := client.Edict.Origin(s); got != spawn.Origin(s) {
+		t.Fatalf("player origin = %v, want respawn at %v", got, spawn.Origin(s))
 	}
-	if got := client.Edict.Vars.Angles; got != spawn.Vars.Angles {
-		t.Fatalf("player angles = %v, want %v", got, spawn.Vars.Angles)
+	if got := client.Edict.Angles(s); got != spawn.Angles(s) {
+		t.Fatalf("player angles = %v, want %v", got, spawn.Angles(s))
 	}
-	if got := client.Edict.Vars.MoveType; got != float32(MoveTypeWalk) {
+	if got := client.Edict.MoveType(s); got != float32(MoveTypeWalk) {
 		t.Fatalf("player movetype = %v, want %v", got, float32(MoveTypeWalk))
 	}
 	if client.SpawnParms[0] != 42 {

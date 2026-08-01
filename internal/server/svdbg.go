@@ -145,14 +145,14 @@ func svDebugPushDumpTriggersOnce(s *Server) {
 		if e == nil || e.Free {
 			continue
 		}
-		if int(e.Vars.Solid) != int(SolidTrigger) {
+		if int(e.Solid(s)) != int(SolidTrigger) {
 			continue
 		}
-		cn := qcString(s.QCVM, e.Vars.ClassName)
+		cn := qcString(s.QCVM, e.ClassName(s))
 		SvdbgPushLogf("trigger_dump edict=%d classname=%q touch=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f) origin=(%.1f %.1f %.1f)",
-			i, cn, e.Vars.Touch,
-			e.Vars.AbsMin[0], e.Vars.AbsMin[1], e.Vars.AbsMin[2],
-			e.Vars.AbsMax[0], e.Vars.AbsMax[1], e.Vars.AbsMax[2],
-			e.Vars.Origin[0], e.Vars.Origin[1], e.Vars.Origin[2])
+			i, cn, e.Touch(s),
+			e.AbsMin(s)[0], e.AbsMin(s)[1], e.AbsMin(s)[2],
+			e.AbsMax(s)[0], e.AbsMax(s)[1], e.AbsMax(s)[2],
+			e.Origin(s)[0], e.Origin(s)[1], e.Origin(s)[2])
 	}
 }

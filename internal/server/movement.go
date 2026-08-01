@@ -28,9 +28,9 @@ func (s *Server) SV_TestEntityPosition(ent *Edict) *Edict {
 }
 
 func (s *Server) changeYaw(ent *Edict) {
-	current := types.AngleMod(ent.Vars.Angles[1])
-	ideal := ent.Vars.IdealYaw
-	speed := ent.Vars.YawSpeed
+	current := types.AngleMod(ent.Angles(s)[1])
+	ideal := ent.IdealYaw(s)
+	speed := ent.YawSpeed(s)
 
 	if current == ideal {
 		return
@@ -53,7 +53,9 @@ func (s *Server) changeYaw(ent *Edict) {
 		move = -speed
 	}
 
-	ent.Vars.Angles[1] = types.AngleMod(current + move)
+	angles := ent.Angles(s)
+	angles[1] = types.AngleMod(current + move)
+	ent.SetAngles(s, angles)
 }
 
 func (s *Server) CheckBottom(ent *Edict) bool {
@@ -85,8 +87,9 @@ func ResetCheckBottomStats() {
 }
 
 func (s *Server) checkBottom(ent *Edict) bool {
-	mins := VecAdd(ent.Vars.Origin, ent.Vars.Mins)
-	maxs := VecAdd(ent.Vars.Origin, ent.Vars.Maxs)
+	origin := ent.Origin(s)
+	mins := VecAdd(origin, ent.Mins(s))
+	maxs := VecAdd(origin, ent.Maxs(s))
 
 	var start [3]float32
 	var stop [3]float32
@@ -154,16 +157,16 @@ realcheck:
 }
 
 func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
-	oldorg := ent.Vars.Origin
-	neworg := VecAdd(ent.Vars.Origin, move)
-	flags := uint32(ent.Vars.Flags)
+	oldorg := ent.Origin(s)
+	neworg := VecAdd(ent.Origin(s), move)
+	flags := uint32(ent.Flags(s))
 
 	if flags&(FlagSwim|FlagFly) != 0 {
 		for i := 0; i < 2; i++ {
-			neworg = VecAdd(ent.Vars.Origin, move)
-			enemy := s.EdictNum(int(ent.Vars.Enemy))
+			neworg = VecAdd(ent.Origin(s), move)
+			enemy := s.EdictNum(int(ent.Enemy(s)))
 			if i == 0 && enemy != nil && len(s.Edicts) > 0 && enemy != s.Edicts[0] {
-				dz := ent.Vars.Origin[2] - enemy.Vars.Origin[2]
+				dz := ent.Origin(s)[2] - enemy.Origin(s)[2]
 				if dz > 40 {
 					neworg[2] -= 8
 				}
@@ -172,12 +175,12 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 				}
 			}
 
-			trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, neworg, MoveType(MoveNormal), ent)
+			trace := s.Move(ent.Origin(s), ent.Mins(s), ent.Maxs(s), neworg, MoveType(MoveNormal), ent)
 			if trace.Fraction == 1 {
 				if flags&FlagSwim != 0 && s.PointContents(trace.EndPos) == bsp.ContentsEmpty {
 					return false
 				}
-				ent.Vars.Origin = trace.EndPos
+				ent.SetOrigin(s, trace.EndPos)
 				if relink {
 					s.LinkEdict(ent, true)
 				}
@@ -196,14 +199,14 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 	end := neworg
 	end[2] -= stepSize * 2
 
-	trace := s.Move(neworg, ent.Vars.Mins, ent.Vars.Maxs, end, MoveType(MoveNormal), ent)
+	trace := s.Move(neworg, ent.Mins(s), ent.Maxs(s), end, MoveType(MoveNormal), ent)
 	if trace.AllSolid {
 		return false
 	}
 
 	if trace.StartSolid {
 		neworg[2] -= stepSize
-		trace = s.Move(neworg, ent.Vars.Mins, ent.Vars.Maxs, end, MoveType(MoveNormal), ent)
+		trace = s.Move(neworg, ent.Mins(s), ent.Maxs(s), end, MoveType(MoveNormal), ent)
 		if trace.AllSolid || trace.StartSolid {
 			return false
 		}
@@ -211,18 +214,18 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 
 	if trace.Fraction == 1 {
 		if flags&FlagPartialGround != 0 {
-			ent.Vars.Origin = VecAdd(ent.Vars.Origin, move)
+			ent.SetOrigin(s, VecAdd(ent.Origin(s), move))
 			if relink {
 				s.LinkEdict(ent, true)
 			}
-			ent.Vars.Flags = float32(flags &^ FlagOnGround)
+			ent.SetFlags(s, float32(flags&^FlagOnGround))
 			return true
 		}
 
 		return false
 	}
 
-	ent.Vars.Origin = trace.EndPos
+	ent.SetOrigin(s, trace.EndPos)
 	if !s.CheckBottom(ent) {
 		if flags&FlagPartialGround != 0 {
 			if relink {
@@ -230,17 +233,17 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 			}
 			return true
 		}
-		ent.Vars.Origin = oldorg
+		ent.SetOrigin(s, oldorg)
 		return false
 	}
 
 	if flags&FlagPartialGround != 0 {
-		ent.Vars.Flags = float32(flags &^ FlagPartialGround)
+		ent.SetFlags(s, float32(flags&^FlagPartialGround))
 	}
 	if trace.Entity != nil {
-		ent.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
+		ent.SetGroundEntity(s, int32(s.NumForEdict(trace.Entity)))
 	} else {
-		ent.Vars.GroundEntity = 0
+		ent.SetGroundEntity(s, 0)
 	}
 
 	if relink {
@@ -250,17 +253,18 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 }
 
 func (s *Server) StepDirection(ent *Edict, yaw, dist float32) bool {
-	ent.Vars.IdealYaw = yaw
+	ent.SetIdealYaw(s, yaw)
 	s.changeYaw(ent)
 
 	rad := float64(yaw) * math.Pi * 2 / 360
 	move := [3]float32{float32(math.Cos(rad)) * dist, float32(math.Sin(rad)) * dist, 0}
 
-	oldorigin := ent.Vars.Origin
+	oldorigin := ent.Origin(s)
 	if s.MoveStep(ent, move, false) {
-		delta := ent.Vars.Angles[1] - ent.Vars.IdealYaw
+		angles := ent.Angles(s)
+		delta := angles[1] - ent.IdealYaw(s)
 		if delta > 45 && delta < 315 {
-			ent.Vars.Origin = oldorigin
+			ent.SetOrigin(s, oldorigin)
 		}
 		s.LinkEdict(ent, true)
 		return true
@@ -271,7 +275,7 @@ func (s *Server) StepDirection(ent *Edict, yaw, dist float32) bool {
 }
 
 func (s *Server) FixCheckBottom(ent *Edict) {
-	ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagPartialGround)
+	ent.SetFlags(s, float32(uint32(ent.Flags(s))|FlagPartialGround))
 }
 
 func (s *Server) CloseEnough(ent, goal *Edict, dist float32) bool {
@@ -280,10 +284,10 @@ func (s *Server) CloseEnough(ent, goal *Edict, dist float32) bool {
 	}
 
 	for i := 0; i < 3; i++ {
-		if goal.Vars.AbsMin[i] > ent.Vars.AbsMax[i]+dist {
+		if goal.AbsMin(s)[i] > ent.AbsMax(s)[i]+dist {
 			return false
 		}
-		if goal.Vars.AbsMax[i] < ent.Vars.AbsMin[i]-dist {
+		if goal.AbsMax(s)[i] < ent.AbsMin(s)[i]-dist {
 			return false
 		}
 	}
@@ -296,11 +300,11 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 		return
 	}
 
-	olddir := types.AngleMod(float32(int(actor.Vars.IdealYaw/45)) * 45)
+	olddir := types.AngleMod(float32(int(actor.IdealYaw(s)/45)) * 45)
 	turnaround := types.AngleMod(olddir - 180)
 
-	deltax := enemy.Vars.Origin[0] - actor.Vars.Origin[0]
-	deltay := enemy.Vars.Origin[1] - actor.Vars.Origin[1]
+	deltax := enemy.Origin(s)[0] - actor.Origin(s)[0]
+	deltay := enemy.Origin(s)[1] - actor.Origin(s)[1]
 
 	d := [3]float32{diNoDir, diNoDir, diNoDir}
 	if deltax > 10 {
@@ -367,7 +371,7 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 		return
 	}
 
-	actor.Vars.IdealYaw = olddir
+	actor.SetIdealYaw(s, olddir)
 	if !s.CheckBottom(actor) {
 		s.FixCheckBottom(actor)
 	}
@@ -378,18 +382,18 @@ func (s *Server) MoveToGoal(ent *Edict, dist float32) bool {
 		return false
 	}
 
-	flags := uint32(ent.Vars.Flags)
+	flags := uint32(ent.Flags(s))
 	if flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
 		return false
 	}
 
-	goal := s.EdictNum(int(ent.Vars.GoalEntity))
-	enemy := s.EdictNum(int(ent.Vars.Enemy))
+	goal := s.EdictNum(int(ent.GoalEntity(s)))
+	enemy := s.EdictNum(int(ent.Enemy(s)))
 	if goal != nil && len(s.Edicts) > 0 && enemy != nil && enemy != s.Edicts[0] && s.CloseEnough(ent, goal, dist) {
 		return true
 	}
 
-	if (s.compatRand()&3) == 1 || !s.StepDirection(ent, ent.Vars.IdealYaw, dist) {
+	if (s.compatRand()&3) == 1 || !s.StepDirection(ent, ent.IdealYaw(s), dist) {
 		if goal != nil {
 			s.NewChaseDir(ent, goal, dist)
 		}

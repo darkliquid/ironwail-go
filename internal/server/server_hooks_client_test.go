@@ -31,15 +31,15 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	s.FileSystem = fileSys
 
 	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
+	if world := s.EdictNum(0); world != nil {
+		world.SetSolid(s, float32(SolidBSP))
 	}
 
 	e := s.AllocEdict()
-	e.Vars.Origin = [3]float32{0, 0, 24}
-	e.Vars.Mins = [3]float32{-16, -16, -24}
-	e.Vars.Maxs = [3]float32{16, 16, 32}
-	e.Vars.Solid = float32(SolidSlideBox)
+	e.SetOrigin(s, [3]float32{0, 0, 24})
+	e.SetMins(s, [3]float32{-16, -16, -24})
+	e.SetMaxs(s, [3]float32{16, 16, 32})
+	e.SetSolid(s, float32(SolidSlideBox))
 
 	vm := newServerTestVM(s, 8)
 	vm.NumEdicts = s.NumEdicts
@@ -67,10 +67,10 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	}
 
 	other := s.AllocEdict()
-	other.Vars.Origin = [3]float32{0, 0, 24}
-	other.Vars.Mins = [3]float32{-16, -16, -24}
-	other.Vars.Maxs = [3]float32{16, 16, 32}
-	other.Vars.Solid = float32(SolidSlideBox)
+	other.SetOrigin(s, [3]float32{0, 0, 24})
+	other.SetMins(s, [3]float32{-16, -16, -24})
+	other.SetMaxs(s, [3]float32{16, 16, 32})
+	other.SetSolid(s, float32(SolidSlideBox))
 	s.LinkEdict(other, false)
 	vm.NumEdicts = s.NumEdicts
 
@@ -280,21 +280,21 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	s := NewServer()
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
+	if world := s.EdictNum(0); world != nil {
+		world.SetSolid(s, float32(SolidBSP))
 	}
 	s.ClearWorld()
 
 	self := s.AllocEdict()
 	target := s.AllocEdict()
-	self.Vars.Origin = [3]float32{0, 0, 0}
-	self.Vars.ViewOfs = [3]float32{0, 0, 16}
-	target.Vars.Health = 100
-	target.Vars.Origin = [3]float32{0, 100, 64}
-	target.Vars.Mins = [3]float32{-16, -16, -24}
-	target.Vars.Maxs = [3]float32{16, 16, 32}
-	target.Vars.Solid = float32(SolidSlideBox)
-	target.Vars.TakeDamage = float32(DamageAim)
+	self.SetOrigin(s, [3]float32{0, 0, 0})
+	self.SetViewOfs(s, [3]float32{0, 0, 16})
+	target.SetHealth(s, 100)
+	target.SetOrigin(s, [3]float32{0, 100, 64})
+	target.SetMins(s, [3]float32{-16, -16, -24})
+	target.SetMaxs(s, [3]float32{16, 16, 32})
+	target.SetSolid(s, float32(SolidSlideBox))
+	target.SetTakeDamage(s, float32(DamageAim))
 	s.LinkEdict(self, false)
 	s.LinkEdict(target, false)
 
@@ -340,7 +340,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 		s.CVar.Set("sv_aim", "0.93")
 		s.CVar.Set("teamplay", "0")
 	})
-	target.Vars.Origin = [3]float32{40, 100, 64}
+	target.SetOrigin(s, [3]float32{40, 100, 64})
 	s.LinkEdict(target, false)
 	s.syncEdictToQCVM(s.NumForEdict(target), target)
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
@@ -354,15 +354,15 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	s.CVar.Set("sv_aim", "0.5")
 	s.CVar.Set("teamplay", "1")
 	teammate := s.AllocEdict()
-	teammate.Vars.Health = 100
-	teammate.Vars.Origin = [3]float32{10, 100, 24}
-	teammate.Vars.Mins = [3]float32{-16, -16, -24}
-	teammate.Vars.Maxs = [3]float32{16, 16, 32}
-	teammate.Vars.Solid = float32(SolidSlideBox)
-	teammate.Vars.TakeDamage = float32(DamageAim)
-	teammate.Vars.Team = 1
-	self.Vars.Team = 1
-	target.Vars.Team = 2
+	teammate.SetHealth(s, 100)
+	teammate.SetOrigin(s, [3]float32{10, 100, 24})
+	teammate.SetMins(s, [3]float32{-16, -16, -24})
+	teammate.SetMaxs(s, [3]float32{16, 16, 32})
+	teammate.SetSolid(s, float32(SolidSlideBox))
+	teammate.SetTakeDamage(s, float32(DamageAim))
+	teammate.SetTeam(s, 1)
+	self.SetTeam(s, 1)
+	target.SetTeam(s, 2)
 	s.LinkEdict(teammate, false)
 	s.LinkEdict(target, false)
 	vm.NumEdicts = s.NumEdicts
@@ -396,11 +396,11 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 
 	self := s.AllocEdict()
 	target := s.AllocEdict()
-	self.Vars.Origin = [3]float32{-64, 0, 0}
-	self.Vars.ViewOfs = [3]float32{}
-	target.Vars.Origin = [3]float32{64, 0, 0}
-	target.Vars.ViewOfs = [3]float32{}
-	target.Vars.Health = 100
+	self.SetOrigin(s, [3]float32{-64, 0, 0})
+	self.SetViewOfs(s, [3]float32{})
+	target.SetOrigin(s, [3]float32{64, 0, 0})
+	target.SetViewOfs(s, [3]float32{})
+	target.SetHealth(s, 100)
 
 	s.Static = &ServerStatic{
 		MaxClients: 2,
@@ -441,7 +441,7 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 		t.Fatalf("checkclient with self outside target PVS = %d, want 0", got)
 	}
 
-	self.Vars.Origin = [3]float32{64, 0, 0}
+	self.SetOrigin(s, [3]float32{64, 0, 0})
 	s.syncEdictToQCVM(s.NumForEdict(self), self)
 	s.Time = 0.25
 	if fn := vm.Builtins[17]; fn == nil {
@@ -460,9 +460,9 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 
 	self := s.AllocEdict()
 	target := s.AllocEdict()
-	self.Vars.ViewOfs = [3]float32{}
-	target.Vars.ViewOfs = [3]float32{}
-	target.Vars.Health = 100
+	self.SetViewOfs(s, [3]float32{})
+	target.SetViewOfs(s, [3]float32{})
+	target.SetHealth(s, 100)
 
 	s.Static = &ServerStatic{
 		MaxClients: 2,
@@ -489,8 +489,8 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 	s.syncEdictToQCVM(s.NumForEdict(target), target)
 
 	// Both entities resolve to BSP leaf index 1, which must map to visleaf 0.
-	self.Vars.Origin = [3]float32{1, 0, 0}
-	target.Vars.Origin = [3]float32{1, 0, 0}
+	self.SetOrigin(s, [3]float32{1, 0, 0})
+	target.SetOrigin(s, [3]float32{1, 0, 0})
 
 	s.Time = 0.2
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
@@ -510,11 +510,11 @@ func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
 
 	self := s.AllocEdict()
 	target := s.AllocEdict()
-	self.Vars.Origin = [3]float32{-64, 0, 0}
-	self.Vars.ViewOfs = [3]float32{}
-	target.Vars.Origin = [3]float32{64, 0, 0}
-	target.Vars.ViewOfs = [3]float32{}
-	target.Vars.Health = 100
+	self.SetOrigin(s, [3]float32{-64, 0, 0})
+	self.SetViewOfs(s, [3]float32{})
+	target.SetOrigin(s, [3]float32{64, 0, 0})
+	target.SetViewOfs(s, [3]float32{})
+	target.SetHealth(s, 100)
 
 	s.Static = &ServerStatic{
 		MaxClients: 2,
@@ -558,7 +558,7 @@ func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
 	if got := int(vm.GInt(qc.OFSReturn)); got != targetNum {
 		t.Fatalf("checkclient with QC-only self origin = %d, want %d", got, targetNum)
 	}
-	if got := self.Vars.Origin; got != [3]float32{64, 0, 0} {
+	if got := self.Origin(s); got != [3]float32{64, 0, 0} {
 		t.Fatalf("server self origin not synchronized from QC state: got %v", got)
 	}
 }

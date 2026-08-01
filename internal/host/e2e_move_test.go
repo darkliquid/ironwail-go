@@ -69,8 +69,8 @@ func TestE2ELoopbackMovement(t *testing.T) {
 
 	serverEnt := srv.Static.Clients[0].Edict
 	t.Logf("Server entity: Origin=%v MoveType=%v Health=%v Velocity=%v Flags=%v",
-		serverEnt.Vars.Origin, serverEnt.Vars.MoveType, serverEnt.Vars.Health,
-		serverEnt.Vars.Velocity, uint32(serverEnt.Vars.Flags))
+		serverEnt.Origin(srv), serverEnt.MoveType(srv), serverEnt.Health(srv),
+		serverEnt.Velocity(srv), uint32(serverEnt.Flags(srv)))
 
 	lc := subs.Client.(*localLoopbackClient)
 
@@ -98,7 +98,7 @@ func TestE2ELoopbackMovement(t *testing.T) {
 
 	_ = srv.Frame(0.1)
 	t.Logf("Server entity after Frame: Origin=%v Velocity=%v",
-		serverEnt.Vars.Origin, serverEnt.Vars.Velocity)
+		serverEnt.Origin(srv), serverEnt.Velocity(srv))
 
 	if err := lc.ReadFromServer(); err != nil {
 		t.Fatalf("ReadFromServer: %v", err)
@@ -119,7 +119,7 @@ func TestE2EHostFrameMovement(t *testing.T) {
 	h, srv, subs, clientState := setupE2ELoopback(t)
 
 	// Record starting position
-	startOrigin := srv.Static.Clients[0].Edict.Vars.Origin
+	startOrigin := srv.Static.Clients[0].Edict.Origin(srv)
 	t.Logf("Start origin: %v", startOrigin)
 	t.Logf("Client state: State=%v Signon=%v", clientState.State, clientState.Signon)
 
@@ -161,10 +161,10 @@ func TestE2EHostFrameMovement(t *testing.T) {
 		frameCount++
 	}
 
-	endOrigin := srv.Static.Clients[0].Edict.Vars.Origin
+	endOrigin := srv.Static.Clients[0].Edict.Origin(srv)
 	t.Logf("After %d frames: Origin=%v (was %v)", frameCount, endOrigin, startOrigin)
 	t.Logf("Client Velocity: %v", clientState.Velocity)
-	t.Logf("Server entity Velocity: %v", srv.Static.Clients[0].Edict.Vars.Velocity)
+	t.Logf("Server entity Velocity: %v", srv.Static.Clients[0].Edict.Velocity(srv))
 
 	// The origin should have changed — player should have moved forward
 	dx := endOrigin[0] - startOrigin[0]
@@ -219,8 +219,8 @@ func TestE2EJump(t *testing.T) {
 	}
 
 	t.Logf("Initial: Origin=%v Flags=0x%x ViewOfs=%v MoveType=%v Health=%v",
-		serverEnt.Vars.Origin, uint32(serverEnt.Vars.Flags),
-		serverEnt.Vars.ViewOfs, serverEnt.Vars.MoveType, serverEnt.Vars.Health)
+		serverEnt.Origin(srv), uint32(serverEnt.Flags(srv)),
+		serverEnt.ViewOfs(srv), serverEnt.MoveType(srv), serverEnt.Health(srv))
 
 	// Settle until player lands (FL_ONGROUND set)
 	landed := false
@@ -228,10 +228,10 @@ func TestE2EJump(t *testing.T) {
 		if err := srv.Frame(1.0 / 72.0); err != nil {
 			t.Fatalf("settle Frame %d: %v", i, err)
 		}
-		flags := uint32(serverEnt.Vars.Flags)
+		flags := uint32(serverEnt.Flags(srv))
 		if i < 3 || flags&server.FlagOnGround != 0 {
 			t.Logf("  frame %d: z=%.3f vel_z=%.3f Flags=0x%x JumpReleased=%v",
-				i, serverEnt.Vars.Origin[2], serverEnt.Vars.Velocity[2],
+				i, serverEnt.Origin(srv)[2], serverEnt.Velocity(srv)[2],
 				flags, flags&server.FlagJumpReleased != 0)
 		}
 		if flags&server.FlagOnGround != 0 && !landed {
@@ -253,7 +253,7 @@ func TestE2EJump(t *testing.T) {
 				if err := srv.Frame(1.0 / 72.0); err != nil {
 					t.Fatalf("post-land Frame %d: %v", j, err)
 				}
-				flags2 := uint32(serverEnt.Vars.Flags)
+				flags2 := uint32(serverEnt.Flags(srv))
 				t.Logf("  post-land frame %d: Flags=0x%x JumpReleased=%v OnGround=%v",
 					j, flags2, flags2&server.FlagJumpReleased != 0, flags2&server.FlagOnGround != 0)
 				if flags2&server.FlagJumpReleased != 0 {
@@ -269,7 +269,7 @@ func TestE2EJump(t *testing.T) {
 		t.Fatal("Player never landed after 30 frames")
 	}
 
-	flags := uint32(serverEnt.Vars.Flags)
+	flags := uint32(serverEnt.Flags(srv))
 	if flags&server.FlagJumpReleased == 0 {
 		t.Logf("FL_JUMPRELEASED NOT set after landing — investigating QC early return")
 
@@ -283,15 +283,15 @@ func TestE2EJump(t *testing.T) {
 		}
 
 		// Manually write all relevant Go edict fields to VM for PlayerPreThink
-		srv.QCVM.SetEFloat(entNum, flagsOfs, serverEnt.Vars.Flags)
-		srv.QCVM.SetEVector(entNum, viewOfsOfs, serverEnt.Vars.ViewOfs)
-		srv.QCVM.SetEFloat(entNum, button2Ofs, serverEnt.Vars.Button2)
-		srv.QCVM.SetEFloat(entNum, waterLevelOfs, serverEnt.Vars.WaterLevel)
-		srv.QCVM.SetEFloat(entNum, waterJumpOfs, serverEnt.Vars.TeleportTime)
-		srv.QCVM.SetEFloat(entNum, moveTypeOfs, serverEnt.Vars.MoveType)
-		srv.QCVM.SetEVector(entNum, fieldOfs["origin"], serverEnt.Vars.Origin)
-		srv.QCVM.SetEVector(entNum, fieldOfs["velocity"], serverEnt.Vars.Velocity)
-		srv.QCVM.SetEFloat(entNum, fieldOfs["health"], serverEnt.Vars.Health)
+		srv.QCVM.SetEFloat(entNum, flagsOfs, serverEnt.Flags(srv))
+		srv.QCVM.SetEVector(entNum, viewOfsOfs, serverEnt.ViewOfs(srv))
+		srv.QCVM.SetEFloat(entNum, button2Ofs, serverEnt.Button2(srv))
+		srv.QCVM.SetEFloat(entNum, waterLevelOfs, serverEnt.WaterLevel(srv))
+		srv.QCVM.SetEFloat(entNum, waterJumpOfs, serverEnt.TeleportTime(srv))
+		srv.QCVM.SetEFloat(entNum, moveTypeOfs, serverEnt.MoveType(srv))
+		srv.QCVM.SetEVector(entNum, fieldOfs["origin"], serverEnt.Origin(srv))
+		srv.QCVM.SetEVector(entNum, fieldOfs["velocity"], serverEnt.Velocity(srv))
+		srv.QCVM.SetEFloat(entNum, fieldOfs["health"], serverEnt.Health(srv))
 
 		// Check ALL relevant VM fields that could cause early return in PlayerPreThink
 		vmViewOfs := srv.QCVM.EVector(entNum, viewOfsOfs)
@@ -308,8 +308,8 @@ func TestE2EJump(t *testing.T) {
 		// Compare Go edict values
 		t.Logf("Go edict state:")
 		t.Logf("  Flags=0x%x ViewOfs=%v Button2=%v WaterLevel=%v TeleportTime=%v MoveType=%v",
-			uint32(serverEnt.Vars.Flags), serverEnt.Vars.ViewOfs, serverEnt.Vars.Button2,
-			serverEnt.Vars.WaterLevel, serverEnt.Vars.TeleportTime, serverEnt.Vars.MoveType)
+			uint32(serverEnt.Flags(srv)), serverEnt.ViewOfs(srv), serverEnt.Button2(srv),
+			serverEnt.WaterLevel(srv), serverEnt.TeleportTime(srv), serverEnt.MoveType(srv))
 
 		// Run PlayerPreThink manually with QC tracing
 		preThink := srv.QCVM.FindFunction("PlayerPreThink")
@@ -405,13 +405,13 @@ func TestE2EJump(t *testing.T) {
 		if err := srv.SubmitLoopbackCmd(0, clientState.ViewAngles, 0, 0, 0, 2, 0, float64(srv.Time)); err != nil {
 			t.Fatalf("SubmitLoopbackCmd: %v", err)
 		}
-		preZ := serverEnt.Vars.Origin[2]
+		preZ := serverEnt.Origin(srv)[2]
 		if err := srv.Frame(1.0 / 72.0); err != nil {
 			t.Fatalf("Frame: %v", err)
 		}
 		t.Logf("After jump: z=%.3f (was %.3f) vel_z=%.3f Flags=0x%x",
-			serverEnt.Vars.Origin[2], preZ, serverEnt.Vars.Velocity[2], uint32(serverEnt.Vars.Flags))
-		if serverEnt.Vars.Velocity[2] > 0 {
+			serverEnt.Origin(srv)[2], preZ, serverEnt.Velocity(srv)[2], uint32(serverEnt.Flags(srv)))
+		if serverEnt.Velocity(srv)[2] > 0 {
 			t.Logf("Jump successful!")
 		} else {
 			t.Error("Jump failed despite FL_JUMPRELEASED being set")

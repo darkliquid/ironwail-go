@@ -17,7 +17,7 @@ func TestFindTouchedLeafsSkipsSolidLeafZero(t *testing.T) {
 		},
 	}
 
-	ent := &Edict{Vars: &EntVars{}}
+	ent := &Edict{}
 
 	// Solid leaf 0 should be excluded entirely.
 	s.findTouchedLeafs(ent, bsp.TreeChild{IsLeaf: true, Index: 0})
@@ -54,9 +54,7 @@ func TestFindTouchedLeafsUsesBoxOnPlaneSideForNonAxialPlanes(t *testing.T) {
 		Planes: []model.MPlane{{Normal: [3]float32{invSqrt2, -invSqrt2, 0}, Dist: 0, Type: 3}},
 	}
 
-	ent := &Edict{Vars: &EntVars{
-		AbsMin: [3]float32{2, 0, -1},
-		AbsMax: [3]float32{4, 3, 1},
+	ent := &Edict{		AbsMax: [3]float32{4, 3, 1},
 	}}
 
 	s.findTouchedLeafs(ent, bsp.TreeChild{Index: 0, IsLeaf: false})

@@ -64,10 +64,10 @@ func TestCmdMapStartRealAssetsReachesCaActive(t *testing.T) {
 	if !srv.Static.Clients[0].Spawned {
 		t.Fatal("server client not marked spawned")
 	}
-	if got := srv.String(srv.Edicts[0].Vars.ClassName); got != "worldspawn" {
+	if got := srv.String(srv.Edicts[0].ClassName(srv)); got != "worldspawn" {
 		t.Fatalf("world classname = %q, want %q", got, "worldspawn")
 	}
-	if got := srv.String(srv.Static.Clients[0].Edict.Vars.ClassName); got != "player" {
+	if got := srv.String(srv.Static.Clients[0].Edict.ClassName(srv)); got != "player" {
 		t.Fatalf("player classname = %q, want %q", got, "player")
 	}
 }
@@ -113,23 +113,23 @@ func TestCmdMapE2M2RealAssetsKeepsMonstersOutOfSolid(t *testing.T) {
 	monsterCount := 0
 	for entNum := 1; entNum < srv.NumEdicts; entNum++ {
 		ent := srv.EdictNum(entNum)
-		if ent == nil || ent.Free || ent.Vars == nil {
+		if ent == nil || ent.Free {
 			continue
 		}
-		className := srv.String(ent.Vars.ClassName)
+		className := srv.String(ent.ClassName(srv))
 		if len(className) < len("monster_") || className[:len("monster_")] != "monster_" {
 			continue
 		}
 		monsterCount++
-		if ent.Vars.Origin == [3]float32{} {
+		if ent.Origin(srv) == ([3]float32{}) {
 			t.Fatalf("monster %d (%s) spawned at origin after CmdMap", entNum, className)
 		}
 		if blocker := srv.TestEntityPosition(ent); blocker != nil {
 			blockerClass := ""
 			if blocker.Vars != nil {
-				blockerClass = srv.String(blocker.Vars.ClassName)
+				blockerClass = srv.String(blocker.ClassName(srv))
 			}
-			t.Fatalf("monster %d (%s) spawned in solid after CmdMap at %v blocker=%d (%s)", entNum, className, ent.Vars.Origin, srv.NumForEdict(blocker), blockerClass)
+			t.Fatalf("monster %d (%s) spawned in solid after CmdMap at %v blocker=%d (%s)", entNum, className, ent.Origin(srv), srv.NumForEdict(blocker), blockerClass)
 		}
 	}
 	if monsterCount == 0 {
@@ -174,17 +174,17 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	}
 
 	player := srv.Static.Clients[0].Edict
-	player.Vars.Health = 61
-	player.Vars.Origin = [3]float32{320, 144, 40}
-	player.Vars.CurrentAmmo = 12
-	player.Vars.AmmoShells = 25
-	player.Vars.AmmoNails = 50
-	player.Vars.AmmoRockets = 8
-	player.Vars.AmmoCells = 31
-	player.Vars.Weapon = 8
-	player.Vars.Items = 0x0001 | 0x0002 | 0x0040
-	player.Vars.ArmorType = 0.6
-	player.Vars.ArmorValue = 95
+	player.SetHealth(srv, 61)
+	player.SetOrigin(srv, [3]float32{320, 144, 40})
+	player.SetCurrentAmmo(srv, 12)
+	player.SetAmmoShells(srv, 25)
+	player.SetAmmoNails(srv, 50)
+	player.SetAmmoRockets(srv, 8)
+	player.SetAmmoCells(srv, 31)
+	player.SetWeapon(srv, 8)
+	player.SetItems(srv, 0x0001 | 0x0002 | 0x0040)
+	player.SetArmorType(srv, 0.6)
+	player.SetArmorValue(srv, 95)
 	srv.LightStyles[3] = "az"
 	h.SetCurrentSkill(3)
 	h.CVar.SetInt("skill", 3)
@@ -195,17 +195,17 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 		t.Fatalf("saved file missing: %v", err)
 	}
 
-	player.Vars.Health = 12
-	player.Vars.Origin = [3]float32{0, 0, 0}
-	player.Vars.CurrentAmmo = 1
-	player.Vars.AmmoShells = 1
-	player.Vars.AmmoNails = 1
-	player.Vars.AmmoRockets = 1
-	player.Vars.AmmoCells = 1
-	player.Vars.Weapon = 1
-	player.Vars.Items = 0
-	player.Vars.ArmorType = 0
-	player.Vars.ArmorValue = 0
+	player.SetHealth(srv, 12)
+	player.SetOrigin(srv, [3]float32{0, 0, 0})
+	player.SetCurrentAmmo(srv, 1)
+	player.SetAmmoShells(srv, 1)
+	player.SetAmmoNails(srv, 1)
+	player.SetAmmoRockets(srv, 1)
+	player.SetAmmoCells(srv, 1)
+	player.SetWeapon(srv, 1)
+	player.SetItems(srv, 0)
+	player.SetArmorType(srv, 0)
+	player.SetArmorValue(srv, 0)
 	h.SetCurrentSkill(0)
 	h.CVar.SetInt("skill", 0)
 
@@ -214,37 +214,37 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	if got := h.ClientState(); got != caActive {
 		t.Fatalf("ClientState = %v, want %v", got, caActive)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.Health; got != 61 {
+	if got := srv.Static.Clients[0].Edict.Health(srv); got != 61 {
 		t.Fatalf("loaded player health = %v, want 61", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.Origin; got != ([3]float32{320, 144, 40}) {
+	if got := srv.Static.Clients[0].Edict.Origin(srv); got != ([3]float32{320, 144, 40}) {
 		t.Fatalf("loaded player origin = %v, want restored origin", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.CurrentAmmo; got != 12 {
+	if got := srv.Static.Clients[0].Edict.CurrentAmmo(srv); got != 12 {
 		t.Fatalf("loaded current ammo = %v, want 12", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.AmmoShells; got != 25 {
+	if got := srv.Static.Clients[0].Edict.AmmoShells(srv); got != 25 {
 		t.Fatalf("loaded shells = %v, want 25", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.AmmoNails; got != 50 {
+	if got := srv.Static.Clients[0].Edict.AmmoNails(srv); got != 50 {
 		t.Fatalf("loaded nails = %v, want 50", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.AmmoRockets; got != 8 {
+	if got := srv.Static.Clients[0].Edict.AmmoRockets(srv); got != 8 {
 		t.Fatalf("loaded rockets = %v, want 8", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.AmmoCells; got != 31 {
+	if got := srv.Static.Clients[0].Edict.AmmoCells(srv); got != 31 {
 		t.Fatalf("loaded cells = %v, want 31", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.Weapon; got != 8 {
+	if got := srv.Static.Clients[0].Edict.Weapon(srv); got != 8 {
 		t.Fatalf("loaded weapon = %v, want 8", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.Items; got != (0x0001 | 0x0002 | 0x0040) {
+	if got := srv.Static.Clients[0].Edict.Items(srv); got != (0x0001 | 0x0002 | 0x0040) {
 		t.Fatalf("loaded items = %v, want %v", got, float32(0x0001|0x0002|0x0040))
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.ArmorType; got != 0.6 {
+	if got := srv.Static.Clients[0].Edict.ArmorType(srv); got != 0.6 {
 		t.Fatalf("loaded armor type = %v, want 0.6", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.ArmorValue; got != 95 {
+	if got := srv.Static.Clients[0].Edict.ArmorValue(srv); got != 95 {
 		t.Fatalf("loaded armor value = %v, want 95", got)
 	}
 	if !srv.Static.Clients[0].Spawned {
@@ -306,28 +306,28 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 	}
 
 	player := srv.Static.Clients[0].Edict
-	player.Vars.Health = 61
-	player.Vars.Origin = [3]float32{320, 144, 40}
-	player.Vars.ViewOfs = [3]float32{0, 0, 22}
-	player.Vars.VAngle = [3]float32{0, 90, 0}
-	player.Vars.Angles = [3]float32{0, 90, 0}
-	player.Vars.CurrentAmmo = 12
-	player.Vars.AmmoShells = 25
-	player.Vars.AmmoNails = 50
-	player.Vars.AmmoRockets = 8
-	player.Vars.AmmoCells = 31
-	player.Vars.Weapon = 8
-	player.Vars.Items = 0x0001 | 0x0002 | 0x0040
-	player.Vars.ArmorType = 0.6
-	player.Vars.ArmorValue = 95
-	player.Vars.MoveType = float32(server.MoveTypeWalk)
-	player.Vars.Solid = float32(server.SolidSlideBox)
-	player.Vars.TakeDamage = 1
-	player.Vars.Colormap = 1
-	player.Vars.Team = 1
-	player.Vars.Mins = [3]float32{-16, -16, -24}
-	player.Vars.Maxs = [3]float32{16, 16, 32}
-	player.Vars.Size = [3]float32{32, 32, 56}
+	player.SetHealth(srv, 61)
+	player.SetOrigin(srv, [3]float32{320, 144, 40})
+	player.SetViewOfs(srv, [3]float32{0, 0, 22})
+	player.SetVAngle(srv, [3]float32{0, 90, 0})
+	player.SetAngles(srv, [3]float32{0, 90, 0})
+	player.SetCurrentAmmo(srv, 12)
+	player.SetAmmoShells(srv, 25)
+	player.SetAmmoNails(srv, 50)
+	player.SetAmmoRockets(srv, 8)
+	player.SetAmmoCells(srv, 31)
+	player.SetWeapon(srv, 8)
+	player.SetItems(srv, 0x0001 | 0x0002 | 0x0040)
+	player.SetArmorType(srv, 0.6)
+	player.SetArmorValue(srv, 95)
+	player.SetMoveType(srv, float32(server.MoveTypeWalk))
+	player.SetSolid(srv, float32(server.SolidSlideBox))
+	player.SetTakeDamage(srv, 1)
+	player.SetColormap(srv, 1)
+	player.SetTeam(srv, 1)
+	player.SetMins(srv, [3]float32{-16, -16, -24})
+	player.SetMaxs(srv, [3]float32{16, 16, 32})
+	player.SetSize(srv, [3]float32{32, 32, 56})
 	srv.Static.Clients[0].SpawnParms[0] = 100
 	srv.Static.Clients[0].SpawnParms[1] = 250
 	srv.LightStyles[3] = "az"
@@ -377,17 +377,17 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 		t.Fatalf("WriteFile(kex save): %v", err)
 	}
 
-	player.Vars.Health = 12
-	player.Vars.Origin = [3]float32{}
-	player.Vars.CurrentAmmo = 1
-	player.Vars.AmmoShells = 1
-	player.Vars.AmmoNails = 1
-	player.Vars.AmmoRockets = 1
-	player.Vars.AmmoCells = 1
-	player.Vars.Weapon = 1
-	player.Vars.Items = 0
-	player.Vars.ArmorType = 0
-	player.Vars.ArmorValue = 0
+	player.SetHealth(srv, 12)
+	player.SetOrigin(srv, [3]float32{})
+	player.SetCurrentAmmo(srv, 1)
+	player.SetAmmoShells(srv, 1)
+	player.SetAmmoNails(srv, 1)
+	player.SetAmmoRockets(srv, 1)
+	player.SetAmmoCells(srv, 1)
+	player.SetWeapon(srv, 1)
+	player.SetItems(srv, 0)
+	player.SetArmorType(srv, 0)
+	player.SetArmorValue(srv, 0)
 	srv.LightStyles[3] = "m"
 	h.SetCurrentSkill(0)
 	h.CVar.SetInt("skill", 0)
@@ -397,28 +397,28 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 	if got := h.ClientState(); got != caActive {
 		t.Fatalf("ClientState = %v, want %v", got, caActive)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.Health; got != 61 {
+	if got := srv.Static.Clients[0].Edict.Health(srv); got != 61 {
 		t.Fatalf("loaded player health = %v, want 61", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.Origin; got != ([3]float32{320, 144, 40}) {
+	if got := srv.Static.Clients[0].Edict.Origin(srv); got != ([3]float32{320, 144, 40}) {
 		t.Fatalf("loaded player origin = %v, want restored origin", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.CurrentAmmo; got != 12 {
+	if got := srv.Static.Clients[0].Edict.CurrentAmmo(srv); got != 12 {
 		t.Fatalf("loaded current ammo = %v, want 12", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.AmmoShells; got != 25 {
+	if got := srv.Static.Clients[0].Edict.AmmoShells(srv); got != 25 {
 		t.Fatalf("loaded shells = %v, want 25", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.AmmoNails; got != 50 {
+	if got := srv.Static.Clients[0].Edict.AmmoNails(srv); got != 50 {
 		t.Fatalf("loaded nails = %v, want 50", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.AmmoRockets; got != 8 {
+	if got := srv.Static.Clients[0].Edict.AmmoRockets(srv); got != 8 {
 		t.Fatalf("loaded rockets = %v, want 8", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.AmmoCells; got != 31 {
+	if got := srv.Static.Clients[0].Edict.AmmoCells(srv); got != 31 {
 		t.Fatalf("loaded cells = %v, want 31", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.Weapon; got != 8 {
+	if got := srv.Static.Clients[0].Edict.Weapon(srv); got != 8 {
 		t.Fatalf("loaded weapon = %v, want 8", got)
 	}
 	clientState := LoopbackClientState(subs)
@@ -626,20 +626,20 @@ func TestCmdRestartAutoloadsLastSaveForDeadPlayer(t *testing.T) {
 	})
 
 	player := srv.Static.Clients[0].Edict
-	player.Vars.Health = 61
-	player.Vars.Origin = [3]float32{320, 144, 40}
+	player.SetHealth(srv, 61)
+	player.SetOrigin(srv, [3]float32{320, 144, 40})
 
 	h.CmdSave("autoload_restart", subs)
 
-	player.Vars.Health = 0
-	player.Vars.Origin = [3]float32{0, 0, 0}
+	player.SetHealth(srv, 0)
+	player.SetOrigin(srv, [3]float32{0, 0, 0})
 
 	h.CmdRestart(subs)
 
-	if got := srv.Static.Clients[0].Edict.Vars.Health; got != 61 {
+	if got := srv.Static.Clients[0].Edict.Health(srv); got != 61 {
 		t.Fatalf("autoloaded restart health = %v, want 61", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.Origin; got != ([3]float32{320, 144, 40}) {
+	if got := srv.Static.Clients[0].Edict.Origin(srv); got != ([3]float32{320, 144, 40}) {
 		t.Fatalf("autoloaded restart origin = %v, want restored origin", got)
 	}
 }
@@ -687,20 +687,20 @@ func TestCmdChangelevelSameMapAutoloadsLastSaveWhenConfigured(t *testing.T) {
 	})
 
 	player := srv.Static.Clients[0].Edict
-	player.Vars.Health = 61
-	player.Vars.Origin = [3]float32{320, 144, 40}
+	player.SetHealth(srv, 61)
+	player.SetOrigin(srv, [3]float32{320, 144, 40})
 
 	h.CmdSave("autoload_changelevel", subs)
 
-	player.Vars.Health = 12
-	player.Vars.Origin = [3]float32{0, 0, 0}
+	player.SetHealth(srv, 12)
+	player.SetOrigin(srv, [3]float32{0, 0, 0})
 
 	h.CmdChangelevel("start", subs)
 
-	if got := srv.Static.Clients[0].Edict.Vars.Health; got != 61 {
+	if got := srv.Static.Clients[0].Edict.Health(srv); got != 61 {
 		t.Fatalf("autoloaded same-map changelevel health = %v, want 61", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Vars.Origin; got != ([3]float32{320, 144, 40}) {
+	if got := srv.Static.Clients[0].Edict.Origin(srv); got != ([3]float32{320, 144, 40}) {
 		t.Fatalf("autoloaded same-map changelevel origin = %v, want restored origin", got)
 	}
 }
@@ -825,10 +825,10 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 	wantLevel := ""
 	for entNum := 1; entNum < srv.NumEdicts; entNum++ {
 		ent := srv.EdictNum(entNum)
-		if ent == nil || ent.Free || ent.Vars == nil {
+		if ent == nil || ent.Free {
 			continue
 		}
-		if srv.String(ent.Vars.ClassName) != "trigger_changelevel" {
+		if srv.String(ent.ClassName(srv)) != "trigger_changelevel" {
 			continue
 		}
 		trigger = ent
@@ -843,13 +843,13 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 	}
 
 	player := srv.Static.Clients[0].Edict
-	player.Vars.Origin = [3]float32{
-		(trigger.Vars.AbsMin[0] + trigger.Vars.AbsMax[0]) * 0.5,
-		(trigger.Vars.AbsMin[1] + trigger.Vars.AbsMax[1]) * 0.5,
-		trigger.Vars.AbsMin[2] - player.Vars.Mins[2] + 1,
-	}
-	player.Vars.Velocity = [3]float32{}
-	player.Vars.Flags = float32(uint32(player.Vars.Flags) | uint32(server.FlagOnGround))
+	player.SetOrigin(srv, [3]float32{
+		(trigger.AbsMin(srv)[0] + trigger.AbsMax(srv)[0]) * 0.5,
+		(trigger.AbsMin(srv)[1] + trigger.AbsMax(srv)[1]) * 0.5,
+		trigger.AbsMin(srv)[2] - player.Mins(srv)[2] + 1,
+	})
+	player.SetVelocity(srv, [3]float32{})
+	player.SetFlags(srv, float32(uint32(player.Flags(srv)) | uint32(server.FlagOnGround)))
 	srv.LinkEdict(player, false)
 
 	enteredIntermission := false
@@ -892,7 +892,7 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 	}
 	t.Fatalf("map did not advance after intermission attack: got map=%q want=%q intermission=%d completed=%f server_time=%v cmd=%+v player_button0=%v player_button2=%v player_movetype=%v player_nextthink=%v player_think=%v qc_button0=%v qc_button2=%v intermission_running=%v",
 		srv.MapName(), wantLevel, clientState.Intermission, clientState.CompletedTime, srv.Time, clientState.Cmd,
-		player.Vars.Button0, player.Vars.Button2, player.Vars.MoveType, player.Vars.NextThink, player.Vars.Think,
+		player.Button0(srv), player.Button2(srv), player.MoveType(srv), player.NextThink(srv), player.Think(srv),
 		srv.QCVM.EFloat(entNum, qc.EntFieldButton0), srv.QCVM.EFloat(entNum, qc.EntFieldButton2), intermissionRunning)
 }
 

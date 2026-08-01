@@ -227,7 +227,7 @@ func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit,
 
 	if g.Server != nil && g.Server.Edicts != nil {
 		for edictIdx, ent := range g.Server.Edicts {
-			if ent == nil || ent.Free || ent.Vars == nil {
+			if ent == nil || ent.Free {
 				continue
 			}
 			modelIdx := int(ent.Vars.ModelIndex)
