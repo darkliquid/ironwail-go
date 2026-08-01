@@ -11,6 +11,7 @@ import (
 
 func TestEdictInPVSVisibleLeaf(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -30,6 +31,7 @@ func TestEdictInPVSVisibleLeaf(t *testing.T) {
 
 func TestEdictInPVSNotVisible(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -75,6 +77,7 @@ func TestSyncEdictFromQCVM_EmptyModelClearsStaleModelIndex(t *testing.T) {
 
 func TestEdictInPVSNoLeafs(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -91,6 +94,7 @@ func TestEdictInPVSNoLeafs(t *testing.T) {
 
 func TestEdictInPVSNilPVS(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -107,6 +111,7 @@ func TestEdictInPVSNilPVS(t *testing.T) {
 
 func TestEdictInPVSMultipleLeafsOneVisible(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -128,6 +133,7 @@ func TestEdictInPVSMultipleLeafsOneVisible(t *testing.T) {
 
 func TestEdictInPVSUsesVisLeafNumbering(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -146,6 +152,7 @@ func TestEdictInPVSUsesVisLeafNumbering(t *testing.T) {
 
 func TestEdictInPVSMaxLeafsStillRequiresVisibleBits(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -161,6 +168,7 @@ func TestEdictInPVSMaxLeafsStillRequiresVisibleBits(t *testing.T) {
 
 func TestDevStatsSnapshotTracksCurrentAndPeak(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -196,6 +204,7 @@ func TestDevStatsSnapshotTracksCurrentAndPeak(t *testing.T) {
 
 func TestDevStatsEdictCountersReturnsActiveAndMax(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -221,6 +230,7 @@ func TestDevStatsEdictCountersReturnsActiveAndMax(t *testing.T) {
 
 func TestFrameIncrementsDevStatsFrameCounter(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -247,6 +257,7 @@ func TestFrameIncrementsDevStatsFrameCounter(t *testing.T) {
 
 func TestCheckForNewClientsNoConnections(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -258,6 +269,7 @@ func TestCheckForNewClientsNoConnections(t *testing.T) {
 
 func TestCheckForNewClientsRejectsWhenServerFull(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("server init: %v", err)
 	}
@@ -285,6 +297,7 @@ func TestCheckForNewClientsRejectsWhenServerFull(t *testing.T) {
 
 func TestFrameClearsDatagramBeforeSimulation(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -301,6 +314,7 @@ func TestFrameClearsDatagramBeforeSimulation(t *testing.T) {
 
 func TestReadClientMessageProcessesStringCmdWithoutSentinel(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -321,6 +335,7 @@ func TestReadClientMessageProcessesStringCmdWithoutSentinel(t *testing.T) {
 
 func TestSendClientMessagesQueuesKeepaliveNopForIdleRemoteClient(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -358,6 +373,7 @@ func TestSendClientMessagesQueuesKeepaliveNopForIdleRemoteClient(t *testing.T) {
 
 func TestSendClientMessagesHoldsReliableDataForIdleUnspawnedClient(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}

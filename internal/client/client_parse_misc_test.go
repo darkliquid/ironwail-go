@@ -204,6 +204,14 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
+	// Set up QCVM edict storage for accessor methods
+	if s.QCVM != nil {
+		s.QCVM.MaxEdicts = 8
+		s.QCVM.NumEdicts = max(s.NumEdicts, 8)
+		s.QCVM.EntityFields = 128
+		s.QCVM.EdictSize = 28 + s.QCVM.EntityFields*4
+		s.QCVM.Edicts = make([]byte, s.QCVM.EdictSize*8)
+	}
 	s.Time = 1.5
 	s.ModelPrecache = make([]string, server.MaxModels)
 	s.ModelPrecache[1] = "progs/player.mdl"

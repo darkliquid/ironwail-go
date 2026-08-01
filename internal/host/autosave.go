@@ -45,6 +45,11 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 		return
 	}
 	srv, _ := subs.Server.(*server.Server)
+	if srv == nil {
+		if provider, ok := subs.Server.(interface{ RealServer() *server.Server }); ok {
+			srv = provider.RealServer()
+		}
+	}
 	if player.Health(srv) <= 0 {
 		return
 	}

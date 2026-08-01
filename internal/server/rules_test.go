@@ -21,6 +21,7 @@ func withRuleCVars(t *testing.T, s *Server, values map[string]string) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesEndsMatchOnFraglimit(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -47,6 +48,7 @@ func TestCheckRulesEndsMatchOnFraglimit(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesEndsMatchOnTimelimit(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -70,6 +72,7 @@ func TestCheckRulesEndsMatchOnTimelimit(t *testing.T) {
 // Where in C: SV_Physics_Client in sv_phys.c (handling respawn state)
 func TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -124,6 +127,7 @@ func TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNoTriggerInCoop(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "1",
@@ -151,6 +155,7 @@ func TestCheckRulesNoTriggerInCoop(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNoTriggerWhenDisabled(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -178,6 +183,7 @@ func TestCheckRulesNoTriggerWhenDisabled(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesFraglimitExactlyMet(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -204,6 +210,7 @@ func TestCheckRulesFraglimitExactlyMet(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesFraglimitNotMetBelowThreshold(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -230,6 +237,7 @@ func TestCheckRulesFraglimitNotMetBelowThreshold(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesTimelimitNotMetBelowThreshold(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -253,6 +261,7 @@ func TestCheckRulesTimelimitNotMetBelowThreshold(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesSkipsWhenChangeLevelAlreadyIssued(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -279,6 +288,7 @@ func TestCheckRulesSkipsWhenChangeLevelAlreadyIssued(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesFraglimitChecksAllClients(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -314,6 +324,7 @@ func TestCheckRulesFraglimitChecksAllClients(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNegativeFraglimitIgnored(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -340,6 +351,7 @@ func TestCheckRulesNegativeFraglimitIgnored(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNegativeTimelimitIgnored(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
@@ -363,6 +375,7 @@ func TestCheckRulesNegativeTimelimitIgnored(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesCoopOverridesDeathmatch(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "1",
@@ -390,6 +403,7 @@ func TestCheckRulesCoopOverridesDeathmatch(t *testing.T) {
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesSkipsFreedEdicts(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 
 	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",

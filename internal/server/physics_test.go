@@ -57,6 +57,7 @@ func withPhysicsCVars(t *testing.T, s *Server, values map[string]string) {
 func newPushMoveElevatorTestServer(t *testing.T) (*Server, *Edict, *Edict) {
 	t.Helper()
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -199,6 +200,7 @@ func TestPhysicsTossOnGroundDoesNotMove(t *testing.T) {
 // Where in C: SV_FlyMove in sv_phys.c
 func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.FrameTime = 0.1
 	s.WorldModel = CreateSyntheticWorldModel()
 	if len(s.Edicts) == 0 || s.Edicts[0] == nil {
@@ -262,6 +264,7 @@ func TestPhysicsStepOnGroundSkipsFreefall(t *testing.T) {
 // Where in C: SV_Physics_Step in sv_phys.c
 func TestPhysicsStepHardLandingStartsCanonicalSound(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -334,6 +337,7 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	}
 	newServerWithStep := func() *Server {
 		s := NewServer()
+  newServerTestVM(s, 16)
 		if err := s.Init(1); err != nil {
 			t.Fatalf("init server: %v", err)
 		}
@@ -354,13 +358,14 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	noStepMover := newMover(noStep)
 	noStep.SV_WalkMove(noStepMover)
 
-	if !(stepMover.Origin(nil)[0] > noStepMover.Origin(nil)[0]+0.5) {
-		t.Fatalf("sv_nostep did not suppress step retry: stepped=%v nostep=%v", stepMover.Origin(nil), noStepMover.Origin(nil))
+	if !(stepMover.Origin(withStep)[0] > noStepMover.Origin(noStep)[0]+0.5) {
+		t.Fatalf("sv_nostep did not suppress step retry: stepped=%v nostep=%v", stepMover.Origin(withStep), noStepMover.Origin(noStep))
 	}
 }
 
 func TestSVWalkMoveStepDownGroundsOnBSPContactForNonBSPMover(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -446,6 +451,7 @@ func TestPhysicsFrameOnSpawnedMap(t *testing.T) {
 	defer vfs.Close()
 
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}

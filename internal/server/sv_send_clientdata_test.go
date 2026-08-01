@@ -26,6 +26,7 @@ func TestWriteClientDataToMessage_NetQuakeOmitsExtensions(t *testing.T) {
 		QCVM:          vm,
 		ModelPrecache: modelPrecache,
 	}
+	newServerTestVM(s, 8)
 	ent := &Edict{
 				Alpha: 0x7f,
 	}
@@ -75,6 +76,7 @@ func TestWriteClientDataToMessage_FitzSendsWeapon2(t *testing.T) {
 		QCVM:          vm,
 		ModelPrecache: modelPrecache,
 	}
+	newServerTestVM(s, 8)
 	ent := &Edict{
 			}
 	ent.SetWeaponModel(s, weaponModel)
@@ -115,6 +117,7 @@ func TestWriteClientDataToMessage_FitzExtensionsPayloadOrder(t *testing.T) {
 		QCVM:          vm,
 		ModelPrecache: modelPrecache,
 	}
+	newServerTestVM(s, 8)
 	ent := &Edict{
 				Alpha: 0x7f,
 	}
@@ -164,6 +167,7 @@ func TestWriteClientDataToMessage_FixAngleUsesVAngle(t *testing.T) {
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolFitzQuake}
+	newServerTestVM(s, 8)
 	ent := allocPhysicsTestEdict(s)
 	ent.SetFixAngle(s, 1)
 	ent.SetAngles(s, [3]float32{10, 20, 30})
@@ -197,6 +201,7 @@ func TestWriteClientDataToMessage_SendsBaseWeaponBitmask(t *testing.T) {
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolNetQuake}
+	newServerTestVM(s, 8)
 	ent := &Edict{
 			}
 	ent.SetWeapon(s, 1 << 5)
@@ -219,6 +224,7 @@ func TestWriteClientDataToMessage_MissionPackEncodesWeaponAsBitNumber(t *testing
 		Protocol:   ProtocolNetQuake,
 		FileSystem: testGameDirFS{gameDir: "rogue"},
 	}
+	newServerTestVM(s, 8)
 	ent := &Edict{
 			}
 	ent.SetWeapon(s, 1 << 5)
@@ -238,6 +244,7 @@ func TestWriteClientDataToMessage_SendsFullActiveWeaponStatWhenBitmaskExceedsByt
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolNetQuake}
+	newServerTestVM(s, 8)
 	ent := &Edict{
 			}
 	ent.SetWeapon(s, 1 << 8)
@@ -274,13 +281,14 @@ func TestWriteClientDataToMessage_LogsPhysicsTelemetry(t *testing.T) {
 			lines = append(lines, line)
 		}),
 	}
+	newServerTestVM(s, 8)
 	oldEnable := debugTelemetryEnableCVar
 	debugTelemetryEnableCVar = s.CVar.Register("sv_debug_telemetry_test_clientdata", "1", cvar.FlagNone, "")
 	t.Cleanup(func() {
 		debugTelemetryEnableCVar = oldEnable
 	})
 
-	ent := &Edict{}
+	ent := &Edict{Num: 1}
 	ent.SetIdealPitch(s, 7)
 	ent.SetVelocity(s, [3]float32{0, 1840, 0})
 	ent.SetFlags(s, FlagPartialGround)
@@ -332,6 +340,7 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 		Edicts:       []*Edict{{}, ent},
 		NumEdicts:    2,
 	}
+	newServerTestVM(s, 8)
 
 	msg := NewMessageBuffer(256)
 	s.writeEntitiesToClient(client, msg)
@@ -356,6 +365,7 @@ func TestWriteEntitiesToClient_DoesNotEmitRetireForFreedBaselineOnlyEntity(t *te
 		Edicts:    []*Edict{{}, ent},
 		NumEdicts: 2,
 	}
+	newServerTestVM(s, 8)
 
 	ent.Free = true
 	msg := NewMessageBuffer(256)
@@ -381,6 +391,7 @@ func TestWriteEntitiesToClient_DoesNotEmitStickyRetireForOmittedTrackedEntity(t 
 		Edicts:    []*Edict{{}, ent},
 		NumEdicts: 2,
 	}
+	newServerTestVM(s, 8)
 
 	ent.Free = true
 	first := NewMessageBuffer(256)

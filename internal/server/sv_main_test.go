@@ -226,10 +226,10 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 	if got := trigger.Solid(s); got != float32(SolidTrigger) {
 		t.Fatalf("trigger solid = %v, want %v", got, float32(SolidTrigger))
 	}
-	if got := trigger.AbsMin(nil); got != [3]float32{111, -17, -17} {
+	if got := trigger.AbsMin(s); got != [3]float32{111, -17, -17} {
 		t.Fatalf("trigger absmin = %v", got)
 	}
-	if got := trigger.AbsMax(nil); got != [3]float32{145, 17, 17} {
+	if got := trigger.AbsMax(s); got != [3]float32{145, 17, 17} {
 		t.Fatalf("trigger absmax = %v", got)
 	}
 
@@ -321,10 +321,10 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T)
 	if trigger.Free {
 		t.Fatal("spawned trigger unexpectedly still marked free")
 	}
-	if got := trigger.AbsMin(nil); got != [3]float32{111, -17, -17} {
+	if got := trigger.AbsMin(s); got != [3]float32{111, -17, -17} {
 		t.Fatalf("trigger absmin = %v", got)
 	}
-	if got := trigger.AbsMax(nil); got != [3]float32{145, 17, 17} {
+	if got := trigger.AbsMax(s); got != [3]float32{145, 17, 17} {
 		t.Fatalf("trigger absmax = %v", got)
 	}
 	if trigger.AreaPrev == nil || trigger.AreaNext == nil {

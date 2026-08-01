@@ -348,6 +348,7 @@ func findSpawnOriginFromEntityLump(s *Server) ([3]float32, bool) {
 
 func TestFindSpawnOriginFromEntityLumpParsesInfoPlayerStart(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	s.WorldTree = &bsp.Tree{
 		Entities: []byte(`{
 "classname" "worldspawn"
@@ -373,6 +374,7 @@ func TestFindSpawnOriginFromEntityLumpParsesInfoPlayerStart(t *testing.T) {
 
 func TestFindSpawnOriginsFromEntityLumpEnumeratesSupportedSpawnClasses(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	s.WorldTree = &bsp.Tree{
 		Entities: []byte(`{
 "classname" "worldspawn"
@@ -497,6 +499,7 @@ func newStartMapDiagnosticsServer(t *testing.T) *Server {
 	t.Cleanup(vfs.Close)
 
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -553,6 +556,7 @@ func newSyntheticWalkableDiagnosticsServer(t *testing.T) *Server {
 	t.Helper()
 
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -631,6 +635,7 @@ func TestFindWalkablePointUsesSpawnpointOnStartMap(t *testing.T) {
 
 func TestFindWalkablePointTriesMultipleEntityLumpSpawnCandidates(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -665,6 +670,7 @@ func TestFindWalkablePointTriesMultipleEntityLumpSpawnCandidates(t *testing.T) {
 
 func TestFindWalkablePointFallsBackAcrossEntityLumpSpawnCandidatesWithoutPakAssets(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}

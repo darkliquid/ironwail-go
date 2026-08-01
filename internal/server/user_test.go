@@ -20,6 +20,7 @@ func finalizeMessage(m *MessageBuffer) *MessageBuffer {
 
 func TestSVExecuteUserCommandWhitelist(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	client := &Client{}
 
 	tests := []struct {
@@ -46,6 +47,7 @@ func TestSVExecuteUserCommandWhitelist(t *testing.T) {
 
 func TestSVReadClientMessageMoveCommand(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	s.Time = 4.0
 
 	ent := allocPhysicsTestEdict(s)
@@ -85,6 +87,7 @@ func TestSVReadClientMessageMoveCommand(t *testing.T) {
 
 func TestSVClientThinkNoclip(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	s.FrameTime = 0.1
 
 	ent := allocPhysicsTestEdict(s)
@@ -174,6 +177,7 @@ func withUserCVars(t *testing.T, s *Server, values map[string]string) {
 
 func TestSVClientThinkNoclipAltStyleUsesViewPitch(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	withUserCVars(t, s, map[string]string{"sv_altnoclip": "1"})
 	s.FrameTime = 0.1
 	ent := allocPhysicsTestEdict(s)
@@ -197,6 +201,7 @@ func TestSVClientThinkNoclipAltStyleUsesViewPitch(t *testing.T) {
 
 func TestSVClientThinkNoclipClassicIgnoresPitch(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	withUserCVars(t, s, map[string]string{"sv_altnoclip": "0"})
 	s.FrameTime = 0.1
 	ent := allocPhysicsTestEdict(s)
@@ -223,6 +228,7 @@ func TestSVClientThinkNoclipClassicIgnoresPitch(t *testing.T) {
 
 func TestSVClientThinkWalkForwardIgnoresPitchVerticalProjection(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	s.FrameTime = 0.05
 
 	ent := allocPhysicsTestEdict(s)
@@ -250,6 +256,7 @@ func TestSVClientThinkWalkForwardIgnoresPitchVerticalProjection(t *testing.T) {
 
 func TestSVClientThinkGroundFrictionFeedsAccelerate(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	s.FrameTime = 0.1
 
 	ent := allocPhysicsTestEdict(s)
@@ -411,6 +418,7 @@ func TestLoopbackJumpAppliesVerticalVelocity(t *testing.T) {
 	defer vfs.Close()
 
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -579,6 +587,7 @@ func TestPhysicsWalkClearsStaleGroundFlagWhenUnsupported(t *testing.T) {
 
 func TestRunClientSpawnQCCallsClientConnectBeforePutClientInServer(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -622,6 +631,7 @@ func TestRunClientSpawnQCCallsClientConnectBeforePutClientInServer(t *testing.T)
 
 func TestRunClientSpawnQCSyncsEntitiesSpawnedByClientConnect(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -673,6 +683,7 @@ func TestRunClientSpawnQCSyncsEntitiesSpawnedByClientConnect(t *testing.T) {
 
 func TestExecuteClientStringCommandFallsBackToSVParseClientCommandQC(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -711,6 +722,7 @@ func TestExecuteClientStringCommandFallsBackToSVParseClientCommandQC(t *testing.
 
 func TestDropClientBroadcastsRosterClearsWithoutFreeingPlayerEdict(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(2); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}

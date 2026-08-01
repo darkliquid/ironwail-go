@@ -560,6 +560,7 @@ func TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM(t *testing.T) {
 // Where in C: SV_PushMove in sv_phys.c
 func TestPushMoveBlockedSyncsMutatedPusherFromQCVM(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.FrameTime = 0.1
 	s.WorldModel = CreateSyntheticWorldModel()
 	if len(s.Edicts) == 0 || s.Edicts[0] == nil {

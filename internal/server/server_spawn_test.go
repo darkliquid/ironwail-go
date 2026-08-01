@@ -17,6 +17,7 @@ import (
 
 func TestSpawnCommandWritesInitialSnapshot(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -76,6 +77,7 @@ func TestSpawnCommandWritesInitialSnapshot(t *testing.T) {
 
 func TestSpawnCommandWritesSkyboxName(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -147,6 +149,7 @@ func TestWriteSpawnSetAngleUsesViewAnglesForLoadGame(t *testing.T) {
 
 func TestSpawnCommandAcceptsTrailingArgs(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -171,6 +174,7 @@ func TestSpawnCommandAcceptsTrailingArgs(t *testing.T) {
 
 func TestClientNameCommandAcceptsQuotedNames(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -189,6 +193,7 @@ func TestClientNameCommandAcceptsQuotedNames(t *testing.T) {
 
 func TestClientColorCommandAcceptsTopAndBottom(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -207,6 +212,7 @@ func TestClientColorCommandAcceptsTopAndBottom(t *testing.T) {
 
 func TestClientBanCommandAppliesIPBanAndPrintsStatus(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -252,6 +258,7 @@ func TestClientBanCommandAppliesIPBanAndPrintsStatus(t *testing.T) {
 
 func TestClientBanCommandNoopsDuringDeathmatch(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -282,6 +289,7 @@ func TestClientBanCommandNoopsDuringDeathmatch(t *testing.T) {
 
 func TestKickClientDropsTargetAndWritesReason(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -312,6 +320,7 @@ func TestKickClientDropsTargetAndWritesReason(t *testing.T) {
 
 func TestKickClientRejectsInvalidTargets(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -326,6 +335,7 @@ func TestKickClientRejectsInvalidTargets(t *testing.T) {
 
 func TestKillClientRejectsAlreadyDead(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -344,6 +354,7 @@ func TestKillClientRejectsAlreadyDead(t *testing.T) {
 
 func TestSetClientNameBroadcastsReliableScoreboardUpdate(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -370,6 +381,7 @@ func TestSetClientNameBroadcastsReliableScoreboardUpdate(t *testing.T) {
 
 func TestSetClientColorBroadcastsReliableScoreboardUpdate(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -408,6 +420,7 @@ func TestPutClientInServerRealProgsNoPanic(t *testing.T) {
 	defer vfs.Close()
 
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -562,6 +575,7 @@ func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
 
 func TestRunClientSpawnQCRelinksClientAfterQCSpawnMove(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}

@@ -17,6 +17,7 @@ import (
 
 func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	clientMsg := NewMessageBuffer(MaxDatagram)
 	world := s.EdictNum(0)
@@ -284,6 +285,7 @@ func TestServerHooksPrecacheValidationAndSetModelNonBrushBounds(t *testing.T) {
 
 func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil {
@@ -335,6 +337,7 @@ func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
 
 func TestServerHooksMoveToGoalImportsPendingQCGoalEdict(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil {
@@ -419,6 +422,7 @@ func TestServerHooksChangeYawImportsPendingQCState(t *testing.T) {
 
 func TestServerHooksMoveToGoalRestoresQCContextAfterNestedTouch(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil {

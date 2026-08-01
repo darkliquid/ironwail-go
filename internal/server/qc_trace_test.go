@@ -9,6 +9,7 @@ import (
 
 func TestExecuteQCFunctionLogsTraceChain(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	vm := s.QCVM
 	vm.Globals = make([]float32, 128)
 
@@ -79,6 +80,7 @@ func TestExecuteQCFunctionLogsTraceChain(t *testing.T) {
 
 func TestExecuteQCFunctionBuiltinTracingHonorsVerbosity(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	vm := s.QCVM
 	vm.Globals = make([]float32, 128)
 
@@ -177,6 +179,7 @@ func TestExecuteQCFunctionRestoresVMStateAfterError(t *testing.T) {
 
 func TestExecuteQCFunctionRestoresVMStateAfterSuccess(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	vm := s.QCVM
 	vm.Globals = make([]float32, 128)
 

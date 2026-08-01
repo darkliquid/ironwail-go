@@ -47,6 +47,7 @@ func TestRepairMissingWeaponSpawnParmsKeepsExistingInventory(t *testing.T) {
 
 func TestSendServerInfoFitzQuakeOmitsProtocolFlags(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -78,6 +79,7 @@ func TestSendServerInfoFitzQuakeOmitsProtocolFlags(t *testing.T) {
 
 func TestSendServerInfoRMQIncludesProtocolFlags(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -115,6 +117,7 @@ func TestSendServerInfoRMQIncludesProtocolFlags(t *testing.T) {
 
 func TestSendServerInfoNetQuakeCapsPrecaches(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -187,6 +190,7 @@ func TestBuildSignonBuffers_WritesSpawnBaselines(t *testing.T) {
 
 func TestCreateBaselineRMQUsesQCScaleAndWritesSpawnBaseline2(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -337,6 +341,7 @@ func TestUpdateToReliableMessages_BroadcastsChangedPlayerFragsToAllActiveClients
 
 func TestUpdateToReliableMessagesFansOutSharedReliableDatagram(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(2); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -361,6 +366,7 @@ func TestUpdateToReliableMessagesFansOutSharedReliableDatagram(t *testing.T) {
 
 func TestSaveSpawnParmsCopiesServerFlagsFromQC(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -381,6 +387,7 @@ func TestSaveSpawnParmsCopiesServerFlagsFromQC(t *testing.T) {
 
 func TestDropClientCrashClosesAndClearsRemoteConnection(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -412,6 +419,7 @@ func TestDropClientCrashClosesAndClearsRemoteConnection(t *testing.T) {
 
 func TestSendClientMessagesCrashDropOnReliableSendFailureClosesConnection(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -449,6 +457,7 @@ func TestSendClientMessagesCrashDropOnReliableSendFailureClosesConnection(t *tes
 
 func TestSendClientMessagesCrashDropOnOverflowClosesConnection(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}
@@ -487,6 +496,7 @@ func TestSendClientMessagesCrashDropOnOverflowClosesConnection(t *testing.T) {
 
 func TestQueuePendingSignonTreatsLOCALSocketAsLocalClient(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
 	}

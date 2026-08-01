@@ -551,7 +551,41 @@ func (em *EntityManager) fieldDef(keyName string) (int, qc.EType, bool) {
 		}
 		return int(def.Ofs), qc.EType(def.Type &^ qc.DefSaveGlobal), true
 	}
+	// Fallback to default offsets for standard entvars fields when
+	// FieldDefs doesn't contain the field (e.g. minimal test VMs).
+	if ofs, ok := defaultEntFieldOffsets[normalized]; ok {
+		fieldType := qc.EvFloat
+		if _, isString := stringEntFieldNames[normalized]; isString {
+			fieldType = qc.EvString
+		} else if isVectorField(normalized) {
+			fieldType = qc.EvVector
+		}
+		return ofs, fieldType, true
+	}
 	return 0, 0, false
+}
+
+// isVectorField returns true for standard entvars fields that are vec3 types.
+var vectorEntFieldNames = map[string]struct{}{
+	normalizeFieldName("AbsMin"):    {},
+	normalizeFieldName("AbsMax"):    {},
+	normalizeFieldName("Origin"):    {},
+	normalizeFieldName("OldOrigin"): {},
+	normalizeFieldName("Velocity"):  {},
+	normalizeFieldName("Angles"):    {},
+	normalizeFieldName("AVelocity"): {},
+	normalizeFieldName("PunchAngle"): {},
+	normalizeFieldName("Mins"):      {},
+	normalizeFieldName("Maxs"):      {},
+	normalizeFieldName("Size"):      {},
+	normalizeFieldName("ViewOfs"):   {},
+	normalizeFieldName("VAngle"):    {},
+	normalizeFieldName("MoveDir"):   {},
+}
+
+func isVectorField(normalized string) bool {
+	_, ok := vectorEntFieldNames[normalized]
+	return ok
 }
 
 // normalizeFieldName strips underscores and lowercases the input string to

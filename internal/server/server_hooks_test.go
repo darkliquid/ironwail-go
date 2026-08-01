@@ -16,7 +16,7 @@ func newServerTestVM(s *Server, maxEdicts int) *qc.VM {
 	}
 	vm.Globals = make([]float32, 256)
 	vm.MaxEdicts = maxEdicts
-	vm.NumEdicts = 1
+	vm.NumEdicts = max(s.NumEdicts, maxEdicts)
 	vm.EntityFields = 128
 	vm.EdictSize = 28 + vm.EntityFields*4
 	vm.Edicts = make([]byte, vm.EdictSize*maxEdicts)

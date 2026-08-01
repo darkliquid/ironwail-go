@@ -54,7 +54,7 @@ func TestMatchesClassnameFilter(t *testing.T) {
 
 func TestDebugTelemetryLogEventHonorsFiltersAndFormatsSnapshot(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{}
+	ent := &Edict{Num: 1}
 	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
 	vm.SetEInt(ent.Num, qc.EntFieldTargetName, vm.AllocString("door1"))
 	vm.SetEInt(ent.Num, qc.EntFieldTarget, vm.AllocString("torch1"))
@@ -104,7 +104,7 @@ func TestDebugTelemetrySummaryAndQCFormatting(t *testing.T) {
 		{Name: vm.AllocString("monster_use"), FirstStatement: 42},
 	}
 
-	ent := &Edict{}
+	ent := &Edict{Num: 1}
 	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("monster_ogre"))
 	vm.SetEInt(ent.Num, qc.EntFieldTargetName, vm.AllocString("ogre1"))
 
@@ -213,7 +213,7 @@ func TestDebugTelemetrySummaryModeTwoLogsEmptyFrames(t *testing.T) {
 
 func TestDebugTelemetryCachesConfigPerFrame(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{}
+	ent := &Edict{Num: 1}
 	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
 
 	configReads := 0
@@ -248,7 +248,7 @@ func TestDebugTelemetryCachesConfigPerFrame(t *testing.T) {
 
 func TestDebugTelemetryCoalescesConsecutiveDuplicateEvents(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{}
+	ent := &Edict{Num: 1}
 	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
 
 	lines := make([]string, 0, 8)
@@ -290,7 +290,7 @@ func TestDebugTelemetryCoalescesConsecutiveDuplicateEvents(t *testing.T) {
 
 func TestDebugTelemetryCoalescingFlushesAtEndFrame(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{}
+	ent := &Edict{Num: 1}
 	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_teleport"))
 
 	lines := make([]string, 0, 8)
@@ -324,7 +324,7 @@ func TestDebugTelemetryCoalescingFlushesAtEndFrame(t *testing.T) {
 
 func TestDebugTelemetryBatchesProductionOutputPerFrame(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{}
+	ent := &Edict{Num: 1}
 	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
 
 	chunks := make([]string, 0, 1)

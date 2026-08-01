@@ -16,6 +16,7 @@ import (
 
 func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	s.Static = &ServerStatic{Clients: []*Client{{Active: true, Message: NewMessageBuffer(MaxDatagram)}}}
 	pak0Path := testutil.SkipIfNoPak0(t)
@@ -278,6 +279,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 
 func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil {
@@ -392,6 +394,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 
 func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 
 	self := s.AllocEdict()
@@ -456,6 +459,7 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 
 func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 
 	self := s.AllocEdict()
@@ -506,6 +510,7 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 
 func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 
 	self := s.AllocEdict()

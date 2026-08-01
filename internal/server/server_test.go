@@ -17,6 +17,7 @@ import (
 
 func TestNewServerUsesExtendedEdictCapacity(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if got := s.MaxEdicts; got != MaxEdicts {
 		t.Fatalf("MaxEdicts = %d, want %d", got, MaxEdicts)
 	}
@@ -28,6 +29,7 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
+	newServerTestVM(s, 9000)
 
 	const (
 		entNum   = 8192
@@ -35,7 +37,7 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 		soundNum = 300
 	)
 	s.SoundPrecache[soundNum] = "misc/large.wav"
-	ent := &Edict{}
+	ent := &Edict{Num: entNum}
 	ent.SetMins(s, [3]float32{-2, -4, -6})
 	ent.SetMaxs(s, [3]float32{2, 4, 6})
 	s.Edicts = make([]*Edict, entNum+1)
@@ -97,6 +99,7 @@ func TestSpawnServerStartMap(t *testing.T) {
 	defer vfs.Close()
 
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -147,6 +150,7 @@ func TestSpawnServerLoadsMapEntitiesIntoQCVM(t *testing.T) {
 	defer vfs.Close()
 
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -217,6 +221,7 @@ func TestSpawnServerE2M2MonstersDoNotStartInSolid(t *testing.T) {
 	defer vfs.Close()
 
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -275,6 +280,7 @@ func TestSpawnServerE2M2DoesNotWarnWalkmonsterInWall(t *testing.T) {
 	defer vfs.Close()
 
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -308,6 +314,7 @@ func TestSpawnServerE2M2DoesNotWarnWalkmonsterInWall(t *testing.T) {
 
 func TestGetClientLoopbackMessageIncludesReliableBuffer(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -339,6 +346,7 @@ func TestGetClientLoopbackMessageIncludesReliableBuffer(t *testing.T) {
 
 func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -379,6 +387,7 @@ func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testi
 
 func TestKickClientLeavesFinalLoopbackMessageAvailable(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -411,6 +420,7 @@ func TestKickClientLeavesFinalLoopbackMessageAvailable(t *testing.T) {
 
 func TestConnectClientClearsStaleReliableBuffer(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -444,6 +454,7 @@ func TestSpawnServerActiveQueuesReconnectForConnectedClients(t *testing.T) {
 	defer vfs.Close()
 
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -479,6 +490,7 @@ func TestSubmitLoopbackStringCommandSpawnRunsQCPlayerSpawn(t *testing.T) {
 	defer vfs.Close()
 
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -539,6 +551,7 @@ func TestSubmitLoopbackStringCommandSpawnRunsQCPlayerSpawn(t *testing.T) {
 
 func TestSubmitLoopbackStringCommandBeginRequiresSpawn(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -558,6 +571,7 @@ func TestSubmitLoopbackStringCommandBeginRequiresSpawn(t *testing.T) {
 
 func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -599,6 +613,7 @@ func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
 
 func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}

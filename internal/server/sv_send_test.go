@@ -66,6 +66,7 @@ func TestEntityStateForClient_AlphaScaleDefaultsWhenFieldsMissing(t *testing.T) 
 		QCFieldAlpha: -1,
 		QCFieldScale: -1,
 	}
+	newServerTestVM(s, 8)
 	ent := &Edict{
 				Alpha: 77,
 		Scale: 99,
@@ -95,6 +96,7 @@ func TestEntityStateForClient_ReadsQCAlphaScale(t *testing.T) {
 		QCFieldAlpha: 0,
 		QCFieldScale: 1,
 	}
+	newServerTestVM(s, 8)
 	ent := &Edict{
 			}
 
@@ -116,8 +118,9 @@ func TestEntityStateForClient_AppliesEffectsMask(t *testing.T) {
 	s := &Server{
 		EffectsMask: 0x0f,
 	}
-	ent := &Edict{
-			}
+	newServerTestVM(s, 8)
+	ent := &Edict{Num: 1}
+	ent.SetEffects(s, float32(EffectMuzzleFlash))
 
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
@@ -180,6 +183,7 @@ func TestWriteEntityUpdate_FieldOrderMatchesCProtocol(t *testing.T) {
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolFitzQuake}
+	newServerTestVM(s, 8)
 	state := EntityState{
 		Origin:     [3]float32{1.25, 2.5, 3.75},
 		Angles:     [3]float32{10, 20, 30},
@@ -241,7 +245,9 @@ func TestBuildClientDatagramUsesEyePositionForFatPVS(t *testing.T) {
 			Models:     []bsp.DModel{{VisLeafs: 2}},
 		},
 	}
-	client := &Client{Edict: &Edict{}}
+	newServerTestVM(s, 8)
+	client := &Client{Edict: &Edict{Num: 1}}
+	client.Edict.SetViewOfs(s, [3]float32{128, 0, 0})
 	msg := NewMessageBuffer(128)
 
 	s.buildClientDatagram(client, msg)
@@ -253,6 +259,7 @@ func TestBuildClientDatagramUsesEyePositionForFatPVS(t *testing.T) {
 
 func TestUpdateToReliableMessagesQueuesNonClientStatsAndUnderwaterOverride(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -280,6 +287,7 @@ func TestUpdateToReliableMessagesQueuesNonClientStatsAndUnderwaterOverride(t *te
 
 func TestUpdateToReliableMessagesQueuesQCGlobalStats(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -330,6 +338,7 @@ func TestUpdateToReliableMessagesQueuesQCGlobalStats(t *testing.T) {
 
 func TestBuildClientDatagramOmitsReliableStatUpdates(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	if err := s.Init(1); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
@@ -359,6 +368,7 @@ func TestWriteEntitiesToClientCullOtherPlayersByPVS(t *testing.T) {
 			{Num: 2},
 		},
 	}
+	newServerTestVM(s, 8)
 	s.Static.Clients = []*Client{{Edict: s.Edicts[1], FatPVS: []byte{0x01}, EntityStates: map[int]EntityState{}}}
 	s.Edicts[2].NumLeafs = 1
 	s.Edicts[2].LeafNums[0] = 1
@@ -373,6 +383,7 @@ func TestWriteEntitiesToClientCullOtherPlayersByPVS(t *testing.T) {
 
 func TestBuildClientDatagramSkipsDatagramWhenRemoteMTUWouldOverflow(t *testing.T) {
 	s := &Server{Datagram: NewMessageBuffer(MaxDatagram)}
+	newServerTestVM(s, 8)
 	client := &Client{Edict: &Edict{}}
 	base := NewMessageBuffer(MaxDatagram)
 	base.MaxSize = DatagramMTU
@@ -400,6 +411,7 @@ func TestWriteEntityUpdate_OriginsAnglesInterleaved(t *testing.T) {
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolFitzQuake}
+	newServerTestVM(s, 8)
 	state := EntityState{
 		Origin: [3]float32{10, 20, 30},
 		Angles: [3]float32{40, 50, 60},
@@ -433,6 +445,7 @@ func TestWriteEntityUpdate_Frame2Model2AfterAlphaScale(t *testing.T) {
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolFitzQuake}
+	newServerTestVM(s, 8)
 	state := EntityState{
 		ModelIndex: 0x345,
 		Frame:      0x267,
@@ -472,6 +485,7 @@ func TestWriteEntityUpdate_NetQuakeOmitsFitzExtensions(t *testing.T) {
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolNetQuake}
+	newServerTestVM(s, 8)
 	state := EntityState{
 		ModelIndex: 0x345,
 		Frame:      0x267,
@@ -525,6 +539,7 @@ func TestWriteEntityUpdate_NonNetQuakeSetsFitzExtensions(t *testing.T) {
 			t.Parallel()
 
 			s := &Server{Protocol: tc.protocol}
+   newServerTestVM(s, 8)
 			state := EntityState{
 				ModelIndex: 0x345,
 				Frame:      0x267,

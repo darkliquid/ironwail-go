@@ -13,6 +13,7 @@ func TestWriteEntityUpdate_OriginTolerance(t *testing.T) {
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolFitzQuake}
+	newServerTestVM(s, 8)
 	baseline := EntityState{
 		Origin: [3]float32{100, 200, 300},
 		Scale:  16,
@@ -66,6 +67,7 @@ func TestWriteEntityUpdate_SetsUStepForStepMoveType(t *testing.T) {
 	t.Parallel()
 
 	s := &Server{Protocol: ProtocolFitzQuake}
+	newServerTestVM(s, 8)
 	state := EntityState{Scale: 16}
 	baseline := state
 
@@ -86,7 +88,7 @@ func TestWriteEntityUpdate_SetsUStepForStepMoveType(t *testing.T) {
 func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
 	t.Parallel()
 
-	ent := &Edict{}
+	ent := &Edict{Num: 1}
 
 	client := &Client{
 		Edict:        ent,
@@ -98,6 +100,7 @@ func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
 		Edicts:    []*Edict{{}, ent},
 		NumEdicts: 2,
 	}
+	newServerTestVM(s, 8)
 
 	currentState, ok := s.entityStateForClient(1, ent)
 	if !ok {
@@ -139,6 +142,8 @@ func TestWriteEntitiesToClient_OmitsLerpFinishWithoutSendInterval(t *testing.T) 
 		Edicts:        []*Edict{{}, ent},
 		NumEdicts:     2,
 	}
+	newServerTestVM(s, 8)
+	ent.SetModelIndex(s, 1)
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
 		t.Fatal("entityStateForClient returned ok=false for visible brush entity")
@@ -181,6 +186,8 @@ func TestWriteEntitiesToClient_EmitsLerpFinishOnlyWhenSendIntervalSet(t *testing
 		Edicts:        []*Edict{{}, ent},
 		NumEdicts:     2,
 	}
+	newServerTestVM(s, 8)
+	ent.SetModelIndex(s, 1)
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
 		t.Fatal("entityStateForClient returned ok=false for visible brush entity")
@@ -221,6 +228,8 @@ func TestWriteEntitiesToClient_EmitsVisibleBaselineEqualBrushEntity(t *testing.T
 		Edicts:        []*Edict{{}, ent},
 		NumEdicts:     2,
 	}
+	newServerTestVM(s, 8)
+	ent.SetModelIndex(s, 1)
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
 		t.Fatal("entityStateForClient returned ok=false for visible brush entity")

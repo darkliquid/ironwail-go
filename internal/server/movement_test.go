@@ -36,7 +36,7 @@ func TestChangeYaw(t *testing.T) {
 
 	s.changeYaw(ent)
 	// anglemod uses 16-bit quantization matching C, so 355 becomes ~355.00122
-	if got := ent.Angles(nil)[1]; got < 354.99 || got > 355.01 {
+	if got := ent.Angles(s)[1]; got < 354.99 || got > 355.01 {
 		t.Fatalf("angles yaw = %v, want ~355", got)
 	}
 }
@@ -198,7 +198,7 @@ func TestMoveToGoalRandomBranchUsesSharedCompatRNG(t *testing.T) {
 	if got := ent.Origin(s); got != [3]float32{16, 0, 0} {
 		t.Fatalf("origin = %v, want eastward chase step", got)
 	}
-	if got := ent.IdealYaw(nil); got != 0 {
+	if got := ent.IdealYaw(s); got != 0 {
 		t.Fatalf("IdealYaw = %v, want 0", got)
 	}
 }
@@ -257,6 +257,7 @@ func createSyntheticPlatformWorldModel() *model.Model {
 
 func TestMoveStepRejectsUnsupportedStepOffPlatform(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.WorldModel = createSyntheticPlatformWorldModel()
 	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
 		s.Edicts[0].SetSolid(s, float32(SolidBSP))

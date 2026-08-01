@@ -10,6 +10,7 @@ import (
 
 func TestFindTouchedLeafsSkipsSolidLeafZero(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	s.WorldTree = &bsp.Tree{
 		Leafs: []bsp.TreeLeaf{
 			{Contents: bsp.ContentsSolid},
@@ -37,6 +38,7 @@ func TestFindTouchedLeafsSkipsSolidLeafZero(t *testing.T) {
 
 func TestFindTouchedLeafsUsesBoxOnPlaneSideForNonAxialPlanes(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 8)
 	invSqrt2 := float32(1 / math.Sqrt2)
 	s.WorldTree = &bsp.Tree{
 		Planes: []bsp.DPlane{{Normal: [3]float32{invSqrt2, -invSqrt2, 0}, Dist: 0, Type: 3}},
