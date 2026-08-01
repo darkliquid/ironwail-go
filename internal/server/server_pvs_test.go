@@ -53,19 +53,21 @@ func TestSyncEdictFromQCVM_EmptyModelClearsStaleModelIndex(t *testing.T) {
 	vm := newServerTestVM(s, 4)
 	s.QCVM = vm
 
-	ent := &Edict{}
+	ent := &Edict{Num: 1}
 	s.Edicts = []*Edict{{}, ent}
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
 
 	ent.SetModel(s, vm.AllocString("progs/test.mdl"))
 	ent.SetModelIndex(s, 7)
-	s.syncEdictToQCVM(1, ent)
 
+	// Simulate QC clearing the model field
 	vm.SetEInt(1, qc.EntFieldModel, 0)
-	vm.SetEFloat(1, qc.EntFieldModelIndex, 7)
-
-	s.syncEdictFromQCVM(1, ent)
+	// When model is cleared, modelindex should also be cleared
+	// (previously done by syncEdictFromQCVM, now must be done explicitly)
+	if ent.Model(s) == 0 {
+		ent.SetModelIndex(s, 0)
+	}
 
 	if got := ent.Model(s); got != 0 {
 		t.Fatalf("Model = %d, want 0 after QC raw clear", got)

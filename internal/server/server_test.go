@@ -38,7 +38,7 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 	)
 	s.SoundPrecache[soundNum] = "misc/large.wav"
 	ent := &Edict{Num: entNum}
-	ent.SetOrigin(s, [3]float32{10, 0, 0})
+	ent.SetOrigin(s, [3]float32{10, 20, 0})
 	ent.SetMins(s, [3]float32{-2, -4, -6})
 	ent.SetMaxs(s, [3]float32{2, 4, 6})
 	s.Edicts = make([]*Edict, entNum+1)
@@ -618,7 +618,6 @@ func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
-	s.QCVM = qc.NewVM()
 	s.PreserveSpawnParms = true
 	s.ConnectClient(0)
 	client := s.Static.Clients[0]
