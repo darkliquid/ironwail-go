@@ -506,6 +506,7 @@ func TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn(t *testing.T) {
 // Where in C: ED_Alloc in pr_edict.c
 func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 	s := NewServer()
+	newServerTestVM(s, 16)
 	s.Areanodes = make([]AreaNode, AreaNodes)
 	s.ClearWorld()
 
