@@ -307,7 +307,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	s.Static.Clients[1].SpawnParms[0] = 10
 	s.Static.Clients[1].SpawnParms[1] = 20
 
-	vm := newServerTestVM(s, 16)
+	vm := s.QCVM
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
 	vm.SetGVector(qc.OFSGlobalVForward, [3]float32{0, 1, 0})
@@ -427,7 +427,7 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 		Models:     []bsp.DModel{{VisLeafs: 2}},
 	}
 
-	vm := newServerTestVM(s, 16)
+	vm := s.QCVM
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
 	s.syncEdictToQCVM(s.NumForEdict(self), self)
@@ -486,7 +486,7 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 		Models:     []bsp.DModel{{VisLeafs: 1}},
 	}
 
-	vm := newServerTestVM(s, 16)
+	vm := s.QCVM
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
 	s.syncEdictToQCVM(s.NumForEdict(self), self)
@@ -543,7 +543,7 @@ func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
 		Models:     []bsp.DModel{{VisLeafs: 2}},
 	}
 
-	vm := newServerTestVM(s, 16)
+	vm := s.QCVM
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
 

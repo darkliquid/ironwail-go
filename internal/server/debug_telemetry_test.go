@@ -54,11 +54,17 @@ func TestMatchesClassnameFilter(t *testing.T) {
 
 func TestDebugTelemetryLogEventHonorsFiltersAndFormatsSnapshot(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Num: 1}
-	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
-	vm.SetEInt(ent.Num, qc.EntFieldTargetName, vm.AllocString("door1"))
-	vm.SetEInt(ent.Num, qc.EntFieldTarget, vm.AllocString("torch1"))
-	vm.SetEInt(ent.Num, qc.EntFieldModel, vm.AllocString("*3"))
+	vm.NumEdicts = 8
+	vm.MaxEdicts = 8
+	vm.EntityFields = 128
+	vm.EdictSize = 28 + vm.EntityFields*4
+	vm.Edicts = make([]byte, vm.EdictSize*8)
+	ent := &Edict{Num: 7}
+	vm.SetEInt(7, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
+	vm.SetEInt(7, qc.EntFieldTargetName, vm.AllocString("door1"))
+	vm.SetEInt(7, qc.EntFieldTarget, vm.AllocString("torch1"))
+	vm.SetEInt(7, qc.EntFieldModel, vm.AllocString("*3"))
+	vm.SetEVector(7, qc.EntFieldOrigin, [3]float32{128, 64, 32})
 
 	lines := make([]string, 0, 1)
 	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
@@ -99,14 +105,19 @@ func TestDebugTelemetryLogEventHonorsFiltersAndFormatsSnapshot(t *testing.T) {
 
 func TestDebugTelemetrySummaryAndQCFormatting(t *testing.T) {
 	vm := qc.NewVM()
+	vm.NumEdicts = 8
+	vm.MaxEdicts = 8
+	vm.EntityFields = 128
+	vm.EdictSize = 28 + vm.EntityFields*4
+	vm.Edicts = make([]byte, vm.EdictSize*8)
 	vm.Functions = []qc.DFunction{
 		{},
 		{Name: vm.AllocString("monster_use"), FirstStatement: 42},
 	}
 
-	ent := &Edict{Num: 1}
-	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("monster_ogre"))
-	vm.SetEInt(ent.Num, qc.EntFieldTargetName, vm.AllocString("ogre1"))
+	ent := &Edict{Num: 7}
+	vm.SetEInt(7, qc.EntFieldClassName, vm.AllocString("monster_ogre"))
+	vm.SetEInt(7, qc.EntFieldTargetName, vm.AllocString("ogre1"))
 
 	lines := make([]string, 0, 2)
 	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
@@ -176,6 +187,11 @@ func TestDebugTelemetryQCTraceVerbosityEnabledRequiresQCEventMask(t *testing.T) 
 
 func TestDebugTelemetryFormatQCFunctionFormatsIndexZero(t *testing.T) {
 	vm := qc.NewVM()
+	vm.NumEdicts = 8
+	vm.MaxEdicts = 8
+	vm.EntityFields = 128
+	vm.EdictSize = 28 + vm.EntityFields*4
+	vm.Edicts = make([]byte, vm.EdictSize*8)
 	vm.Functions = []qc.DFunction{
 		{Name: vm.AllocString("monster_use"), FirstStatement: 42},
 	}
@@ -213,8 +229,13 @@ func TestDebugTelemetrySummaryModeTwoLogsEmptyFrames(t *testing.T) {
 
 func TestDebugTelemetryCachesConfigPerFrame(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Num: 1}
-	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
+	vm.NumEdicts = 8
+	vm.MaxEdicts = 8
+	vm.EntityFields = 128
+	vm.EdictSize = 28 + vm.EntityFields*4
+	vm.Edicts = make([]byte, vm.EdictSize*8)
+	ent := &Edict{Num: 7}
+	vm.SetEInt(7, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
 
 	configReads := 0
 	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
@@ -248,8 +269,13 @@ func TestDebugTelemetryCachesConfigPerFrame(t *testing.T) {
 
 func TestDebugTelemetryCoalescesConsecutiveDuplicateEvents(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Num: 1}
-	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
+	vm.NumEdicts = 8
+	vm.MaxEdicts = 8
+	vm.EntityFields = 128
+	vm.EdictSize = 28 + vm.EntityFields*4
+	vm.Edicts = make([]byte, vm.EdictSize*8)
+	ent := &Edict{Num: 7}
+	vm.SetEInt(7, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
 
 	lines := make([]string, 0, 8)
 	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
@@ -290,8 +316,13 @@ func TestDebugTelemetryCoalescesConsecutiveDuplicateEvents(t *testing.T) {
 
 func TestDebugTelemetryCoalescingFlushesAtEndFrame(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Num: 1}
-	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_teleport"))
+	vm.NumEdicts = 8
+	vm.MaxEdicts = 8
+	vm.EntityFields = 128
+	vm.EdictSize = 28 + vm.EntityFields*4
+	vm.Edicts = make([]byte, vm.EdictSize*8)
+	ent := &Edict{Num: 7}
+	vm.SetEInt(7, qc.EntFieldClassName, vm.AllocString("trigger_teleport"))
 
 	lines := make([]string, 0, 8)
 	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
@@ -324,8 +355,13 @@ func TestDebugTelemetryCoalescingFlushesAtEndFrame(t *testing.T) {
 
 func TestDebugTelemetryBatchesProductionOutputPerFrame(t *testing.T) {
 	vm := qc.NewVM()
-	ent := &Edict{Num: 1}
-	vm.SetEInt(ent.Num, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
+	vm.NumEdicts = 8
+	vm.MaxEdicts = 8
+	vm.EntityFields = 128
+	vm.EdictSize = 28 + vm.EntityFields*4
+	vm.Edicts = make([]byte, vm.EdictSize*8)
+	ent := &Edict{Num: 7}
+	vm.SetEInt(7, qc.EntFieldClassName, vm.AllocString("trigger_multiple"))
 
 	chunks := make([]string, 0, 1)
 	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
