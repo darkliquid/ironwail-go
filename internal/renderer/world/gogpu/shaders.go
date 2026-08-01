@@ -93,6 +93,7 @@ struct VertexInput {
 
 struct SpriteUniforms {
     viewProjection: mat4x4<f32>,
+    modelMatrix: mat4x4<f32>,
     cameraOrigin: vec3<f32>,
     fogDensity: f32,
     fogColor: vec3<f32>,
@@ -111,9 +112,10 @@ var<uniform> uniforms: SpriteUniforms;
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    output.clipPosition = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
+    var worldPos = uniforms.modelMatrix * vec4<f32>(input.position, 1.0);
+    output.clipPosition = uniforms.viewProjection * worldPos;
     output.texCoord = input.texCoord;
-    output.worldPosition = input.position;
+    output.worldPosition = worldPos.xyz;
     return output;
 }
 `
@@ -121,6 +123,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 const SpriteFragmentShaderWGSL = `
 struct SpriteUniforms {
     viewProjection: mat4x4<f32>,
+    modelMatrix: mat4x4<f32>,
     cameraOrigin: vec3<f32>,
     fogDensity: f32,
     fogColor: vec3<f32>,

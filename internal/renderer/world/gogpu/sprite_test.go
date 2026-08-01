@@ -30,28 +30,34 @@ func TestSpriteUniformBytes(t *testing.T) {
 
 	matrixBytes := types.Mat4ToBytes(vp)
 	if !bytes.Equal(data[:64], matrixBytes[:]) {
-		t.Fatalf("matrix bytes mismatch")
+		t.Fatalf("viewProjection matrix bytes mismatch")
+	}
+
+	// modelMatrix at [64:128] must be identity.
+	identityBytes := types.Mat4ToBytes(types.IdentityMatrix())
+	if !bytes.Equal(data[64:128], identityBytes[:]) {
+		t.Fatalf("modelMatrix bytes mismatch (expected identity)")
 	}
 
 	for i, want := range cameraOrigin {
-		got := math.Float32frombits(binary.LittleEndian.Uint32(data[64+i*4:]))
+		got := math.Float32frombits(binary.LittleEndian.Uint32(data[128+i*4:]))
 		if got != want {
 			t.Fatalf("cameraOrigin[%d] = %v, want %v", i, got, want)
 		}
 	}
 
-	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[76:80])); got != worldimpl.FogUniformDensity(fogDensity) {
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[140:144])); got != worldimpl.FogUniformDensity(fogDensity) {
 		t.Fatalf("fogDensity = %v, want %v", got, worldimpl.FogUniformDensity(fogDensity))
 	}
 
 	for i, want := range fogColor {
-		got := math.Float32frombits(binary.LittleEndian.Uint32(data[80+i*4:]))
+		got := math.Float32frombits(binary.LittleEndian.Uint32(data[144+i*4:]))
 		if got != want {
 			t.Fatalf("fogColor[%d] = %v, want %v", i, got, want)
 		}
 	}
 
-	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[92:96])); got != alpha {
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[156:160])); got != alpha {
 		t.Fatalf("alpha = %v, want %v", got, alpha)
 	}
 }

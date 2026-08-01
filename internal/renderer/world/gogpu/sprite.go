@@ -9,7 +9,7 @@ import (
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
-const SpriteUniformBufferSize = 96
+const SpriteUniformBufferSize = 160
 
 // SpriteQuadVertex is the GoGPU-local DTO for expanded sprite quad vertices.
 type SpriteQuadVertex struct {
@@ -49,10 +49,14 @@ func SpriteUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, f
 	data := make([]byte, SpriteUniformBufferSize)
 	matrixBytes := types.Mat4ToBytes(vp)
 	copy(data[:64], matrixBytes[:])
-	putFloat32Slice(data[64:76], cameraOrigin[:])
-	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldimpl.FogUniformDensity(fogDensity)))
-	putFloat32Slice(data[80:92], fogColor[:])
-	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
+	// modelMatrix (identity) at [64:128] — sprites are already in world space,
+	// but the shared alias bind group layout requires a 160-byte uniform.
+	identityBytes := types.Mat4ToBytes(types.IdentityMatrix())
+	copy(data[64:128], identityBytes[:])
+	putFloat32Slice(data[128:140], cameraOrigin[:])
+	binary.LittleEndian.PutUint32(data[140:144], math.Float32bits(worldimpl.FogUniformDensity(fogDensity)))
+	putFloat32Slice(data[144:156], fogColor[:])
+	binary.LittleEndian.PutUint32(data[156:160], math.Float32bits(alpha))
 	return data
 }
 
