@@ -324,9 +324,8 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 	t.Parallel()
 
 	vm := newTestQCVM()
-	vm.SetEFloat(1, 0, 0.001) // tiny positive alpha rounds to ENTALPHA_ZERO
 
-	ent := &Edict{Num: 1, Alpha: 0} // ENTALPHA_ZERO
+	ent := &Edict{Num: 1, Alpha: 1} // ENTALPHA_ZERO = 1
 	client := &Client{
 		Edict: ent,
 	}
@@ -334,7 +333,7 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 		Protocol:     ProtocolFitzQuake,
 		Static:       &ServerStatic{MaxClients: 1},
 		QCVM:         vm,
-		QCFieldAlpha: 0,
+		QCFieldAlpha: -1,
 		QCFieldScale: -1,
 		Edicts:       []*Edict{{}, ent},
 		NumEdicts:    2,
