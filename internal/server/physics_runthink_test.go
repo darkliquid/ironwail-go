@@ -653,11 +653,6 @@ func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
 
-	pusherNum := s.NumForEdict(pusher)
-	vm.SetEVector(pusherNum, qc.EntFieldOrigin, [3]float32{})
-	vm.SetEFloat(pusherNum, qc.EntFieldLTime, 0)
-	vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 0)
-
 	s.Impact(e1, e2)
 
 	if got := pusher.Origin(s); got != [3]float32{32, 0, 0} {
