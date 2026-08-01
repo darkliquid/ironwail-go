@@ -212,16 +212,7 @@ func (s *Server) Init(maxClients int) error {
 		s.Edicts[i] = &Edict{Num: i, Scale: 16}
 	}
 	s.NumEdicts = len(s.Edicts)
-
-	// Ensure QCVM has edict storage so accessor methods work even before
-	// progs.dat is loaded (needed for tests and early initialization).
-	if s.QCVM != nil && s.QCVM.EdictSize <= 0 {
-		s.QCVM.EntityFields = 128
-		s.QCVM.EdictSize = 28 + s.QCVM.EntityFields*4
-		s.QCVM.MaxEdicts = max(s.MaxEdicts, s.NumEdicts)
-		s.QCVM.NumEdicts = s.NumEdicts
-		s.QCVM.Edicts = make([]byte, s.QCVM.EdictSize*s.QCVM.MaxEdicts)
-	}
+	s.ensureDefaultQCVMEdictStorage()
 
 	for i := 0; i < maxClients; i++ {
 		clientEdict := s.Edicts[i+1]

@@ -26,6 +26,20 @@ func clearQCVMEdictData(vm *qc.VM, entNum int) {
 	clear(data)
 }
 
+// ensureDefaultQCVMEdictStorage sets up QCVM edict storage with default
+// parameters when no progs.dat has been loaded yet. This ensures accessor
+// methods work during tests and early initialization.
+func (s *Server) ensureDefaultQCVMEdictStorage() {
+	if s.QCVM == nil || s.QCVM.EdictSize > 0 {
+		return
+	}
+	s.QCVM.EntityFields = 128
+	s.QCVM.EdictSize = 28 + s.QCVM.EntityFields*4
+	s.QCVM.MaxEdicts = max(s.MaxEdicts, s.NumEdicts)
+	s.QCVM.NumEdicts = s.NumEdicts
+	s.QCVM.Edicts = make([]byte, s.QCVM.EdictSize*s.QCVM.MaxEdicts)
+}
+
 func (s *Server) syncSpawnedEdictsFromQCVM(startEntNum int) {
 	if s == nil || s.QCVM == nil {
 		return

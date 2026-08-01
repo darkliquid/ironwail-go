@@ -310,7 +310,7 @@ func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
 	s.LinkEdict(self, false)
 	s.LinkEdict(goal, false)
 
-	vm := newServerTestVM(s, 16)
+	vm := s.QCVM
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
 	s.syncEdictToQCVM(0, s.Edicts[0])

@@ -288,28 +288,32 @@ func TestUpdateToReliableMessages_BroadcastsChangedPlayerFragsToAllActiveClients
 			Clients: make([]*Client, 4),
 		},
 	}
+	newServerTestVM(s, 8)
 
 	s.Static.Clients[0] = &Client{
 		Active:   true,
-		Edict:    &Edict{},
+		Edict:    &Edict{Num: 1},
 		OldFrags: 0, // changed
 		Message:  NewMessageBuffer(MaxDatagram),
 	}
+	s.Static.Clients[0].Edict.SetFrags(s, 5)
 	s.Static.Clients[1] = &Client{
 		Active:   true,
-		Edict:    &Edict{},
+		Edict:    &Edict{Num: 2},
 		OldFrags: 10, // unchanged
 		Message:  NewMessageBuffer(MaxDatagram),
 	}
+	s.Static.Clients[1].Edict.SetFrags(s, 10)
 	s.Static.Clients[2] = &Client{
 		Active:   true,
-		Edict:    &Edict{},
+		Edict:    &Edict{Num: 3},
 		OldFrags: -2, // unchanged
 		Message:  NewMessageBuffer(MaxDatagram),
 	}
+	s.Static.Clients[2].Edict.SetFrags(s, -2)
 	s.Static.Clients[3] = &Client{
 		Active:   false,
-		Edict:    &Edict{},
+		Edict:    &Edict{Num: 4},
 		OldFrags: 0,
 		Message:  NewMessageBuffer(MaxDatagram),
 	}
