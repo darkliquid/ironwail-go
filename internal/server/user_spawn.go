@@ -139,6 +139,7 @@ func (s *Server) initClientSpawnFallback(client *Client) error {
 	ent.SetFrags(s, savedFrags)
 	ent.SetHealth(s, 100)
 	ent.SetTakeDamage(s, 1)
+	ent.SetDeadFlag(s, 0)
 	ent.SetMoveType(s, float32(MoveTypeWalk))
 	ent.SetSolid(s, float32(SolidSlideBox))
 	ent.SetViewOfs(s, [3]float32{0, 0, ViewHeight})

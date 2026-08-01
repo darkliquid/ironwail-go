@@ -38,7 +38,7 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 	)
 	s.SoundPrecache[soundNum] = "misc/large.wav"
 	ent := &Edict{Num: entNum}
-	ent.SetOrigin(s, [3]float32{10, 20, 0})
+	ent.SetOrigin(s, [3]float32{10, 20, 30})
 	ent.SetMins(s, [3]float32{-2, -4, -6})
 	ent.SetMaxs(s, [3]float32{2, 4, 6})
 	s.Edicts = make([]*Edict, entNum+1)
