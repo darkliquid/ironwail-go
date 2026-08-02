@@ -255,13 +255,21 @@ func (r *Renderer) ensureAliasScratchBufferLocked(device *wgpu.Device, size uint
 	if size == 0 {
 		size = 44
 	}
+	// Pre-allocate a generous minimum to avoid releasing and recreating the
+	// buffer mid-frame while the GPU may still be reading from it via prior
+	// command buffer submissions.
+	minSize := uint64(2 * 1024 * 1024) // 2 MB — enough for ~40k vertices
+	if size < minSize {
+		size = minSize
+	}
 	if r.aliasScratchBuffer != nil && r.aliasScratchBufferSize >= size {
 		return nil
 	}
+	// If the existing buffer is too small, don't release it — the GPU may
+	// still be reading from it via a prior command buffer. Instead, skip
+	// growing; rendering will be truncated but not corrupted.
 	if r.aliasScratchBuffer != nil {
-		r.aliasScratchBuffer.Release()
-		r.aliasScratchBuffer = nil
-		r.aliasScratchBufferSize = 0
+		return nil
 	}
 	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Scratch Buffer",
@@ -324,24 +332,27 @@ func (r *Renderer) ensureBrushEntityScratchBuffersLocked(device *wgpu.Device, ve
 	return nil
 }
 
-// ensureAliasUniformBufferLocked grows the alias uniform buffer and rebuilds
-// the bind group when the current buffer is too small for numDraws draws.
+// ensureAliasUniformBufferLocked ensures the alias uniform buffer is large
+// enough for numDraws draws. It never releases the existing buffer mid-frame
+// to avoid GPU buffer-use-after-free — if the buffer is too small, it skips
+// growing rather than corrupting GPU state.
 func (r *Renderer) ensureAliasUniformBufferLocked(device *wgpu.Device, numDraws int) error {
 	needed := uint64(numDraws) * worldUniformAlign
 	if needed < aliasSceneUniformBufferSize {
 		needed = aliasSceneUniformBufferSize
 	}
+	// Pre-allocate for the initial draw capacity to avoid growing mid-frame.
+	minNeeded := uint64(aliasInitialDrawCapacity) * worldUniformAlign
+	if needed < minNeeded {
+		needed = minNeeded
+	}
 	if r.aliasUniformBuffer != nil && r.aliasUniformBuffer.Size() >= needed {
 		return nil
 	}
-	// Release old resources.
-	if r.aliasUniformBindGroup != nil {
-		r.aliasUniformBindGroup.Release()
-		r.aliasUniformBindGroup = nil
-	}
+	// If the existing buffer is too small, don't release it — the GPU may
+	// still be reading from it via a prior command buffer.
 	if r.aliasUniformBuffer != nil {
-		r.aliasUniformBuffer.Release()
-		r.aliasUniformBuffer = nil
+		return nil
 	}
 	buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Uniform Buffer",

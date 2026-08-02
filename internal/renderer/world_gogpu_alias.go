@@ -642,33 +642,16 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		return
 	}
 
-	// Pre-build all vertex data and compute total scratch buffer size.
-	type preparedDraw struct {
-		draw        gpuAliasDraw
-		skin        *gpuAliasSkin
-		alpha       float32
-		vertexCount uint32
-	}
-	prepared := make([]preparedDraw, 0, len(draws))
-	vertexScratch := make([]WorldVertex, 0)
-	totalVertexBytes := uint64(0)
+	// Quick check: are there any valid draws? The full vertex build happens
+	// in the single pass below (model-space vertices + GPU model matrix).
+	hasValidDraw := false
 	for _, draw := range draws {
-		if draw.skin == nil || draw.skin.bindGroup == nil {
-			continue
+		if draw.skin != nil && draw.skin.bindGroup != nil && len(draw.alias.refs) > 0 {
+			hasValidDraw = true
+			break
 		}
-		vertexScratch = buildAliasVerticesInterpolatedInto(vertexScratch[:0], draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.scale, draw.full)
-		if len(vertexScratch) == 0 {
-			continue
-		}
-		prepared = append(prepared, preparedDraw{
-			draw:        draw,
-			skin:        draw.skin,
-			alpha:       draw.alpha,
-			vertexCount: uint32(len(vertexScratch)),
-		})
-		totalVertexBytes += uint64(len(vertexScratch) * aliasVertexStride)
 	}
-	if len(prepared) == 0 {
+	if !hasValidDraw {
 		return
 	}
 
