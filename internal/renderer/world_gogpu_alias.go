@@ -679,17 +679,29 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	r.mu.Unlock()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 
-	// Reset persistent scratch buffers on DrawContext
-	dc.aliasPreparedScratch = dc.aliasPreparedScratch[:0]
-	dc.aliasVertexScratch = dc.aliasVertexScratch[:0]
-	dc.aliasBulkVertexData = dc.aliasBulkVertexData[:0]
-	dc.aliasBulkUniformData = dc.aliasBulkUniformData[:0]
-	dc.aliasVertexOffsets = dc.aliasVertexOffsets[:0]
-	dc.aliasVertexCounts = dc.aliasVertexCounts[:0]
-	dc.aliasUniformOffsets = dc.aliasUniformOffsets[:0]
+	// Initialize alias accumulation state for the first pass in the frame.
+	// Subsequent passes (translucent, viewmodel) must NOT reset the scratch
+	// buffers — each pass uses a different region of the shared GPU vertex
+	// and uniform buffers to avoid overwriting data the GPU hasn't finished
+	// reading from prior passes.
+	if !dc.aliasAccumStarted {
+		dc.aliasPreparedScratch = dc.aliasPreparedScratch[:0]
+		dc.aliasVertexScratch = dc.aliasVertexScratch[:0]
+		dc.aliasBulkVertexData = dc.aliasBulkVertexData[:0]
+		dc.aliasBulkUniformData = dc.aliasBulkUniformData[:0]
+		dc.aliasVertexOffsets = dc.aliasVertexOffsets[:0]
+		dc.aliasVertexCounts = dc.aliasVertexCounts[:0]
+		dc.aliasUniformOffsets = dc.aliasUniformOffsets[:0]
+		dc.aliasAccumStarted = true
+		dc.aliasAccumBaseVertexOffset = 0
+		dc.aliasAccumUniformBase = 0
+	}
+	passDrawStart := len(dc.aliasPreparedScratch)
 
-	// Single pass over draws: interpolate vertices in model-space ONCE and pack bulk buffers directly
-	currentVertexOffset := uint64(0)
+	// Single pass over draws: interpolate vertices in model-space ONCE and pack bulk buffers directly.
+	// Start from the accumulated base offset so this pass's data doesn't overwrite
+	// prior passes' data in the shared GPU buffers.
+	currentVertexOffset := dc.aliasAccumBaseVertexOffset
 	for _, draw := range draws {
 		if draw.skin == nil || draw.skin.bindGroup == nil {
 			continue
@@ -705,7 +717,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		}
 
 		vertexCount := uint32(len(dc.aliasVertexScratch))
-		uOffset := uint32(len(dc.aliasPreparedScratch)) * worldUniformAlign
+		uOffset := dc.aliasAccumUniformBase + uint32(len(dc.aliasPreparedScratch))*worldUniformAlign
 
 		dc.aliasPreparedScratch = append(dc.aliasPreparedScratch, gpuPreparedAliasDraw{
 			draw:        draw,
@@ -725,9 +737,14 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		currentVertexOffset += uint64(len(dc.aliasVertexScratch) * aliasVertexStride)
 	}
 
-	if len(dc.aliasPreparedScratch) == 0 {
+	passDrawCount := len(dc.aliasPreparedScratch) - passDrawStart
+	if passDrawCount == 0 {
 		return
 	}
+
+	// Update accumulation bases for the next pass.
+	dc.aliasAccumBaseVertexOffset = currentVertexOffset
+	dc.aliasAccumUniformBase = uint32(len(dc.aliasPreparedScratch)) * worldUniformAlign
 
 	r.mu.Lock()
 	if err := r.ensureAliasScratchBufferLocked(device, currentVertexOffset); err != nil {
@@ -796,7 +813,8 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
 
-	for i, pd := range dc.aliasPreparedScratch {
+	for i := passDrawStart; i < len(dc.aliasPreparedScratch); i++ {
+		pd := &dc.aliasPreparedScratch[i]
 		renderPass.SetVertexBuffer(0, scratchBuffer, dc.aliasVertexOffsets[i])
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{dc.aliasUniformOffsets[i]})
 		renderPass.SetBindGroup(1, pd.skin.bindGroup, nil)
