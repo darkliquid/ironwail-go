@@ -110,6 +110,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		slog.Debug("RenderFrame: gogpu frame state (start)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
 	}
 
+	// Reset alias accumulation state for the new frame. Multiple alias render
+	// passes (opaque, translucent, viewmodel) accumulate draws without resetting
+	// scratch buffers between passes to avoid overwriting GPU-submitted uniform
+	// data that prior passes are still reading.
+	dc.aliasAccumStarted = false
+
 	// Phase 1: Clear screen
 	// Skip clear when world rendering is active - the world render pass will handle clearing,
 	// and gogpu will use LoadOpLoad to preserve our world rendering when drawing the overlay.

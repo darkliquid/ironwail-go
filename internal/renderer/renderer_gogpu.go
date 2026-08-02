@@ -44,6 +44,15 @@ type DrawContext struct {
 	aliasVertexOffsets   []uint64
 	aliasVertexCounts    []uint32
 	aliasUniformOffsets  []uint32
+
+	// Alias accumulation state: tracks whether the current frame has already
+	// started alias rendering. Multiple alias render passes (opaque, translucent,
+	// viewmodel) must NOT reset the scratch buffers between passes — each pass
+	// must use a different region of the uniform/vertex buffers to avoid
+	// overwriting data that prior passes have already submitted to the GPU.
+	aliasAccumStarted         bool
+	aliasAccumBaseVertexOffset uint64
+	aliasAccumUniformBase      uint32
 }
 
 type gpuPreparedAliasDraw struct {
