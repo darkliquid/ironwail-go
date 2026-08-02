@@ -16,7 +16,7 @@ import (
 
 const (
 	aliasUniformBufferSize      = 80
-	aliasSceneUniformBufferSize = 160
+	aliasSceneUniformBufferSize = 96
 	aliasInitialDrawCapacity    = 64 // initial capacity for batched draws
 	aliasVertexStride           = 48 // must match WorldVertex size and every pipeline's ArrayStride — see docs/VERTEX_LAYOUT.md
 )
@@ -671,17 +671,17 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	dc.aliasVertexCounts = dc.aliasVertexCounts[:0]
 	dc.aliasUniformOffsets = dc.aliasUniformOffsets[:0]
 
-	// Single pass over draws: interpolate vertices in model-space ONCE and pack bulk buffers directly
+	// Single pass over draws: interpolate vertices ONCE and pack bulk buffers directly
 	currentVertexOffset := uint64(0)
 	for _, draw := range draws {
 		if draw.skin == nil || draw.skin.bindGroup == nil {
 			continue
 		}
 
-		modelMat := aliasimpl.AliasEntityModelMatrix(draw.origin, draw.angles, draw.scale, draw.full)
-		dc.aliasVertexScratch = buildAliasVerticesModelSpaceInto(
+		dc.aliasVertexScratch = buildAliasVerticesInterpolatedInto(
 			dc.aliasVertexScratch[:0],
 			draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend,
+			draw.origin, draw.angles, draw.scale, draw.full,
 		)
 		if len(dc.aliasVertexScratch) == 0 {
 			continue
@@ -701,7 +701,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		dc.aliasVertexCounts = append(dc.aliasVertexCounts, vertexCount)
 
 		// Pack uniform data directly into bulk buffer
-		dc.aliasBulkUniformData = appendAliasSceneUniformBytes(dc.aliasBulkUniformData, uOffset, vpMatrix, modelMat, cameraOrigin, draw.alpha, fogColor, fogDensity)
+		dc.aliasBulkUniformData = appendAliasSceneUniformBytes(dc.aliasBulkUniformData, uOffset, vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)
 
 		// Pack vertex data directly into bulk buffer
 		dc.aliasBulkVertexData = appendAliasVertexBytes(dc.aliasBulkVertexData, dc.aliasVertexScratch)
@@ -799,7 +799,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	}
 }
 
-func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, modelMat types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
 	requiredLen := int(targetOffset) + int(worldUniformAlign)
 	if cap(dst) < requiredLen {
 		newCap := requiredLen * 2
@@ -812,13 +812,15 @@ func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4
 	data := dst[targetOffset : targetOffset+aliasSceneUniformBufferSize]
 	matrixBytes := matrixToBytes(vp)
 	copy(data[:64], matrixBytes)
-	modelMatrixBytes := matrixToBytes(modelMat)
-	copy(data[64:128], modelMatrixBytes)
-	putFloat32s(data[128:140], cameraOrigin[:])
-	binary.LittleEndian.PutUint32(data[140:144], math.Float32bits(worldFogUniformDensity(fogDensity)))
-	putFloat32s(data[144:156], fogColor[:])
-	binary.LittleEndian.PutUint32(data[156:160], math.Float32bits(alpha))
+	putFloat32s(data[64:76], cameraOrigin[:])
+	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
+	putFloat32s(data[80:92], fogColor[:])
+	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
 	return dst
+}
+
+func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+	return appendAliasSceneUniformBytes(nil, 0, vp, cameraOrigin, alpha, fogColor, fogDensity)
 }
 
 func aliasVertexBytes(vertices []WorldVertex) []byte {
@@ -855,20 +857,6 @@ func appendAliasVertexBytes(dst []byte, vertices []WorldVertex) []byte {
 		binary.LittleEndian.PutUint32(data[offset+44:offset+48], v.MaterialID)
 	}
 	return dst
-}
-
-func buildAliasVerticesModelSpaceInto(dst []WorldVertex, alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32) []WorldVertex {
-	if alias == nil || mdl == nil || mdl.AliasHeader == nil {
-		return nil
-	}
-	return aliasimpl.BuildVerticesModelSpaceInto(
-		dst,
-		aliasimpl.MeshFromRefs(alias.poses, alias.refs),
-		mdl.AliasHeader,
-		pose1Index,
-		pose2Index,
-		blend,
-	)
 }
 
 func buildAliasVerticesInterpolatedInto(dst []WorldVertex, alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {

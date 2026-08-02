@@ -5,7 +5,6 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
-	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type MeshRef struct {
@@ -187,73 +186,6 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 		})
 	}
 	return vertices
-}
-
-func BuildVerticesModelSpaceInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *model.AliasHeader, pose1Index, pose2Index int, blend float32) []worldimpl.WorldVertex {
-	if hdr == nil || mesh.RefAt == nil {
-		return nil
-	}
-	if pose1Index < 0 || pose1Index >= len(mesh.Poses) || pose2Index < 0 || pose2Index >= len(mesh.Poses) {
-		return nil
-	}
-	blend = clamp01(blend)
-
-	pose1 := mesh.Poses[pose1Index]
-	pose2 := mesh.Poses[pose2Index]
-	vertices := dst[:0]
-	if vertices == nil {
-		vertices = make([]worldimpl.WorldVertex, 0, mesh.RefCount)
-	}
-	for i := 0; i < mesh.RefCount; i++ {
-		ref := mesh.RefAt(i)
-		if ref.VertexIndex < 0 || ref.VertexIndex >= len(pose1) || ref.VertexIndex >= len(pose2) {
-			continue
-		}
-
-		position := InterpolateVertexPosition(pose1[ref.VertexIndex], pose2[ref.VertexIndex], hdr.Scale, hdr.ScaleOrigin, blend)
-		normal := model.GetNormal(pose1[ref.VertexIndex].LightNormalIndex)
-
-		vertices = append(vertices, worldimpl.WorldVertex{
-			Position:      position,
-			TexCoord:      ref.TexCoord,
-			LightmapCoord: [2]float32{},
-			Normal:        normal,
-		})
-	}
-	return vertices
-}
-
-func AliasEntityModelMatrix(origin, angles [3]float32, entityScale float32, fullAngles bool) types.Mat4 {
-	if entityScale <= 0 {
-		entityScale = 1
-	}
-
-	trans := types.TranslationMatrix(origin[0], origin[1], origin[2])
-
-	var rot types.Mat4
-	if fullAngles {
-		yawRad := float32(math.Pi) * angles[1] / 180.0
-		pitchRad := float32(math.Pi) * angles[0] / 180.0
-		rollRad := float32(math.Pi) * angles[2] / 180.0
-
-		rz := types.RotationMatrix(yawRad, 2)    // Z axis (yaw)
-		ry := types.RotationMatrix(-pitchRad, 1) // Y axis (-pitch)
-		rx := types.RotationMatrix(rollRad, 0)   // X axis (roll)
-		rot = types.Mat4Multiply(rz, types.Mat4Multiply(ry, rx))
-	} else {
-		yawRad := float32(math.Pi) * angles[1] / 180.0
-		rot = types.RotationMatrix(yawRad, 2) // Z axis (yaw)
-	}
-
-	if entityScale != 1.0 {
-		scaleMat := types.IdentityMatrix()
-		scaleMat[0] = entityScale
-		scaleMat[5] = entityScale
-		scaleMat[10] = entityScale
-		rot = types.Mat4Multiply(rot, scaleMat)
-	}
-
-	return types.Mat4Multiply(trans, rot)
 }
 
 // RotateAngles rotates v by Quake Euler angles (pitch, yaw, roll) matching
