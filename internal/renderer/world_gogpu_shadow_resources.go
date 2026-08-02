@@ -14,6 +14,15 @@ import (
 // ---- merged from world_cleanup_gogpu_root.go ----
 func (r *Renderer) clearAliasModelsLocked() {
 	for key, cached := range r.aliasModels {
+		if cached.poseBuffer != nil {
+			cached.poseBuffer.Release()
+		}
+		if cached.vertexBuffer != nil {
+			cached.vertexBuffer.Release()
+		}
+		if cached.instanceBindGroup != nil {
+			cached.instanceBindGroup.Release()
+		}
 		for _, skin := range cached.skins {
 			if skin.bindGroup != nil {
 				skin.bindGroup.Release()
@@ -72,9 +81,21 @@ func (r *Renderer) destroyAliasResourcesLocked() {
 		r.aliasUniformBuffer.Release()
 		r.aliasUniformBuffer = nil
 	}
+	if r.aliasInstanceUniformBuffer != nil {
+		r.aliasInstanceUniformBuffer.Release()
+		r.aliasInstanceUniformBuffer = nil
+	}
+	if r.aliasInstanceUniformBindGroup != nil {
+		r.aliasInstanceUniformBindGroup.Release()
+		r.aliasInstanceUniformBindGroup = nil
+	}
 	if r.aliasUniformBindGroup != nil {
 		r.aliasUniformBindGroup.Release()
 		r.aliasUniformBindGroup = nil
+	}
+	if r.aliasInstanceBindGroupLayout != nil {
+		r.aliasInstanceBindGroupLayout.Release()
+		r.aliasInstanceBindGroupLayout = nil
 	}
 	if r.aliasSampler != nil {
 		r.aliasSampler.Release()
@@ -132,6 +153,14 @@ func (r *Renderer) destroySpriteResourcesLocked() {
 	if r.spriteUniformBindGroup != nil {
 		r.spriteUniformBindGroup.Release()
 		r.spriteUniformBindGroup = nil
+	}
+	if r.spritePipelineLayout != nil {
+		r.spritePipelineLayout.Release()
+		r.spritePipelineLayout = nil
+	}
+	if r.spriteUniformBindGroupLayout != nil {
+		r.spriteUniformBindGroupLayout.Release()
+		r.spriteUniformBindGroupLayout = nil
 	}
 	if r.spritePipeline != nil {
 		r.spritePipeline.Release()
@@ -210,6 +239,13 @@ type gpuAliasModel struct {
 	playerSkins map[uint32][]gpuAliasSkin
 	poses       [][]model.TriVertX
 	refs        []aliasimpl.MeshRef
+	// GPU-side buffers for GPU keyframe interpolation.
+	poseBuffer         *wgpu.Buffer
+	vertexBuffer       *wgpu.Buffer
+	vertexCount        uint32
+	scale              [3]float32
+	scaleOrigin         [3]float32
+	instanceBindGroup   *wgpu.BindGroup
 }
 
 type gpuAliasDraw struct {
@@ -249,6 +285,41 @@ type gpuSpriteDraw struct {
 	angles [3]float32
 	alpha  float32
 	scale  float32
+}
+
+func (r *Renderer) ensureAliasInstanceUniformBufferLocked(device *wgpu.Device, numDraws int) error {
+	needed := uint64(numDraws) * worldUniformAlign
+	if needed < aliasInstanceUniformSize {
+		needed = aliasInstanceUniformSize
+	}
+	minNeeded := uint64(aliasInitialDrawCapacity) * worldUniformAlign
+	if needed < minNeeded {
+		needed = minNeeded
+	}
+	if r.aliasInstanceUniformBuffer != nil && r.aliasInstanceUniformBuffer.Size() >= needed {
+		return nil
+	}
+	oldBuffer := r.aliasInstanceUniformBuffer
+	oldBindGroup := r.aliasInstanceUniformBindGroup
+	buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Alias Instance Uniform Buffer",
+		Size:             needed,
+		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("grow alias instance uniform buffer: %w", err)
+	}
+	r.aliasInstanceUniformBuffer = buf
+	if oldBuffer != nil {
+		old := oldBuffer
+		oldBG := oldBindGroup
+		r.enqueueReleaseLocked(func() {
+			oldBG.Release()
+			old.Release()
+		})
+	}
+	return nil
 }
 
 func (r *Renderer) ensureAliasScratchBufferLocked(device *wgpu.Device, size uint64) error {

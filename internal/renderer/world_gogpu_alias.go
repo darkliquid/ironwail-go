@@ -9,7 +9,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
-	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -17,8 +16,10 @@ import (
 const (
 	aliasUniformBufferSize      = 80
 	aliasSceneUniformBufferSize = 96
+	aliasInstanceUniformSize    = 80 // per-draw instance params: frame indices, blend, scale, origin, angles, flags
 	aliasInitialDrawCapacity    = 64 // initial capacity for batched draws
 	aliasVertexStride           = 48 // must match WorldVertex size and every pipeline's ArrayStride — see docs/VERTEX_LAYOUT.md
+	aliasRefVertexStride        = 12 // per-vertex stride for GPU ref buffer: uint32 index + vec2 texCoord
 )
 
 func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
@@ -94,11 +95,46 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 		return fmt.Errorf("create alias texture layout: %w", err)
 	}
 
-	pipelineLayout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
-		Label:            "Alias Pipeline Layout",
-		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, textureLayout},
+	// Instance bind group layout (group 2):
+	//   binding 0: per-draw instance uniform (dynamic offset)
+	//   binding 1: per-model pose data (read-only storage buffer)
+	instanceLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
+		Label: "Alias Instance BGL",
+		Entries: []gputypes.BindGroupLayoutEntry{
+			{
+				Binding:    0,
+				Visibility: gputypes.ShaderStageVertex,
+				Buffer: &gputypes.BufferBindingLayout{
+					Type:             gputypes.BufferBindingTypeUniform,
+					HasDynamicOffset: true,
+					MinBindingSize:   aliasInstanceUniformSize,
+				},
+			},
+			{
+				Binding:    1,
+				Visibility: gputypes.ShaderStageVertex,
+				Buffer: &gputypes.BufferBindingLayout{
+					Type:            gputypes.BufferBindingTypeReadOnlyStorage,
+					HasDynamicOffset: false,
+					MinBindingSize:  4,
+				},
+			},
+		},
 	})
 	if err != nil {
+		uniformLayout.Release()
+		textureLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
+		return fmt.Errorf("create alias instance layout: %w", err)
+	}
+
+	pipelineLayout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
+		Label:            "Alias Pipeline Layout",
+		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, textureLayout, instanceLayout},
+	})
+	if err != nil {
+		instanceLayout.Release()
 		uniformLayout.Release()
 		textureLayout.Release()
 		vertexShader.Release()
@@ -136,6 +172,48 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 		return fmt.Errorf("create alias uniform bind group: %w", err)
 	}
 
+	// Instance uniform buffer: per-draw params (frame indices, blend, transform)
+	instanceUniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Alias Instance Uniform Buffer",
+		Size:             uint64(aliasInitialDrawCapacity) * worldUniformAlign,
+		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		instanceLayout.Release()
+		uniformLayout.Release()
+		textureLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
+		return fmt.Errorf("create alias instance uniform buffer: %w", err)
+	}
+	// The instance bind group is per-model (binding 1 changes per model),
+	// but the instance uniform buffer at binding 0 is shared. The per-model
+	// bind groups are created lazily in ensureAliasModelLocked.
+	instanceUniformBindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:  "Alias Instance Uniform BG",
+		Layout: instanceLayout,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Buffer: instanceUniformBuffer, Offset: 0, Size: aliasInstanceUniformSize},
+			{Binding: 1, Buffer: instanceUniformBuffer, Offset: 0, Size: 4},
+		},
+	})
+	if err != nil {
+		instanceUniformBuffer.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		instanceLayout.Release()
+		uniformLayout.Release()
+		textureLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
+		return fmt.Errorf("create alias instance uniform bind group: %w", err)
+	}
+
 	sampler, err := device.CreateSampler(&wgpu.SamplerDescriptor{
 		Label: "Alias Sampler",
 		// C alias skins are uploaded without TEXPREF_CLAMP (see gl_model.c
@@ -154,9 +232,12 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 		LodMaxClamp:  0,
 	})
 	if err != nil {
+		instanceUniformBindGroup.Release()
+		instanceUniformBuffer.Release()
 		uniformBindGroup.Release()
 		uniformBuffer.Release()
 		pipelineLayout.Release()
+		instanceLayout.Release()
 		uniformLayout.Release()
 		textureLayout.Release()
 		vertexShader.Release()
@@ -173,10 +254,13 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 
 	pipeline, err := createAliasRenderPipeline(device, vertexShader, fragmentShader, pipelineLayout, surfaceFormat, "Alias Render Pipeline", true)
 	if err != nil {
+		instanceUniformBindGroup.Release()
+		instanceUniformBuffer.Release()
 		sampler.Release()
 		uniformBindGroup.Release()
 		uniformBuffer.Release()
 		pipelineLayout.Release()
+		instanceLayout.Release()
 		uniformLayout.Release()
 		textureLayout.Release()
 		vertexShader.Release()
@@ -188,9 +272,12 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 	r.aliasFragmentShader = fragmentShader
 	r.aliasUniformBindGroupLayout = uniformLayout
 	r.aliasTextureBindGroupLayout = textureLayout
+	r.aliasInstanceBindGroupLayout = instanceLayout
 	r.aliasPipelineLayout = pipelineLayout
 	r.aliasUniformBuffer = uniformBuffer
 	r.aliasUniformBindGroup = uniformBindGroup
+	r.aliasInstanceUniformBuffer = instanceUniformBuffer
+	r.aliasInstanceUniformBindGroup = instanceUniformBindGroup
 	r.aliasSampler = sampler
 	r.aliasPipeline = pipeline
 	return nil
@@ -204,13 +291,11 @@ func createAliasRenderPipeline(device *wgpu.Device, vertexShader, fragmentShader
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers: []gputypes.VertexBufferLayout{{
-				ArrayStride: 48,
+				ArrayStride: aliasRefVertexStride,
 				StepMode:    gputypes.VertexStepModeVertex,
 				Attributes: []gputypes.VertexAttribute{
-					{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
-					{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
-					{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
-					{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
+					{Format: gputypes.VertexFormatFloat32, Offset: 0, ShaderLocation: 0},
+					{Format: gputypes.VertexFormatFloat32x2, Offset: 4, ShaderLocation: 1},
 				},
 			}},
 		},
@@ -345,8 +430,84 @@ func (r *Renderer) ensureAliasModelLocked(device *wgpu.Device, queue *wgpu.Queue
 		playerSkins: make(map[uint32][]gpuAliasSkin),
 		poses:       hdr.Poses,
 		refs:        refs,
+		scale:       hdr.Scale,
+		scaleOrigin: hdr.ScaleOrigin,
 	}
 	r.aliasModels[modelID] = alias
+
+	// Upload all pose data (TriVertX = 4 bytes each) as a single GPU
+	// storage buffer. Layout: [pose0_vert0, pose0_vert1, ..., pose1_vert0, ...]
+	// Total = numPoses * numVerts * 4 bytes.
+	numVerts := len(hdr.STVerts)
+	if numVerts > 0 && len(hdr.Poses) > 0 {
+		totalPoseBytes := len(hdr.Poses) * numVerts * 4
+		poseData := make([]byte, totalPoseBytes)
+		for poseIdx, pose := range hdr.Poses {
+			off := poseIdx * numVerts * 4
+			for vi := 0; vi < len(pose) && vi < numVerts; vi++ {
+				copy(poseData[off+vi*4:off+vi*4+4], []byte{pose[vi].V[0], pose[vi].V[1], pose[vi].V[2], pose[vi].LightNormalIndex})
+			}
+		}
+		poseBuf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "Alias Pose Buffer",
+			Size:             uint64(totalPoseBytes),
+			Usage:            gputypes.BufferUsageStorage | gputypes.BufferUsageCopyDst,
+			MappedAtCreation: false,
+		})
+		if err != nil {
+			slog.Warn("failed to create alias pose buffer", "model", modelID, "error", err)
+		} else {
+			queue.WriteBuffer(poseBuf, 0, poseData)
+			alias.poseBuffer = poseBuf
+		}
+	}
+
+	// Upload vertex reference data as a GPU vertex buffer.
+	// Each vertex: uint32 vertexIndex + vec2 texCoord = 12 bytes.
+	// We use a custom vertex buffer layout (separate from the WorldVertex
+	// 48-byte stride) so the GPU can fetch vertex indices and UVs.
+	if len(refs) > 0 {
+		vtxStride := uint64(12)
+		vtxSize := vtxStride * uint64(len(refs))
+		vtxData := make([]byte, vtxSize)
+		for i, ref := range refs {
+			off := i * 12
+			binary.LittleEndian.PutUint32(vtxData[off:off+4], uint32(ref.VertexIndex))
+			binary.LittleEndian.PutUint32(vtxData[off+4:off+8], math.Float32bits(ref.TexCoord[0]))
+			binary.LittleEndian.PutUint32(vtxData[off+8:off+12], math.Float32bits(ref.TexCoord[1]))
+		}
+		vtxBuf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "Alias Vertex Ref Buffer",
+			Size:             vtxSize,
+			Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
+			MappedAtCreation: false,
+		})
+		if err != nil {
+			slog.Warn("failed to create alias vertex buffer", "model", modelID, "error", err)
+		} else {
+			queue.WriteBuffer(vtxBuf, 0, vtxData)
+			alias.vertexBuffer = vtxBuf
+			alias.vertexCount = uint32(len(refs))
+		}
+	}
+
+	// Create per-model instance bind group (group 2) referencing the shared
+	// instance uniform buffer at binding 0 and this model's pose buffer at binding 1.
+	if alias.poseBuffer != nil && r.aliasInstanceUniformBuffer != nil && r.aliasInstanceBindGroupLayout != nil {
+		bg, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+			Label:  "Alias Instance BG",
+			Layout: r.aliasInstanceBindGroupLayout,
+			Entries: []wgpu.BindGroupEntry{
+				{Binding: 0, Buffer: r.aliasInstanceUniformBuffer, Offset: 0, Size: aliasInstanceUniformSize},
+				{Binding: 1, Buffer: alias.poseBuffer, Offset: 0, Size: alias.poseBuffer.Size()},
+			},
+		})
+		if err != nil {
+			slog.Warn("failed to create alias instance bind group", "model", modelID, "error", err)
+		} else {
+			alias.instanceBindGroup = bg
+		}
+	}
 
 	// Debug: dump first skin bytes and first N emitted UVs to help diagnose
 	// UV mis-mapping on alias models (e.g. nailgun end-segment artifact).
@@ -642,11 +803,11 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		return
 	}
 
-	// Quick check: are there any valid draws? The full vertex build happens
-	// in the single pass below (model-space vertices + GPU model matrix).
+	// Quick check: are there any valid draws with GPU buffers?
 	hasValidDraw := false
 	for _, draw := range draws {
-		if draw.skin != nil && draw.skin.bindGroup != nil && len(draw.alias.refs) > 0 {
+		if draw.skin != nil && draw.skin.bindGroup != nil &&
+			draw.alias.vertexBuffer != nil && draw.alias.instanceBindGroup != nil {
 			hasValidDraw = true
 			break
 		}
@@ -664,48 +825,42 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 
 	// Reset persistent scratch buffers on DrawContext
 	dc.aliasPreparedScratch = dc.aliasPreparedScratch[:0]
-	dc.aliasVertexScratch = dc.aliasVertexScratch[:0]
-	dc.aliasBulkVertexData = dc.aliasBulkVertexData[:0]
 	dc.aliasBulkUniformData = dc.aliasBulkUniformData[:0]
-	dc.aliasVertexOffsets = dc.aliasVertexOffsets[:0]
+	dc.aliasBulkInstanceData = dc.aliasBulkInstanceData[:0]
 	dc.aliasVertexCounts = dc.aliasVertexCounts[:0]
 	dc.aliasUniformOffsets = dc.aliasUniformOffsets[:0]
+	dc.aliasInstanceOffsets = dc.aliasInstanceOffsets[:0]
 
-	// Single pass over draws: interpolate vertices ONCE and pack bulk buffers directly
-	currentVertexOffset := uint64(0)
+	// Pack per-draw scene uniforms and instance uniforms.
 	for _, draw := range draws {
 		if draw.skin == nil || draw.skin.bindGroup == nil {
 			continue
 		}
-
-		dc.aliasVertexScratch = buildAliasVerticesInterpolatedInto(
-			dc.aliasVertexScratch[:0],
-			draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend,
-			draw.origin, draw.angles, draw.scale, draw.full,
-		)
-		if len(dc.aliasVertexScratch) == 0 {
+		if draw.alias.vertexBuffer == nil || draw.alias.instanceBindGroup == nil {
 			continue
 		}
 
-		vertexCount := uint32(len(dc.aliasVertexScratch))
-		uOffset := uint32(len(dc.aliasPreparedScratch)) * worldUniformAlign
+		drawIdx := uint32(len(dc.aliasPreparedScratch))
+		uOffset := drawIdx * worldUniformAlign
 
 		dc.aliasPreparedScratch = append(dc.aliasPreparedScratch, gpuPreparedAliasDraw{
 			draw:        draw,
 			skin:        draw.skin,
 			alpha:       draw.alpha,
-			vertexCount: vertexCount,
+			vertexCount: draw.alias.vertexCount,
 		})
 		dc.aliasUniformOffsets = append(dc.aliasUniformOffsets, uOffset)
-		dc.aliasVertexOffsets = append(dc.aliasVertexOffsets, currentVertexOffset)
-		dc.aliasVertexCounts = append(dc.aliasVertexCounts, vertexCount)
+		dc.aliasInstanceOffsets = append(dc.aliasInstanceOffsets, uOffset)
+		dc.aliasVertexCounts = append(dc.aliasVertexCounts, draw.alias.vertexCount)
 
-		// Pack uniform data directly into bulk buffer
+		// Pack scene uniform (VP, fog, alpha)
 		dc.aliasBulkUniformData = appendAliasSceneUniformBytes(dc.aliasBulkUniformData, uOffset, vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)
 
-		// Pack vertex data directly into bulk buffer
-		dc.aliasBulkVertexData = appendAliasVertexBytes(dc.aliasBulkVertexData, dc.aliasVertexScratch)
-		currentVertexOffset += uint64(len(dc.aliasVertexScratch) * aliasVertexStride)
+		// Pack instance uniform (frame indices, blend, scale, origin, angles)
+		dc.aliasBulkInstanceData = appendAliasInstanceUniformBytes(dc.aliasBulkInstanceData, uOffset,
+			draw.pose1, draw.pose2, draw.blend, draw.scale,
+			draw.alias.scale, draw.alias.scaleOrigin,
+			draw.origin, draw.angles, draw.full, len(draw.alias.poses))
 	}
 
 	if len(dc.aliasPreparedScratch) == 0 {
@@ -713,27 +868,27 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	}
 
 	r.mu.Lock()
-	if err := r.ensureAliasScratchBufferLocked(device, currentVertexOffset); err != nil {
-		r.mu.Unlock()
-		slog.Warn("failed to ensure alias scratch buffer", "error", err)
-		return
-	}
 	if err := r.ensureAliasUniformBufferLocked(device, len(dc.aliasPreparedScratch)); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure alias uniform buffer", "error", err)
 		return
 	}
+	if err := r.ensureAliasInstanceUniformBufferLocked(device, len(dc.aliasPreparedScratch)); err != nil {
+		r.mu.Unlock()
+		slog.Warn("failed to ensure alias instance uniform buffer", "error", err)
+		return
+	}
 	pipeline := r.aliasPipeline
 	uniformBuffer := r.aliasUniformBuffer
 	uniformBindGroup := r.aliasUniformBindGroup
-	scratchBuffer := r.aliasScratchBuffer
+	instanceUniformBuffer := r.aliasInstanceUniformBuffer
 	depthView := r.worldDepthTextureView
 	r.mu.Unlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
+	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || instanceUniformBuffer == nil {
 		return
 	}
 
-	// Bulk upload all uniforms
+	// Bulk upload scene uniforms
 	if len(dc.aliasBulkUniformData) > 0 {
 		if err := queue.WriteBuffer(uniformBuffer, 0, dc.aliasBulkUniformData); err != nil {
 			slog.Warn("failed to upload alias uniform buffer in bulk", "error", err)
@@ -741,10 +896,10 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		}
 	}
 
-	// Bulk upload all vertices
-	if len(dc.aliasBulkVertexData) > 0 {
-		if err := queue.WriteBuffer(scratchBuffer, 0, dc.aliasBulkVertexData); err != nil {
-			slog.Warn("failed to upload alias vertices in bulk", "error", err)
+	// Bulk upload instance uniforms
+	if len(dc.aliasBulkInstanceData) > 0 {
+		if err := queue.WriteBuffer(instanceUniformBuffer, 0, dc.aliasBulkInstanceData); err != nil {
+			slog.Warn("failed to upload alias instance uniform buffer in bulk", "error", err)
 			return
 		}
 	}
@@ -780,9 +935,10 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	}
 
 	for i, pd := range dc.aliasPreparedScratch {
-		renderPass.SetVertexBuffer(0, scratchBuffer, dc.aliasVertexOffsets[i])
+		renderPass.SetVertexBuffer(0, pd.draw.alias.vertexBuffer, 0)
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{dc.aliasUniformOffsets[i]})
 		renderPass.SetBindGroup(1, pd.skin.bindGroup, nil)
+		renderPass.SetBindGroup(2, pd.draw.alias.instanceBindGroup, []uint32{dc.aliasInstanceOffsets[i]})
 		renderPass.Draw(dc.aliasVertexCounts[i], 1, 0, 0)
 	}
 
@@ -797,84 +953,6 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit alias commands", "error", err)
 	}
-}
-
-func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
-	requiredLen := int(targetOffset) + int(worldUniformAlign)
-	if cap(dst) < requiredLen {
-		newCap := requiredLen * 2
-		buf := make([]byte, requiredLen, newCap)
-		copy(buf, dst)
-		dst = buf
-	} else if len(dst) < requiredLen {
-		dst = dst[:requiredLen]
-	}
-	data := dst[targetOffset : targetOffset+aliasSceneUniformBufferSize]
-	matrixBytes := matrixToBytes(vp)
-	copy(data[:64], matrixBytes)
-	putFloat32s(data[64:76], cameraOrigin[:])
-	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
-	putFloat32s(data[80:92], fogColor[:])
-	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
-	return dst
-}
-
-func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
-	return appendAliasSceneUniformBytes(nil, 0, vp, cameraOrigin, alpha, fogColor, fogDensity)
-}
-
-func aliasVertexBytes(vertices []WorldVertex) []byte {
-	return aliasVertexBytesInto(nil, vertices)
-}
-
-// aliasVertexBytesInto packs alias-model vertices into a flat byte array.
-// This is one of four vertex-packing functions that must all agree on the byte
-// layout — see docs/VERTEX_LAYOUT.md.
-func aliasVertexBytesInto(dst []byte, vertices []WorldVertex) []byte {
-	return appendAliasVertexBytes(dst[:0], vertices)
-}
-
-func appendAliasVertexBytes(dst []byte, vertices []WorldVertex) []byte {
-	required := len(vertices) * aliasVertexStride
-	start := len(dst)
-	total := start + required
-	if cap(dst) < total {
-		newCap := total * 2
-		buf := make([]byte, total, newCap)
-		copy(buf, dst)
-		dst = buf
-	} else {
-		dst = dst[:total]
-	}
-	data := dst[start:]
-	for i, v := range vertices {
-		offset := i * aliasVertexStride
-		putFloat32s(data[offset:offset+12], v.Position[:])
-		putFloat32s(data[offset+12:offset+20], v.TexCoord[:])
-		putFloat32s(data[offset+20:offset+28], v.LightmapCoord[:])
-		putFloat32s(data[offset+28:offset+40], v.Normal[:])
-		putFloat32s(data[offset+40:offset+44], []float32{v.LightmapLayer})
-		binary.LittleEndian.PutUint32(data[offset+44:offset+48], v.MaterialID)
-	}
-	return dst
-}
-
-func buildAliasVerticesInterpolatedInto(dst []WorldVertex, alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {
-	if alias == nil || mdl == nil || mdl.AliasHeader == nil {
-		return nil
-	}
-	return aliasimpl.BuildVerticesInterpolatedInto(
-		dst,
-		aliasimpl.MeshFromRefs(alias.poses, alias.refs),
-		mdl.AliasHeader,
-		pose1Index,
-		pose2Index,
-		blend,
-		origin,
-		angles,
-		entityScale,
-		fullAngles,
-	)
 }
 
 // ---- merged from world_sprite_gogpu_root.go ----

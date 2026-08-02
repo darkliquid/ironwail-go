@@ -21,6 +21,33 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 		return nil
 	}
 
+	// Sprites get their own bind group layout so changes to the alias
+	// layout (e.g. for GPU keyframe animation) don't affect sprite binding.
+	spriteUniformLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
+		Label: "Sprite Uniform BGL",
+		Entries: []gputypes.BindGroupLayoutEntry{{
+			Binding:    0,
+			Visibility: gputypes.ShaderStageVertex | gputypes.ShaderStageFragment,
+			Buffer: &gputypes.BufferBindingLayout{
+				Type:             gputypes.BufferBindingTypeUniform,
+				HasDynamicOffset: true,
+				MinBindingSize:   worldgogpu.SpriteUniformBufferSize,
+			},
+		}},
+	})
+	if err != nil {
+		return fmt.Errorf("create sprite uniform layout: %w", err)
+	}
+
+	spritePipelineLayout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
+		Label:            "Sprite Pipeline Layout",
+		BindGroupLayouts: []*wgpu.BindGroupLayout{spriteUniformLayout, r.aliasTextureBindGroupLayout},
+	})
+	if err != nil {
+		spriteUniformLayout.Release()
+		return fmt.Errorf("create sprite pipeline layout: %w", err)
+	}
+
 	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Sprite Uniform Buffer",
 		Size:             uint64(aliasInitialDrawCapacity) * worldUniformAlign,
@@ -28,15 +55,19 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 		MappedAtCreation: false,
 	})
 	if err != nil {
+		spritePipelineLayout.Release()
+		spriteUniformLayout.Release()
 		return fmt.Errorf("create sprite uniform buffer: %w", err)
 	}
 	uniformBindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:   "Sprite Uniform BG",
-		Layout:  r.aliasUniformBindGroupLayout,
+		Layout:  spriteUniformLayout,
 		Entries: []wgpu.BindGroupEntry{{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: worldgogpu.SpriteUniformBufferSize}},
 	})
 	if err != nil {
 		uniformBuffer.Release()
+		spritePipelineLayout.Release()
+		spriteUniformLayout.Release()
 		return fmt.Errorf("create sprite uniform bind group: %w", err)
 	}
 
@@ -44,6 +75,8 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 	if err != nil {
 		uniformBindGroup.Release()
 		uniformBuffer.Release()
+		spritePipelineLayout.Release()
+		spriteUniformLayout.Release()
 		return fmt.Errorf("create sprite vertex shader: %w", err)
 	}
 	fragmentShader, err := createWorldShaderModule(device, worldgogpu.SpriteFragmentShaderWGSL, "Sprite Fragment Shader")
@@ -51,6 +84,8 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 		vertexShader.Release()
 		uniformBindGroup.Release()
 		uniformBuffer.Release()
+		spritePipelineLayout.Release()
+		spriteUniformLayout.Release()
 		return fmt.Errorf("create sprite fragment shader: %w", err)
 	}
 
@@ -63,7 +98,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 
 	pipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "Sprite Render Pipeline",
-		Layout: r.aliasPipelineLayout,
+		Layout: spritePipelineLayout,
 		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
@@ -116,7 +151,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 
 	depthOffsetPipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "Sprite Depth Offset Render Pipeline",
-		Layout: r.aliasPipelineLayout,
+		Layout: spritePipelineLayout,
 		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
@@ -153,9 +188,13 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 		fragmentShader.Release()
 		uniformBindGroup.Release()
 		uniformBuffer.Release()
+		spritePipelineLayout.Release()
+		spriteUniformLayout.Release()
 		return fmt.Errorf("create sprite depth-offset pipeline: %w", err)
 	}
 
+	r.spriteUniformBindGroupLayout = spriteUniformLayout
+	r.spritePipelineLayout = spritePipelineLayout
 	r.spriteUniformBuffer = uniformBuffer
 	r.spriteUniformBindGroup = uniformBindGroup
 	r.spriteVertexShader = vertexShader

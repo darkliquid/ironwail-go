@@ -41,9 +41,11 @@ type DrawContext struct {
 	aliasVertexScratch   []WorldVertex
 	aliasBulkVertexData  []byte
 	aliasBulkUniformData []byte
+	aliasBulkInstanceData []byte
 	aliasVertexOffsets   []uint64
 	aliasVertexCounts    []uint32
 	aliasUniformOffsets  []uint32
+	aliasInstanceOffsets []uint32
 }
 
 type gpuPreparedAliasDraw struct {
@@ -312,9 +314,15 @@ type Renderer struct {
 	aliasUniformBindGroup                *wgpu.BindGroup
 	aliasUniformBindGroupLayout          *wgpu.BindGroupLayout
 	aliasTextureBindGroupLayout          *wgpu.BindGroupLayout
+	aliasInstanceBindGroupLayout         *wgpu.BindGroupLayout
+	aliasNormalsBuffer                  *wgpu.Buffer
+	aliasInstanceUniformBuffer          *wgpu.Buffer
+	aliasInstanceUniformBindGroup       *wgpu.BindGroup
 	aliasSampler                         *wgpu.Sampler
 	spriteUniformBuffer                  *wgpu.Buffer
 	spriteUniformBindGroup               *wgpu.BindGroup
+	spriteUniformBindGroupLayout         *wgpu.BindGroupLayout
+	spritePipelineLayout                 *wgpu.PipelineLayout
 	spritePipeline                       *wgpu.RenderPipeline
 	spriteDepthOffsetPipeline            *wgpu.RenderPipeline
 	spriteVertexShader                   *wgpu.ShaderModule
