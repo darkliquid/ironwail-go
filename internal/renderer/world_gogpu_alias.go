@@ -642,7 +642,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		return
 	}
 
-	// Pre-build all vertex data and compute total scratch buffer size.
+	// Count valid draws and compute total scratch buffer size.
 	type preparedDraw struct {
 		draw        gpuAliasDraw
 		skin        *gpuAliasSkin
@@ -650,23 +650,22 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		vertexCount uint32
 	}
 	prepared := make([]preparedDraw, 0, len(draws))
-	vertexScratch := make([]WorldVertex, 0)
 	totalVertexBytes := uint64(0)
 	for _, draw := range draws {
 		if draw.skin == nil || draw.skin.bindGroup == nil {
 			continue
 		}
-		vertexScratch = buildAliasVerticesInterpolatedInto(vertexScratch[:0], draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.scale, draw.full)
-		if len(vertexScratch) == 0 {
+		count := len(draw.alias.refs)
+		if count == 0 {
 			continue
 		}
 		prepared = append(prepared, preparedDraw{
 			draw:        draw,
 			skin:        draw.skin,
 			alpha:       draw.alpha,
-			vertexCount: uint32(len(vertexScratch)),
+			vertexCount: uint32(count),
 		})
-		totalVertexBytes += uint64(len(vertexScratch) * aliasVertexStride)
+		totalVertexBytes += uint64(count) * aliasVertexStride
 	}
 	if len(prepared) == 0 {
 		return
