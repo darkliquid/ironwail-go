@@ -358,6 +358,44 @@ type Renderer struct {
 	overlayTextureDirtyW     int
 	overlayTextureDirtyH     int
 	overlayTextureDirtyValid bool
+
+	// pendingReleases holds GPU resources that were replaced mid-frame
+	// and need to be released after the GPU finishes processing prior
+	// command buffers. Entries are drained after a 2-frame delay.
+	pendingReleases []pendingRelease
+	frameCounter    uint64
+}
+
+type pendingRelease struct {
+	releaseFunc func()
+	frame       uint64
+}
+
+// drainPendingReleases releases GPU resources whose frame delay has elapsed.
+// Must be called with r.mu held.
+func (r *Renderer) drainPendingReleasesLocked() {
+	if len(r.pendingReleases) == 0 {
+		return
+	}
+	kept := r.pendingReleases[:0]
+	for _, pr := range r.pendingReleases {
+		if r.frameCounter-pr.frame >= 2 {
+			pr.releaseFunc()
+		} else {
+			kept = append(kept, pr)
+		}
+	}
+	r.pendingReleases = kept
+}
+
+// enqueueReleaseLocked schedules a GPU resource for deferred release after
+// a 2-frame delay, ensuring the GPU has finished processing any command
+// buffers that reference it. Must be called with r.mu held.
+func (r *Renderer) enqueueReleaseLocked(releaseFunc func()) {
+	r.pendingReleases = append(r.pendingReleases, pendingRelease{
+		releaseFunc: releaseFunc,
+		frame:       r.frameCounter,
+	})
 }
 
 // New creates a new Renderer with configuration from cvars.

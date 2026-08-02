@@ -265,12 +265,9 @@ func (r *Renderer) ensureAliasScratchBufferLocked(device *wgpu.Device, size uint
 	if r.aliasScratchBuffer != nil && r.aliasScratchBufferSize >= size {
 		return nil
 	}
-	// If the existing buffer is too small, don't release it — the GPU may
-	// still be reading from it via a prior command buffer. Instead, skip
-	// growing; rendering will be truncated but not corrupted.
-	if r.aliasScratchBuffer != nil {
-		return nil
-	}
+	// Grow: create a new buffer and defer-release the old one to avoid
+	// GPU buffer-use-after-free.
+	oldBuffer := r.aliasScratchBuffer
 	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Scratch Buffer",
 		Size:             size,
@@ -282,6 +279,10 @@ func (r *Renderer) ensureAliasScratchBufferLocked(device *wgpu.Device, size uint
 	}
 	r.aliasScratchBuffer = buffer
 	r.aliasScratchBufferSize = size
+	if oldBuffer != nil {
+		old := oldBuffer
+		r.enqueueReleaseLocked(func() { old.Release() })
+	}
 	return nil
 }
 
@@ -296,16 +297,8 @@ func (r *Renderer) ensureBrushEntityScratchBuffersLocked(device *wgpu.Device, ve
 		r.brushEntityScratchIndexBuffer != nil && r.brushEntityScratchIndexSize >= indexSize {
 		return nil
 	}
-	if r.brushEntityScratchVertexBuffer != nil {
-		r.brushEntityScratchVertexBuffer.Release()
-		r.brushEntityScratchVertexBuffer = nil
-		r.brushEntityScratchVertexSize = 0
-	}
-	if r.brushEntityScratchIndexBuffer != nil {
-		r.brushEntityScratchIndexBuffer.Release()
-		r.brushEntityScratchIndexBuffer = nil
-		r.brushEntityScratchIndexSize = 0
-	}
+	oldVertexBuffer := r.brushEntityScratchVertexBuffer
+	oldIndexBuffer := r.brushEntityScratchIndexBuffer
 	vertexBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Brush Entity Vertex Scratch Buffer",
 		Size:             vertexSize,
@@ -329,6 +322,14 @@ func (r *Renderer) ensureBrushEntityScratchBuffersLocked(device *wgpu.Device, ve
 	r.brushEntityScratchVertexSize = vertexSize
 	r.brushEntityScratchIndexBuffer = indexBuffer
 	r.brushEntityScratchIndexSize = indexSize
+	if oldVertexBuffer != nil {
+		oldVB := oldVertexBuffer
+		r.enqueueReleaseLocked(func() { oldVB.Release() })
+	}
+	if oldIndexBuffer != nil {
+		oldIB := oldIndexBuffer
+		r.enqueueReleaseLocked(func() { oldIB.Release() })
+	}
 	return nil
 }
 
@@ -349,11 +350,10 @@ func (r *Renderer) ensureAliasUniformBufferLocked(device *wgpu.Device, numDraws 
 	if r.aliasUniformBuffer != nil && r.aliasUniformBuffer.Size() >= needed {
 		return nil
 	}
-	// If the existing buffer is too small, don't release it — the GPU may
-	// still be reading from it via a prior command buffer.
-	if r.aliasUniformBuffer != nil {
-		return nil
-	}
+	// Grow: create a new buffer and defer-release the old one to avoid
+	// GPU buffer-use-after-free.
+	oldBuffer := r.aliasUniformBuffer
+	oldBindGroup := r.aliasUniformBindGroup
 	buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Uniform Buffer",
 		Size:             needed,
@@ -374,6 +374,14 @@ func (r *Renderer) ensureAliasUniformBufferLocked(device *wgpu.Device, numDraws 
 	}
 	r.aliasUniformBuffer = buf
 	r.aliasUniformBindGroup = bg
+	if oldBuffer != nil {
+		old := oldBuffer
+		oldBG := oldBindGroup
+		r.enqueueReleaseLocked(func() {
+			oldBG.Release()
+			old.Release()
+		})
+	}
 	return nil
 }
 

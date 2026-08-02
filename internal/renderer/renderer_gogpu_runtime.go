@@ -483,6 +483,10 @@ func (r *Renderer) Shutdown() {
 	slog.Debug("Renderer shutting down")
 	r.ClearWorld()
 	r.mu.Lock()
+	for _, pr := range r.pendingReleases {
+		pr.releaseFunc()
+	}
+	r.pendingReleases = nil
 	r.brushModelGeometry = nil
 	r.destroyAliasResourcesLocked()
 	r.destroySpriteResourcesLocked()

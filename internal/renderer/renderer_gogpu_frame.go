@@ -83,6 +83,10 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state == nil {
 		return
 	}
+	dc.renderer.mu.Lock()
+	dc.renderer.frameCounter++
+	dc.renderer.drainPendingReleasesLocked()
+	dc.renderer.mu.Unlock()
 	frameStart := time.Now()
 	hostSpeeds := pkgCVars != nil && pkgCVars.BoolValue("host_speeds")
 	phaseStart := time.Time{}
