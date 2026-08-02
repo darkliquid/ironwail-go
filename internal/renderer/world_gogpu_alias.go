@@ -17,8 +17,9 @@ import (
 const (
 	aliasUniformBufferSize      = 80
 	aliasSceneUniformBufferSize = 160
-	aliasInitialDrawCapacity    = 64 // initial capacity for batched draws
-	aliasVertexStride           = 48 // must match WorldVertex size and every pipeline's ArrayStride — see docs/VERTEX_LAYOUT.md
+	aliasInitialDrawCapacity    = 64  // initial capacity for batched draws
+	aliasVertexStride           = 48  // must match WorldVertex size and every pipeline's ArrayStride — see docs/VERTEX_LAYOUT.md
+	aliasScratchBufferMinSize   = 2 * 1024 * 1024 // 2 MB minimum scratch buffer — enough for ~40k vertices
 )
 
 func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {

@@ -255,13 +255,24 @@ func (r *Renderer) ensureAliasScratchBufferLocked(device *wgpu.Device, size uint
 	if size == 0 {
 		size = 44
 	}
+	// Round up to a generous capacity so we never need to release and
+	// recreate the buffer mid-frame while the GPU may still be reading
+	// from it via prior command buffer submissions. Releasing a buffer
+	// the GPU is still using causes undefined behavior — the GPU reads
+	// garbage or data from a different model, causing visible model
+	// swapping/flickering.
+	if size < aliasScratchBufferMinSize {
+		size = aliasScratchBufferMinSize
+	}
 	if r.aliasScratchBuffer != nil && r.aliasScratchBufferSize >= size {
 		return nil
 	}
+	// Only allocate if we don't already have a buffer. We never release
+	// and recreate during a frame to avoid GPU buffer-use-after-free.
 	if r.aliasScratchBuffer != nil {
-		r.aliasScratchBuffer.Release()
-		r.aliasScratchBuffer = nil
-		r.aliasScratchBufferSize = 0
+		// Buffer exists but is too small. Skip — rendering will be
+		// truncated but not corrupted.
+		return nil
 	}
 	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Scratch Buffer",
@@ -331,17 +342,19 @@ func (r *Renderer) ensureAliasUniformBufferLocked(device *wgpu.Device, numDraws 
 	if needed < aliasSceneUniformBufferSize {
 		needed = aliasSceneUniformBufferSize
 	}
+	// Pre-allocate a generous uniform buffer so we never need to release and
+	// recreate it mid-frame while the GPU may still be reading from it via
+	// prior command buffer submissions.
+	if needed < uint64(aliasInitialDrawCapacity)*worldUniformAlign {
+		needed = uint64(aliasInitialDrawCapacity) * worldUniformAlign
+	}
 	if r.aliasUniformBuffer != nil && r.aliasUniformBuffer.Size() >= needed {
 		return nil
 	}
-	// Release old resources.
-	if r.aliasUniformBindGroup != nil {
-		r.aliasUniformBindGroup.Release()
-		r.aliasUniformBindGroup = nil
-	}
+	// Only allocate if we don't already have a buffer. Never release and
+	// recreate during a frame to avoid GPU buffer-use-after-free.
 	if r.aliasUniformBuffer != nil {
-		r.aliasUniformBuffer.Release()
-		r.aliasUniformBuffer = nil
+		return nil
 	}
 	buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Uniform Buffer",
