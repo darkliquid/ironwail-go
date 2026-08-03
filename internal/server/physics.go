@@ -1,3 +1,42 @@
+// physics.go implements Quake's per-entity physics simulation, dispatching
+// movement and collision for all entity movetypes each server frame.
+//
+// # Movetypes
+//
+// Quake entities have a movetype field that determines how they move:
+//
+//   - MOVETYPE_NONE:     No movement (static entities)
+//   - MOVETYPE_WALK:     Standard walking movement with gravity and step-up
+//                        (players, monsters). Uses SV_WalkMove.
+//   - MOVETYPE_FLY:      Free-flight movement without gravity (spectators)
+//   - MOVETYPE_TOSS:     Ballistic trajectory with gravity and bouncing
+//                        (gibs, dropped items). Uses SV_FlyMove.
+//   - MOVETYPE_PUSH:     Pushed by a moving platform (doors, elevators,
+//                        trains). Uses SV_PushMove with riding detection.
+//   - MOVETYPE_NOCLIP:   No collision, flies through walls (debug)
+//   - MOVETYPE_FLYMISSILE: Like TOSS but no gravity (rockets, nails)
+//   - MOVETYPE_BOUNCE:   Like TOSS with coefficient-of-restitution bouncing
+//   - MOVETYPE_BOUNCEMISSILE: Like BOUNCE but no gravity
+//
+// # Collision Detection
+//
+// All movetypes eventually call SV_FlyMove (for ballistic/free movement)
+// or SV_WalkMove (for walking movement), which perform sweep tests against
+// the BSP hulls. The trace functions (SV_Trace, SV_MoveTrace) in world.go
+// perform the actual recursive hull traversal.
+//
+// SV_FlyMove uses a 4-iteration bump loop: on each iteration, it traces
+// the entity's velocity and slides along any planes it hits. Up to 4
+// planes are tracked per frame (max 2 per iteration). This handles
+// corner cases like sliding along two walls simultaneously.
+//
+// # C Lineage
+//
+// Mirrors SV_Physics, SV_WalkMove, SV_FlyMove, SV_PushMove, and
+// SV_PushRotate in sv_phys.c. The C version used global state
+// (sv_maxvelocity, sv_gravity); the Go version reads these from
+// the server struct.
+
 package server
 
 import (

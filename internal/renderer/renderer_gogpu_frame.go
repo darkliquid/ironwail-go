@@ -1,3 +1,49 @@
+// renderer_gogpu_frame.go implements the per-frame rendering pipeline
+// orchestration for the GoGPU/WebGPU backend. This is the top-level
+// RenderFrame function called each frame by the game loop.
+//
+// # Frame Pipeline
+//
+// RenderFrame executes 5 phases in order:
+//
+//  1. Clear: optionally clear the screen (or preserve previous frame
+//     when the menu is active without world rendering)
+//
+//  2. World: render 3D BSP world geometry (sky, opaque, alpha-test,
+//     opaque liquid, translucent liquid) — delegates to
+//     renderWorldInternal in world_render_gogpu.go
+//
+//  3. Entities: render alias models, brush entities, sprites, decals,
+//     and particles — delegates to renderEntities
+//
+//  4. Post-process: scene render target compositing (water warp),
+//     polyblend (screen-space color tint), viewmodel rendering
+//
+//  5. Overlay: draw 2D HUD, menu, and console on top of the 3D scene
+//
+// # Scene Render Target
+//
+// When water warp or translucent liquids are active, the world and
+// entities render to an offscreen render target. A composite pass
+// then applies the water warp distortion and copies the result to
+// the swapchain. The composite pass uses a fullscreen triangle shader.
+//
+// # Gogpu Integration
+//
+// The gogpu framework (github.com/gogpu/gogpu) owns the swapchain
+// and the present/poll loop. This package's OnDraw callback is called
+// each frame by gogpu, which creates a DrawContext with the current
+// surface view. RenderFrame uses that view as the render target
+// (or the offscreen scene target when active).
+//
+// # C Lineage
+//
+// Mirrors R_RenderView in gl_rmain.c, which called R_DrawWorld,
+// R_DrawEntitiesOnList, R_DrawParticles, R_DrawViewModel,
+// R_PolyBlend, and R_DrawWaterSurfaces in sequence. The Go version
+// preserves this phase ordering but adds scene render target
+// compositing for water warp.
+
 package renderer
 
 import (

@@ -1,3 +1,14 @@
+// world_render_gogpu.go implements the world geometry render pass.
+//
+// Pipeline: prepare (depth, RT, encoder) → sky → opaque batched →
+// alpha-test → opaque liquid. Translucent liquid deferred to late pass.
+//
+// C lineage: R_RenderView, R_DrawWorld in gl_rmain.c, gl_rsurf.c.
+// C drew faces one-at-a-time; Go batches by bind group.
+//
+// Scene render target: when water warp or translucent liquids are
+// active, world renders offscreen then composites via warpscale_gogpu.go.
+
 package renderer
 
 import (

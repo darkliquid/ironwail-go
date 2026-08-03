@@ -1,3 +1,47 @@
+// sv_send.go implements the server-to-client network message encoding
+// for entity state, client data, and statistics.
+//
+// # Delta Encoding
+//
+// Quake uses delta encoding to minimize network bandwidth. Instead of
+// sending the full state of every entity every frame, the server tracks
+// the last-known state per client and only sends fields that changed.
+//
+// Entity updates use the U_* flag system:
+//   - U_ORIGIN1/2/3: changed origin components (X, Y, Z)
+//   - U_ANGLE1/2/3:  changed angle components (pitch, yaw, roll)
+//   - U_MODEL:       changed model index
+//   - U_FRAME:       changed animation frame
+//   - U_SKIN:        changed skin
+//   - U_EFFECTS:     changed entity effects (light, trail, etc.)
+//   - U_SOLID:       changed solid type / bounding box
+//
+// Client data uses the SU_* flag system:
+//   - SU_VIEWHEIGHT: view height changed
+//   - SU_IDEALPITCH: ideal pitch changed
+//   - SU_PUNCH:      punch angle changed (recoil)
+//   - SU_VELOCITY1/2/3: velocity components changed
+//   - SU_ITEMS:      item inventory changed
+//   - SU_WEAPONFRAME: weapon animation frame changed
+//
+// FitzQuake protocol extensions add:
+//   - PROTOCOL_FITZQUAKE (666): alpha, scale, glow, frame2 support
+//   - PROTOCOL_NETQUAKE (15): original Quake protocol
+//
+// # C Lineage
+//
+// Mirrors SV_WriteEntitiesToClient, SV_WriteClientdataToMessage,
+// WriteEntityUpdate, and WriteDelta in sv_send.c. The C version
+// used direct pointer comparisons between the current and baseline
+// edict state; the Go version compares struct fields.
+//
+// # Precision
+//
+// Origin coordinates are quantized to 1/8 unit (3 mantissa bits) for
+// network transmission, matching C behavior. Angles are quantized to
+// 256 steps per 360 degrees (8-bit). This matches the original
+// Quake protocol exactly.
+
 package server
 
 import (
