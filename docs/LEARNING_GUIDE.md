@@ -30,7 +30,7 @@ The project is organized into `internal/` packages, each with a specific respons
 | `internal/console` | **The Console.** Command input, logging, and completion. | Terminal | [Guide](internal/console.md) |
 | `internal/cvar` | **Console Variables.** Persistent configuration and flags. | Settings Registry | [Guide](internal/cvar.md) |
 | `internal/draw` | **Drawing Primitives.** Font rendering and 2D UI drawing. | Painter | [Guide](internal/draw.md) |
-| `internal/engine` | **Lifecycle.** Core data structures and asset loading. | Engine Heart | [Guide](internal/engine.md) |
+| `internal/engine` | **Lifecycle.** Core data structures (Cache, Registry, Set, Queue, EventBus). | Engine Heart | [Guide](internal/engine.md) |
 | `internal/fs` | **The Filesystem.** Handles `.pak` files and virtual paths (`id1/`, etc). | The "data loader." | [Guide](internal/fs.md) |
 | `internal/game` | **Coordinator.** Central game state and loop management. | The Director | [Guide](internal/game.md) |
 | `internal/host` | **The Scheduler.** Manages the main loop, timing, and session lifecycle. | The "orchestra conductor." | [Guide](internal/host.md) |
@@ -43,6 +43,15 @@ The project is organized into `internal/` packages, each with a specific respons
 | `internal/net` | **Networking.** Low-level transport and protocol handling. | Network Stack | [Guide](internal/net.md) |
 | `internal/qc` | **The Game Rules.** A Virtual Machine that runs QuakeC (`progs.dat`) bytecode. | The "scripting engine." | [Guide](internal/qc.md) |
 | `internal/renderer` | **The Visuals.** Uses WebGPU to draw the world, models, and UI. | The "painting engine." | [Guide](internal/renderer.md) |
+| `internal/renderer/alias` | **Alias Models.** MDL vertex interpolation and rotation math (CPU path). | Model Animator | — |
+| `internal/renderer/gogpu` | **Input Mapping.** Translates gogpu input events to Quake key codes. | Input Bridge | — |
+| `internal/renderer/scrap` | **Scrap Atlas.** Skyline bin-packing for small UI textures. | Texture Packer | — |
+| `internal/renderer/sky` | **External Skybox.** Loads and renders 6-face PNG skyboxes. | Skybox Manager | — |
+| `internal/renderer/surface` | **Lightmap Allocator.** 2D bin-packing for lightmap samples. | Lightmap Packer | — |
+| `internal/renderer/world` | **Shared World Types.** WorldVertex, WorldFace, WorldGeometry, fog math. | World Data Layer | — |
+| `internal/renderer/world/gogpu` | **GoGPU World Helpers.** Brush entity building, sprite uniforms, WGSL shaders. | Shader Source | — |
+| `internal/renderer/oit` | **OIT Transparency.** Order-independent transparency config (currently disabled). | Transparency Config | — |
+| `internal/renderer/warpscale` | **Water Warp.** Scene render target, FOV warp, composite pass. | Post-Process | — |
 | `internal/server` | **The Truth.** Runs physics, collision, and coordinates game logic. | The "simulation engine." | [Guide](internal/server.md) |
 | `internal/testutil` | **Testing.** Utilities for synthetic assets and integration tests. | Test Harness | [Guide](internal/testutil.md) |
 
@@ -71,8 +80,18 @@ Ironwail Go uses modern WebGPU primitives (via the `gogpu` library). Unlike olde
 
 - **Key concept: The BSP.** Quake uses Binary Space Partitioning to quickly figure out which parts of a map are visible so it doesn't waste time drawing what you can't see.
 - **Where to look:** `internal/renderer/renderer_gogpu_frame.go` for the frame orchestrator (`RenderFrame`), `internal/renderer/world_render_gogpu.go` for the world BSP render pass, and `internal/bsp` for map loading logic.
+- **Renderer sub-packages:** The renderer is split into focused sub-packages:
+  - `renderer/alias` — MDL vertex interpolation (CPU path, C: r_alias.c)
+  - `renderer/world` — shared world types (WorldVertex, WorldFace, WorldGeometry)
+  - `renderer/world/gogpu` — GoGPU brush entity building, sprite uniforms, WGSL shaders
+  - `renderer/surface` — lightmap allocator (2D bin-packing, C: gl_rsurf.c)
+  - `renderer/scrap` — scrap atlas (skyline bin-packing for UI textures)
+  - `renderer/sky` — external skybox loading and rendering (C: gl_sky.c)
+  - `renderer/gogpu` — input device mapping (keyboard/mouse to Quake keys)
+  - `renderer/warpscale` — water warp post-processing and scene render target
+  - `renderer/oit` — order-independent transparency config (currently disabled)
 - **Learning the renderer from scratch:** If you are new to graphics programming or WebGPU, see `docs/RENDERER_LEARNING_PLAN.md` — a stage-by-stage curriculum with external citations and build-it-yourself milestones.
-- **Note:** The renderer is unfinished and has known bugs (texture atlas overflow on large maps). See the "State of the Renderer" section of the learning plan and `docs/diagnoses/` for current status.
+- **Debug tools:** See the `ironwail-debugging` skill or `docs/plans/qbj2_zetabyt_diagnostic.md` for a complete guide to GPU validation, debug shaders, and diagnostic tools.
 
 ---
 
