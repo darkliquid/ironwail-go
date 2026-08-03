@@ -15,11 +15,14 @@ manual changes of my own.
 
 In terms of tooling, mostly GitHub Copilot has been used, with a smattering of
 other things, but the vast majority of agentic work has been done with
-**Claude Opus 4.6** and **GPT-5.4**.
+**Claude Opus 4.6** and **GPT-5.4**. Lately, most work has been done using
+GLM-5.2 and Gemini (various versions).
 
-The [yggdrasil][3] repo has been invaluable for documenting and mapping the
+The [yggdrasil][3] repo was invaluable initially documenting and mapping the
 growing codebase, providing structural overviews and cross-references that help
-agents and humans alike navigate the port.
+agents and humans alike navigate the port. However, this has been dropped now
+as the documentation of the codebase has been improved and serves a similar
+function now.
 
 ## Differences from Ironwail
 
@@ -233,7 +236,7 @@ Notes:
   instrumentation is centered on frame/trigger/touch/think/blocked/physics/qc
   paths
 
-### Limitations and Noise Caveats
+### Limitations and Caveats
 
 - This is intentionally verbose and can produce a lot of output in busy maps,
   especially with `sv_debug_telemetry_summary 2` or QC builtin tracing enabled.
