@@ -30,4 +30,8 @@
 // commands, console, and cvars into dedicated packages and keeps this package
 // focused on reusable primitives. Typed methods, standard-library endian
 // helpers, and slice-based buffers replace macros and raw pointer arithmetic.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/common -count=1
 package common

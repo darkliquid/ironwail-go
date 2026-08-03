@@ -29,4 +29,8 @@
 // treats gamepad support as a first-class part of the abstraction. Typed event
 // structs and injected backends replace raw globals and platform-specific ifdef
 // tangles.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/input -count=1
 package input

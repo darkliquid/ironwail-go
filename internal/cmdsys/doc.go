@@ -33,4 +33,8 @@
 // SetSource/Source methods, matching C's cmd_source), command forwarding via
 // ForwardFunc for routing client commands to the server, and comment stripping
 // in command text parsing.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/cmdsys -count=1
 package cmdsys

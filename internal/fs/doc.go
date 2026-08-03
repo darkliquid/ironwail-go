@@ -32,4 +32,8 @@
 // it inside a broad common layer. It also adds explicit path sanitization and
 // root checks, and it uses io/fs, os.DirFS, and structured pack metadata in
 // place of manual C string/path handling.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/fs -count=1
 package fs

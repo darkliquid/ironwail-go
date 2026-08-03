@@ -29,4 +29,8 @@
 // the original C codebase. Standard testing helpers, environment-based asset
 // discovery, and readable assertion helpers make the growing automated suite
 // easier to maintain.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/testutil -count=1
 package testutil

@@ -31,4 +31,8 @@
 // and pointer arithmetic. Some prediction and renderer-facing behavior are
 // still partial, but the protocol/state model is already clearer and easier to
 // test.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/client -count=1
 package client

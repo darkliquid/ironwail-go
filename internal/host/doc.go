@@ -34,4 +34,8 @@
 // Recent additions include autosave functionality (automatic quicksave before
 // entering new levels, matching C Host_Changelevel_f) and demo playback
 // commands with frame-accurate seeking.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/host -count=1
 package host

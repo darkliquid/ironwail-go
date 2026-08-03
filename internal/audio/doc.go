@@ -32,4 +32,8 @@
 // structs, slice-backed buffers, and explicit errors replace pointer-heavy
 // shared globals. The result keeps Quake's channel-mixing model while making it
 // testable and pure Go.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/audio -count=1
 package audio

@@ -45,4 +45,8 @@
 // than the original global-state design. Strongly named structs and indexed
 // helpers preserve QuakeC semantics while making the subsystem easier to read
 // and test.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/qc -count=1
 package qc

@@ -34,4 +34,8 @@
 // Recent additions include per-frame physics counters for profiling entity
 // simulation work, edict count warnings when approaching MAX_EDICTS, autosave
 // triggering before level changes, and per-entity gravity fields.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/server -count=1
 package server

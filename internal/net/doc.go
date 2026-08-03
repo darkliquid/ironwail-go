@@ -29,4 +29,8 @@
 // platform variants behind. Typed socket structs, normal time handling, and a
 // clearer split between loopback and datagram code replace driver tables and
 // platform conditionals while preserving Quake's protocol model.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/net -count=1
 package net

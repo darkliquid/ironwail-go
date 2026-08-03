@@ -49,4 +49,8 @@
 // Recent enhancements include numeric displays (DrawNumber), status bar
 // background image loading (ibar.lmp), and improved positioning/scaling for
 // modern resolutions.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/hud -count=1
 package hud

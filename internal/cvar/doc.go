@@ -31,4 +31,8 @@
 // Recent additions include FlagLocked for server-controlled cvar locking during
 // multiplayer (with Lock/Unlock methods), and cvar console commands for
 // listing, toggling, cycling, and resetting cvars from the command system.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/cvar -count=1
 package cvar

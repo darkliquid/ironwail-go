@@ -29,4 +29,8 @@
 // texture upload, which is a useful break from the original renderer-heavy C
 // structure. io.ReaderAt, io.SectionReader, encoding/binary, and typed lump
 // maps replace manual pointer walking and ad hoc byte swapping.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/image -count=1
 package image

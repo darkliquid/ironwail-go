@@ -34,4 +34,8 @@
 // Recent additions include entity trail events in client_effects.go (rocket
 // smoke, blood trails, grenade smoke, etc. dispatched from model flags during
 // entity relinking), lightning beam rendering, and decal mark projection.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/renderer -count=1
 package renderer

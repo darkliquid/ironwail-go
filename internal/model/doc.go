@@ -30,4 +30,8 @@
 // structs for major runtime concepts, and cleaner relationships between
 // on-disk and runtime data make the model layer easier to understand and reuse
 // across subsystems.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/model -count=1
 package model

@@ -30,4 +30,8 @@
 // Explicit caching, clearer errors, and composition with the fs and image
 // packages replace the old monolithic draw path while keeping Quake's asset
 // lookup behavior.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/draw -count=1
 package draw

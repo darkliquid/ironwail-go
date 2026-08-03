@@ -29,4 +29,8 @@
 // original C implementation. Mutex-protected state, UTF-8-aware handling, and
 // ordinary file I/O replace globally shared buffers and platform-specific log
 // plumbing while preserving Quake's console model.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/console -count=1
 package console

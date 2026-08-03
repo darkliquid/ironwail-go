@@ -29,4 +29,8 @@
 // file decoding with server and renderer concerns. Standard-library binary I/O,
 // explicit version constants, and safer slice/reader usage replace manual C
 // struct walking while keeping Quake's lump model intact.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/bsp -count=1
 package bsp

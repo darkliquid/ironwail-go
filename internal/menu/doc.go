@@ -27,4 +27,8 @@
 // the core menu flow rather than every screen and feature from the original.
 // An explicit manager object and enum-style state replace one large file full
 // of screen-specific statics, which makes navigation logic easier to test.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/menu -count=1
 package menu
