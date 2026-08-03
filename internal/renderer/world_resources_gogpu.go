@@ -392,11 +392,7 @@ func (r *Renderer) createWorldTexture2DFromRGBA(device *wgpu.Device, queue *wgpu
 	if err != nil {
 		return nil, fmt.Errorf("create world texture 2D: %w", err)
 	}
-	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
-		Texture:  texture,
-		MipLevel: 0,
-		Aspect:   gputypes.TextureAspectAll,
-	}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+	if err := writeTextureChunked(queue, texture, rgba, width, height, label); err != nil {
 		texture.Release()
 		return nil, fmt.Errorf("write world texture 2D: %w", err)
 	}
@@ -911,4 +907,87 @@ func (r *Renderer) uploadWorldEmbeddedSkyTextures(device *wgpu.Device, queue *wg
 		alpha[int32(i)] = alphaTexture
 	}
 	return solid, alpha
+}
+
+// maxTextureUploadChunkSize is the maximum bytes per WriteTexture call.
+// The Vulkan backend creates a staging buffer for each WriteTexture call,
+// and the driver silently caps staging buffer allocations at 64 MiB
+// (67,108,864 bytes). Data exceeding this limit is silently truncated,
+// corrupting the texture. We use 60 MiB to stay safely under the cap.
+const maxTextureUploadChunkSize = 60 * 1024 * 1024
+
+// writeTextureChunked uploads a 2D RGBA texture to the GPU, splitting
+// the data into vertical chunks when the total size exceeds the GPU's
+// staging buffer limit. Each chunk is uploaded via a separate
+// WriteTexture call targeting a horizontal slice of the destination
+// texture.
+func writeTextureChunked(queue *wgpu.Queue, texture *wgpu.Texture, rgba []byte, width, height int, label string) error {
+	bytesPerRow := width * 4
+	totalBytes := len(rgba)
+
+	if totalBytes <= maxTextureUploadChunkSize {
+		return queue.WriteTexture(
+			&wgpu.ImageCopyTexture{
+				Texture:  texture,
+				MipLevel: 0,
+				Aspect:   gputypes.TextureAspectAll,
+			},
+			rgba,
+			&wgpu.ImageDataLayout{
+				BytesPerRow:  uint32(bytesPerRow),
+				RowsPerImage: uint32(height),
+			},
+			&wgpu.Extent3D{
+				Width:              uint32(width),
+				Height:             uint32(height),
+				DepthOrArrayLayers: 1,
+			},
+		)
+	}
+
+	rowsPerChunk := maxTextureUploadChunkSize / bytesPerRow
+	if rowsPerChunk == 0 {
+		rowsPerChunk = 1
+	}
+
+	uploadedRows := 0
+	for uploadedRows < height {
+		rowsRemaining := height - uploadedRows
+		chunkRows := rowsRemaining
+		if chunkRows > rowsPerChunk {
+			chunkRows = rowsPerChunk
+		}
+
+		chunkOffset := uploadedRows * bytesPerRow
+		chunkData := rgba[chunkOffset : chunkOffset+chunkRows*bytesPerRow]
+
+		if err := queue.WriteTexture(
+			&wgpu.ImageCopyTexture{
+				Texture: texture,
+				MipLevel: 0,
+				Origin: wgpu.Origin3D{
+					X: 0,
+					Y: uint32(uploadedRows),
+					Z: 0,
+				},
+				Aspect: gputypes.TextureAspectAll,
+			},
+			chunkData,
+			&wgpu.ImageDataLayout{
+				BytesPerRow:  uint32(bytesPerRow),
+				RowsPerImage: uint32(chunkRows),
+			},
+			&wgpu.Extent3D{
+				Width:              uint32(width),
+				Height:             uint32(chunkRows),
+				DepthOrArrayLayers: 1,
+			},
+		); err != nil {
+			return fmt.Errorf("write texture chunk (label=%s, offset_row=%d, chunk_rows=%d): %w", label, uploadedRows, chunkRows, err)
+		}
+
+		uploadedRows += chunkRows
+	}
+
+	return nil
 }

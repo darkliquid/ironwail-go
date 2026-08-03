@@ -71,11 +71,7 @@ func (r *Renderer) uploadWorldLightmapArray(device *wgpu.Device, queue *wgpu.Que
 		return nil
 	}
 
-	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
-		Texture:  texture,
-		MipLevel: 0,
-		Aspect:   gputypes.TextureAspectAll,
-	}, rgba, &wgpu.ImageDataLayout{BytesPerRow: width * 4, RowsPerImage: totalHeight}, &wgpu.Extent3D{Width: width, Height: totalHeight, DepthOrArrayLayers: 1}); err != nil {
+	if err := writeTextureChunked(queue, texture, rgba, int(width), int(totalHeight), "World Lightmap Texture"); err != nil {
 		texture.Release()
 		slog.Warn("failed to write world lightmap texture", "error", err)
 		return nil

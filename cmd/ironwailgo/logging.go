@@ -205,6 +205,9 @@ func subsystemForSourcePath(path string) string {
 		}
 		return "qgo"
 	}
+	if strings.Contains(normalized, "/gogpu/") || strings.Contains(normalized, "/wgpu/") {
+		return "mod"
+	}
 	return "default"
 }
 
