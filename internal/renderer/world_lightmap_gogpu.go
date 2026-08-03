@@ -200,29 +200,18 @@ func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded *gpuWorldTexture,
 	clearDirtyFlags(pages)
 }
 
+// setGoGPUWorldLightStyleValues stores the current lightstyle values for
+// potential future use. Unlike the previous implementation, it does NOT
+// re-composite lightmap surfaces on the CPU every frame — lightmap textures
+// are built once at level load with all styles at scale 1.0 (matching C
+// Ironwail behavior). Dynamic lightstyle animation (flickering torches) is
+// handled by the dynamic light cluster system, not by modifying lightmap
+// textures. This eliminates the 9.69% CPU overhead from
+// compositeWorldLightmapSurfaceRGBA per-frame re-compositing.
 func (r *Renderer) setGoGPUWorldLightStyleValues(values [256]float32) {
-	queue := r.getWGPUQueue()
-	if queue == nil {
-		return
-	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	changed := lightStylesChanged(r.worldLightStyleValues, values)
-	if !anyLightStyleChanged(changed) {
-		return
-	}
-	if r.worldData != nil && r.worldData.Geometry != nil {
-		markDirtyLightmapPages(r.worldData.Geometry.Lightmaps, changed)
-		updateUploadedLightmapsLocked(queue, r.worldLightmapArray, r.worldData.Geometry.Lightmaps, values)
-	}
-	for submodelIndex, geom := range r.brushModelGeometry {
-		if geom == nil || len(geom.Lightmaps) == 0 {
-			continue
-		}
-		markDirtyLightmapPages(geom.Lightmaps, changed)
-		updateUploadedLightmapsLocked(queue, r.brushModelLightmaps[submodelIndex], geom.Lightmaps, values)
-	}
 	r.worldLightStyleValues = values
+	r.mu.Unlock()
 }
 
 func defaultWorldLightStyleValues() [256]float32 {

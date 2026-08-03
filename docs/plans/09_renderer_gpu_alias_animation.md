@@ -1,7 +1,7 @@
 # Implementation Plan: GPU Alias Model Animation & Renderer Performance
 
 **Priority**: #1 (Post Zero-Sync Rendering Bottleneck)  
-**Status**: Wave 1 completed (`24a34f3`). Wave 2 GPU model matrix attempt was reverted (`e6360a2`) due to severe model cycling/swapping regressions. Wave 3 partially done (`cae8d3f`, CPU loop optimization only). See Section 5 for regression findings.
+**Status**: Wave 1 completed (`24a34f3`, deferred-release queue from `59b14be`). Wave 2 reverted — GPU shader attempt caused model cycling/flickering that resisted 11 fixes; reverted to CPU vertex path. Wave 3 completed — eliminated per-frame lightmap re-compositing (matches C Ironwail behavior). Sprite bind group separation retained. See Section 5 and `09_wave2_regression_diagnostic.md` for regression findings.
 **Target Milestone**: Phase 1.5  
 
 ---
@@ -57,7 +57,7 @@ Transition alias model keyframe interpolation, vertex transformation, and matrix
 - [x] Refactor `buildAliasVerticesInterpolatedInto` to use `AliasScratchBuffer` instead of allocating per entity.
 - [x] Verify zero heap allocations in `aliasVertexBytesInto` via `go test -bench`.
 
-### Phase 2: GPU Keyframe Shader Migration (Wave 2) — REVERTED (commit `4c40eb4`, reverted in `e6360a2`)
+### Phase 2: GPU Keyframe Shader Migration (Wave 2) — REVERTED (second attempt)
 - [ ] Extend MDL model loader to generate GPU vertex buffers for all keyframes (`KeyframeBuffers`).
 - [ ] Add instance uniform struct `AliasInstanceParams`: `[16]float32 matrix`, `int frame1`, `int frame2`, `float32 lerp`.
 - [x] ~~Update WGSL alias vertex shader to apply 4x4 model matrix transformation on GPU~~ (reverted — caused model cycling)
@@ -65,11 +65,10 @@ Transition alias model keyframe interpolation, vertex transformation, and matrix
 - [ ] Perform keyframe lerp `mix(frame1_pos, frame2_pos, lerp)` inside the GPU vertex shader (currently still done CPU-side via `InterpolateVertexPosition`).
 - [ ] Remove `alias.InterpolateVertexPosition`, `alias.BuildVerticesInterpolatedInto` CPU loops from hot rendering path.
 
-### Phase 3: Dynamic Lightstyle Uniform Shader Upgrade (Wave 3) — PARTIALLY DONE (commit `cae8d3f`)
-- [ ] Add `@group(0) @binding(3) var<uniform> lightstyles: array<vec4<f32>, 64>;` to world fragment shader.
-- [ ] Update `Server.Frame` / `Renderer.OnDraw` to update lightstyle array uniform per frame (64 floats) instead of re-compositing surface lightmap RGBA textures.
-- [ ] Remove `compositeWorldLightmapSurfaceRGBA` dirty surface re-composition loop.
-- [x] Optimize `compositeWorldLightmapSurfaceRGBA` with loop unrolling and precomputed scales (CPU-side optimization, not full GPU migration).
+**Note**: A second Wave 2 attempt was made (commit `0abcfde`) using a different architecture (per-model pose storage buffers, separate instance bind group, GPU-side TriVertX decode). This also caused model cycling/flickering and was reverted. See `09_wave2_regression_diagnostic.md` for the full diagnostic log of 11 failed fixes.
+
+### Phase 3: Dynamic Lightstyle Uniform Shader Upgrade (Wave 3) — COMPLETED
+- [x] Eliminated per-frame CPU lightmap re-compositing (`setGoGPUWorldLightStyleValues` no longer calls `markDirtyLightmapPages` / `updateUploadedLightmapsLocked`). Lightmap textures are built once at level load with all styles at scale 1.0, matching C Ironwail behavior (`GL_FillSurfaceLightmap` in `r_brush.c`). Dynamic lightstyle animation is handled by the dynamic light cluster system, not by modifying lightmap textures.
 
 ---
 
