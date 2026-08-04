@@ -62,10 +62,10 @@ type Server struct {
 	StopSpeed    float32
 	PhysicsSys   *PhysicsSystem
 	CollisionSys *CollisionSystem
-
-
+	NetManager   *NetworkManager
 
 	// Timing
+
 	Time      float32
 	FrameTime float32
 
@@ -269,8 +269,10 @@ func NewServer() *Server {
 	}
 	s.acceptConnection = s.Net.CheckNewConnections
 	s.CollisionSys = NewCollisionSystem(s)
+	s.NetManager = NewNetworkManager(s)
 	s.PhysicsSys = NewPhysicsSystem(s.CollisionSys, s, s, s, s, s)
 	vm.IsServerActive = func() bool { return s.State == ServerStateActive }
+
 
 
 	vm.Cvars = s.CVar

@@ -22,6 +22,8 @@ var (
 
 	_ MovementEngine = (*PhysicsSystem)(nil)
 	_ CollisionWorld = (*CollisionSystem)(nil)
+	_ NetworkBroadcaster = (*NetworkManager)(nil)
+
 
 )
 
