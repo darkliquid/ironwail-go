@@ -11,13 +11,14 @@ import (
 
 // Static compile-time interface satisfaction checks.
 var (
-	_ CollisionWorld = (*Server)(nil)
-	_ EntityStore    = (*Server)(nil)
-	_ PhysicsConfig  = (*Server)(nil)
-	_ FrameTiming    = (*Server)(nil)
-	_ ThinkExecutor  = (*Server)(nil)
-	_ PhysicsEngine  = (*Server)(nil)
-	_ MovementEngine = (*Server)(nil)
+	_ CollisionWorld     = (*Server)(nil)
+	_ EntityStore        = (*Server)(nil)
+	_ PhysicsConfig      = (*Server)(nil)
+	_ FrameTiming        = (*Server)(nil)
+	_ ThinkExecutor      = (*Server)(nil)
+	_ PhysicsEngine      = (*Server)(nil)
+	_ MovementEngine     = (*Server)(nil)
+	_ NetworkBroadcaster = (*Server)(nil)
 )
 
 func TestServerImplementsInterfaces(t *testing.T) {
@@ -30,5 +31,7 @@ func TestServerImplementsInterfaces(t *testing.T) {
 	var _ ThinkExecutor = &s
 	var _ PhysicsEngine = &s
 	var _ MovementEngine = &s
+	var _ NetworkBroadcaster = &s
 }
+
 

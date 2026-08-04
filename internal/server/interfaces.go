@@ -86,6 +86,14 @@ type MovementEngine interface {
 	MoveToGoal(ent *Edict, dist float32) bool
 }
 
+// NetworkBroadcaster defines the contract for network packet broadcasts and sound events.
+type NetworkBroadcaster interface {
+	StartParticle(org, dir [3]float32, color, count int)
+	StartSound(ent *Edict, channel int, sample string, volume int, attenuation float32)
+}
+
+
+
 
 // Interface getters for PhysicsConfig and FrameTiming.
 
