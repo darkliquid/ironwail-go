@@ -1,3 +1,5 @@
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 import (
@@ -25,7 +27,7 @@ func TestTouchLinksTelemetry(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskTrigger,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  0,
 		}
 	}, func(line string) {
@@ -99,7 +101,7 @@ func TestTouchLinksSyncsQCChangesBackToGoEdicts(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskTrigger,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  0,
 		}
 	}, func(line string) {

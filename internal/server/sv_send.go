@@ -42,6 +42,7 @@
 // 256 steps per 360 degrees (8-bit). This matches the original
 // Quake protocol exactly.
 
+// This file belongs to the Network/Protocol subsystem: server-to-client message encoding, client management, and protocol types.
 package server
 
 import (

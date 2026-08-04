@@ -1,3 +1,5 @@
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 // RunThink, impact, and pusher sync tests split from physics_test.go.
@@ -26,7 +28,7 @@ func TestRunThinkTelemetry(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskThink,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  0,
 		}
 	}, func(line string) {

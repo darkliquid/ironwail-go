@@ -1,3 +1,5 @@
+// This file belongs to the Network/Protocol subsystem: server-to-client message encoding, client management, and protocol types.
+
 package server
 
 import "strings"

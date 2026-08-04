@@ -1,3 +1,5 @@
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 // Trace, precache builtins, and CheckClient hook tests split from server_hooks_test.go.

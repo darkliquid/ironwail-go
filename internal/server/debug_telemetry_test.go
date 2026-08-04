@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
 )
 
 func TestParseDebugEventMask(t *testing.T) {
@@ -30,7 +31,7 @@ func TestParseDebugEventMask(t *testing.T) {
 }
 
 func TestParseDebugEntityFilter(t *testing.T) {
-	filter := parseDebugEntityFilter("1,4-6")
+	filter := srvdebug.ParseEntityFilter("1,4-6")
 	for _, entNum := range []int{1, 4, 5, 6} {
 		if !filter.Matches(entNum) {
 			t.Fatalf("filter should match ent %d", entNum)
@@ -72,7 +73,7 @@ func TestDebugTelemetryLogEventHonorsFiltersAndFormatsSnapshot(t *testing.T) {
 			Enabled:         true,
 			EventMask:       debugEventMaskTrigger,
 			ClassnameFilter: "trigger_*",
-			EntityFilter:    parseDebugEntityFilter("7"),
+			EntityFilter:    srvdebug.ParseEntityFilter("7"),
 			SummaryMode:     1,
 			QCVerbosity:     1,
 		}
@@ -125,7 +126,7 @@ func TestDebugTelemetrySummaryAndQCFormatting(t *testing.T) {
 			Enabled:         true,
 			EventMask:       debugEventMaskAll,
 			ClassnameFilter: "monster_*",
-			EntityFilter:    parseDebugEntityFilter("3"),
+			EntityFilter:    srvdebug.ParseEntityFilter("3"),
 			SummaryMode:     1,
 			QCTrace:         true,
 			QCVerbosity:     2,
@@ -208,7 +209,7 @@ func TestDebugTelemetrySummaryModeTwoLogsEmptyFrames(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskAll,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  2,
 			QCVerbosity:  1,
 		}
@@ -243,7 +244,7 @@ func TestDebugTelemetryCachesConfigPerFrame(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskAll,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  1,
 			QCTrace:      true,
 			QCVerbosity:  1,
@@ -282,7 +283,7 @@ func TestDebugTelemetryCoalescesConsecutiveDuplicateEvents(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskAll,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  1,
 			QCVerbosity:  1,
 		}
@@ -329,7 +330,7 @@ func TestDebugTelemetryCoalescingFlushesAtEndFrame(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskAll,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  1,
 			QCVerbosity:  1,
 		}
@@ -368,7 +369,7 @@ func TestDebugTelemetryBatchesProductionOutputPerFrame(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskAll,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  1,
 			QCVerbosity:  1,
 		}

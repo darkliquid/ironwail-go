@@ -1,3 +1,5 @@
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 import (
@@ -196,7 +198,7 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskTrigger,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  0,
 		}
 	}, func(line string) {
@@ -764,7 +766,7 @@ func TestSVPrintMapCheckNoOpWhenDisabledAndReportsViaTelemetryWhenEnabled(t *tes
 
 	lines := make([]string, 0, 2)
 	s.DebugTelemetry = NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
-		return DebugTelemetryConfig{Enabled: true, EventMask: debugEventMaskPhysics, EntityFilter: debugEntityFilter{all: true}, SummaryMode: 0}
+		return DebugTelemetryConfig{Enabled: true, EventMask: debugEventMaskPhysics, EntityFilter: debugEntityFilter{All: true}, SummaryMode: 0}
 	}, func(line string) {
 		lines = append(lines, line)
 	})
@@ -809,7 +811,7 @@ func TestSVPrintMapChecklistReportsHeaderAndNonEmptyChecks(t *testing.T) {
 
 	lines := make([]string, 0, 4)
 	s.DebugTelemetry = NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
-		return DebugTelemetryConfig{Enabled: true, EventMask: debugEventMaskPhysics, EntityFilter: debugEntityFilter{all: true}, SummaryMode: 0}
+		return DebugTelemetryConfig{Enabled: true, EventMask: debugEventMaskPhysics, EntityFilter: debugEntityFilter{All: true}, SummaryMode: 0}
 	}, func(line string) {
 		lines = append(lines, line)
 	})

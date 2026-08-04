@@ -4,6 +4,8 @@
 // network messages. It supports both directions:
 //   - Client → Server: reading movement, commands, impulses
 //   - Server → Client: writing game state, sounds, entities
+
+// This file belongs to the Network/Protocol subsystem: server-to-client message encoding, client management, and protocol types.
 package server
 
 import (

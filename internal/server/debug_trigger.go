@@ -1,3 +1,5 @@
+// This file belongs to the Debug subsystem: debug telemetry, trigger touch debugging, and multiplayer debug logging.
+
 package server
 
 import (

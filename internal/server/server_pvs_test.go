@@ -1,3 +1,5 @@
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 // PVS visibility, dev stats, and frame/message tests split from server_test.go.

@@ -1,3 +1,5 @@
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 // Client data write tests split from sv_send_test.go.
@@ -274,7 +276,7 @@ func TestWriteClientDataToMessage_LogsPhysicsTelemetry(t *testing.T) {
 			return DebugTelemetryConfig{
 				Enabled:      true,
 				EventMask:    debugEventMaskPhysics,
-				EntityFilter: debugEntityFilter{all: true},
+				EntityFilter: debugEntityFilter{All: true},
 				SummaryMode:  0,
 			}
 		}, func(line string) {

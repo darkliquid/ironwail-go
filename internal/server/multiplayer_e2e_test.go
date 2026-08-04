@@ -1,6 +1,8 @@
 // Copyright (C) 2024 Ironwail Go Port Authors
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 import (

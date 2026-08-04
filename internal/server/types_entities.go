@@ -1,30 +1,21 @@
+// This file belongs to the Entity/QC subsystem: edict allocation, entity accessors, QuakeC field offsets, QC call tracing, and entity state types.
+//
+// StaticSound and UserCmd type definitions have been moved to
+// internal/server/types. Aliases below preserve backward compatibility.
+//
+// Edict remains in this package because it has 170+ accessor methods that
+// take *Server as their first parameter, and Go does not allow defining
+// methods on non-local types. TraceResult also remains here because it
+// has an Entity *Edict field.
 package server
 
-// StaticSound represents a persistent ambient sound in the world signon state.
-//
-// Static sounds are set up once during level load and looped for the entire
-// duration of the map. They are included in the signon buffer so every client
-// receives them upon connecting. Unlike dynamic sounds (triggered by events),
-// static sounds play continuously from a fixed position in the world.
-//
-// Examples: lava bubbling, wind blowing, water flowing, torches crackling.
-// The client spatializes these sounds based on listener position, so they
-// get louder/softer and pan left/right as the player moves.
-//
-// Fields:
-//   - Origin: world-space position of the sound source.
-//   - SoundIndex: index into the server's sound precache table.
-//   - Volume: playback volume (0-255, where 255 is full volume).
-//   - Attenuation: distance falloff factor. Higher values make the sound
-//     fade out faster with distance. Common values: 0 = no attenuation
-//     (plays everywhere equally), 1 = normal, 2 = idle (short range),
-//     3 = static (very short range, e.g., a torch right next to the player).
-type StaticSound struct {
-	Origin      [3]float32
-	SoundIndex  int
-	Volume      int
-	Attenuation float32
-}
+import srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+
+// Type aliases for types moved to the types sub-package.
+type (
+	StaticSound = srvtypes.StaticSound
+	UserCmd     = srvtypes.UserCmd
+)
 
 // Edict represents a game entity (the engine-side "entity dictionary" entry).
 //
@@ -123,59 +114,6 @@ type Edict struct {
 	FreeTime float32
 }
 
-
-// UserCmd represents a single frame of client input sent from client to server.
-//
-// Each game frame, the client captures the player's input state — view angles,
-// movement axes, button presses — and packages it into a UserCmd. This is sent
-// to the server as part of a CLCMove message. The server applies the UserCmd to
-// the player's entity via SV_RunClients → SV_ClientThink.
-//
-// The movement values (ForwardMove, SideMove, UpMove) are in units/second and
-// are scaled by the client based on cl_forwardspeed, cl_sidespeed, etc. The
-// server clamps these to sv_maxspeed (default 320) before applying them.
-//
-// This is the ONLY way the client can influence the server simulation. All
-// player agency — movement, shooting, item use — flows through UserCmd. The
-// server is fully authoritative: it validates and applies these inputs, and
-// the client's local prediction must match or be corrected.
-type UserCmd struct {
-	// ViewAngles — the player's current look direction as Euler angles:
-	//  [0] = pitch (look up/down, negative = up, positive = down)
-	//  [1] = yaw (look left/right, 0 = east, 90 = north)
-	//  [2] = roll (head tilt, usually 0 unless affected by damage kick)
-	// These are absolute angles, not deltas. The server stores them in the
-	// player entity's VAngle field.
-	ViewAngles [3]float32
-
-	// ForwardMove — forward/backward movement speed in units/second.
-	// Positive = forward, negative = backward. Determined by +forward/-back
-	// key bindings, scaled by cl_forwardspeed (default 200) or cl_backspeed.
-	ForwardMove float32
-
-	// SideMove — strafe movement speed in units/second.
-	// Positive = right, negative = left. Determined by +moveright/+moveleft
-	// key bindings, scaled by cl_sidespeed (default 350).
-	SideMove float32
-
-	// UpMove — vertical movement speed in units/second.
-	// Positive = up (jump/swim up), negative = down (crouch/swim down).
-	// In water, this directly controls vertical swimming. On ground, a
-	// positive value triggers a jump.
-	UpMove float32
-
-	// Buttons — bitmask of button states.
-	//  Bit 0: attack (fire weapon / +attack)
-	//  Bit 1: jump (+jump)
-	// The server unpacks these into the entity's Button0/Button2 fields.
-	Buttons uint8
-
-	// Impulse — one-shot command code. Sent once when pressed, then cleared.
-	// Values 1-8 select weapons; other values are mod-specific. The server
-	// copies this to the entity's Impulse field and QuakeC processes it.
-	Impulse uint8
-}
-
 // TraceResult contains the result of a collision trace (ray or hull trace).
 //
 // Traces are the foundation of Quake's collision detection. A trace sweeps a
@@ -195,3 +133,53 @@ type UserCmd struct {
 //
 // A trace with Fraction == 1.0 means nothing was hit (clear path). Fraction < 1.0
 // means a collision occurred at EndPos, and PlaneNormal gives the surface orientation.
+type TraceResult struct {
+	// AllSolid — true if the entire trace path is inside solid geometry (the
+	// entity is completely stuck). This can happen if an entity is spawned
+	// inside a wall or pushed into solid by a door. When AllSolid is true,
+	// Fraction is 0, EndPos equals the start position, and the entity should
+	// not move.
+	AllSolid bool
+
+	// StartSolid — true if the trace start point is inside solid geometry,
+	// but the trace eventually exits into open space. This is a partially-stuck
+	// state: the entity can still move but its starting position is invalid.
+	// The engine handles this by allowing the move but flagging the condition.
+	StartSolid bool
+
+	// Fraction — how far along the trace path the first collision occurred,
+	// as a fraction from 0.0 to 1.0. 0.0 = collision at the start point,
+	// 1.0 = no collision (full path is clear). The actual collision point is:
+	//   collision_point = start + (end - start) * Fraction
+	// Values slightly less than 1.0 indicate a glancing hit near the end.
+	Fraction float32
+
+	// EndPos — the world-space position where the trace ended. If Fraction < 1.0,
+	// this is the point of collision (backed off slightly from the surface by
+	// DIST_EPSILON to prevent the entity from being exactly on the surface).
+	// If Fraction == 1.0, this equals the desired end position.
+	EndPos [3]float32
+
+	// PlaneNormal — the outward-facing normal vector of the surface that was
+	// hit. This is critical for physics response:
+	//   - For floor collisions, PlaneNormal ≈ {0, 0, 1} (pointing up).
+	//   - For wall collisions, PlaneNormal is horizontal.
+	//   - Used by ClipVelocity to redirect the entity's velocity along the
+	//     surface (slide along walls instead of stopping dead).
+	//   - Dot(velocity, PlaneNormal) gives the impact speed for bounce/damage.
+	PlaneNormal [3]float32
+
+	// PlaneDist — signed plane distance for the impact surface. QC traceline
+	// exposes this as trace_plane_dist.
+	PlaneDist float32
+
+	// Entity — pointer to the edict that was hit, or nil if the trace hit
+	// world geometry (or nothing). When non-nil, the engine can fire touch
+	// callbacks on both the moving entity and the hit entity.
+	Entity *Edict
+
+	// InOpen / InWater mirror Quake trace_t flags used by QC traceline users
+	// such as monster attack checks.
+	InOpen  bool
+	InWater bool
+}

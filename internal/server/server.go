@@ -19,6 +19,8 @@
 // file bridges these two representations, copying data between them at key
 // boundaries so that Go physics/networking code and QuakeC game logic always
 // operate on consistent values.
+
+// This file belongs to the Server Lifecycle subsystem: server struct, frame timing, PVS, user commands, spawn parameters, rules, and core server types.
 package server
 
 import (

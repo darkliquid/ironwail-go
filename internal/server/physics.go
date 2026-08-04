@@ -37,6 +37,7 @@
 // (sv_maxvelocity, sv_gravity); the Go version reads these from
 // the server struct.
 
+// This file belongs to the Physics/Collision subsystem: collision detection, spatial queries, movement, and per-entity physics simulation.
 package server
 
 import (

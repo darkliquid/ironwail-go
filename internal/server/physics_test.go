@@ -1,3 +1,5 @@
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 import (
@@ -686,7 +688,7 @@ func TestPhysicsTelemetryFrameHooks(t *testing.T) {
 		return DebugTelemetryConfig{
 			Enabled:      true,
 			EventMask:    debugEventMaskFrame,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 			SummaryMode:  2,
 		}
 	}, func(line string) {

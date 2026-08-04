@@ -1,3 +1,5 @@
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 import (
@@ -45,7 +47,7 @@ func TestExecuteQCFunctionLogsTraceChain(t *testing.T) {
 			EventMask:   debugEventMaskQC,
 			SummaryMode: 0,
 			EntityFilter: debugEntityFilter{
-				all: true,
+				All: true,
 			},
 		}
 	}, func(line string) {
@@ -109,7 +111,7 @@ func TestExecuteQCFunctionBuiltinTracingHonorsVerbosity(t *testing.T) {
 			QCVerbosity:  1,
 			EventMask:    debugEventMaskQC,
 			SummaryMode:  0,
-			EntityFilter: debugEntityFilter{all: true},
+			EntityFilter: debugEntityFilter{All: true},
 		}
 	}, func(line string) {
 		lines = append(lines, line)

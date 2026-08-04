@@ -1,3 +1,5 @@
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 // Spawn command, client command, and PutClientInServer tests split from server_test.go.

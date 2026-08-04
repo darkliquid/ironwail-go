@@ -1,3 +1,5 @@
+// This file belongs to the Entity/QC subsystem: edict allocation, entity accessors, QuakeC field offsets, QC call tracing, and entity state types.
+
 package server
 
 // cacheQCFieldOffsets looks up extension field offsets from the loaded

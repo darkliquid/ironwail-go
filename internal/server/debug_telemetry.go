@@ -1,27 +1,60 @@
+// This file belongs to the Debug subsystem: debug telemetry, trigger touch debugging, and multiplayer debug logging.
+//
+// Portable types (DebugEventKind, DebugEventMask, TelemetryConfig, EntityFilter,
+// EntitySnapshot) and helper functions have been moved to
+// internal/server/debug. The DebugTelemetry engine and its methods remain
+// here because they reference Edict and the QC VM.
 package server
 
 import (
 	"fmt"
 	"os"
-	"path"
-	"strconv"
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
 )
 
+// Type aliases for debug types moved to the debug sub-package.
+type (
+	DebugEventKind    = srvdebug.DebugEventKind
+	DebugEventMask    = srvdebug.DebugEventMask
+	DebugEntityFilter = srvdebug.EntityFilter
+	DebugTelemetryConfig = srvdebug.TelemetryConfig
+	DebugEntitySnapshot  = srvdebug.EntitySnapshot
+)
+
+// Debug event kind constants re-exported from the debug sub-package.
 const (
-	debugTelemetryEnableCVarName      = "sv_debug_telemetry"
-	debugTelemetryEventsCVarName      = "sv_debug_telemetry_events"
-	debugTelemetryClassnameCVarName   = "sv_debug_telemetry_classname"
-	debugTelemetryEntNumCVarName      = "sv_debug_telemetry_entnum"
-	debugTelemetrySummaryCVarName     = "sv_debug_telemetry_summary"
-	debugTelemetryQCTraceCVarName     = "sv_debug_qc_trace"
-	debugTelemetryQCVerbosityCVarName = "sv_debug_qc_trace_verbosity"
-	debugTriggerCVarName              = "sv_debug_trigger"
+	DebugEventTrigger = srvdebug.DebugEventTrigger
+	DebugEventTouch   = srvdebug.DebugEventTouch
+	DebugEventUse     = srvdebug.DebugEventUse
+	DebugEventThink   = srvdebug.DebugEventThink
+	DebugEventBlocked = srvdebug.DebugEventBlocked
+	DebugEventPhysics = srvdebug.DebugEventPhysics
+	DebugEventFrame   = srvdebug.DebugEventFrame
+	DebugEventQC      = srvdebug.DebugEventQC
 )
 
+// Debug event mask constants re-exported from the debug sub-package.
+const (
+	debugEventMaskTrigger = srvdebug.EventMaskTrigger
+	debugEventMaskTouch   = srvdebug.EventMaskTouch
+	debugEventMaskUse     = srvdebug.EventMaskUse
+	debugEventMaskThink   = srvdebug.EventMaskThink
+	debugEventMaskBlocked = srvdebug.EventMaskBlocked
+	debugEventMaskPhysics = srvdebug.EventMaskPhysics
+	debugEventMaskFrame   = srvdebug.EventMaskFrame
+	debugEventMaskQC      = srvdebug.EventMaskQC
+	debugEventMaskAll     = srvdebug.EventMaskAll
+)
+
+var (
+	debugEventKindOrder = srvdebug.EventKindOrder
+)
+
+// CVar variables for debug telemetry (set during registration).
 var (
 	debugTelemetryEnableCVar      *cvar.CVar
 	debugTelemetryEventsCVar      *cvar.CVar
@@ -34,6 +67,18 @@ var (
 	debugTelemetryEmit            = func(line string) {
 		fmt.Fprintln(os.Stderr, line)
 	}
+)
+
+// CVar name constants re-exported from the debug sub-package.
+const (
+	debugTelemetryEnableCVarName      = srvdebug.DebugTelemetryEnableCVarName
+	debugTelemetryEventsCVarName      = srvdebug.DebugTelemetryEventsCVarName
+	debugTelemetryClassnameCVarName   = srvdebug.DebugTelemetryClassnameCVarName
+	debugTelemetryEntNumCVarName      = srvdebug.DebugTelemetryEntNumCVarName
+	debugTelemetrySummaryCVarName     = srvdebug.DebugTelemetrySummaryCVarName
+	debugTelemetryQCTraceCVarName     = srvdebug.DebugTelemetryQCTraceCVarName
+	debugTelemetryQCVerbosityCVarName = srvdebug.DebugTelemetryQCVerbosityCVarName
+	debugTriggerCVarName              = srvdebug.DebugTriggerCVarName
 )
 
 // RegisterDebugTelemetryCVars registers the server-side debug telemetry control
@@ -50,123 +95,27 @@ func RegisterDebugTelemetryCVars(cv *cvar.CVarSystem) {
 	debugTriggerCVar = cv.Register(debugTriggerCVarName, "0", cvar.FlagNone, "Print trigger/entity activation info to console")
 }
 
-type DebugEventKind string
+// debugEntityFilter is aliased to srvdebug.EntityFilter for backward compat.
+type debugEntityFilter = srvdebug.EntityFilter
 
-const (
-	DebugEventTrigger DebugEventKind = "trigger"
-	DebugEventTouch   DebugEventKind = "touch"
-	DebugEventUse     DebugEventKind = "use"
-	DebugEventThink   DebugEventKind = "think"
-	DebugEventBlocked DebugEventKind = "blocked"
-	DebugEventPhysics DebugEventKind = "physics"
-	DebugEventFrame   DebugEventKind = "frame"
-	DebugEventQC      DebugEventKind = "qc"
-)
-
-type DebugEventMask uint64
-
-const (
-	debugEventMaskTrigger DebugEventMask = 1 << iota
-	debugEventMaskTouch
-	debugEventMaskUse
-	debugEventMaskThink
-	debugEventMaskBlocked
-	debugEventMaskPhysics
-	debugEventMaskFrame
-	debugEventMaskQC
-)
-
-const debugEventMaskAll = debugEventMaskTrigger |
-	debugEventMaskTouch |
-	debugEventMaskUse |
-	debugEventMaskThink |
-	debugEventMaskBlocked |
-	debugEventMaskPhysics |
-	debugEventMaskFrame |
-	debugEventMaskQC
-
-var debugEventKindOrder = []DebugEventKind{
-	DebugEventFrame,
-	DebugEventTrigger,
-	DebugEventTouch,
-	DebugEventUse,
-	DebugEventThink,
-	DebugEventBlocked,
-	DebugEventPhysics,
-	DebugEventQC,
+// parseDebugEntityFilter wraps the debug sub-package's ParseEntityFilter.
+func parseDebugEntityFilter(raw string) debugEntityFilter {
+	return srvdebug.ParseEntityFilter(raw)
 }
 
-func (k DebugEventKind) mask() DebugEventMask {
-	switch k {
-	case DebugEventTrigger:
-		return debugEventMaskTrigger
-	case DebugEventTouch:
-		return debugEventMaskTouch
-	case DebugEventUse:
-		return debugEventMaskUse
-	case DebugEventThink:
-		return debugEventMaskThink
-	case DebugEventBlocked:
-		return debugEventMaskBlocked
-	case DebugEventPhysics:
-		return debugEventMaskPhysics
-	case DebugEventFrame:
-		return debugEventMaskFrame
-	case DebugEventQC:
-		return debugEventMaskQC
-	default:
-		return 0
-	}
+// matchesClassnameFilter wraps the debug sub-package's MatchesClassnameFilter.
+func matchesClassnameFilter(raw, classname string) bool {
+	return srvdebug.MatchesClassnameFilter(raw, classname)
 }
 
-type debugEntityFilter struct {
-	all     bool
-	allowed map[int]struct{}
+// formatDebugMessage wraps the debug sub-package's FormatMessage.
+func formatDebugMessage(format string, args ...any) string {
+	return srvdebug.FormatMessage(format, args...)
 }
 
-func (f debugEntityFilter) Matches(entNum int) bool {
-	if f.all {
-		return true
-	}
-	if entNum < 0 {
-		return false
-	}
-	_, ok := f.allowed[entNum]
-	return ok
-}
-
-type DebugTelemetryConfig struct {
-	Enabled         bool
-	EventMask       DebugEventMask
-	ClassnameFilter string
-	EntityFilter    debugEntityFilter
-	SummaryMode     int
-	QCTrace         bool
-	QCVerbosity     int
-}
-
-func (c DebugTelemetryConfig) AnyEnabled() bool {
-	return c.Enabled || c.QCTrace
-}
-
-func (c DebugTelemetryConfig) ShouldLog(kind DebugEventKind, entNum int, classname string) bool {
-	mask := kind.mask()
-	if mask == 0 || c.EventMask&mask == 0 {
-		return false
-	}
-	if !c.EntityFilter.Matches(entNum) {
-		return false
-	}
-	return matchesClassnameFilter(c.ClassnameFilter, classname)
-}
-
-type DebugEntitySnapshot struct {
-	EntNum     int
-	ClassName  string
-	TargetName string
-	Target     string
-	Model      string
-	Origin     [3]float32
+// clampSummaryMode wraps the debug sub-package's ClampSummaryMode.
+func clampSummaryMode(mode int) int {
+	return srvdebug.ClampSummaryMode(mode)
 }
 
 type DebugTelemetry struct {
@@ -454,7 +403,7 @@ func (t *DebugTelemetry) reloadConfig() {
 func readDebugTelemetryConfig() DebugTelemetryConfig {
 	cfg := DebugTelemetryConfig{
 		EventMask:    debugEventMaskAll,
-		EntityFilter: debugEntityFilter{all: true},
+		EntityFilter: debugEntityFilter{All: true},
 		SummaryMode:  1,
 		QCVerbosity:  1,
 	}
@@ -488,123 +437,9 @@ func readDebugTelemetryConfig() DebugTelemetryConfig {
 	return cfg
 }
 
+// parseDebugEventMask wraps the debug sub-package's ParseEventMask.
 func parseDebugEventMask(raw string) DebugEventMask {
-	raw = strings.TrimSpace(strings.ToLower(raw))
-	if raw == "" || raw == "*" || raw == "all" {
-		return debugEventMaskAll
-	}
-	if raw == "none" {
-		return 0
-	}
-	if value, err := strconv.ParseUint(raw, 0, 64); err == nil {
-		return DebugEventMask(value)
-	}
-
-	var mask DebugEventMask
-	for _, token := range splitDebugFilterTokens(raw) {
-		switch token {
-		case "all":
-			mask |= debugEventMaskAll
-		case "trigger":
-			mask |= debugEventMaskTrigger
-		case "touch":
-			mask |= debugEventMaskTouch
-		case "use":
-			mask |= debugEventMaskUse
-		case "think":
-			mask |= debugEventMaskThink
-		case "blocked":
-			mask |= debugEventMaskBlocked
-		case "physics":
-			mask |= debugEventMaskPhysics
-		case "frame":
-			mask |= debugEventMaskFrame
-		case "qc":
-			mask |= debugEventMaskQC
-		}
-	}
-	return mask
-}
-
-func parseDebugEntityFilter(raw string) debugEntityFilter {
-	raw = strings.TrimSpace(strings.ToLower(raw))
-	if raw == "" || raw == "*" || raw == "all" || raw == "-1" {
-		return debugEntityFilter{all: true}
-	}
-
-	filter := debugEntityFilter{allowed: make(map[int]struct{})}
-	for _, token := range splitDebugFilterTokens(raw) {
-		if token == "" {
-			continue
-		}
-		if start, end, ok := parseDebugEntityRange(token); ok {
-			for entNum := start; entNum <= end; entNum++ {
-				filter.allowed[entNum] = struct{}{}
-			}
-			continue
-		}
-		if entNum, err := strconv.Atoi(token); err == nil {
-			filter.allowed[entNum] = struct{}{}
-		}
-	}
-	if len(filter.allowed) == 0 {
-		return debugEntityFilter{}
-	}
-	return filter
-}
-
-func parseDebugEntityRange(token string) (int, int, bool) {
-	if strings.Count(token, "-") != 1 || strings.HasPrefix(token, "-") {
-		return 0, 0, false
-	}
-	parts := strings.SplitN(token, "-", 2)
-	start, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return 0, 0, false
-	}
-	end, err := strconv.Atoi(parts[1])
-	if err != nil || end < start {
-		return 0, 0, false
-	}
-	return start, end, true
-}
-
-func matchesClassnameFilter(raw, classname string) bool {
-	raw = strings.TrimSpace(strings.ToLower(raw))
-	if raw == "" || raw == "*" {
-		return true
-	}
-	classname = strings.ToLower(classname)
-	if classname == "" {
-		return false
-	}
-	for _, token := range splitDebugFilterTokens(raw) {
-		if token == "" {
-			continue
-		}
-		if strings.ContainsAny(token, "*?[") {
-			matched, err := path.Match(token, classname)
-			if err == nil && matched {
-				return true
-			}
-			continue
-		}
-		if token == classname {
-			return true
-		}
-	}
-	return false
-}
-
-func splitDebugFilterTokens(raw string) []string {
-	return strings.FieldsFunc(raw, func(r rune) bool {
-		switch r {
-		case ',', '|', '+', ' ', '\t', '\n', '\r':
-			return true
-		default:
-			return false
-		}
-	})
+	return srvdebug.ParseEventMask(raw)
 }
 
 func entityClassname(vm *qc.VM, ent *Edict) string {
@@ -622,24 +457,4 @@ func qcString(vm *qc.VM, idx int32) string {
 		return ""
 	}
 	return vm.String(idx)
-}
-
-func formatDebugMessage(format string, args ...any) string {
-	if format == "" {
-		return ""
-	}
-	if len(args) == 0 {
-		return format
-	}
-	return fmt.Sprintf(format, args...)
-}
-
-func clampSummaryMode(mode int) int {
-	if mode < 0 {
-		return 0
-	}
-	if mode > 2 {
-		return 2
-	}
-	return mode
 }

@@ -1,3 +1,5 @@
+// This file belongs to the Server Lifecycle subsystem: server struct, frame timing, PVS, user commands, spawn parameters, rules, and core server types.
+
 package server
 
 import "strings"

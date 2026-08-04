@@ -1,6 +1,8 @@
 // Copyright (C) 2024 Ironwail Go Port Authors
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+// This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
+
 package server
 
 import (
@@ -8,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
+	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
 )
 
 func captureSvdbg(t *testing.T, mpLevel, moveLevel string) *strings.Builder {
@@ -17,12 +20,11 @@ func captureSvdbg(t *testing.T, mpLevel, moveLevel string) *strings.Builder {
 	cv.Set(SvDebugMultiplayerCVarName, mpLevel)
 	cv.Set(SvDebugMoveCVarName, moveLevel)
 	var buf strings.Builder
-	saved := SvdbgEmit
-	SvdbgEmit = func(line string) { buf.WriteString(line); buf.WriteByte('\n') }
+	saved := srvdebug.SvdbgEmit
+	srvdebug.SvdbgEmit = func(line string) { buf.WriteString(line); buf.WriteByte('\n') }
 	t.Cleanup(func() {
-		SvdbgEmit = saved
-		svDebugMultiplayerCVar = nil
-		svDebugMoveCVar = nil
+		srvdebug.SvdbgEmit = saved
+		srvdebug.ResetSvdbgCVars()
 	})
 	return &buf
 }
@@ -31,13 +33,12 @@ func TestSvdbgDisabledByDefault(t *testing.T) {
 	cv := cvar.NewCVarSystem()
 	RegisterSvdbgCVars(cv)
 	t.Cleanup(func() {
-		svDebugMultiplayerCVar = nil
-		svDebugMoveCVar = nil
+		srvdebug.ResetSvdbgCVars()
 	})
 	var got string
-	saved := SvdbgEmit
-	SvdbgEmit = func(line string) { got += line }
-	t.Cleanup(func() { SvdbgEmit = saved })
+	saved := srvdebug.SvdbgEmit
+	srvdebug.SvdbgEmit = func(line string) { got += line }
+	t.Cleanup(func() { srvdebug.SvdbgEmit = saved })
 	SvdbgMultiplayerLogf("ping")
 	SvdbgMoveLogf("walk")
 	if got != "" {

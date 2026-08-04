@@ -1,74 +1,25 @@
+// This file belongs to the Savegame subsystem: save/load game serialization and text format helpers.
+//
+// TextSaveGameState and ParseTextSaveGame have been moved to
+// internal/server/savegame. The RestoreTextSaveGameState method remains
+// here because it requires deep access to Server internals.
 package server
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/common"
 )
 
-// TextSaveGameState captures the line-oriented KEX/native text save format
-// after header parsing. The entity/global body stays in raw text form so a
-// live server can reuse the existing ED_ParseGlobals / ED_ParseEdict paths.
-type TextSaveGameState struct {
-	Version     int
-	GameDir     string
-	Title       string
-	Skill       int
-	MapName     string
-	Time        float32
-	SpawnParms  [NumSpawnParms]float32
-	LightStyles [64]string
-	EntityText  string
-}
-
-// ParseTextSaveGame parses the Quake-style text save header and preserves the
-// remaining globals/edict block for later restoration into a live server.
-func ParseTextSaveGame(data []byte) (*TextSaveGameState, error) {
-	text := strings.TrimSpace(string(data))
-	if text == "" {
-		return nil, fmt.Errorf("savegame is empty")
+// maxInt returns the larger of a and b.
+func maxInt(a, b int) int {
+	if a > b {
+		return a
 	}
-
-	state := &TextSaveGameState{}
-	var skill float32
-
-	text, state.Version = common.COM_ParseIntNewline(text)
-	if state.Version <= 0 {
-		return nil, fmt.Errorf("missing savegame version")
-	}
-	if state.Version == SaveGameVersionKEX {
-		var line string
-		text, line = parseTextSaveLine(text)
-		state.GameDir = line
-	}
-
-	text, state.Title = parseTextSaveLine(text)
-	for i := 0; i < NumSpawnParms; i++ {
-		text, state.SpawnParms[i] = parseTextSaveFloatLine(text)
-	}
-	text, skill = parseTextSaveFloatLine(text)
-	state.Skill = int(skill + 0.1)
-
-	text, state.MapName = parseTextSaveLine(text)
-	if state.MapName == "" {
-		return nil, fmt.Errorf("savegame map is empty")
-	}
-
-	text, state.Time = parseTextSaveFloatLine(text)
-	for i := range state.LightStyles {
-		text, state.LightStyles[i] = parseTextSaveLine(text)
-	}
-
-	state.EntityText = strings.TrimLeft(text, " \t\r\n")
-	if state.EntityText == "" {
-		return nil, fmt.Errorf("savegame entity data is empty")
-	}
-
-	return state, nil
+	return b
 }
 
 // RestoreTextSaveGameState applies a parsed text save to a live spawned server.
@@ -242,37 +193,4 @@ func (s *Server) ensureTextSaveEdictCapacity(required int) error {
 	}
 	s.ensureQCVMEdictStorage()
 	return nil
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func parseTextSaveLine(text string) (string, string) {
-	text = strings.TrimLeft(text, " \t")
-	if text == "" {
-		return "", ""
-	}
-
-	line := text
-	rest := ""
-	if newline := strings.IndexByte(text, '\n'); newline >= 0 {
-		line = text[:newline]
-		rest = text[newline+1:]
-	}
-
-	line = strings.TrimSpace(strings.TrimSuffix(line, "\r"))
-	return rest, line
-}
-
-func parseTextSaveFloatLine(text string) (string, float32) {
-	rest, line := parseTextSaveLine(text)
-	if line == "" {
-		return rest, 0
-	}
-	value, _ := strconv.ParseFloat(line, 32)
-	return rest, float32(value)
 }

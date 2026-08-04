@@ -46,6 +46,8 @@
 // case-insensitive, underscore-insensitive lookup used by the original C
 // engine and ensures broad compatibility with map editors that use varying
 // conventions.
+
+// This file belongs to the Entity/QC subsystem: edict allocation, entity accessors, QuakeC field offsets, QC call tracing, and entity state types.
 package server
 
 import (
