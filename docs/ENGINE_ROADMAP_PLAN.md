@@ -8,8 +8,9 @@ This document defines the step-by-step implementation strategy for the major eng
 4. **Phase 3 (Item 5)**: Arena / Region Allocators for Level Lifetimes — **COMPLETED** (commit `ab41b31`)
 5. **Phase 4 (Item 4)**: CSQC (Client-Side QuakeC) Host/Client Runtime Integration — **COMPLETED**
 6. **Phase 5 (Item 6)**: Parity Closure & Sign-off on `qbj3_stickflip`
-7. **Phase 6 (Item 7)**: Engine Modularisation & Go Idiom Adoption
+7. **Phase 6 (Item 7)**: Engine Modularisation & Go Idiom Adoption — **IN PROGRESS** (Server DI & PhysicsSystem completed)
 8. **Phase 7 (Item 1)**: Browser Port via WebAssembly (`GOOS=js GOARCH=wasm`)
+
 
 ---
 
@@ -152,23 +153,39 @@ Achieve official visual and behavioral parity sign-off on the `qbj3_stickflip` c
 
 ---
 
-## Phase 6: Engine Modularisation & Go Idiom Adoption
+## Phase 6: Engine Modularisation & Go Idiom Adoption [IN PROGRESS]
 
 ### Objective
-Refactor large monolithic packages (`internal/server`, `internal/game`) into focused sub-packages, and adopt Go-idiomatic control flow and error handling.
+Decouple monolithic packages (`internal/server`, `internal/renderer`, `internal/game`) into standalone, single-responsibility components communicating via interfaces and dependency injection.
 
-### Target Files
-- `internal/server/` → `internal/server/physics`, `internal/server/entities`
-- `internal/game/`
+### Current Progress & Target Architecture
 
-### Step-by-Step Execution
-1. **Package Decomposition**:
-   - Split `internal/server` into sub-packages to tighten visibility contracts.
-2. **Error Handling & Contexts**:
-   - Replace C-style error codes with explicit Go `error` returns and `context.Context` cancellation for async operations.
+1. **Server Subsystem Interfaces & DI (COMPLETED — commits `188e183` through `94643b1`)**:
+   - Extracted core interfaces in `internal/server/interfaces.go`: `CollisionWorld`, `EntityStore`, `PhysicsConfig`, `FrameTiming`, `ThinkExecutor`, `PhysicsEngine`, `MovementEngine`, `NetworkBroadcaster`.
+   - Refactored movement/physics signatures (`checkBottom`, `moveStep`, `stepDirection`, `AddGravity`, `PushEntity`, etc.) to operate on interfaces.
+   - Extracted `PhysicsSystem` component struct (`physics_system.go`) and injected it into `Server` in `NewServer()`.
+   - Added isolated unit tests with mocks in `physics_system_test.go`.
+
+2. **Remaining Server Subsystem Extractions**:
+   - **`CollisionSystem`**: Extract spatial `AreaNode` tree, leaf content queries, and BSP hull tracing into a standalone `CollisionSystem` struct.
+   - **`NetworkBroadcaster`**: Extract packet encoding, signon buffer assembly, and sound emission into a standalone `NetworkManager` component.
+
+3. **Renderer Struct Decoupling (`internal/renderer/`)**:
+   - Sub-divide the ~370-field `Renderer` struct into focused subsystem renderers:
+     - `WorldRenderer`: BSP world, textures, lightmaps, decals.
+     - `AliasRenderer`: MDL alias models and GPU vertex animations.
+     - `OverlayRenderer`: HUD, 2D glyphs, console, and CSQC overlays.
+     - `ParticleSystem`: Dynamic particles and explosion effects.
+
+4. **Game Coordinator Decomposition (`internal/game/`)**:
+   - Refactor `Game` struct (~40 fields) by extracting `game/overlay` (HUD/Console), `game/input` (key mapping), and `game/sound` adapters.
+
+5. **Package Documentation Foundation**:
+   - Ensure all 11 missing `doc.go` files (`internal/async`, `internal/mods`, `internal/renderer/alias`, etc.) are created with C lineage, package purpose, and testing notes.
 
 ### Testing Strategy
 - Run `mise run lint` and `mise run test`.
+
 
 ---
 
