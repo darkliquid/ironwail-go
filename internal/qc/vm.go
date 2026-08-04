@@ -447,12 +447,11 @@ type EntVars struct {
 //   - sound: Play a sound effect
 type BuiltinFunc func(vm *VM)
 
-// VM represents the complete state of a QuakeC Virtual Machine.
-// A single VM instance is used to execute one progs.dat file.
-// The server and client each have their own VM instances.
-//
-// VMs must be created with NewVM and initialized with LoadProgs
-// before execution.
+// GetVM returns the VM instance to satisfy the VMProvider interface.
+func (vm *VM) GetVM() *VM {
+	return vm
+}
+
 type VM struct {
 	// Progs is the header from the loaded .dat file.
 	// Contains metadata about sections and sizes.

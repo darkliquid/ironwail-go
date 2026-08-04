@@ -240,6 +240,7 @@ type AreaNode struct {
 // is mirrored so QC builtins and scripts read the same fields (origin, health, etc.).
 func NewServer() *Server {
 	compatRNG := compatrand.New()
+
 	vm := qc.NewVM()
 	vm.SetCompatRNG(compatRNG)
 
@@ -272,10 +273,8 @@ func NewServer() *Server {
 	s.NetManager = NewNetworkManager(s)
 	s.PhysicsSys = NewPhysicsSystem(s.CollisionSys, s, s, s, s, s)
 	vm.IsServerActive = func() bool { return s.State == ServerStateActive }
-
-
-
 	vm.Cvars = s.CVar
+
 
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations
 	// return entity indices starting at 1, matching the VM's

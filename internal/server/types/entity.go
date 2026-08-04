@@ -147,3 +147,23 @@ type UserCmd struct {
 	// copies this to the entity's Impulse field and QuakeC processes it.
 	Impulse uint8
 }
+
+// Edict represents a Quake server entity.
+type Edict struct {
+	Num            int
+	Free           bool
+	AreaPrev       *Edict
+	AreaNext       *Edict
+	NumLeafs       int
+	LeafNums       [32]int
+	Baseline       EntityState
+	Alpha          uint8
+	Scale          uint8
+	ForceWater     bool
+	SendForceWater bool
+	SendInterval   bool
+	OldFrame       float32
+	OldThinkTime   float32
+	FreeTime       float32
+}
+

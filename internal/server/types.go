@@ -12,11 +12,13 @@ import srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 // NetMessageType, and ServerNetMessage are aliased in their respective
 // domain files (types_entities.go, types_flags.go, types_protocol.go).
 type (
+	Edict           = srvtypes.Edict
 	MoveType        = srvtypes.MoveType
 	SolidType       = srvtypes.SolidType
 	ServerState     = srvtypes.ServerState
 	EntityState     = srvtypes.EntityState
 )
+
 
 // MoveType constants
 const (

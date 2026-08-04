@@ -57,62 +57,8 @@ type (
 // whether any of the entity's leaves are in the client's PVS. If none
 // are visible, the entity is culled from that client's network update.
 //
-// # Baseline (Delta Compression)
-//
-// The Baseline field stores the entity's initial state snapshot, sent to
-// clients during the signon phase. Subsequent updates only transmit fields
-// that differ from this baseline, saving bandwidth.
-type Edict struct {
-	// Num is the entity number (index into s.Edicts and s.QCVM.Edicts).
-	// Set during allocation, stable for the entity's lifetime.
-	Num int
-
-	// Free indicates this edict slot is available for reuse. When true, the
-	// entity has been removed from the game world but the slot hasn't been
-	// recycled yet (waiting for FreeTime delay to expire).
-	Free bool
-
-	// Area linkage for spatial partitioning. These form a doubly-linked list
-	// connecting this edict to others in the same world area. The area system
-	// accelerates collision queries by spatially indexing entities.
-	AreaPrev *Edict
-	AreaNext *Edict
-
-	// Leaf visibility data for PVS (Potentially Visible Set) culling.
-	// NumLeafs is the count of BSP visleafs this entity overlaps.
-	// LeafNums stores Quake visleaf indices (BSP leaf index minus 1,
-	// skipping solid leaf 0) up to MaxEntityLeafs.
-	// If the entity spans more leaves than MaxEntityLeafs, it is always
-	// considered visible (too large to cull precisely).
-	NumLeafs int
-	LeafNums [32]int
-
-	// Baseline is the reference EntityState sent during signon for delta
-	// compression. All subsequent network updates for this entity encode
-	// only the differences from this baseline.
-	// Alpha and Scale are engine-side overrides for rendering transparency
-	// and size, sent via extended protocol bits.
-	Baseline EntityState
-	Alpha    uint8
-	Scale    uint8
-
-	// Physics scratch state used during the current frame's physics step.
-	// ForceWater/SendForceWater handle edge cases where water state must
-	// be explicitly communicated to the client.
-	// SendInterval tracks whether this entity uses interpolation timing.
-	// OldFrame/OldThinkTime are used to detect animation and think changes.
-	ForceWater     bool
-	SendForceWater bool
-	SendInterval   bool
-	OldFrame       float32
-	OldThinkTime   float32
-
-	// FreeTime records when this edict was freed (set to server time when
-	// Free becomes true). During the first two seconds of server time free
-	// slots may be reused immediately; afterwards they wait 0.5 seconds to
-	// avoid client-side interpolation/trail glitches from rapid reuse.
-	FreeTime float32
-}
+// Note: Edict struct definition has been moved to internal/server/types/entity.go.
+// The type alias server.Edict is exported in internal/server/types.go.
 
 // TraceResult contains the result of a collision trace (ray or hull trace).
 //
