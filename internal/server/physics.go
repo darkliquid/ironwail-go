@@ -49,10 +49,15 @@ import (
 
 // CheckVelocity ensures entity velocity is within valid bounds.
 func (s *Server) CheckVelocity(ent *Edict) {
+	checkVelocity(s, ent, s)
+}
+
+func checkVelocity(cfg PhysicsConfig, ent *Edict, s *Server) {
 	vel := ent.Velocity(s)
 	orig := ent.Origin(s)
 	changedVel := false
 	changedOrig := false
+	maxVel := cfg.GetMaxVelocity()
 	for i := 0; i < 3; i++ {
 		if math.IsNaN(float64(vel[i])) {
 			vel[i] = 0
@@ -62,11 +67,11 @@ func (s *Server) CheckVelocity(ent *Edict) {
 			orig[i] = 0
 			changedOrig = true
 		}
-		if vel[i] > s.MaxVelocity {
-			vel[i] = s.MaxVelocity
+		if vel[i] > maxVel {
+			vel[i] = maxVel
 			changedVel = true
-		} else if vel[i] < -s.MaxVelocity {
-			vel[i] = -s.MaxVelocity
+		} else if vel[i] < -maxVel {
+			vel[i] = -maxVel
 			changedVel = true
 		}
 	}
@@ -77,6 +82,7 @@ func (s *Server) CheckVelocity(ent *Edict) {
 		ent.SetOrigin(s, orig)
 	}
 }
+
 
 // RunThink executes the entity's think function if its nextthink time has been reached.
 func (s *Server) RunThink(ent *Edict) bool {
@@ -191,6 +197,10 @@ func ClipVelocity(in, normal [3]float32, overbounce float32) [3]float32 {
 const maxClipPlanes = 5
 
 func (s *Server) AddGravity(ent *Edict) {
+	addGravity(s, s, ent, s)
+}
+
+func addGravity(cfg PhysicsConfig, timing FrameTiming, ent *Edict, s *Server) {
 	entGravity := float32(1)
 	// Check for per-entity gravity multiplier (used by mods for flying
 	// monsters, low-gravity areas, etc). Matches C GetEdictFieldValueByName.
@@ -200,11 +210,15 @@ func (s *Server) AddGravity(ent *Edict) {
 		}
 	}
 	vel := ent.Velocity(s)
-	vel[2] -= entGravity * s.Gravity * s.FrameTime
+	vel[2] -= entGravity * cfg.GetGravity() * timing.GetFrameTime()
 	ent.SetVelocity(s, vel)
 }
 
 func (s *Server) SV_CheckWater(ent *Edict) bool {
+	return svCheckWater(s, ent, s)
+}
+
+func svCheckWater(col CollisionWorld, ent *Edict, s *Server) bool {
 	orig := ent.Origin(s)
 	mins := ent.Mins(s)
 	maxs := ent.Maxs(s)
@@ -217,16 +231,16 @@ func (s *Server) SV_CheckWater(ent *Edict) bool {
 
 	ent.SetWaterLevel(s, 0)
 	ent.SetWaterType(s, float32(bsp.ContentsEmpty))
-	cont := s.PointContents(point)
+	cont := col.PointContents(point)
 	if cont <= bsp.ContentsWater {
 		ent.SetWaterType(s, float32(cont))
 		ent.SetWaterLevel(s, 1)
 		point[2] = orig[2] + (mins[2]+maxs[2])*0.5
-		cont = s.PointContents(point)
+		cont = col.PointContents(point)
 		if cont <= bsp.ContentsWater {
 			ent.SetWaterLevel(s, 2)
 			point[2] = orig[2] + viewOfs[2]
-			cont = s.PointContents(point)
+			cont = col.PointContents(point)
 			if cont <= bsp.ContentsWater {
 				ent.SetWaterLevel(s, 3)
 			}
@@ -375,6 +389,10 @@ func (s *Server) FlyMove(ent *Edict, time float32, steptrace *TraceResult) int {
 }
 
 func (s *Server) PushEntity(ent *Edict, push [3]float32) TraceResult {
+	return pushEntity(s, ent, push, s)
+}
+
+func pushEntity(col CollisionWorld, ent *Edict, push [3]float32, s *Server) TraceResult {
 	orig := ent.Origin(s)
 	mins := ent.Mins(s)
 	maxs := ent.Maxs(s)
@@ -394,9 +412,9 @@ func (s *Server) PushEntity(ent *Edict, push [3]float32) TraceResult {
 		moveType = MoveNoMonsters
 	}
 
-	trace := s.Move(orig, mins, maxs, end, MoveType(moveType), ent)
+	trace := col.SV_Move(orig, mins, maxs, end, MoveType(moveType), ent)
 	ent.SetOrigin(s, trace.EndPos)
-	s.LinkEdict(ent, true)
+	col.LinkEdict(ent, true)
 
 	if trace.Entity != nil {
 		s.Impact(ent, trace.Entity)
@@ -404,6 +422,7 @@ func (s *Server) PushEntity(ent *Edict, push [3]float32) TraceResult {
 
 	return trace
 }
+
 
 func (s *Server) PushMove(pusher *Edict, movetime float32) {
 	pusherNum := s.NumForEdict(pusher)
