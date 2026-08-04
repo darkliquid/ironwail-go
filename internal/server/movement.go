@@ -61,7 +61,7 @@ func (s *Server) changeYaw(ent *Edict) {
 }
 
 func (s *Server) CheckBottom(ent *Edict) bool {
-	result := s.checkBottom(ent)
+	result := checkBottom(s, ent, s)
 	if result {
 		checkBottomYes++
 	} else {
@@ -88,7 +88,7 @@ func ResetCheckBottomStats() {
 	checkBottomNo = 0
 }
 
-func (s *Server) checkBottom(ent *Edict) bool {
+func checkBottom(col CollisionWorld, ent *Edict, s *Server) bool {
 	origin := ent.Origin(s)
 	mins := VecAdd(origin, ent.Mins(s))
 	maxs := VecAdd(origin, ent.Maxs(s))
@@ -109,7 +109,7 @@ func (s *Server) checkBottom(ent *Edict) bool {
 			} else {
 				start[1] = mins[1]
 			}
-			if s.PointContents(start) != bsp.ContentsSolid {
+			if col.PointContents(start) != bsp.ContentsSolid {
 				goto realcheck
 			}
 		}
@@ -124,7 +124,7 @@ realcheck:
 	stop = start
 	stop[2] = start[2] - 2*stepSize
 
-	trace := s.Move(start, [3]float32{}, [3]float32{}, stop, MoveType(MoveNoMonsters), ent)
+	trace := col.SV_Move(start, [3]float32{}, [3]float32{}, stop, MoveType(MoveNoMonsters), ent)
 	if trace.Fraction == 1 {
 		return false
 	}
@@ -145,7 +145,7 @@ realcheck:
 				start[1], stop[1] = mins[1], mins[1]
 			}
 
-			trace = s.Move(start, [3]float32{}, [3]float32{}, stop, MoveType(MoveNoMonsters), ent)
+			trace = col.SV_Move(start, [3]float32{}, [3]float32{}, stop, MoveType(MoveNoMonsters), ent)
 			if trace.Fraction != 1 && trace.EndPos[2] > bottom {
 				bottom = trace.EndPos[2]
 			}
@@ -159,6 +159,10 @@ realcheck:
 }
 
 func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
+	return moveStep(s, s, ent, move, relink, s)
+}
+
+func moveStep(col CollisionWorld, store EntityStore, ent *Edict, move [3]float32, relink bool, s *Server) bool {
 	oldorg := ent.Origin(s)
 	neworg := VecAdd(ent.Origin(s), move)
 	flags := uint32(ent.Flags(s))
@@ -166,7 +170,7 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 	if flags&(FlagSwim|FlagFly) != 0 {
 		for i := 0; i < 2; i++ {
 			neworg = VecAdd(ent.Origin(s), move)
-			enemy := s.EdictNum(int(ent.Enemy(s)))
+			enemy := store.EdictNum(int(ent.Enemy(s)))
 			if i == 0 && enemy != nil && len(s.Edicts) > 0 && enemy != s.Edicts[0] {
 				dz := ent.Origin(s)[2] - enemy.Origin(s)[2]
 				if dz > 40 {
@@ -177,14 +181,14 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 				}
 			}
 
-			trace := s.Move(ent.Origin(s), ent.Mins(s), ent.Maxs(s), neworg, MoveType(MoveNormal), ent)
+			trace := col.SV_Move(ent.Origin(s), ent.Mins(s), ent.Maxs(s), neworg, MoveType(MoveNormal), ent)
 			if trace.Fraction == 1 {
-				if flags&FlagSwim != 0 && s.PointContents(trace.EndPos) == bsp.ContentsEmpty {
+				if flags&FlagSwim != 0 && col.PointContents(trace.EndPos) == bsp.ContentsEmpty {
 					return false
 				}
 				ent.SetOrigin(s, trace.EndPos)
 				if relink {
-					s.LinkEdict(ent, true)
+					col.LinkEdict(ent, true)
 				}
 				return true
 			}
@@ -201,14 +205,14 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 	end := neworg
 	end[2] -= stepSize * 2
 
-	trace := s.Move(neworg, ent.Mins(s), ent.Maxs(s), end, MoveType(MoveNormal), ent)
+	trace := col.SV_Move(neworg, ent.Mins(s), ent.Maxs(s), end, MoveType(MoveNormal), ent)
 	if trace.AllSolid {
 		return false
 	}
 
 	if trace.StartSolid {
 		neworg[2] -= stepSize
-		trace = s.Move(neworg, ent.Mins(s), ent.Maxs(s), end, MoveType(MoveNormal), ent)
+		trace = col.SV_Move(neworg, ent.Mins(s), ent.Maxs(s), end, MoveType(MoveNormal), ent)
 		if trace.AllSolid || trace.StartSolid {
 			return false
 		}
@@ -218,7 +222,7 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 		if flags&FlagPartialGround != 0 {
 			ent.SetOrigin(s, VecAdd(ent.Origin(s), move))
 			if relink {
-				s.LinkEdict(ent, true)
+				col.LinkEdict(ent, true)
 			}
 			ent.SetFlags(s, float32(flags&^FlagOnGround))
 			return true
@@ -231,7 +235,7 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 	if !s.CheckBottom(ent) {
 		if flags&FlagPartialGround != 0 {
 			if relink {
-				s.LinkEdict(ent, true)
+				col.LinkEdict(ent, true)
 			}
 			return true
 		}
@@ -249,12 +253,16 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 	}
 
 	if relink {
-		s.LinkEdict(ent, true)
+		col.LinkEdict(ent, true)
 	}
 	return true
 }
 
 func (s *Server) StepDirection(ent *Edict, yaw, dist float32) bool {
+	return stepDirection(s, s, ent, yaw, dist, s)
+}
+
+func stepDirection(col CollisionWorld, store EntityStore, ent *Edict, yaw, dist float32, s *Server) bool {
 	ent.SetIdealYaw(s, yaw)
 	s.changeYaw(ent)
 
@@ -262,17 +270,17 @@ func (s *Server) StepDirection(ent *Edict, yaw, dist float32) bool {
 	move := [3]float32{float32(math.Cos(rad)) * dist, float32(math.Sin(rad)) * dist, 0}
 
 	oldorigin := ent.Origin(s)
-	if s.MoveStep(ent, move, false) {
+	if moveStep(col, store, ent, move, false, s) {
 		angles := ent.Angles(s)
 		delta := angles[1] - ent.IdealYaw(s)
 		if delta > 45 && delta < 315 {
 			ent.SetOrigin(s, oldorigin)
 		}
-		s.LinkEdict(ent, true)
+		col.LinkEdict(ent, true)
 		return true
 	}
 
-	s.LinkEdict(ent, true)
+	col.LinkEdict(ent, true)
 	return false
 }
 
@@ -298,6 +306,10 @@ func (s *Server) CloseEnough(ent, goal *Edict, dist float32) bool {
 }
 
 func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
+	newChaseDir(s, s, actor, enemy, dist, s)
+}
+
+func newChaseDir(col CollisionWorld, store EntityStore, actor, enemy *Edict, dist float32, s *Server) {
 	if actor == nil || enemy == nil {
 		return
 	}
@@ -335,7 +347,7 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 			tdir = 215
 		}
 
-		if tdir != turnaround && s.StepDirection(actor, tdir, dist) {
+		if tdir != turnaround && stepDirection(col, store, actor, tdir, dist, s) {
 			return
 		}
 	}
@@ -344,32 +356,32 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 		d[1], d[2] = d[2], d[1]
 	}
 
-	if d[1] != diNoDir && d[1] != turnaround && s.StepDirection(actor, d[1], dist) {
+	if d[1] != diNoDir && d[1] != turnaround && stepDirection(col, store, actor, d[1], dist, s) {
 		return
 	}
-	if d[2] != diNoDir && d[2] != turnaround && s.StepDirection(actor, d[2], dist) {
+	if d[2] != diNoDir && d[2] != turnaround && stepDirection(col, store, actor, d[2], dist, s) {
 		return
 	}
 
-	if olddir != diNoDir && s.StepDirection(actor, olddir, dist) {
+	if olddir != diNoDir && stepDirection(col, store, actor, olddir, dist, s) {
 		return
 	}
 
 	if s.compatRand()&1 != 0 {
 		for tdir := float32(0); tdir <= 315; tdir += 45 {
-			if tdir != turnaround && s.StepDirection(actor, tdir, dist) {
+			if tdir != turnaround && stepDirection(col, store, actor, tdir, dist, s) {
 				return
 			}
 		}
 	} else {
 		for tdir := float32(315); tdir >= 0; tdir -= 45 {
-			if tdir != turnaround && s.StepDirection(actor, tdir, dist) {
+			if tdir != turnaround && stepDirection(col, store, actor, tdir, dist, s) {
 				return
 			}
 		}
 	}
 
-	if turnaround != diNoDir && s.StepDirection(actor, turnaround, dist) {
+	if turnaround != diNoDir && stepDirection(col, store, actor, turnaround, dist, s) {
 		return
 	}
 
@@ -380,6 +392,10 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 }
 
 func (s *Server) MoveToGoal(ent *Edict, dist float32) bool {
+	return moveToGoal(s, s, ent, dist, s)
+}
+
+func moveToGoal(col CollisionWorld, store EntityStore, ent *Edict, dist float32, s *Server) bool {
 	if ent == nil {
 		return false
 	}
@@ -389,15 +405,15 @@ func (s *Server) MoveToGoal(ent *Edict, dist float32) bool {
 		return false
 	}
 
-	goal := s.EdictNum(int(ent.GoalEntity(s)))
-	enemy := s.EdictNum(int(ent.Enemy(s)))
+	goal := store.EdictNum(int(ent.GoalEntity(s)))
+	enemy := store.EdictNum(int(ent.Enemy(s)))
 	if goal != nil && len(s.Edicts) > 0 && enemy != nil && enemy != s.Edicts[0] && s.CloseEnough(ent, goal, dist) {
 		return true
 	}
 
-	if (s.compatRand()&3) == 1 || !s.StepDirection(ent, ent.IdealYaw(s), dist) {
+	if (s.compatRand()&3) == 1 || !stepDirection(col, store, ent, ent.IdealYaw(s), dist, s) {
 		if goal != nil {
-			s.NewChaseDir(ent, goal, dist)
+			newChaseDir(col, store, ent, goal, dist, s)
 		}
 	}
 
@@ -410,3 +426,4 @@ func (s *Server) compatRand() int32 {
 	}
 	return s.compatRNG.Int()
 }
+

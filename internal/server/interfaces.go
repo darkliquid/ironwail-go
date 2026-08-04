@@ -74,6 +74,19 @@ type PhysicsEngine interface {
 	PhysicsPusher(ent *Edict)
 }
 
+// MovementEngine defines the contract for entity movement and pathfinding.
+type MovementEngine interface {
+	// CheckBottom checks if an entity is supported on solid ground.
+	CheckBottom(ent *Edict) bool
+	// MoveStep attempts to step an entity forward in a direction.
+	MoveStep(ent *Edict, move [3]float32, relink bool) bool
+	// StepDirection turns and steps an entity toward a specific yaw angle.
+	StepDirection(ent *Edict, yaw, dist float32) bool
+	// MoveToGoal moves a monster entity toward its current goal or enemy.
+	MoveToGoal(ent *Edict, dist float32) bool
+}
+
+
 // Interface getters for PhysicsConfig and FrameTiming.
 
 func (s *Server) GetGravity() float32     { return s.Gravity }

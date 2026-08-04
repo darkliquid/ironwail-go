@@ -17,6 +17,7 @@ var (
 	_ FrameTiming    = (*Server)(nil)
 	_ ThinkExecutor  = (*Server)(nil)
 	_ PhysicsEngine  = (*Server)(nil)
+	_ MovementEngine = (*Server)(nil)
 )
 
 func TestServerImplementsInterfaces(t *testing.T) {
@@ -28,4 +29,6 @@ func TestServerImplementsInterfaces(t *testing.T) {
 	var _ FrameTiming = &s
 	var _ ThinkExecutor = &s
 	var _ PhysicsEngine = &s
+	var _ MovementEngine = &s
 }
+
