@@ -428,3 +428,29 @@ const (
 	// pattern is generated client-side so it doesn't require network bandwidth.
 	EffectCandleLight
 )
+
+// Sweep trace move type constants
+const (
+	MoveNormal     = MoveType(0) // Normal move
+	MoveNoMonsters = MoveType(1) // Ignore monsters
+	MoveMissile    = MoveType(2) // Missile sweep
+)
+
+// FL_* aliases for C/Quake parity in server code
+const (
+	FL_FLY           = FlagFly
+	FL_SWIM          = FlagSwim
+	FL_CONVEYOR      = FlagConveyor
+	FL_CLIENT        = FlagClient
+	FL_INWATER       = FlagInWater
+	FL_MONSTER       = FlagMonster
+	FL_GODMODE       = FlagGodMode
+	FL_NOTARGET      = FlagNoTarget
+	FL_ITEM          = FlagItem
+	FL_ONGROUND      = FlagOnGround
+	FL_PARTIALGROUND = FlagPartialGround
+	FL_WATERJUMP     = FlagWaterJump
+	FL_JUMPRELEASED  = FlagJumpReleased
+)
+
+

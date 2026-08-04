@@ -584,6 +584,19 @@ func (e *Edict) CustomFlags(sh ServerHandle) float32 {
 	return 0
 }
 
+func (e *Edict) Gravity(sh ServerHandle) float32 {
+	if sh == nil || sh.GetFieldGravity() < 0 {
+		return 1.0
+	}
+	if vm := sh.GetVM(); vm != nil {
+		v := vm.EFloat(e.Num, sh.GetFieldGravity())
+		if v != 0 {
+			return v
+		}
+	}
+	return 1.0
+}
+
 func (e *Edict) ThCheckAttack(sh ServerHandle) int32 {
 	if sh == nil || sh.GetFieldThCheckAttack() < 0 {
 		return 0
@@ -593,3 +606,4 @@ func (e *Edict) ThCheckAttack(sh ServerHandle) int32 {
 	}
 	return 0
 }
+

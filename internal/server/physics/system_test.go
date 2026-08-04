@@ -1,22 +1,20 @@
-// physics_system_test.go tests the PhysicsSystem component in isolation using mocks.
-
-// This file belongs to the Physics/Collision subsystem: collision detection, spatial queries, movement, and per-entity physics simulation.
-package server
+// system_test.go tests the Physics System component in isolation using mocks.
+package physics
 
 import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 )
 
-// Mock collision world for isolated testing.
 type mockCollisionWorld struct {
-	moveTrace TraceResult
+	moveTrace srvtypes.TraceResult
 	contents  int
 }
 
-func (m *mockCollisionWorld) SV_Move(start, mins, maxs, end [3]float32, moveType MoveType, passedict *Edict) TraceResult {
+func (m *mockCollisionWorld) SV_Move(start, mins, maxs, end [3]float32, moveType srvtypes.MoveType, passedict *srvtypes.Edict) srvtypes.TraceResult {
 	if m.moveTrace.Fraction != 0 {
 		tr := m.moveTrace
 		if tr.EndPos == [3]float32{} {
@@ -24,47 +22,44 @@ func (m *mockCollisionWorld) SV_Move(start, mins, maxs, end [3]float32, moveType
 		}
 		return tr
 	}
-	return TraceResult{Fraction: 1, EndPos: end}
+	return srvtypes.TraceResult{Fraction: 0.5, EndPos: end}
 }
 
+func (m *mockCollisionWorld) SV_TestEntityPosition(ent *srvtypes.Edict) *srvtypes.Edict { return nil }
 
-func (m *mockCollisionWorld) SV_TestEntityPosition(ent *Edict) *Edict { return nil }
-
-func (m *mockCollisionWorld) SV_HullForEntity(ent *Edict, mins, maxs [3]float32) (*model.Hull, [3]float32) {
+func (m *mockCollisionWorld) SV_HullForEntity(ent *srvtypes.Edict, mins, maxs [3]float32) (*model.Hull, [3]float32) {
 	return nil, [3]float32{}
 }
 
-func (m *mockCollisionWorld) LinkEdict(ent *Edict, touchTriggers bool) {}
+func (m *mockCollisionWorld) LinkEdict(ent *srvtypes.Edict, touchTriggers bool) {}
 
 func (m *mockCollisionWorld) PointContents(p [3]float32) int {
 	return m.contents
 }
 
-// Mock entity store for isolated testing.
 type mockEntityStore struct {
-	edicts []*Edict
+	edicts []*srvtypes.Edict
 }
 
-func (m *mockEntityStore) EdictNum(num int) *Edict {
+func (m *mockEntityStore) EdictNum(num int) *srvtypes.Edict {
 	if num < 0 || num >= len(m.edicts) {
 		return nil
 	}
 	return m.edicts[num]
 }
 
-func (m *mockEntityStore) AllocEdict() *Edict {
-	e := &Edict{Num: len(m.edicts)}
+func (m *mockEntityStore) AllocEdict() *srvtypes.Edict {
+	e := &srvtypes.Edict{Num: len(m.edicts)}
 	m.edicts = append(m.edicts, e)
 	return e
 }
 
-func (m *mockEntityStore) FreeEdict(ed *Edict) {
+func (m *mockEntityStore) FreeEdict(ed *srvtypes.Edict) {
 	if ed != nil {
 		ed.Free = true
 	}
 }
 
-// Mock physics config.
 type mockPhysicsConfig struct {
 	gravity     float32
 	maxVelocity float32
@@ -77,7 +72,6 @@ func (m *mockPhysicsConfig) GetMaxVelocity() float32 { return m.maxVelocity }
 func (m *mockPhysicsConfig) GetFriction() float32    { return m.friction }
 func (m *mockPhysicsConfig) GetStopSpeed() float32   { return m.stopSpeed }
 
-// Mock frame timing.
 type mockFrameTiming struct {
 	time      float32
 	frameTime float32
@@ -86,10 +80,9 @@ type mockFrameTiming struct {
 func (m *mockFrameTiming) GetTime() float32      { return m.time }
 func (m *mockFrameTiming) GetFrameTime() float32 { return m.frameTime }
 
-// Mock think executor.
 type mockThinkExecutor struct{}
 
-func (m *mockThinkExecutor) RunThink(ent *Edict) bool         { return true }
+func (m *mockThinkExecutor) RunThink(ent *srvtypes.Edict) bool         { return true }
 func (m *mockThinkExecutor) ExecuteQCFunction(funcIdx int) error { return nil }
 
 func TestPhysicsSystemCheckBottomSolidGround(t *testing.T) {
@@ -99,56 +92,45 @@ func TestPhysicsSystemCheckBottomSolidGround(t *testing.T) {
 	timing := &mockFrameTiming{time: 1.0, frameTime: 0.05}
 	exec := &mockThinkExecutor{}
 
-	s := NewServer()
-	sys := NewPhysicsSystem(col, store, cfg, timing, exec, s)
+	sys := NewSystem(col, store, cfg, timing, exec, nil)
 
-	ent := store.AllocEdict()
+	ent := &srvtypes.Edict{Num: 1}
 
-	// When beneath entity is solid, CheckBottom returns true
 	if !sys.CheckBottom(ent) {
-		t.Errorf("CheckBottom returned false for solid ground, expected true")
+		t.Errorf("CheckBottom() = false, want true for solid ground")
 	}
 }
 
 func TestPhysicsSystemMoveStepInIsolation(t *testing.T) {
-	col := &mockCollisionWorld{
-		contents:  bsp.ContentsSolid,
-		moveTrace: TraceResult{Fraction: 0.5, EndPos: [3]float32{10, 0, 0}},
-	}
+	col := &mockCollisionWorld{contents: bsp.ContentsSolid}
 	store := &mockEntityStore{}
 	cfg := &mockPhysicsConfig{gravity: 800, maxVelocity: 2000}
 	timing := &mockFrameTiming{time: 1.0, frameTime: 0.05}
 	exec := &mockThinkExecutor{}
 
-	s := NewServer()
-	sys := NewPhysicsSystem(col, store, cfg, timing, exec, s)
+	sys := NewSystem(col, store, cfg, timing, exec, nil)
 
-	ent := store.AllocEdict()
+	ent := &srvtypes.Edict{Num: 1}
 
 	moved := sys.MoveStep(ent, [3]float32{10, 0, 0}, false)
 	if !moved {
-		t.Errorf("MoveStep returned false for clear path, expected true")
+		t.Errorf("MoveStep() = false, want true for clear move")
 	}
 }
 
 func TestPhysicsSystemStepDirectionWithMocks(t *testing.T) {
-	col := &mockCollisionWorld{
-		contents:  bsp.ContentsSolid,
-		moveTrace: TraceResult{Fraction: 0.5, EndPos: [3]float32{16, 0, 0}},
-	}
+	col := &mockCollisionWorld{contents: bsp.ContentsSolid}
 	store := &mockEntityStore{}
 	cfg := &mockPhysicsConfig{gravity: 800, maxVelocity: 2000}
 	timing := &mockFrameTiming{time: 1.0, frameTime: 0.05}
 	exec := &mockThinkExecutor{}
 
-	s := NewServer()
-	sys := NewPhysicsSystem(col, store, cfg, timing, exec, s)
+	sys := NewSystem(col, store, cfg, timing, exec, nil)
 
-	ent := store.AllocEdict()
+	ent := &srvtypes.Edict{Num: 1}
 
-	stepped := sys.StepDirection(ent, 0, 16)
+	stepped := sys.StepDirection(ent, 90.0, 16.0)
 	if !stepped {
-		t.Errorf("StepDirection returned false for clear path, expected true")
+		t.Errorf("StepDirection() = false, want true for open space step")
 	}
 }
-

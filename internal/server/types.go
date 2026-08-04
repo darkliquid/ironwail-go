@@ -13,11 +13,13 @@ import srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 // domain files (types_entities.go, types_flags.go, types_protocol.go).
 type (
 	Edict           = srvtypes.Edict
+	TraceResult     = srvtypes.TraceResult
 	MoveType        = srvtypes.MoveType
 	SolidType       = srvtypes.SolidType
 	ServerState     = srvtypes.ServerState
 	EntityState     = srvtypes.EntityState
 )
+
 
 
 // MoveType constants
@@ -34,6 +36,10 @@ const (
 	MoveTypeFlyMissile = srvtypes.MoveTypeFlyMissile
 	MoveTypeBounce     = srvtypes.MoveTypeBounce
 	MoveTypeGib        = srvtypes.MoveTypeGib
+
+	MoveNormal     = srvtypes.MoveNormal
+	MoveNoMonsters = srvtypes.MoveNoMonsters
+	MoveMissile    = srvtypes.MoveMissile
 )
 
 // SolidType constants
@@ -74,3 +80,4 @@ func VecNormalize(v *[3]float32) float32   { return srvtypes.VecNormalize(v) }
 func VecDot(a, b [3]float32) float32       { return srvtypes.VecDot(a, b) }
 func VecCopy(src [3]float32, dst *[3]float32) { srvtypes.VecCopy(src, dst) }
 func VecCross(a, b [3]float32) [3]float32 { return srvtypes.VecCross(a, b) }
+
