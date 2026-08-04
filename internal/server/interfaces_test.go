@@ -21,6 +21,8 @@ var (
 	_ NetworkBroadcaster = (*Server)(nil)
 
 	_ MovementEngine = (*PhysicsSystem)(nil)
+	_ CollisionWorld = (*CollisionSystem)(nil)
+
 )
 
 

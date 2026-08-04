@@ -56,11 +56,13 @@ type Server struct {
 	WorldTree  *bsp.Tree // BSP tree retained for rendering
 
 	// Physics settings
-	Gravity     float32
-	MaxVelocity float32
-	Friction    float32
-	StopSpeed   float32
-	PhysicsSys  *PhysicsSystem
+	Gravity      float32
+	MaxVelocity  float32
+	Friction     float32
+	StopSpeed    float32
+	PhysicsSys   *PhysicsSystem
+	CollisionSys *CollisionSystem
+
 
 
 	// Timing
@@ -266,8 +268,10 @@ func NewServer() *Server {
 		Net:                  inet.DefaultNetwork(),
 	}
 	s.acceptConnection = s.Net.CheckNewConnections
-	s.PhysicsSys = NewPhysicsSystem(s, s, s, s, s, s)
+	s.CollisionSys = NewCollisionSystem(s)
+	s.PhysicsSys = NewPhysicsSystem(s.CollisionSys, s, s, s, s, s)
 	vm.IsServerActive = func() bool { return s.State == ServerStateActive }
+
 
 	vm.Cvars = s.CVar
 
