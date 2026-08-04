@@ -60,6 +60,8 @@ type Server struct {
 	MaxVelocity float32
 	Friction    float32
 	StopSpeed   float32
+	PhysicsSys  *PhysicsSystem
+
 
 	// Timing
 	Time      float32
@@ -264,7 +266,9 @@ func NewServer() *Server {
 		Net:                  inet.DefaultNetwork(),
 	}
 	s.acceptConnection = s.Net.CheckNewConnections
+	s.PhysicsSys = NewPhysicsSystem(s, s, s, s, s, s)
 	vm.IsServerActive = func() bool { return s.State == ServerStateActive }
+
 	vm.Cvars = s.CVar
 
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations

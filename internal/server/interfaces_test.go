@@ -19,7 +19,10 @@ var (
 	_ PhysicsEngine      = (*Server)(nil)
 	_ MovementEngine     = (*Server)(nil)
 	_ NetworkBroadcaster = (*Server)(nil)
+
+	_ MovementEngine = (*PhysicsSystem)(nil)
 )
+
 
 func TestServerImplementsInterfaces(t *testing.T) {
 	// Creating a zero-value Server instance to verify interface compliance dynamically as well.
