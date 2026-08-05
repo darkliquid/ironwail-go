@@ -686,13 +686,11 @@ func TestLoadPackFromBytesAndMount(t *testing.T) {
 	}
 }
 
-
-
 // TestPakFSReadFile verifies the io/fs.FS adapter reads archive bytes.
 func TestPakFSReadFile(t *testing.T) {
 	pakPath := filepath.Join(t.TempDir(), "pakfs.pak")
 	writeTestPak(t, pakPath, map[string][]byte{
-		"maps/e1m1.bsp":        []byte("bsp-data"),
+		"maps/e1m1.bsp":             []byte("bsp-data"),
 		"sound/ambience/water1.wav": []byte("wav-data"),
 	})
 	pakData, err := os.ReadFile(pakPath)
@@ -783,8 +781,8 @@ func TestPakFSStatAndOpen(t *testing.T) {
 func TestPakFSReadDir(t *testing.T) {
 	pakPath := filepath.Join(t.TempDir(), "pakdir.pak")
 	writeTestPak(t, pakPath, map[string][]byte{
-		"maps/e1m1.bsp":     []byte("a"),
-		"maps/e1m2.bsp":     []byte("b"),
+		"maps/e1m1.bsp":        []byte("a"),
+		"maps/e1m2.bsp":        []byte("b"),
 		"sound/ambience/1.wav": []byte("c"),
 	})
 	pakData, _ := os.ReadFile(pakPath)

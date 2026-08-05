@@ -3,7 +3,7 @@ package compiler
 // StringTable manages a deduplicated, null-terminated string table for progs.dat.
 // Offset 0 is always the empty string "".
 type StringTable struct {
-	data   []byte         // null-terminated strings concatenated
+	data   []byte           // null-terminated strings concatenated
 	lookup map[string]int32 // string -> offset in data
 }
 

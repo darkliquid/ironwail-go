@@ -200,9 +200,9 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 		var px, py, pz float32
 		if blend > 0 {
 			v2 := pose2[ref.VertexIndex]
-			px = (v1x + (float32(v2.V[0])-v1x)*blend) * scale[0] + scaleOrigin[0]
-			py = (v1y + (float32(v2.V[1])-v1y)*blend) * scale[1] + scaleOrigin[1]
-			pz = (v1z + (float32(v2.V[2])-v1z)*blend) * scale[2] + scaleOrigin[2]
+			px = (v1x+(float32(v2.V[0])-v1x)*blend)*scale[0] + scaleOrigin[0]
+			py = (v1y+(float32(v2.V[1])-v1y)*blend)*scale[1] + scaleOrigin[1]
+			pz = (v1z+(float32(v2.V[2])-v1z)*blend)*scale[2] + scaleOrigin[2]
 		} else {
 			px = v1x*scale[0] + scaleOrigin[0]
 			py = v1y*scale[1] + scaleOrigin[1]
@@ -261,7 +261,6 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 	return vertices
 }
 
-
 func entityRotationMatrix(angles [3]float32) [9]float32 {
 	pitch := float32(math.Pi) * angles[0] / 180.0
 	yaw := float32(math.Pi) * angles[1] / 180.0
@@ -277,12 +276,11 @@ func entityRotationMatrix(angles [3]float32) [9]float32 {
 	// RotateAngles sequence: Rx(roll) -> Ry(-pitch) -> Rz(yaw)
 	// Output row-major 3x3 matrix:
 	return [9]float32{
-		cy*cp, -sy*cr - cy*sp*sr, sy*sr - cy*sp*cr,
-		sy*cp, cy*cr - sy*sp*sr, -cy*sr - sy*sp*cr,
+		cy * cp, -sy*cr - cy*sp*sr, sy*sr - cy*sp*cr,
+		sy * cp, cy*cr - sy*sp*sr, -cy*sr - sy*sp*cr,
 		sp, cp * sr, cp * cr,
 	}
 }
-
 
 // RotateAngles rotates v by Quake Euler angles (pitch, yaw, roll) matching
 // C R_EntityMatrix / R_DrawAliasModel's sequence of glRotatef calls:

@@ -34,10 +34,10 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 // when it stores them on the Renderer; the external-sky wrapper fills them in.
 func (r *Renderer) worldPipelineParams() pipeline.WorldPipelineParams {
 	return pipeline.WorldPipelineParams{
-		SurfaceFormat: r.surfaceFormat(),
-		UniformBindGroupLayout:     r.resources.UniformBindGroupLayout,
-		TextureBindGroupLayout:     r.resources.TextureBindGroupLayout,
-		LightmapBindGroupLayout:    r.resources.LightmapBindGroupLayout,
+		SurfaceFormat:                r.surfaceFormat(),
+		UniformBindGroupLayout:       r.resources.UniformBindGroupLayout,
+		TextureBindGroupLayout:       r.resources.TextureBindGroupLayout,
+		LightmapBindGroupLayout:      r.resources.LightmapBindGroupLayout,
 		DynamicLightsBindGroupLayout: r.resources.WorldDynamicLightsBindGroupLayout,
 	}
 }

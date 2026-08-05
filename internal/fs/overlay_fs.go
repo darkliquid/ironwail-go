@@ -5,8 +5,8 @@ package fs
 
 import (
 	"errors"
-	iofs "io/fs"
 	"io"
+	iofs "io/fs"
 )
 
 // overlayFS resolves a name across an ordered list of io/fs.FS sources.

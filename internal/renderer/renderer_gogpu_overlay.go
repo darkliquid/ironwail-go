@@ -556,7 +556,6 @@ func (r *Renderer) SetConchars(data []byte) {
 	}
 }
 
-
 func (dc *DrawContext) canvasRectToScreen(x, y, w, h int) (screenX, screenY, screenW, screenH int) {
 	if dc == nil || w <= 0 || h <= 0 || dc.canvas.Type == CanvasNone {
 		return x, y, w, h

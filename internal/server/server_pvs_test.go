@@ -19,7 +19,7 @@ func TestEdictInPVSVisibleLeaf(t *testing.T) {
 	}
 
 	ent := &Edict{
-				NumLeafs: 1,
+		NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 3 // leaf 3 -> byte 0, bit 3
 
@@ -39,7 +39,7 @@ func TestEdictInPVSNotVisible(t *testing.T) {
 	}
 
 	ent := &Edict{
-				NumLeafs: 1,
+		NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 3
 
@@ -87,7 +87,7 @@ func TestEdictInPVSNoLeafs(t *testing.T) {
 	}
 
 	ent := &Edict{
-				NumLeafs: 0,
+		NumLeafs: 0,
 	}
 
 	pvs := make([]byte, 4)
@@ -104,7 +104,7 @@ func TestEdictInPVSNilPVS(t *testing.T) {
 	}
 
 	ent := &Edict{
-				NumLeafs: 1,
+		NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 5
 
@@ -121,7 +121,7 @@ func TestEdictInPVSMultipleLeafsOneVisible(t *testing.T) {
 	}
 
 	ent := &Edict{
-				NumLeafs: 3,
+		NumLeafs: 3,
 	}
 	ent.LeafNums[0] = 2  // byte 0, bit 2
 	ent.LeafNums[1] = 10 // byte 1, bit 2
@@ -143,7 +143,7 @@ func TestEdictInPVSUsesVisLeafNumbering(t *testing.T) {
 	}
 
 	ent := &Edict{
-				NumLeafs: 1,
+		NumLeafs: 1,
 	}
 	// Visleaf index 0 corresponds to BSP leaf index 1.
 	ent.LeafNums[0] = 0
@@ -162,7 +162,7 @@ func TestEdictInPVSMaxLeafsStillRequiresVisibleBits(t *testing.T) {
 	}
 
 	ent := &Edict{
-				NumLeafs: MaxEntityLeafs,
+		NumLeafs: MaxEntityLeafs,
 	}
 
 	if !s.SV_EdictInPVS(ent, make([]byte, 1)) {

@@ -267,12 +267,12 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 
 	draws := prepareDecalDraws(marks, camera)
 	preparedDraws := prepareGoGPUDecalHALDraws(draws)
-	
+
 	totalVertexBytes := uint64(0)
 	for _, prepared := range preparedDraws {
 		totalVertexBytes += uint64(len(prepared.VertexBytes))
 	}
-	
+
 	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure decal scratch buffer", "error", err)

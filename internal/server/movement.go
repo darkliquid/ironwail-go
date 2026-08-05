@@ -130,4 +130,3 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 	s.ensurePhysicsSys()
 	s.PhysicsSys.NewChaseDir(actor, enemy, dist)
 }
-

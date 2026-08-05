@@ -142,12 +142,12 @@ func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
 			subs.Console.Print("   setpos <x> <y> <z>\n")
 			subs.Console.Print("   setpos <x> <y> <z> <pitch> <yaw> <roll>\n")
 			subs.Console.Print(fmt.Sprintf("current values:\n   %d %d %d %d %d %d\n",
-					int(math.Round(float64(entOrigin[0]))),
-					int(math.Round(float64(entOrigin[1]))),
-					int(math.Round(float64(entOrigin[2]))),
-					int(math.Round(float64(entVAngle[0]))),
-					int(math.Round(float64(entVAngle[1]))),
-					int(math.Round(float64(entVAngle[2])))))
+				int(math.Round(float64(entOrigin[0]))),
+				int(math.Round(float64(entOrigin[1]))),
+				int(math.Round(float64(entOrigin[2]))),
+				int(math.Round(float64(entVAngle[0]))),
+				int(math.Round(float64(entVAngle[1]))),
+				int(math.Round(float64(entVAngle[2])))))
 		}
 		return
 	}

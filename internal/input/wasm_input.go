@@ -60,7 +60,6 @@ func (b *WASMBackend) Init() error {
 			b.mu.Unlock()
 		}
 
-
 		// Prevent browser scrolling on arrow keys and space
 		if code == "Space" || strings.HasPrefix(code, "Arrow") {
 			event.Call("preventDefault")
@@ -193,7 +192,6 @@ func (b *WASMBackend) SetTextMode(mode TextMode) {
 	b.textMode = mode
 	b.mu.Unlock()
 }
-
 
 func (b *WASMBackend) SetCursorMode(mode CursorMode) {
 	b.mu.Lock()

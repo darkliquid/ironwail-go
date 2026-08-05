@@ -12,16 +12,16 @@ import srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 // NetMessageType, and ServerNetMessage are aliased in their respective
 // domain files (types_entities.go, types_flags.go, types_protocol.go).
 type (
-	Edict           = srvtypes.Edict
-	TraceResult     = srvtypes.TraceResult
-	MoveType        = srvtypes.MoveType
-	SolidType       = srvtypes.SolidType
-	ServerState     = srvtypes.ServerState
-	EntityState     = srvtypes.EntityState
-	CollisionModel  = srvtypes.CollisionModel
-	AreaNode        = srvtypes.AreaNode
-	MessageBuffer   = srvtypes.MessageBuffer
-	ProtocolFlags   = srvtypes.ProtocolFlags
+	Edict          = srvtypes.Edict
+	TraceResult    = srvtypes.TraceResult
+	MoveType       = srvtypes.MoveType
+	SolidType      = srvtypes.SolidType
+	ServerState    = srvtypes.ServerState
+	EntityState    = srvtypes.EntityState
+	CollisionModel = srvtypes.CollisionModel
+	AreaNode       = srvtypes.AreaNode
+	MessageBuffer  = srvtypes.MessageBuffer
+	ProtocolFlags  = srvtypes.ProtocolFlags
 )
 
 const (
@@ -34,33 +34,26 @@ const (
 	ProtocolFlagInt32Coord  = srvtypes.ProtocolFlagInt32Coord
 )
 
-
-
-
 const (
 	DistEpsilon = srvtypes.DistEpsilon
 	AreaDepth   = srvtypes.AreaDepth
 	AreaNodes   = srvtypes.AreaNodes
 )
 
-
-
-
-
 // MoveType constants
 const (
-	MoveTypeNone       = srvtypes.MoveTypeNone
+	MoveTypeNone        = srvtypes.MoveTypeNone
 	MoveTypeAngleNoClip = srvtypes.MoveTypeAngleNoClip
-	MoveTypeAngleClip  = srvtypes.MoveTypeAngleClip
-	MoveTypeWalk       = srvtypes.MoveTypeWalk
-	MoveTypeStep       = srvtypes.MoveTypeStep
-	MoveTypeFly        = srvtypes.MoveTypeFly
-	MoveTypeToss       = srvtypes.MoveTypeToss
-	MoveTypePush       = srvtypes.MoveTypePush
-	MoveTypeNoClip     = srvtypes.MoveTypeNoClip
-	MoveTypeFlyMissile = srvtypes.MoveTypeFlyMissile
-	MoveTypeBounce     = srvtypes.MoveTypeBounce
-	MoveTypeGib        = srvtypes.MoveTypeGib
+	MoveTypeAngleClip   = srvtypes.MoveTypeAngleClip
+	MoveTypeWalk        = srvtypes.MoveTypeWalk
+	MoveTypeStep        = srvtypes.MoveTypeStep
+	MoveTypeFly         = srvtypes.MoveTypeFly
+	MoveTypeToss        = srvtypes.MoveTypeToss
+	MoveTypePush        = srvtypes.MoveTypePush
+	MoveTypeNoClip      = srvtypes.MoveTypeNoClip
+	MoveTypeFlyMissile  = srvtypes.MoveTypeFlyMissile
+	MoveTypeBounce      = srvtypes.MoveTypeBounce
+	MoveTypeGib         = srvtypes.MoveTypeGib
 
 	MoveNormal     = srvtypes.MoveNormal
 	MoveNoMonsters = srvtypes.MoveNoMonsters
@@ -84,8 +77,8 @@ const (
 
 // Physics constants
 const (
-	MoveEpsilon  = srvtypes.MoveEpsilon
-	StopEpsilon  = srvtypes.StopEpsilon
+	MoveEpsilon = srvtypes.MoveEpsilon
+	StopEpsilon = srvtypes.StopEpsilon
 )
 
 // Default physics/sound constants
@@ -97,12 +90,11 @@ const (
 )
 
 // Vector math helper functions re-exported from the types sub-package.
-func VecAdd(a, b [3]float32) [3]float32    { return srvtypes.VecAdd(a, b) }
-func VecSub(a, b [3]float32) [3]float32    { return srvtypes.VecSub(a, b) }
+func VecAdd(a, b [3]float32) [3]float32           { return srvtypes.VecAdd(a, b) }
+func VecSub(a, b [3]float32) [3]float32           { return srvtypes.VecSub(a, b) }
 func VecScale(v [3]float32, s float32) [3]float32 { return srvtypes.VecScale(v, s) }
-func VecLen(v [3]float32) float32          { return srvtypes.VecLen(v) }
-func VecNormalize(v *[3]float32) float32   { return srvtypes.VecNormalize(v) }
-func VecDot(a, b [3]float32) float32       { return srvtypes.VecDot(a, b) }
-func VecCopy(src [3]float32, dst *[3]float32) { srvtypes.VecCopy(src, dst) }
-func VecCross(a, b [3]float32) [3]float32 { return srvtypes.VecCross(a, b) }
-
+func VecLen(v [3]float32) float32                 { return srvtypes.VecLen(v) }
+func VecNormalize(v *[3]float32) float32          { return srvtypes.VecNormalize(v) }
+func VecDot(a, b [3]float32) float32              { return srvtypes.VecDot(a, b) }
+func VecCopy(src [3]float32, dst *[3]float32)     { srvtypes.VecCopy(src, dst) }
+func VecCross(a, b [3]float32) [3]float32         { return srvtypes.VecCross(a, b) }

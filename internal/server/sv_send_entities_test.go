@@ -129,7 +129,7 @@ func TestWriteEntitiesToClient_OmitsLerpFinishWithoutSendInterval(t *testing.T) 
 	t.Parallel()
 
 	ent := &Edict{
-				NumLeafs: 1,
+		NumLeafs: 1,
 	}
 	ent.LeafNums[0] = 0
 
@@ -288,7 +288,6 @@ func TestWriteEntitiesToClient_PrioritizesCloserVisibleEntitiesWhenPacketBudgetT
 	near.NumLeafs = 1
 	near.LeafNums[0] = 0
 	near.Baseline = EntityState{ModelIndex: 6, Origin: near.Origin(s), Scale: inet.ENTSCALE_DEFAULT}
-
 
 	client := &Client{
 		Edict:        clientEdict,

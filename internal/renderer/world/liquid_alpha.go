@@ -47,7 +47,7 @@ func ReadLiquidAlphaSettings(overrides LiquidAlphaOverrides, tree *bsp.Tree) Liq
 
 func ResolveLiquidAlphaSettings(cvarWater, cvarLava, cvarSlime, cvarTele float32, overrides LiquidAlphaOverrides, tree *bsp.Tree) LiquidAlphaSettings {
 	water := clamp01(cvarWater)
-	if overrides.HasWater {
+	if cvarWater >= 1 && overrides.HasWater {
 		water = clamp01(overrides.Water)
 	}
 	fallback := water

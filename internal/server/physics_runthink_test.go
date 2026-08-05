@@ -57,7 +57,7 @@ func TestRunThinkTelemetry(t *testing.T) {
 // Where in C: SV_RunThink in sv_phys.c
 func TestRunThinkPublishesQCTimeGlobal(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
@@ -90,7 +90,7 @@ func TestRunThinkPublishesQCTimeGlobal(t *testing.T) {
 // Where in C: SV_RunThink in sv_phys.c
 func TestRunThinkSyncsEdictStateBackFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -133,7 +133,7 @@ func TestRunThinkSyncsEdictStateBackFromQCVM(t *testing.T) {
 // Where in C: SV_RunThink in sv_phys.c
 func TestRunThinkSyncsThirdPartySchedulerFieldsFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -185,7 +185,7 @@ func TestRunThinkSyncsThirdPartySchedulerFieldsFromQCVM(t *testing.T) {
 // Where in C: SV_RunThink in sv_phys.c
 func TestRunThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -238,7 +238,7 @@ func TestRunThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
 // Where in C: SV_Impact in sv_phys.c
 func TestImpactSyncsMutatedTouchStateBackFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -281,7 +281,7 @@ func TestImpactSyncsMutatedTouchStateBackFromQCVM(t *testing.T) {
 // Where in C: SV_Impact in sv_phys.c
 func TestImpactRestoresQCExecutionContextAfterTouch(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -329,7 +329,7 @@ func TestImpactRestoresQCExecutionContextAfterTouch(t *testing.T) {
 // Where in C: SV_Impact in sv_phys.c
 func TestImpactDeduplicatesSameFrameTouchCallbacks(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -379,7 +379,7 @@ func TestImpactDeduplicatesSameFrameTouchCallbacks(t *testing.T) {
 // Where in C: SV_Physics_Pusher in sv_phys.c
 func TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -427,7 +427,7 @@ func TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink(t *testing.T) {
 // Where in C: SV_Physics_Pusher in sv_phys.c
 func TestPhysicsPusherSyncsThirdPartyPusherStateBackFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -562,7 +562,7 @@ func TestPushMoveBlockedSyncsMutatedPusherFromQCVM(t *testing.T) {
 	s.Edicts[0].SetSolid(s, float32(SolidBSP))
 	s.ClearWorld()
 
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -622,7 +622,7 @@ func TestPushMoveBlockedSyncsMutatedPusherFromQCVM(t *testing.T) {
 // Where in C: SV_Impact in sv_phys.c
 func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -677,7 +677,7 @@ func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
 // than touchLinks (area trigger).
 func TestImpactSyncsPusherMutationsFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
@@ -747,7 +747,7 @@ func TestImpactSyncsPusherMutationsFromQCVM(t *testing.T) {
 // set by the QC callback.
 func TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink(t *testing.T) {
 	s := newPhysicsTestServer()
- vm := s.QCVM
+	vm := s.QCVM
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},

@@ -112,7 +112,6 @@ func (fs *FileSystem) MountPack(pack *Pack) {
 	fs.mounts = append([]mount{{kind: mountPack, pak: NewPakFS(pack)}}, fs.mounts...)
 }
 
-
 // loadPack opens a PAK file, validates its 12-byte header, and reads the
 // central directory into memory.
 //
@@ -157,19 +156,25 @@ func loadPackFromHandle(filename string, handle ReadSeekerCloserHandle) (*Pack, 
 	}
 
 	if err := binary.Read(handle, binary.LittleEndian, &header); err != nil {
-		if closeErr := handle.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
+		if closeErr := handle.Close(); closeErr != nil {
+			slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr)
+		}
 		return nil, fmt.Errorf("read pack %q header: %w", filename, err)
 	}
 
 	if string(header.ID[:]) != "PACK" {
-		if closeErr := handle.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
+		if closeErr := handle.Close(); closeErr != nil {
+			slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr)
+		}
 		return nil, fmt.Errorf("pack %q is not a valid pack file", filename)
 	}
 
 	numFiles := int(header.DirLen / 64)
 
 	if _, err := handle.Seek(int64(header.DirOfs), io.SeekStart); err != nil {
-		if closeErr := handle.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
+		if closeErr := handle.Close(); closeErr != nil {
+			slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr)
+		}
 		return nil, fmt.Errorf("seek pack %q directory: %w", filename, err)
 	}
 
@@ -181,7 +186,9 @@ func loadPackFromHandle(filename string, handle ReadSeekerCloserHandle) (*Pack, 
 			FileLen int32
 		}
 		if err := binary.Read(handle, binary.LittleEndian, &entry); err != nil {
-			if closeErr := handle.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
+			if closeErr := handle.Close(); closeErr != nil {
+				slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr)
+			}
 			return nil, fmt.Errorf("read pack %q directory entry %d: %w", filename, i, err)
 		}
 		idx := 0
@@ -202,7 +209,6 @@ func loadPackFromHandle(filename string, handle ReadSeekerCloserHandle) (*Pack, 
 		Files:    files,
 	}, nil
 }
-
 
 // FindFile searches the VFS for the given filename and returns a SearchResult
 // describing where the file was found.

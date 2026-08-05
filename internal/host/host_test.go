@@ -45,13 +45,13 @@ func (m *mockServer) ConnectClient(clientNum int)                       {}
 func (m *mockServer) KillClient(clientNum int) bool                     { return false }
 func (m *mockServer) KickClient(clientNum int, who, reason string) bool { return false }
 func (m *mockServer) SaveSpawnParms()                                   {}
-func (m *mockServer) MaxClients() int                                { return 1 }
+func (m *mockServer) MaxClients() int                                   { return 1 }
 func (m *mockServer) IsClientActive(clientNum int) bool                 { return clientNum == 0 }
-func (m *mockServer) ClientName(clientNum int) string                { return "Player" }
+func (m *mockServer) ClientName(clientNum int) string                   { return "Player" }
 func (m *mockServer) SetClientName(clientNum int, name string)          {}
-func (m *mockServer) ClientColor(clientNum int) int                  { return 0 }
+func (m *mockServer) ClientColor(clientNum int) int                     { return 0 }
 func (m *mockServer) SetClientColor(clientNum int, color int)           {}
-func (m *mockServer) ClientPing(clientNum int) float32               { return 0 }
+func (m *mockServer) ClientPing(clientNum int) float32                  { return 0 }
 func (m *mockServer) EdictNum(n int) *server.Edict                      { return &server.Edict{} }
 func (m *mockServer) MapName() string {
 	if m.mapName != "" {
@@ -132,15 +132,15 @@ func (s *shutdownTrackingServer) KickClient(int, string, string) bool      { ret
 func (s *shutdownTrackingServer) Frame(float64) error                      { return nil }
 func (s *shutdownTrackingServer) Shutdown()                                { s.recorder.record("server") }
 func (s *shutdownTrackingServer) SaveSpawnParms()                          {}
-func (s *shutdownTrackingServer) MaxClients() int                       { return 1 }
+func (s *shutdownTrackingServer) MaxClients() int                          { return 1 }
 func (s *shutdownTrackingServer) IsClientActive(int) bool                  { return false }
-func (s *shutdownTrackingServer) ClientName(int) string                 { return "" }
+func (s *shutdownTrackingServer) ClientName(int) string                    { return "" }
 func (s *shutdownTrackingServer) SetClientName(int, string)                {}
-func (s *shutdownTrackingServer) ClientColor(int) int                   { return 0 }
+func (s *shutdownTrackingServer) ClientColor(int) int                      { return 0 }
 func (s *shutdownTrackingServer) SetClientColor(int, int)                  {}
-func (s *shutdownTrackingServer) ClientPing(int) float32                { return 0 }
+func (s *shutdownTrackingServer) ClientPing(int) float32                   { return 0 }
 func (s *shutdownTrackingServer) EdictNum(int) *server.Edict               { return nil }
-func (s *shutdownTrackingServer) MapName() string                       { return "" }
+func (s *shutdownTrackingServer) MapName() string                          { return "" }
 func (s *shutdownTrackingServer) IsActive() bool                           { return false }
 func (s *shutdownTrackingServer) IsPaused() bool                           { return false }
 func (s *shutdownTrackingServer) RestoreTextSaveGameState(*server.TextSaveGameState) error {
@@ -193,9 +193,9 @@ func (r *shutdownTrackingRenderer) Shutdown()     { r.recorder.record("renderer"
 
 type shutdownTrackingInputBackend struct{ recorder *shutdownRecorder }
 
-func (b *shutdownTrackingInputBackend) Init() error                   { return nil }
-func (b *shutdownTrackingInputBackend) Shutdown()                     { b.recorder.record("input") }
-func (b *shutdownTrackingInputBackend) PollEvents() bool              { return true }
+func (b *shutdownTrackingInputBackend) Init() error                { return nil }
+func (b *shutdownTrackingInputBackend) Shutdown()                  { b.recorder.record("input") }
+func (b *shutdownTrackingInputBackend) PollEvents() bool           { return true }
 func (b *shutdownTrackingInputBackend) MouseDelta() (int32, int32) { return 0, 0 }
 func (b *shutdownTrackingInputBackend) MousePosition() (int32, int32, bool) {
 	return 0, 0, false
@@ -218,7 +218,7 @@ type mockCallbacks struct {
 	clientCalled bool
 }
 
-func (m *mockCallbacks) Events()                                        {}
+func (m *mockCallbacks) Events()                                           {}
 func (m *mockCallbacks) ProcessConsoleCommands()                           {}
 func (m *mockCallbacks) ProcessServer()                                    { m.serverCalled = true }
 func (m *mockCallbacks) ProcessClient()                                    { m.clientCalled = true }

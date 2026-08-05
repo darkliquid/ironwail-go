@@ -264,7 +264,6 @@ func parseFogFloat(s string) float32 {
 	return float32(value)
 }
 
-
 func (h *Host) CmdMaps(subs *Subsystems) {
 	if subs == nil || subs.Files == nil || subs.Console == nil {
 		return

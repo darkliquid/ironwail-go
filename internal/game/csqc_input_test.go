@@ -51,16 +51,16 @@ func buildMinimalCSQCProgs() []byte {
 
 	// Lump offsets & counts
 	// Lumps: Statements(0), GlobalDefs(1), FieldDefs(2), Functions(3), Strings(4), Globals(5)
-	header[2] = 48                    // Statements offset
-	header[3] = 1                     // Statements count (1 DStatement = 8 bytes)
-	header[4] = 48 + 8                // GlobalDefs offset
-	header[5] = 0                     // GlobalDefs count
-	header[6] = 48 + 8                // FieldDefs offset
-	header[7] = 0                     // FieldDefs count
-	header[8] = 48 + 8                // Functions offset
-	header[9] = 2                     // Functions count (2 DFunction = 72 bytes)
-	header[10] = 48 + 8 + 72          // Strings offset
-	header[11] = 30                   // Strings count (30 bytes)
+	header[2] = 48           // Statements offset
+	header[3] = 1            // Statements count (1 DStatement = 8 bytes)
+	header[4] = 48 + 8       // GlobalDefs offset
+	header[5] = 0            // GlobalDefs count
+	header[6] = 48 + 8       // FieldDefs offset
+	header[7] = 0            // FieldDefs count
+	header[8] = 48 + 8       // Functions offset
+	header[9] = 2            // Functions count (2 DFunction = 72 bytes)
+	header[10] = 48 + 8 + 72 // Strings offset
+	header[11] = 30          // Strings count (30 bytes)
 
 	for _, v := range header {
 		buf.WriteByte(byte(v))

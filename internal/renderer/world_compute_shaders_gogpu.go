@@ -1,7 +1,5 @@
 package renderer
 
-
-
 const worldClusterComputeShaderWGSL = `
 struct ComputeUniforms {
     view: mat4x4<f32>,

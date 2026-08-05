@@ -103,7 +103,6 @@ type Pack struct {
 	mu       sync.Mutex
 }
 
-
 // SearchResult describes where a requested file was found within the VFS.
 //
 // If IsPack is false the file lives on disk and SourceFS + Name can be used

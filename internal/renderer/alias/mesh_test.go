@@ -146,7 +146,7 @@ func BenchmarkBuildVerticesInterpolatedInto(b *testing.B) {
 	refs := make([]MeshRef, 1500)
 	for i := 0; i < 500; i++ {
 		poses[0][i] = model.TriVertX{V: [3]byte{byte(i % 250), byte((i * 2) % 250), byte((i * 3) % 250)}, LightNormalIndex: byte(i % 162)}
-		poses[1][i] = model.TriVertX{V: [3]byte{byte((i + 10) % 250), byte((i * 2 + 10) % 250), byte((i * 3 + 10) % 250)}, LightNormalIndex: byte(i % 162)}
+		poses[1][i] = model.TriVertX{V: [3]byte{byte((i + 10) % 250), byte((i*2 + 10) % 250), byte((i*3 + 10) % 250)}, LightNormalIndex: byte(i % 162)}
 	}
 	for i := 0; i < 1500; i++ {
 		refs[i] = MeshRef{VertexIndex: i % 500, TexCoord: [2]float32{float32(i) / 1500.0, float32(i) / 1500.0}}
@@ -165,7 +165,6 @@ func BenchmarkBuildVerticesInterpolatedInto(b *testing.B) {
 		dst = BuildVerticesInterpolatedInto(dst, mesh, hdr, 0, 1, 0.5, origin, angles, 1.0, true)
 	}
 }
-
 
 func TestMeshFromAccessor(t *testing.T) {
 	type backendRef struct {
@@ -302,37 +301,37 @@ func TestSetupFrameInterpolation(t *testing.T) {
 // pre-negation), with scale=1. Only the 3×3 rotation block is returned since
 // the viewmodel test below only checks rotation of a point at origin offset.
 func rEntityMatrixReference(angles [3]float32) [9]float32 {
-pitch := float64(angles[0]) * math.Pi / 180
-yaw := float64(angles[1]) * math.Pi / 180
-roll := float64(angles[2]) * math.Pi / 180
-sy := math.Sin(yaw)
-sp := math.Sin(pitch)
-sr := math.Sin(roll)
-cy := math.Cos(yaw)
-cp := math.Cos(pitch)
-cr := math.Cos(roll)
-return [9]float32{
-// col 0 (local X -> world)
-float32(cy * cp),
-float32(sy * cp),
-float32(sp),
-// col 1
-float32(-cy*sp*sr - cr*sy),
-float32(cr*cy - sy*sp*sr),
-float32(cp * sr),
-// col 2
-float32(sy*sr - cr*cy*sp),
-float32(-cy*sr - cr*sy*sp),
-float32(cr * cp),
-}
+	pitch := float64(angles[0]) * math.Pi / 180
+	yaw := float64(angles[1]) * math.Pi / 180
+	roll := float64(angles[2]) * math.Pi / 180
+	sy := math.Sin(yaw)
+	sp := math.Sin(pitch)
+	sr := math.Sin(roll)
+	cy := math.Cos(yaw)
+	cp := math.Cos(pitch)
+	cr := math.Cos(roll)
+	return [9]float32{
+		// col 0 (local X -> world)
+		float32(cy * cp),
+		float32(sy * cp),
+		float32(sp),
+		// col 1
+		float32(-cy*sp*sr - cr*sy),
+		float32(cr*cy - sy*sp*sr),
+		float32(cp * sr),
+		// col 2
+		float32(sy*sr - cr*cy*sp),
+		float32(-cy*sr - cr*sy*sp),
+		float32(cr * cp),
+	}
 }
 
 func applyColMajor3x3(m [9]float32, v [3]float32) [3]float32 {
-return [3]float32{
-m[0]*v[0] + m[3]*v[1] + m[6]*v[2],
-m[1]*v[0] + m[4]*v[1] + m[7]*v[2],
-m[2]*v[0] + m[5]*v[1] + m[8]*v[2],
-}
+	return [3]float32{
+		m[0]*v[0] + m[3]*v[1] + m[6]*v[2],
+		m[1]*v[0] + m[4]*v[1] + m[7]*v[2],
+		m[2]*v[0] + m[5]*v[1] + m[8]*v[2],
+	}
 }
 
 // TestRotateAnglesMatchesREntityMatrix verifies that the Go helper produces
@@ -341,35 +340,35 @@ m[2]*v[0] + m[5]*v[1] + m[8]*v[2],
 // where extreme pitch with a nonzero yaw composed the rotations in the wrong
 // order.
 func TestRotateAnglesMatchesREntityMatrix(t *testing.T) {
-cases := []struct {
-name   string
-angles [3]float32
-}{
-{"identity", [3]float32{0, 0, 0}},
-{"yaw only", [3]float32{0, 45, 0}},
-{"pitch only", [3]float32{30, 0, 0}},
-{"roll only", [3]float32{0, 0, 15}},
-{"yaw+pitch looking up while facing east", [3]float32{60, 90, 0}},
-{"yaw+pitch looking down turned 180", [3]float32{-60, 180, 0}},
-{"full tilt", [3]float32{35, 110, 20}},
-}
-probes := [][3]float32{
-{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0.5, -0.5, 0.25},
-}
-const eps = 1e-4
-for _, tc := range cases {
-t.Run(tc.name, func(t *testing.T) {
-ref := rEntityMatrixReference(tc.angles)
-for _, p := range probes {
-got := RotateAngles(p, tc.angles)
-want := applyColMajor3x3(ref, p)
-for i := 0; i < 3; i++ {
-diff := float64(got[i] - want[i])
-if diff < -eps || diff > eps {
-t.Fatalf("angles=%v probe=%v: component %d got %f want %f", tc.angles, p, i, got[i], want[i])
-}
-}
-}
-})
-}
+	cases := []struct {
+		name   string
+		angles [3]float32
+	}{
+		{"identity", [3]float32{0, 0, 0}},
+		{"yaw only", [3]float32{0, 45, 0}},
+		{"pitch only", [3]float32{30, 0, 0}},
+		{"roll only", [3]float32{0, 0, 15}},
+		{"yaw+pitch looking up while facing east", [3]float32{60, 90, 0}},
+		{"yaw+pitch looking down turned 180", [3]float32{-60, 180, 0}},
+		{"full tilt", [3]float32{35, 110, 20}},
+	}
+	probes := [][3]float32{
+		{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0.5, -0.5, 0.25},
+	}
+	const eps = 1e-4
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ref := rEntityMatrixReference(tc.angles)
+			for _, p := range probes {
+				got := RotateAngles(p, tc.angles)
+				want := applyColMajor3x3(ref, p)
+				for i := 0; i < 3; i++ {
+					diff := float64(got[i] - want[i])
+					if diff < -eps || diff > eps {
+						t.Fatalf("angles=%v probe=%v: component %d got %f want %f", tc.angles, p, i, got[i], want[i])
+					}
+				}
+			}
+		})
+	}
 }

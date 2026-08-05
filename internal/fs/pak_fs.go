@@ -130,7 +130,7 @@ type pakFile struct {
 	fs *PakFS
 	fi *PackFile
 	// ofs is the read cursor for successive Read calls.
-	ofs int64
+	ofs  int64
 	data []byte
 }
 

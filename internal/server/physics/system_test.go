@@ -82,7 +82,7 @@ func (m *mockFrameTiming) GetFrameTime() float32 { return m.frameTime }
 
 type mockThinkExecutor struct{}
 
-func (m *mockThinkExecutor) RunThink(ent *srvtypes.Edict) bool         { return true }
+func (m *mockThinkExecutor) RunThink(ent *srvtypes.Edict) bool   { return true }
 func (m *mockThinkExecutor) ExecuteQCFunction(funcIdx int) error { return nil }
 
 func TestPhysicsSystemCheckBottomSolidGround(t *testing.T) {

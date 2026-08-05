@@ -339,7 +339,7 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	}
 	newServerWithStep := func() *Server {
 		s := NewServer()
-  newServerTestVM(s, 16)
+		newServerTestVM(s, 16)
 		if err := s.Init(1); err != nil {
 			t.Fatalf("init server: %v", err)
 		}

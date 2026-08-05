@@ -24,9 +24,9 @@ func (b *autosaveCommandBuffer) Shutdown()                                     {
 
 type autosaveTestServer struct {
 	mockServer
-	maxClients  int
-	edict       *server.Edict
-	realServer  *server.Server
+	maxClients int
+	edict      *server.Edict
+	realServer *server.Server
 }
 
 func (s *autosaveTestServer) MaxClients() int {
@@ -238,7 +238,7 @@ func TestCheckAutosaveSkippedForFastPlayer(t *testing.T) {
 	srv := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict: &server.Edict{},
+		edict:      &server.Edict{},
 	}
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: srv, Commands: commands}

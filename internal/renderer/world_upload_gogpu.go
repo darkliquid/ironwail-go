@@ -318,8 +318,6 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		return fmt.Errorf("create uniform buffer: %w", err)
 	}
 
-
-
 	dynamicLightsBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "World Dynamic Lights",
 		Size:             gogpuWorldDynamicLightBufferSize,
@@ -649,6 +647,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	slog.Debug("UploadWorld: complete")
 	return nil
 }
+
 // This records render commands to draw the world geometry with the configured pipeline,
 
 func (r *Renderer) createWorldUniformBindGroup(device *wgpu.Device, layout *wgpu.BindGroupLayout, uniformBuffer, materialsBuffer *wgpu.Buffer) (*wgpu.BindGroup, error) {

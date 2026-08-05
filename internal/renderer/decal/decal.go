@@ -195,12 +195,12 @@ type normalizedMark struct {
 	variant int
 }
 
-func (m normalizedMark) DecalOrigin() [3]float32   { return m.inner.DecalOrigin() }
-func (m normalizedMark) DecalNormal() [3]float32   { return m.inner.DecalNormal() }
-func (m normalizedMark) DecalSize() float32        { return m.inner.DecalSize() }
-func (m normalizedMark) DecalRotation() float32    { return m.inner.DecalRotation() }
-func (m normalizedMark) DecalAlpha() float32       { return m.alpha }
-func (m normalizedMark) DecalVariant() int         { return m.variant }
+func (m normalizedMark) DecalOrigin() [3]float32 { return m.inner.DecalOrigin() }
+func (m normalizedMark) DecalNormal() [3]float32 { return m.inner.DecalNormal() }
+func (m normalizedMark) DecalSize() float32      { return m.inner.DecalSize() }
+func (m normalizedMark) DecalRotation() float32  { return m.inner.DecalRotation() }
+func (m normalizedMark) DecalAlpha() float32     { return m.alpha }
+func (m normalizedMark) DecalVariant() int       { return m.variant }
 
 func newNormalMark(m MarkEntity, normal [3]float32) MarkEntity {
 	return normalMark{inner: m, normal: normal}
@@ -211,12 +211,12 @@ type normalMark struct {
 	normal [3]float32
 }
 
-func (m normalMark) DecalOrigin() [3]float32   { return m.inner.DecalOrigin() }
-func (m normalMark) DecalNormal() [3]float32   { return m.normal }
-func (m normalMark) DecalSize() float32        { return m.inner.DecalSize() }
-func (m normalMark) DecalRotation() float32    { return m.inner.DecalRotation() }
-func (m normalMark) DecalAlpha() float32       { return m.inner.DecalAlpha() }
-func (m normalMark) DecalVariant() int         { return m.inner.DecalVariant() }
+func (m normalMark) DecalOrigin() [3]float32 { return m.inner.DecalOrigin() }
+func (m normalMark) DecalNormal() [3]float32 { return m.normal }
+func (m normalMark) DecalSize() float32      { return m.inner.DecalSize() }
+func (m normalMark) DecalRotation() float32  { return m.inner.DecalRotation() }
+func (m normalMark) DecalAlpha() float32     { return m.inner.DecalAlpha() }
+func (m normalMark) DecalVariant() int       { return m.inner.DecalVariant() }
 
 // NormalizeVariant clamps an atlas variant selector to the four known
 // regions (bullet, chip, scorch, magic), defaulting invalid values to bullet.
@@ -228,7 +228,6 @@ func NormalizeVariant(variant int) int {
 		return 0
 	}
 }
-
 
 // DistanceSq returns the squared distance between two points.
 func DistanceSq(origin, camera [3]float32) float32 {

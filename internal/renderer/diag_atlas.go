@@ -608,16 +608,16 @@ func writeMaterialTableCSV(path string, baseMaterials []WorldMaterialData, textu
 
 func writeMaterialTableJSON(path string, baseMaterials []WorldMaterialData, textureNames []string, animations []*surfacepkg.SurfaceTexture) error {
 	type materialEntry struct {
-		Index         int     `json:"index"`
-		TextureName   string  `json:"texture_name"`
-		Layer         float32 `json:"layer"`
-		BoundsU       float32 `json:"bounds_u"`
-		BoundsV       float32 `json:"bounds_v"`
-		BoundsW       float32 `json:"bounds_w"`
-		BoundsH       float32 `json:"bounds_h"`
-		IsAnimated    bool    `json:"is_animated"`
-		AnimChainLen  int     `json:"anim_chain_len"`
-		OverCapacity  bool    `json:"over_capacity"`
+		Index        int     `json:"index"`
+		TextureName  string  `json:"texture_name"`
+		Layer        float32 `json:"layer"`
+		BoundsU      float32 `json:"bounds_u"`
+		BoundsV      float32 `json:"bounds_v"`
+		BoundsW      float32 `json:"bounds_w"`
+		BoundsH      float32 `json:"bounds_h"`
+		IsAnimated   bool    `json:"is_animated"`
+		AnimChainLen int     `json:"anim_chain_len"`
+		OverCapacity bool    `json:"over_capacity"`
 	}
 
 	entries := make([]materialEntry, len(baseMaterials))
@@ -656,8 +656,8 @@ func writeMaterialTableJSON(path string, baseMaterials []WorldMaterialData, text
 	}
 
 	data := struct {
-		BufferCapacity int           `json:"buffer_capacity"`
-		MaterialCount  int           `json:"material_count"`
+		BufferCapacity int             `json:"buffer_capacity"`
+		MaterialCount  int             `json:"material_count"`
 		Materials      []materialEntry `json:"materials"`
 	}{
 		BufferCapacity: worldMaterialsBufferCapacity,

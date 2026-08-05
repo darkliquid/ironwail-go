@@ -1,7 +1,6 @@
 package quakego
 
-import (
-)
+import ()
 
 func GetNetName(item_number float32) string {
 	switch int(item_number) {

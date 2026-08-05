@@ -31,12 +31,12 @@ func TestWorldVertexBufferLayout(t *testing.T) {
 		offset uint64
 		loc    uint32
 	}{
-		{gputypes.VertexFormatFloat32x3, 0, 0},   // Position
-		{gputypes.VertexFormatFloat32x2, 12, 1},  // TexCoord
-		{gputypes.VertexFormatFloat32x2, 20, 2},  // LightmapCoord
-		{gputypes.VertexFormatFloat32x3, 28, 3},  // Normal
-		{gputypes.VertexFormatFloat32, 40, 4},    // LightmapLayer
-		{gputypes.VertexFormatUint32, 44, 5},     // MaterialID
+		{gputypes.VertexFormatFloat32x3, 0, 0},  // Position
+		{gputypes.VertexFormatFloat32x2, 12, 1}, // TexCoord
+		{gputypes.VertexFormatFloat32x2, 20, 2}, // LightmapCoord
+		{gputypes.VertexFormatFloat32x3, 28, 3}, // Normal
+		{gputypes.VertexFormatFloat32, 40, 4},   // LightmapLayer
+		{gputypes.VertexFormatUint32, 44, 5},    // MaterialID
 	}
 	if len(layout.Attributes) != len(wantAttrs) {
 		t.Fatalf("len(Attributes) = %d, want %d", len(layout.Attributes), len(wantAttrs))
@@ -79,4 +79,3 @@ func TestWorldDynamicLightBufferSizeParity(t *testing.T) {
 		t.Fatalf("WorldDynamicLightBufferSize = %d, want %d", WorldDynamicLightBufferSize, 16+512*32)
 	}
 }
-

@@ -258,15 +258,60 @@ func CheckContinueCharge() {
 	}
 }
 
-func hknight_stand1() { Self.Frame = float32(HKNIGHT_FRAME_stand1); Self.NextThink = Time + 0.1; Self.Think = hknight_stand2; ai_stand() }
-func hknight_stand2() { Self.Frame = float32(HKNIGHT_FRAME_stand2); Self.NextThink = Time + 0.1; Self.Think = hknight_stand3; ai_stand() }
-func hknight_stand3() { Self.Frame = float32(HKNIGHT_FRAME_stand3); Self.NextThink = Time + 0.1; Self.Think = hknight_stand4; ai_stand() }
-func hknight_stand4() { Self.Frame = float32(HKNIGHT_FRAME_stand4); Self.NextThink = Time + 0.1; Self.Think = hknight_stand5; ai_stand() }
-func hknight_stand5() { Self.Frame = float32(HKNIGHT_FRAME_stand5); Self.NextThink = Time + 0.1; Self.Think = hknight_stand6; ai_stand() }
-func hknight_stand6() { Self.Frame = float32(HKNIGHT_FRAME_stand6); Self.NextThink = Time + 0.1; Self.Think = hknight_stand7; ai_stand() }
-func hknight_stand7() { Self.Frame = float32(HKNIGHT_FRAME_stand7); Self.NextThink = Time + 0.1; Self.Think = hknight_stand8; ai_stand() }
-func hknight_stand8() { Self.Frame = float32(HKNIGHT_FRAME_stand8); Self.NextThink = Time + 0.1; Self.Think = hknight_stand9; ai_stand() }
-func hknight_stand9() { Self.Frame = float32(HKNIGHT_FRAME_stand9); Self.NextThink = Time + 0.1; Self.Think = hknight_stand1; ai_stand() }
+func hknight_stand1() {
+	Self.Frame = float32(HKNIGHT_FRAME_stand1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_stand2
+	ai_stand()
+}
+func hknight_stand2() {
+	Self.Frame = float32(HKNIGHT_FRAME_stand2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_stand3
+	ai_stand()
+}
+func hknight_stand3() {
+	Self.Frame = float32(HKNIGHT_FRAME_stand3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_stand4
+	ai_stand()
+}
+func hknight_stand4() {
+	Self.Frame = float32(HKNIGHT_FRAME_stand4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_stand5
+	ai_stand()
+}
+func hknight_stand5() {
+	Self.Frame = float32(HKNIGHT_FRAME_stand5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_stand6
+	ai_stand()
+}
+func hknight_stand6() {
+	Self.Frame = float32(HKNIGHT_FRAME_stand6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_stand7
+	ai_stand()
+}
+func hknight_stand7() {
+	Self.Frame = float32(HKNIGHT_FRAME_stand7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_stand8
+	ai_stand()
+}
+func hknight_stand8() {
+	Self.Frame = float32(HKNIGHT_FRAME_stand8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_stand9
+	ai_stand()
+}
+func hknight_stand9() {
+	Self.Frame = float32(HKNIGHT_FRAME_stand9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_stand1
+	ai_stand()
+}
 
 func hknight_walk1() {
 	Self.Frame = float32(HKNIGHT_FRAME_walk1)
@@ -275,25 +320,120 @@ func hknight_walk1() {
 	hk_idle_sound()
 	ai_walk(2)
 }
-func hknight_walk2()  { Self.Frame = float32(HKNIGHT_FRAME_walk2); Self.NextThink = Time + 0.1; Self.Think = hknight_walk3; ai_walk(5) }
-func hknight_walk3()  { Self.Frame = float32(HKNIGHT_FRAME_walk3); Self.NextThink = Time + 0.1; Self.Think = hknight_walk4; ai_walk(5) }
-func hknight_walk4()  { Self.Frame = float32(HKNIGHT_FRAME_walk4); Self.NextThink = Time + 0.1; Self.Think = hknight_walk5; ai_walk(4) }
-func hknight_walk5()  { Self.Frame = float32(HKNIGHT_FRAME_walk5); Self.NextThink = Time + 0.1; Self.Think = hknight_walk6; ai_walk(4) }
-func hknight_walk6()  { Self.Frame = float32(HKNIGHT_FRAME_walk6); Self.NextThink = Time + 0.1; Self.Think = hknight_walk7; ai_walk(2) }
-func hknight_walk7()  { Self.Frame = float32(HKNIGHT_FRAME_walk7); Self.NextThink = Time + 0.1; Self.Think = hknight_walk8; ai_walk(2) }
-func hknight_walk8()  { Self.Frame = float32(HKNIGHT_FRAME_walk8); Self.NextThink = Time + 0.1; Self.Think = hknight_walk9; ai_walk(3) }
-func hknight_walk9()  { Self.Frame = float32(HKNIGHT_FRAME_walk9); Self.NextThink = Time + 0.1; Self.Think = hknight_walk10; ai_walk(3) }
-func hknight_walk10() { Self.Frame = float32(HKNIGHT_FRAME_walk10); Self.NextThink = Time + 0.1; Self.Think = hknight_walk11; ai_walk(4) }
-func hknight_walk11() { Self.Frame = float32(HKNIGHT_FRAME_walk11); Self.NextThink = Time + 0.1; Self.Think = hknight_walk12; ai_walk(3) }
-func hknight_walk12() { Self.Frame = float32(HKNIGHT_FRAME_walk12); Self.NextThink = Time + 0.1; Self.Think = hknight_walk13; ai_walk(4) }
-func hknight_walk13() { Self.Frame = float32(HKNIGHT_FRAME_walk13); Self.NextThink = Time + 0.1; Self.Think = hknight_walk14; ai_walk(6) }
-func hknight_walk14() { Self.Frame = float32(HKNIGHT_FRAME_walk14); Self.NextThink = Time + 0.1; Self.Think = hknight_walk15; ai_walk(2) }
-func hknight_walk15() { Self.Frame = float32(HKNIGHT_FRAME_walk15); Self.NextThink = Time + 0.1; Self.Think = hknight_walk16; ai_walk(2) }
-func hknight_walk16() { Self.Frame = float32(HKNIGHT_FRAME_walk16); Self.NextThink = Time + 0.1; Self.Think = hknight_walk17; ai_walk(4) }
-func hknight_walk17() { Self.Frame = float32(HKNIGHT_FRAME_walk17); Self.NextThink = Time + 0.1; Self.Think = hknight_walk18; ai_walk(3) }
-func hknight_walk18() { Self.Frame = float32(HKNIGHT_FRAME_walk18); Self.NextThink = Time + 0.1; Self.Think = hknight_walk19; ai_walk(3) }
-func hknight_walk19() { Self.Frame = float32(HKNIGHT_FRAME_walk19); Self.NextThink = Time + 0.1; Self.Think = hknight_walk20; ai_walk(3) }
-func hknight_walk20() { Self.Frame = float32(HKNIGHT_FRAME_walk20); Self.NextThink = Time + 0.1; Self.Think = hknight_walk1; ai_walk(2) }
+func hknight_walk2() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk3
+	ai_walk(5)
+}
+func hknight_walk3() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk4
+	ai_walk(5)
+}
+func hknight_walk4() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk5
+	ai_walk(4)
+}
+func hknight_walk5() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk6
+	ai_walk(4)
+}
+func hknight_walk6() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk7
+	ai_walk(2)
+}
+func hknight_walk7() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk8
+	ai_walk(2)
+}
+func hknight_walk8() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk9
+	ai_walk(3)
+}
+func hknight_walk9() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk10
+	ai_walk(3)
+}
+func hknight_walk10() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk10)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk11
+	ai_walk(4)
+}
+func hknight_walk11() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk11)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk12
+	ai_walk(3)
+}
+func hknight_walk12() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk12)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk13
+	ai_walk(4)
+}
+func hknight_walk13() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk13)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk14
+	ai_walk(6)
+}
+func hknight_walk14() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk14)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk15
+	ai_walk(2)
+}
+func hknight_walk15() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk15)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk16
+	ai_walk(2)
+}
+func hknight_walk16() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk16)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk17
+	ai_walk(4)
+}
+func hknight_walk17() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk17)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk18
+	ai_walk(3)
+}
+func hknight_walk18() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk18)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk19
+	ai_walk(3)
+}
+func hknight_walk19() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk19)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk20
+	ai_walk(3)
+}
+func hknight_walk20() {
+	Self.Frame = float32(HKNIGHT_FRAME_walk20)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_walk1
+	ai_walk(2)
+}
 
 func hknight_run1() {
 	Self.Frame = float32(HKNIGHT_FRAME_run1)
@@ -303,13 +443,48 @@ func hknight_run1() {
 	ai_run(20)
 	CheckForCharge()
 }
-func hknight_run2() { Self.Frame = float32(HKNIGHT_FRAME_run2); Self.NextThink = Time + 0.1; Self.Think = hknight_run3; ai_run(25) }
-func hknight_run3() { Self.Frame = float32(HKNIGHT_FRAME_run3); Self.NextThink = Time + 0.1; Self.Think = hknight_run4; ai_run(18) }
-func hknight_run4() { Self.Frame = float32(HKNIGHT_FRAME_run4); Self.NextThink = Time + 0.1; Self.Think = hknight_run5; ai_run(16) }
-func hknight_run5() { Self.Frame = float32(HKNIGHT_FRAME_run5); Self.NextThink = Time + 0.1; Self.Think = hknight_run6; ai_run(14) }
-func hknight_run6() { Self.Frame = float32(HKNIGHT_FRAME_run6); Self.NextThink = Time + 0.1; Self.Think = hknight_run7; ai_run(25) }
-func hknight_run7() { Self.Frame = float32(HKNIGHT_FRAME_run7); Self.NextThink = Time + 0.1; Self.Think = hknight_run8; ai_run(21) }
-func hknight_run8() { Self.Frame = float32(HKNIGHT_FRAME_run8); Self.NextThink = Time + 0.1; Self.Think = hknight_run1; ai_run(13) }
+func hknight_run2() {
+	Self.Frame = float32(HKNIGHT_FRAME_run2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run3
+	ai_run(25)
+}
+func hknight_run3() {
+	Self.Frame = float32(HKNIGHT_FRAME_run3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run4
+	ai_run(18)
+}
+func hknight_run4() {
+	Self.Frame = float32(HKNIGHT_FRAME_run4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run5
+	ai_run(16)
+}
+func hknight_run5() {
+	Self.Frame = float32(HKNIGHT_FRAME_run5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run6
+	ai_run(14)
+}
+func hknight_run6() {
+	Self.Frame = float32(HKNIGHT_FRAME_run6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run7
+	ai_run(25)
+}
+func hknight_run7() {
+	Self.Frame = float32(HKNIGHT_FRAME_run7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run8
+	ai_run(21)
+}
+func hknight_run8() {
+	Self.Frame = float32(HKNIGHT_FRAME_run8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run1
+	ai_run(13)
+}
 
 func hknight_pain1() {
 	Self.Frame = float32(HKNIGHT_FRAME_pain1)
@@ -317,13 +492,39 @@ func hknight_pain1() {
 	Self.Think = hknight_pain2
 	engine.Sound(Self, int(CHAN_VOICE), "hknight/pain1.wav", 1, ATTN_NORM)
 }
-func hknight_pain2() { Self.Frame = float32(HKNIGHT_FRAME_pain2); Self.NextThink = Time + 0.1; Self.Think = hknight_pain3 }
-func hknight_pain3() { Self.Frame = float32(HKNIGHT_FRAME_pain3); Self.NextThink = Time + 0.1; Self.Think = hknight_pain4 }
-func hknight_pain4() { Self.Frame = float32(HKNIGHT_FRAME_pain4); Self.NextThink = Time + 0.1; Self.Think = hknight_pain5 }
-func hknight_pain5() { Self.Frame = float32(HKNIGHT_FRAME_pain5); Self.NextThink = Time + 0.1; Self.Think = hknight_run1 }
+func hknight_pain2() {
+	Self.Frame = float32(HKNIGHT_FRAME_pain2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_pain3
+}
+func hknight_pain3() {
+	Self.Frame = float32(HKNIGHT_FRAME_pain3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_pain4
+}
+func hknight_pain4() {
+	Self.Frame = float32(HKNIGHT_FRAME_pain4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_pain5
+}
+func hknight_pain5() {
+	Self.Frame = float32(HKNIGHT_FRAME_pain5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run1
+}
 
-func hknight_die1() { Self.Frame = float32(HKNIGHT_FRAME_death1); Self.NextThink = Time + 0.1; Self.Think = hknight_die2; ai_forward(10) }
-func hknight_die2() { Self.Frame = float32(HKNIGHT_FRAME_death2); Self.NextThink = Time + 0.1; Self.Think = hknight_die3; ai_forward(8) }
+func hknight_die1() {
+	Self.Frame = float32(HKNIGHT_FRAME_death1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die2
+	ai_forward(10)
+}
+func hknight_die2() {
+	Self.Frame = float32(HKNIGHT_FRAME_death2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die3
+	ai_forward(8)
+}
 func hknight_die3() {
 	Self.Frame = float32(HKNIGHT_FRAME_death3)
 	Self.NextThink = Time + 0.1
@@ -331,30 +532,100 @@ func hknight_die3() {
 	Self.Solid = SOLID_NOT
 	ai_forward(7)
 }
-func hknight_die4()  { Self.Frame = float32(HKNIGHT_FRAME_death4); Self.NextThink = Time + 0.1; Self.Think = hknight_die5 }
-func hknight_die5()  { Self.Frame = float32(HKNIGHT_FRAME_death5); Self.NextThink = Time + 0.1; Self.Think = hknight_die6 }
-func hknight_die6()  { Self.Frame = float32(HKNIGHT_FRAME_death6); Self.NextThink = Time + 0.1; Self.Think = hknight_die7 }
-func hknight_die7()  { Self.Frame = float32(HKNIGHT_FRAME_death7); Self.NextThink = Time + 0.1; Self.Think = hknight_die8 }
-func hknight_die8()  { Self.Frame = float32(HKNIGHT_FRAME_death8); Self.NextThink = Time + 0.1; Self.Think = hknight_die9; ai_forward(10) }
-func hknight_die9()  { Self.Frame = float32(HKNIGHT_FRAME_death9); Self.NextThink = Time + 0.1; Self.Think = hknight_die10; ai_forward(11) }
-func hknight_die10() { Self.Frame = float32(HKNIGHT_FRAME_death10); Self.NextThink = Time + 0.1; Self.Think = hknight_die11 }
-func hknight_die11() { Self.Frame = float32(HKNIGHT_FRAME_death11); Self.NextThink = Time + 0.1; Self.Think = hknight_die12 }
-func hknight_die12() { Self.Frame = float32(HKNIGHT_FRAME_death12); Self.NextThink = Time + 0.1; Self.Think = hknight_die12 }
+func hknight_die4() {
+	Self.Frame = float32(HKNIGHT_FRAME_death4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die5
+}
+func hknight_die5() {
+	Self.Frame = float32(HKNIGHT_FRAME_death5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die6
+}
+func hknight_die6() {
+	Self.Frame = float32(HKNIGHT_FRAME_death6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die7
+}
+func hknight_die7() {
+	Self.Frame = float32(HKNIGHT_FRAME_death7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die8
+}
+func hknight_die8() {
+	Self.Frame = float32(HKNIGHT_FRAME_death8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die9
+	ai_forward(10)
+}
+func hknight_die9() {
+	Self.Frame = float32(HKNIGHT_FRAME_death9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die10
+	ai_forward(11)
+}
+func hknight_die10() {
+	Self.Frame = float32(HKNIGHT_FRAME_death10)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die11
+}
+func hknight_die11() {
+	Self.Frame = float32(HKNIGHT_FRAME_death11)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die12
+}
+func hknight_die12() {
+	Self.Frame = float32(HKNIGHT_FRAME_death12)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_die12
+}
 
-func hknight_dieb1() { Self.Frame = float32(HKNIGHT_FRAME_deathb1); Self.NextThink = Time + 0.1; Self.Think = hknight_dieb2 }
-func hknight_dieb2() { Self.Frame = float32(HKNIGHT_FRAME_deathb2); Self.NextThink = Time + 0.1; Self.Think = hknight_dieb3 }
+func hknight_dieb1() {
+	Self.Frame = float32(HKNIGHT_FRAME_deathb1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_dieb2
+}
+func hknight_dieb2() {
+	Self.Frame = float32(HKNIGHT_FRAME_deathb2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_dieb3
+}
 func hknight_dieb3() {
 	Self.Frame = float32(HKNIGHT_FRAME_deathb3)
 	Self.NextThink = Time + 0.1
 	Self.Think = hknight_dieb4
 	Self.Solid = SOLID_NOT
 }
-func hknight_dieb4() { Self.Frame = float32(HKNIGHT_FRAME_deathb4); Self.NextThink = Time + 0.1; Self.Think = hknight_dieb5 }
-func hknight_dieb5() { Self.Frame = float32(HKNIGHT_FRAME_deathb5); Self.NextThink = Time + 0.1; Self.Think = hknight_dieb6 }
-func hknight_dieb6() { Self.Frame = float32(HKNIGHT_FRAME_deathb6); Self.NextThink = Time + 0.1; Self.Think = hknight_dieb7 }
-func hknight_dieb7() { Self.Frame = float32(HKNIGHT_FRAME_deathb7); Self.NextThink = Time + 0.1; Self.Think = hknight_dieb8 }
-func hknight_dieb8() { Self.Frame = float32(HKNIGHT_FRAME_deathb8); Self.NextThink = Time + 0.1; Self.Think = hknight_dieb9 }
-func hknight_dieb9() { Self.Frame = float32(HKNIGHT_FRAME_deathb9); Self.NextThink = Time + 0.1; Self.Think = hknight_dieb9 }
+func hknight_dieb4() {
+	Self.Frame = float32(HKNIGHT_FRAME_deathb4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_dieb5
+}
+func hknight_dieb5() {
+	Self.Frame = float32(HKNIGHT_FRAME_deathb5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_dieb6
+}
+func hknight_dieb6() {
+	Self.Frame = float32(HKNIGHT_FRAME_deathb6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_dieb7
+}
+func hknight_dieb7() {
+	Self.Frame = float32(HKNIGHT_FRAME_deathb7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_dieb8
+}
+func hknight_dieb8() {
+	Self.Frame = float32(HKNIGHT_FRAME_deathb8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_dieb9
+}
+func hknight_dieb9() {
+	Self.Frame = float32(HKNIGHT_FRAME_deathb9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_dieb9
+}
 
 func hknight_die() {
 	if Self.Health < -40 {
@@ -375,63 +646,339 @@ func hknight_die() {
 	}
 }
 
-func hknight_magica1()  { Self.Frame = float32(HKNIGHT_FRAME_magica1); Self.NextThink = Time + 0.1; Self.Think = hknight_magica2; ai_face() }
-func hknight_magica2()  { Self.Frame = float32(HKNIGHT_FRAME_magica2); Self.NextThink = Time + 0.1; Self.Think = hknight_magica3; ai_face() }
-func hknight_magica3()  { Self.Frame = float32(HKNIGHT_FRAME_magica3); Self.NextThink = Time + 0.1; Self.Think = hknight_magica4; ai_face() }
-func hknight_magica4()  { Self.Frame = float32(HKNIGHT_FRAME_magica4); Self.NextThink = Time + 0.1; Self.Think = hknight_magica5; ai_face() }
-func hknight_magica5()  { Self.Frame = float32(HKNIGHT_FRAME_magica5); Self.NextThink = Time + 0.1; Self.Think = hknight_magica6; ai_face() }
-func hknight_magica6()  { Self.Frame = float32(HKNIGHT_FRAME_magica6); Self.NextThink = Time + 0.1; Self.Think = hknight_magica7; ai_face() }
-func hknight_magica7()  { Self.Frame = float32(HKNIGHT_FRAME_magica7); Self.NextThink = Time + 0.1; Self.Think = hknight_magica8; hknight_shot(-2) }
-func hknight_magica8()  { Self.Frame = float32(HKNIGHT_FRAME_magica8); Self.NextThink = Time + 0.1; Self.Think = hknight_magica9; hknight_shot(-1) }
-func hknight_magica9()  { Self.Frame = float32(HKNIGHT_FRAME_magica9); Self.NextThink = Time + 0.1; Self.Think = hknight_magica10; hknight_shot(0) }
-func hknight_magica10() { Self.Frame = float32(HKNIGHT_FRAME_magica10); Self.NextThink = Time + 0.1; Self.Think = hknight_magica11; hknight_shot(1) }
-func hknight_magica11() { Self.Frame = float32(HKNIGHT_FRAME_magica11); Self.NextThink = Time + 0.1; Self.Think = hknight_magica12; hknight_shot(2) }
-func hknight_magica12() { Self.Frame = float32(HKNIGHT_FRAME_magica12); Self.NextThink = Time + 0.1; Self.Think = hknight_magica13; hknight_shot(3) }
-func hknight_magica13() { Self.Frame = float32(HKNIGHT_FRAME_magica13); Self.NextThink = Time + 0.1; Self.Think = hknight_magica14; ai_face() }
-func hknight_magica14() { Self.Frame = float32(HKNIGHT_FRAME_magica14); Self.NextThink = Time + 0.1; Self.Think = hknight_run1; ai_face() }
+func hknight_magica1() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica2
+	ai_face()
+}
+func hknight_magica2() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica3
+	ai_face()
+}
+func hknight_magica3() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica4
+	ai_face()
+}
+func hknight_magica4() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica5
+	ai_face()
+}
+func hknight_magica5() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica6
+	ai_face()
+}
+func hknight_magica6() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica7
+	ai_face()
+}
+func hknight_magica7() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica8
+	hknight_shot(-2)
+}
+func hknight_magica8() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica9
+	hknight_shot(-1)
+}
+func hknight_magica9() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica10
+	hknight_shot(0)
+}
+func hknight_magica10() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica10)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica11
+	hknight_shot(1)
+}
+func hknight_magica11() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica11)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica12
+	hknight_shot(2)
+}
+func hknight_magica12() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica12)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica13
+	hknight_shot(3)
+}
+func hknight_magica13() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica13)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magica14
+	ai_face()
+}
+func hknight_magica14() {
+	Self.Frame = float32(HKNIGHT_FRAME_magica14)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run1
+	ai_face()
+}
 
-func hknight_magicb1()  { Self.Frame = float32(HKNIGHT_FRAME_magicb1); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb2; ai_face() }
-func hknight_magicb2()  { Self.Frame = float32(HKNIGHT_FRAME_magicb2); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb3; ai_face() }
-func hknight_magicb3()  { Self.Frame = float32(HKNIGHT_FRAME_magicb3); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb4; ai_face() }
-func hknight_magicb4()  { Self.Frame = float32(HKNIGHT_FRAME_magicb4); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb5; ai_face() }
-func hknight_magicb5()  { Self.Frame = float32(HKNIGHT_FRAME_magicb5); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb6; ai_face() }
-func hknight_magicb6()  { Self.Frame = float32(HKNIGHT_FRAME_magicb6); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb7; ai_face() }
-func hknight_magicb7()  { Self.Frame = float32(HKNIGHT_FRAME_magicb7); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb8; hknight_shot(-2) }
-func hknight_magicb8()  { Self.Frame = float32(HKNIGHT_FRAME_magicb8); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb9; hknight_shot(-1) }
-func hknight_magicb9()  { Self.Frame = float32(HKNIGHT_FRAME_magicb9); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb10; hknight_shot(0) }
-func hknight_magicb10() { Self.Frame = float32(HKNIGHT_FRAME_magicb10); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb11; hknight_shot(1) }
-func hknight_magicb11() { Self.Frame = float32(HKNIGHT_FRAME_magicb11); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb12; hknight_shot(2) }
-func hknight_magicb12() { Self.Frame = float32(HKNIGHT_FRAME_magicb12); Self.NextThink = Time + 0.1; Self.Think = hknight_magicb13; hknight_shot(3) }
-func hknight_magicb13() { Self.Frame = float32(HKNIGHT_FRAME_magicb13); Self.NextThink = Time + 0.1; Self.Think = hknight_run1; ai_face() }
+func hknight_magicb1() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb2
+	ai_face()
+}
+func hknight_magicb2() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb3
+	ai_face()
+}
+func hknight_magicb3() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb4
+	ai_face()
+}
+func hknight_magicb4() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb5
+	ai_face()
+}
+func hknight_magicb5() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb6
+	ai_face()
+}
+func hknight_magicb6() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb7
+	ai_face()
+}
+func hknight_magicb7() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb8
+	hknight_shot(-2)
+}
+func hknight_magicb8() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb9
+	hknight_shot(-1)
+}
+func hknight_magicb9() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb10
+	hknight_shot(0)
+}
+func hknight_magicb10() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb10)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb11
+	hknight_shot(1)
+}
+func hknight_magicb11() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb11)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb12
+	hknight_shot(2)
+}
+func hknight_magicb12() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb12)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicb13
+	hknight_shot(3)
+}
+func hknight_magicb13() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicb13)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run1
+	ai_face()
+}
 
-func hknight_magicc1()  { Self.Frame = float32(HKNIGHT_FRAME_magicc1); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc2; ai_face() }
-func hknight_magicc2()  { Self.Frame = float32(HKNIGHT_FRAME_magicc2); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc3; ai_face() }
-func hknight_magicc3()  { Self.Frame = float32(HKNIGHT_FRAME_magicc3); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc4; ai_face() }
-func hknight_magicc4()  { Self.Frame = float32(HKNIGHT_FRAME_magicc4); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc5; ai_face() }
-func hknight_magicc5()  { Self.Frame = float32(HKNIGHT_FRAME_magicc5); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc6; ai_face() }
-func hknight_magicc6()  { Self.Frame = float32(HKNIGHT_FRAME_magicc6); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc7; hknight_shot(-2) }
-func hknight_magicc7()  { Self.Frame = float32(HKNIGHT_FRAME_magicc7); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc8; hknight_shot(-1) }
-func hknight_magicc8()  { Self.Frame = float32(HKNIGHT_FRAME_magicc8); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc9; hknight_shot(0) }
-func hknight_magicc9()  { Self.Frame = float32(HKNIGHT_FRAME_magicc9); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc10; hknight_shot(1) }
-func hknight_magicc10() { Self.Frame = float32(HKNIGHT_FRAME_magicc10); Self.NextThink = Time + 0.1; Self.Think = hknight_magicc11; hknight_shot(2) }
-func hknight_magicc11() { Self.Frame = float32(HKNIGHT_FRAME_magicc11); Self.NextThink = Time + 0.1; Self.Think = hknight_run1; hknight_shot(3) }
+func hknight_magicc1() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc2
+	ai_face()
+}
+func hknight_magicc2() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc3
+	ai_face()
+}
+func hknight_magicc3() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc4
+	ai_face()
+}
+func hknight_magicc4() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc5
+	ai_face()
+}
+func hknight_magicc5() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc6
+	ai_face()
+}
+func hknight_magicc6() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc7
+	hknight_shot(-2)
+}
+func hknight_magicc7() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc8
+	hknight_shot(-1)
+}
+func hknight_magicc8() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc9
+	hknight_shot(0)
+}
+func hknight_magicc9() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc10
+	hknight_shot(1)
+}
+func hknight_magicc10() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc10)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_magicc11
+	hknight_shot(2)
+}
+func hknight_magicc11() {
+	Self.Frame = float32(HKNIGHT_FRAME_magicc11)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run1
+	hknight_shot(3)
+}
 
-func hknight_char_a1() { Self.Frame = float32(HKNIGHT_FRAME_char_a1); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a2; ai_charge(20) }
-func hknight_char_a2() { Self.Frame = float32(HKNIGHT_FRAME_char_a2); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a3; ai_charge(25) }
-func hknight_char_a3() { Self.Frame = float32(HKNIGHT_FRAME_char_a3); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a4; ai_charge(18) }
-func hknight_char_a4() { Self.Frame = float32(HKNIGHT_FRAME_char_a4); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a5; ai_charge(16) }
-func hknight_char_a5() { Self.Frame = float32(HKNIGHT_FRAME_char_a5); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a6; ai_charge(14) }
-func hknight_char_a6() { Self.Frame = float32(HKNIGHT_FRAME_char_a6); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a7; ai_charge(20); ai_melee() }
-func hknight_char_a7() { Self.Frame = float32(HKNIGHT_FRAME_char_a7); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a8; ai_charge(21); ai_melee() }
-func hknight_char_a8() { Self.Frame = float32(HKNIGHT_FRAME_char_a8); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a9; ai_charge(13); ai_melee() }
-func hknight_char_a9() { Self.Frame = float32(HKNIGHT_FRAME_char_a9); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a10; ai_charge(20); ai_melee() }
-func hknight_char_a10() { Self.Frame = float32(HKNIGHT_FRAME_char_a10); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a11; ai_charge(20); ai_melee() }
-func hknight_char_a11() { Self.Frame = float32(HKNIGHT_FRAME_char_a11); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a12; ai_charge(18); ai_melee() }
-func hknight_char_a12() { Self.Frame = float32(HKNIGHT_FRAME_char_a12); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a13; ai_charge(16) }
-func hknight_char_a13() { Self.Frame = float32(HKNIGHT_FRAME_char_a13); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a14; ai_charge(14) }
-func hknight_char_a14() { Self.Frame = float32(HKNIGHT_FRAME_char_a14); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a15; ai_charge(25) }
-func hknight_char_a15() { Self.Frame = float32(HKNIGHT_FRAME_char_a15); Self.NextThink = Time + 0.1; Self.Think = hknight_char_a16; ai_charge(21) }
-func hknight_char_a16() { Self.Frame = float32(HKNIGHT_FRAME_char_a16); Self.NextThink = Time + 0.1; Self.Think = hknight_run1; ai_charge(13) }
+func hknight_char_a1() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a2
+	ai_charge(20)
+}
+func hknight_char_a2() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a3
+	ai_charge(25)
+}
+func hknight_char_a3() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a4
+	ai_charge(18)
+}
+func hknight_char_a4() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a5
+	ai_charge(16)
+}
+func hknight_char_a5() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a6
+	ai_charge(14)
+}
+func hknight_char_a6() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a7
+	ai_charge(20)
+	ai_melee()
+}
+func hknight_char_a7() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a8
+	ai_charge(21)
+	ai_melee()
+}
+func hknight_char_a8() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a9
+	ai_charge(13)
+	ai_melee()
+}
+func hknight_char_a9() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a10
+	ai_charge(20)
+	ai_melee()
+}
+func hknight_char_a10() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a10)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a11
+	ai_charge(20)
+	ai_melee()
+}
+func hknight_char_a11() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a11)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a12
+	ai_charge(18)
+	ai_melee()
+}
+func hknight_char_a12() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a12)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a13
+	ai_charge(16)
+}
+func hknight_char_a13() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a13)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a14
+	ai_charge(14)
+}
+func hknight_char_a14() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a14)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a15
+	ai_charge(25)
+}
+func hknight_char_a15() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a15)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_a16
+	ai_charge(21)
+}
+func hknight_char_a16() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_a16)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run1
+	ai_charge(13)
+}
 
 func hknight_char_b1() {
 	Self.Frame = float32(HKNIGHT_FRAME_char_b1)
@@ -441,57 +988,317 @@ func hknight_char_b1() {
 	ai_charge(23)
 	ai_melee()
 }
-func hknight_char_b2() { Self.Frame = float32(HKNIGHT_FRAME_char_b2); Self.NextThink = Time + 0.1; Self.Think = hknight_char_b3; ai_charge(17); ai_melee() }
-func hknight_char_b3() { Self.Frame = float32(HKNIGHT_FRAME_char_b3); Self.NextThink = Time + 0.1; Self.Think = hknight_char_b4; ai_charge(12); ai_melee() }
-func hknight_char_b4() { Self.Frame = float32(HKNIGHT_FRAME_char_b4); Self.NextThink = Time + 0.1; Self.Think = hknight_char_b5; ai_charge(22); ai_melee() }
-func hknight_char_b5() { Self.Frame = float32(HKNIGHT_FRAME_char_b5); Self.NextThink = Time + 0.1; Self.Think = hknight_char_b6; ai_charge(18); ai_melee() }
-func hknight_char_b6() { Self.Frame = float32(HKNIGHT_FRAME_char_b6); Self.NextThink = Time + 0.1; Self.Think = hknight_char_b1; ai_charge(8); ai_melee() }
+func hknight_char_b2() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_b2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_b3
+	ai_charge(17)
+	ai_melee()
+}
+func hknight_char_b3() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_b3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_b4
+	ai_charge(12)
+	ai_melee()
+}
+func hknight_char_b4() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_b4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_b5
+	ai_charge(22)
+	ai_melee()
+}
+func hknight_char_b5() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_b5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_b6
+	ai_charge(18)
+	ai_melee()
+}
+func hknight_char_b6() {
+	Self.Frame = float32(HKNIGHT_FRAME_char_b6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_char_b1
+	ai_charge(8)
+	ai_melee()
+}
 
-func hknight_slice1()  { Self.Frame = float32(HKNIGHT_FRAME_slice1); Self.NextThink = Time + 0.1; Self.Think = hknight_slice2; ai_charge(9) }
-func hknight_slice2()  { Self.Frame = float32(HKNIGHT_FRAME_slice2); Self.NextThink = Time + 0.1; Self.Think = hknight_slice3; ai_charge(6) }
-func hknight_slice3()  { Self.Frame = float32(HKNIGHT_FRAME_slice3); Self.NextThink = Time + 0.1; Self.Think = hknight_slice4; ai_charge(13) }
-func hknight_slice4()  { Self.Frame = float32(HKNIGHT_FRAME_slice4); Self.NextThink = Time + 0.1; Self.Think = hknight_slice5; ai_charge(4) }
-func hknight_slice5()  { Self.Frame = float32(HKNIGHT_FRAME_slice5); Self.NextThink = Time + 0.1; Self.Think = hknight_slice6; ai_charge(7); ai_melee() }
-func hknight_slice6()  { Self.Frame = float32(HKNIGHT_FRAME_slice6); Self.NextThink = Time + 0.1; Self.Think = hknight_slice7; ai_charge(15); ai_melee() }
-func hknight_slice7()  { Self.Frame = float32(HKNIGHT_FRAME_slice7); Self.NextThink = Time + 0.1; Self.Think = hknight_slice8; ai_charge(8); ai_melee() }
-func hknight_slice8()  { Self.Frame = float32(HKNIGHT_FRAME_slice8); Self.NextThink = Time + 0.1; Self.Think = hknight_slice9; ai_charge(2); ai_melee() }
-func hknight_slice9()  { Self.Frame = float32(HKNIGHT_FRAME_slice9); Self.NextThink = Time + 0.1; Self.Think = hknight_slice10; ai_melee() }
-func hknight_slice10() { Self.Frame = float32(HKNIGHT_FRAME_slice10); Self.NextThink = Time + 0.1; Self.Think = hknight_run1; ai_charge(3) }
+func hknight_slice1() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_slice2
+	ai_charge(9)
+}
+func hknight_slice2() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_slice3
+	ai_charge(6)
+}
+func hknight_slice3() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_slice4
+	ai_charge(13)
+}
+func hknight_slice4() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_slice5
+	ai_charge(4)
+}
+func hknight_slice5() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_slice6
+	ai_charge(7)
+	ai_melee()
+}
+func hknight_slice6() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_slice7
+	ai_charge(15)
+	ai_melee()
+}
+func hknight_slice7() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_slice8
+	ai_charge(8)
+	ai_melee()
+}
+func hknight_slice8() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_slice9
+	ai_charge(2)
+	ai_melee()
+}
+func hknight_slice9() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_slice10
+	ai_melee()
+}
+func hknight_slice10() {
+	Self.Frame = float32(HKNIGHT_FRAME_slice10)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run1
+	ai_charge(3)
+}
 
-func hknight_smash1() { Self.Frame = float32(HKNIGHT_FRAME_smash1); Self.NextThink = Time + 0.1; Self.Think = hknight_smash2; ai_charge(1) }
-func hknight_smash2() { Self.Frame = float32(HKNIGHT_FRAME_smash2); Self.NextThink = Time + 0.1; Self.Think = hknight_smash3; ai_charge(13) }
-func hknight_smash3() { Self.Frame = float32(HKNIGHT_FRAME_smash3); Self.NextThink = Time + 0.1; Self.Think = hknight_smash4; ai_charge(9) }
-func hknight_smash4() { Self.Frame = float32(HKNIGHT_FRAME_smash4); Self.NextThink = Time + 0.1; Self.Think = hknight_smash5; ai_charge(11) }
-func hknight_smash5() { Self.Frame = float32(HKNIGHT_FRAME_smash5); Self.NextThink = Time + 0.1; Self.Think = hknight_smash6; ai_charge(10); ai_melee() }
-func hknight_smash6() { Self.Frame = float32(HKNIGHT_FRAME_smash6); Self.NextThink = Time + 0.1; Self.Think = hknight_smash7; ai_charge(7); ai_melee() }
-func hknight_smash7() { Self.Frame = float32(HKNIGHT_FRAME_smash7); Self.NextThink = Time + 0.1; Self.Think = hknight_smash8; ai_charge(12); ai_melee() }
-func hknight_smash8() { Self.Frame = float32(HKNIGHT_FRAME_smash8); Self.NextThink = Time + 0.1; Self.Think = hknight_smash9; ai_charge(2); ai_melee() }
-func hknight_smash9() { Self.Frame = float32(HKNIGHT_FRAME_smash9); Self.NextThink = Time + 0.1; Self.Think = hknight_smash10; ai_charge(3); ai_melee() }
-func hknight_smash10() { Self.Frame = float32(HKNIGHT_FRAME_smash10); Self.NextThink = Time + 0.1; Self.Think = hknight_smash11; ai_charge(0) }
-func hknight_smash11() { Self.Frame = float32(HKNIGHT_FRAME_smash11); Self.NextThink = Time + 0.1; Self.Think = hknight_run1; ai_charge(0) }
+func hknight_smash1() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash2
+	ai_charge(1)
+}
+func hknight_smash2() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash3
+	ai_charge(13)
+}
+func hknight_smash3() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash4
+	ai_charge(9)
+}
+func hknight_smash4() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash5
+	ai_charge(11)
+}
+func hknight_smash5() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash6
+	ai_charge(10)
+	ai_melee()
+}
+func hknight_smash6() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash7
+	ai_charge(7)
+	ai_melee()
+}
+func hknight_smash7() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash8
+	ai_charge(12)
+	ai_melee()
+}
+func hknight_smash8() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash9
+	ai_charge(2)
+	ai_melee()
+}
+func hknight_smash9() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash10
+	ai_charge(3)
+	ai_melee()
+}
+func hknight_smash10() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash10)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_smash11
+	ai_charge(0)
+}
+func hknight_smash11() {
+	Self.Frame = float32(HKNIGHT_FRAME_smash11)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run1
+	ai_charge(0)
+}
 
-func hknight_watk1() { Self.Frame = float32(HKNIGHT_FRAME_w_attack1); Self.NextThink = Time + 0.1; Self.Think = hknight_watk2; ai_charge(2) }
-func hknight_watk2() { Self.Frame = float32(HKNIGHT_FRAME_w_attack2); Self.NextThink = Time + 0.1; Self.Think = hknight_watk3; ai_charge(0) }
-func hknight_watk3() { Self.Frame = float32(HKNIGHT_FRAME_w_attack3); Self.NextThink = Time + 0.1; Self.Think = hknight_watk4; ai_charge(0) }
-func hknight_watk4() { Self.Frame = float32(HKNIGHT_FRAME_w_attack4); Self.NextThink = Time + 0.1; Self.Think = hknight_watk5; ai_melee() }
-func hknight_watk5() { Self.Frame = float32(HKNIGHT_FRAME_w_attack5); Self.NextThink = Time + 0.1; Self.Think = hknight_watk6; ai_melee() }
-func hknight_watk6() { Self.Frame = float32(HKNIGHT_FRAME_w_attack6); Self.NextThink = Time + 0.1; Self.Think = hknight_watk7; ai_melee() }
-func hknight_watk7() { Self.Frame = float32(HKNIGHT_FRAME_w_attack7); Self.NextThink = Time + 0.1; Self.Think = hknight_watk8; ai_charge(1) }
-func hknight_watk8() { Self.Frame = float32(HKNIGHT_FRAME_w_attack8); Self.NextThink = Time + 0.1; Self.Think = hknight_watk9; ai_charge(4) }
-func hknight_watk9() { Self.Frame = float32(HKNIGHT_FRAME_w_attack9); Self.NextThink = Time + 0.1; Self.Think = hknight_watk10; ai_charge(5) }
-func hknight_watk10() { Self.Frame = float32(HKNIGHT_FRAME_w_attack10); Self.NextThink = Time + 0.1; Self.Think = hknight_watk11; ai_charge(3); ai_melee() }
-func hknight_watk11() { Self.Frame = float32(HKNIGHT_FRAME_w_attack11); Self.NextThink = Time + 0.1; Self.Think = hknight_watk12; ai_charge(2); ai_melee() }
-func hknight_watk12() { Self.Frame = float32(HKNIGHT_FRAME_w_attack12); Self.NextThink = Time + 0.1; Self.Think = hknight_watk13; ai_charge(2); ai_melee() }
-func hknight_watk13() { Self.Frame = float32(HKNIGHT_FRAME_w_attack13); Self.NextThink = Time + 0.1; Self.Think = hknight_watk14; ai_charge(0) }
-func hknight_watk14() { Self.Frame = float32(HKNIGHT_FRAME_w_attack14); Self.NextThink = Time + 0.1; Self.Think = hknight_watk15; ai_charge(0) }
-func hknight_watk15() { Self.Frame = float32(HKNIGHT_FRAME_w_attack15); Self.NextThink = Time + 0.1; Self.Think = hknight_watk16; ai_charge(0) }
-func hknight_watk16() { Self.Frame = float32(HKNIGHT_FRAME_w_attack16); Self.NextThink = Time + 0.1; Self.Think = hknight_watk17; ai_charge(1) }
-func hknight_watk17() { Self.Frame = float32(HKNIGHT_FRAME_w_attack17); Self.NextThink = Time + 0.1; Self.Think = hknight_watk18; ai_charge(1); ai_melee() }
-func hknight_watk18() { Self.Frame = float32(HKNIGHT_FRAME_w_attack18); Self.NextThink = Time + 0.1; Self.Think = hknight_watk19; ai_charge(3); ai_melee() }
-func hknight_watk19() { Self.Frame = float32(HKNIGHT_FRAME_w_attack19); Self.NextThink = Time + 0.1; Self.Think = hknight_watk20; ai_charge(4); ai_melee() }
-func hknight_watk20() { Self.Frame = float32(HKNIGHT_FRAME_w_attack20); Self.NextThink = Time + 0.1; Self.Think = hknight_watk21; ai_charge(6) }
-func hknight_watk21() { Self.Frame = float32(HKNIGHT_FRAME_w_attack21); Self.NextThink = Time + 0.1; Self.Think = hknight_watk22; ai_charge(7) }
-func hknight_watk22() { Self.Frame = float32(HKNIGHT_FRAME_w_attack22); Self.NextThink = Time + 0.1; Self.Think = hknight_run1; ai_charge(3) }
+func hknight_watk1() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack1)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk2
+	ai_charge(2)
+}
+func hknight_watk2() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack2)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk3
+	ai_charge(0)
+}
+func hknight_watk3() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack3)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk4
+	ai_charge(0)
+}
+func hknight_watk4() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack4)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk5
+	ai_melee()
+}
+func hknight_watk5() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack5)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk6
+	ai_melee()
+}
+func hknight_watk6() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack6)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk7
+	ai_melee()
+}
+func hknight_watk7() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack7)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk8
+	ai_charge(1)
+}
+func hknight_watk8() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack8)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk9
+	ai_charge(4)
+}
+func hknight_watk9() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack9)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk10
+	ai_charge(5)
+}
+func hknight_watk10() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack10)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk11
+	ai_charge(3)
+	ai_melee()
+}
+func hknight_watk11() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack11)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk12
+	ai_charge(2)
+	ai_melee()
+}
+func hknight_watk12() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack12)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk13
+	ai_charge(2)
+	ai_melee()
+}
+func hknight_watk13() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack13)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk14
+	ai_charge(0)
+}
+func hknight_watk14() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack14)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk15
+	ai_charge(0)
+}
+func hknight_watk15() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack15)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk16
+	ai_charge(0)
+}
+func hknight_watk16() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack16)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk17
+	ai_charge(1)
+}
+func hknight_watk17() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack17)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk18
+	ai_charge(1)
+	ai_melee()
+}
+func hknight_watk18() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack18)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk19
+	ai_charge(3)
+	ai_melee()
+}
+func hknight_watk19() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack19)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk20
+	ai_charge(4)
+	ai_melee()
+}
+func hknight_watk20() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack20)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk21
+	ai_charge(6)
+}
+func hknight_watk21() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack21)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_watk22
+	ai_charge(7)
+}
+func hknight_watk22() {
+	Self.Frame = float32(HKNIGHT_FRAME_w_attack22)
+	Self.NextThink = Time + 0.1
+	Self.Think = hknight_run1
+	ai_charge(3)
+}
 
 func hknight_pain(attacker *quake.Entity, damage float32) {
 	if Self.PainFinished > Time {

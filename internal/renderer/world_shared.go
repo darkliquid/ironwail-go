@@ -109,11 +109,35 @@ func (s *worldVisibilityScratch) selectVisibleWorldFaces(tree *bsp.Tree, allFace
 		}
 	}
 	nearWaterPortal := false
-	if cameraLeafIndex >= 0 && cameraLeafIndex < len(leafFaces) {
-		for _, faceIdx := range leafFaces[cameraLeafIndex] {
-			if faceIdx >= 0 && faceIdx < len(allFaces) {
-				if allFaces[faceIdx].Flags&model.SurfDrawTurb != 0 {
-					nearWaterPortal = true
+	if cameraLeafIndex >= 0 {
+		if cameraLeafIndex < len(leafFaces) {
+			for _, faceIdx := range leafFaces[cameraLeafIndex] {
+				if faceIdx >= 0 && faceIdx < len(allFaces) {
+					if allFaces[faceIdx].Flags&model.SurfDrawTurb != 0 {
+						nearWaterPortal = true
+						break
+					}
+				}
+			}
+		}
+		if !nearWaterPortal {
+			fatPVS := tree.FatPVS(cameraOrigin)
+			for leafIdx := range tree.Leafs {
+				byteIdx := leafIdx / 8
+				bitIdx := uint(leafIdx % 8)
+				if byteIdx < len(fatPVS) && (fatPVS[byteIdx]&(1<<bitIdx)) != 0 {
+					if leafIdx < len(leafFaces) {
+						for _, faceIdx := range leafFaces[leafIdx] {
+							if faceIdx >= 0 && faceIdx < len(allFaces) {
+								if allFaces[faceIdx].Flags&model.SurfDrawTurb != 0 {
+									nearWaterPortal = true
+									break
+								}
+							}
+						}
+					}
+				}
+				if nearWaterPortal {
 					break
 				}
 			}
@@ -126,6 +150,7 @@ func (s *worldVisibilityScratch) selectVisibleWorldFaces(tree *bsp.Tree, allFace
 	} else {
 		pvs = tree.LeafPVS(cameraLeaf)
 	}
+
 	if rDebugWaterEnabled() {
 		slog.Debug("[rwater] PVS selection",
 			"near_water_portal", nearWaterPortal,

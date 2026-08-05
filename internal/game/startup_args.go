@@ -11,4 +11,3 @@ type startupOptions struct {
 }
 
 type StartupOptions = startupOptions
-

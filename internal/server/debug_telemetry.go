@@ -18,9 +18,9 @@ import (
 
 // Type aliases for debug types moved to the debug sub-package.
 type (
-	DebugEventKind    = srvdebug.DebugEventKind
-	DebugEventMask    = srvdebug.DebugEventMask
-	DebugEntityFilter = srvdebug.EntityFilter
+	DebugEventKind       = srvdebug.DebugEventKind
+	DebugEventMask       = srvdebug.DebugEventMask
+	DebugEntityFilter    = srvdebug.EntityFilter
 	DebugTelemetryConfig = srvdebug.TelemetryConfig
 	DebugEntitySnapshot  = srvdebug.EntitySnapshot
 )

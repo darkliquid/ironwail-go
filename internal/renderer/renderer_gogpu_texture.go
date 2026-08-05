@@ -103,7 +103,6 @@ func (r *Renderer) SetPalette(palette []byte) {
 	r.clearSpriteModelsLocked()
 }
 
-
 func (r *Renderer) getOrCreateTexture(ctx *gogpu.Context, pic *image.QPic) *gogpu.Texture {
 	r.mu.RLock()
 	cached, ok := r.textureCache[cacheKey{pic: pic}]

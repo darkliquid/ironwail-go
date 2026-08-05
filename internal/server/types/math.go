@@ -58,4 +58,3 @@ func VecCross(a, b [3]float32) [3]float32 {
 func AngleMod(a float32) float32 {
 	return float32(float64(int(a*(65536.0/360.0))&65535) * (360.0 / 65536.0))
 }
-

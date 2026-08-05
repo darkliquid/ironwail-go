@@ -64,7 +64,7 @@ func TestSaveGameStateRoundTripsGameplayState(t *testing.T) {
 	player.SetAmmoRockets(srv, 5)
 	player.SetAmmoCells(srv, 63)
 	player.SetWeapon(srv, 7)
-	player.SetItems(srv, 0x0001 | 0x0004 | 0x0100)
+	player.SetItems(srv, 0x0001|0x0004|0x0100)
 	player.SetArmorType(srv, 0.8)
 	player.SetArmorValue(srv, 145)
 

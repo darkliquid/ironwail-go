@@ -240,14 +240,54 @@ func Wiz_idlesound() {
 	}
 }
 
-func wiz_stand1()  { Self.Frame = float32(WIZ_FRAME_hover1); Self.NextThink = Time + 0.1; Self.Think = wiz_stand2; ai_stand() }
-func wiz_stand2()  { Self.Frame = float32(WIZ_FRAME_hover2); Self.NextThink = Time + 0.1; Self.Think = wiz_stand3; ai_stand() }
-func wiz_stand3()  { Self.Frame = float32(WIZ_FRAME_hover3); Self.NextThink = Time + 0.1; Self.Think = wiz_stand4; ai_stand() }
-func wiz_stand4()  { Self.Frame = float32(WIZ_FRAME_hover4); Self.NextThink = Time + 0.1; Self.Think = wiz_stand5; ai_stand() }
-func wiz_stand5()  { Self.Frame = float32(WIZ_FRAME_hover5); Self.NextThink = Time + 0.1; Self.Think = wiz_stand6; ai_stand() }
-func wiz_stand6()  { Self.Frame = float32(WIZ_FRAME_hover6); Self.NextThink = Time + 0.1; Self.Think = wiz_stand7; ai_stand() }
-func wiz_stand7()  { Self.Frame = float32(WIZ_FRAME_hover7); Self.NextThink = Time + 0.1; Self.Think = wiz_stand8; ai_stand() }
-func wiz_stand8()  { Self.Frame = float32(WIZ_FRAME_hover8); Self.NextThink = Time + 0.1; Self.Think = wiz_stand1; ai_stand() }
+func wiz_stand1() {
+	Self.Frame = float32(WIZ_FRAME_hover1)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_stand2
+	ai_stand()
+}
+func wiz_stand2() {
+	Self.Frame = float32(WIZ_FRAME_hover2)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_stand3
+	ai_stand()
+}
+func wiz_stand3() {
+	Self.Frame = float32(WIZ_FRAME_hover3)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_stand4
+	ai_stand()
+}
+func wiz_stand4() {
+	Self.Frame = float32(WIZ_FRAME_hover4)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_stand5
+	ai_stand()
+}
+func wiz_stand5() {
+	Self.Frame = float32(WIZ_FRAME_hover5)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_stand6
+	ai_stand()
+}
+func wiz_stand6() {
+	Self.Frame = float32(WIZ_FRAME_hover6)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_stand7
+	ai_stand()
+}
+func wiz_stand7() {
+	Self.Frame = float32(WIZ_FRAME_hover7)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_stand8
+	ai_stand()
+}
+func wiz_stand8() {
+	Self.Frame = float32(WIZ_FRAME_hover8)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_stand1
+	ai_stand()
+}
 
 func wiz_walk1() {
 	Self.Frame = float32(WIZ_FRAME_hover1)
@@ -257,13 +297,48 @@ func wiz_walk1() {
 	Wiz_idlesound()
 }
 
-func wiz_walk2() { Self.Frame = float32(WIZ_FRAME_hover2); Self.NextThink = Time + 0.1; Self.Think = wiz_walk3; ai_walk(8) }
-func wiz_walk3() { Self.Frame = float32(WIZ_FRAME_hover3); Self.NextThink = Time + 0.1; Self.Think = wiz_walk4; ai_walk(8) }
-func wiz_walk4() { Self.Frame = float32(WIZ_FRAME_hover4); Self.NextThink = Time + 0.1; Self.Think = wiz_walk5; ai_walk(8) }
-func wiz_walk5() { Self.Frame = float32(WIZ_FRAME_hover5); Self.NextThink = Time + 0.1; Self.Think = wiz_walk6; ai_walk(8) }
-func wiz_walk6() { Self.Frame = float32(WIZ_FRAME_hover6); Self.NextThink = Time + 0.1; Self.Think = wiz_walk7; ai_walk(8) }
-func wiz_walk7() { Self.Frame = float32(WIZ_FRAME_hover7); Self.NextThink = Time + 0.1; Self.Think = wiz_walk8; ai_walk(8) }
-func wiz_walk8() { Self.Frame = float32(WIZ_FRAME_hover8); Self.NextThink = Time + 0.1; Self.Think = wiz_walk1; ai_walk(8) }
+func wiz_walk2() {
+	Self.Frame = float32(WIZ_FRAME_hover2)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_walk3
+	ai_walk(8)
+}
+func wiz_walk3() {
+	Self.Frame = float32(WIZ_FRAME_hover3)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_walk4
+	ai_walk(8)
+}
+func wiz_walk4() {
+	Self.Frame = float32(WIZ_FRAME_hover4)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_walk5
+	ai_walk(8)
+}
+func wiz_walk5() {
+	Self.Frame = float32(WIZ_FRAME_hover5)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_walk6
+	ai_walk(8)
+}
+func wiz_walk6() {
+	Self.Frame = float32(WIZ_FRAME_hover6)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_walk7
+	ai_walk(8)
+}
+func wiz_walk7() {
+	Self.Frame = float32(WIZ_FRAME_hover7)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_walk8
+	ai_walk(8)
+}
+func wiz_walk8() {
+	Self.Frame = float32(WIZ_FRAME_hover8)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_walk1
+	ai_walk(8)
+}
 
 func wiz_side1_impl() {
 	Self.Frame = float32(WIZ_FRAME_hover1)
@@ -273,13 +348,48 @@ func wiz_side1_impl() {
 	Wiz_idlesound()
 }
 
-func wiz_side2() { Self.Frame = float32(WIZ_FRAME_hover2); Self.NextThink = Time + 0.1; Self.Think = wiz_side3; ai_run(8) }
-func wiz_side3() { Self.Frame = float32(WIZ_FRAME_hover3); Self.NextThink = Time + 0.1; Self.Think = wiz_side4; ai_run(8) }
-func wiz_side4() { Self.Frame = float32(WIZ_FRAME_hover4); Self.NextThink = Time + 0.1; Self.Think = wiz_side5; ai_run(8) }
-func wiz_side5() { Self.Frame = float32(WIZ_FRAME_hover5); Self.NextThink = Time + 0.1; Self.Think = wiz_side6; ai_run(8) }
-func wiz_side6() { Self.Frame = float32(WIZ_FRAME_hover6); Self.NextThink = Time + 0.1; Self.Think = wiz_side7; ai_run(8) }
-func wiz_side7() { Self.Frame = float32(WIZ_FRAME_hover7); Self.NextThink = Time + 0.1; Self.Think = wiz_side8; ai_run(8) }
-func wiz_side8() { Self.Frame = float32(WIZ_FRAME_hover8); Self.NextThink = Time + 0.1; Self.Think = wiz_side1_impl; ai_run(8) }
+func wiz_side2() {
+	Self.Frame = float32(WIZ_FRAME_hover2)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_side3
+	ai_run(8)
+}
+func wiz_side3() {
+	Self.Frame = float32(WIZ_FRAME_hover3)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_side4
+	ai_run(8)
+}
+func wiz_side4() {
+	Self.Frame = float32(WIZ_FRAME_hover4)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_side5
+	ai_run(8)
+}
+func wiz_side5() {
+	Self.Frame = float32(WIZ_FRAME_hover5)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_side6
+	ai_run(8)
+}
+func wiz_side6() {
+	Self.Frame = float32(WIZ_FRAME_hover6)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_side7
+	ai_run(8)
+}
+func wiz_side7() {
+	Self.Frame = float32(WIZ_FRAME_hover7)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_side8
+	ai_run(8)
+}
+func wiz_side8() {
+	Self.Frame = float32(WIZ_FRAME_hover8)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_side1_impl
+	ai_run(8)
+}
 
 func wiz_run1_impl() {
 	Self.Frame = float32(WIZ_FRAME_fly1)
@@ -289,19 +399,84 @@ func wiz_run1_impl() {
 	Wiz_idlesound()
 }
 
-func wiz_run2()  { Self.Frame = float32(WIZ_FRAME_fly2); Self.NextThink = Time + 0.1; Self.Think = wiz_run3; ai_run(16) }
-func wiz_run3()  { Self.Frame = float32(WIZ_FRAME_fly3); Self.NextThink = Time + 0.1; Self.Think = wiz_run4; ai_run(16) }
-func wiz_run4()  { Self.Frame = float32(WIZ_FRAME_fly4); Self.NextThink = Time + 0.1; Self.Think = wiz_run5; ai_run(16) }
-func wiz_run5()  { Self.Frame = float32(WIZ_FRAME_fly5); Self.NextThink = Time + 0.1; Self.Think = wiz_run6; ai_run(16) }
-func wiz_run6()  { Self.Frame = float32(WIZ_FRAME_fly6); Self.NextThink = Time + 0.1; Self.Think = wiz_run7; ai_run(16) }
-func wiz_run7()  { Self.Frame = float32(WIZ_FRAME_fly7); Self.NextThink = Time + 0.1; Self.Think = wiz_run8; ai_run(16) }
-func wiz_run8()  { Self.Frame = float32(WIZ_FRAME_fly8); Self.NextThink = Time + 0.1; Self.Think = wiz_run9; ai_run(16) }
-func wiz_run9()  { Self.Frame = float32(WIZ_FRAME_fly9); Self.NextThink = Time + 0.1; Self.Think = wiz_run10; ai_run(16) }
-func wiz_run10() { Self.Frame = float32(WIZ_FRAME_fly10); Self.NextThink = Time + 0.1; Self.Think = wiz_run11; ai_run(16) }
-func wiz_run11() { Self.Frame = float32(WIZ_FRAME_fly11); Self.NextThink = Time + 0.1; Self.Think = wiz_run12; ai_run(16) }
-func wiz_run12() { Self.Frame = float32(WIZ_FRAME_fly12); Self.NextThink = Time + 0.1; Self.Think = wiz_run13; ai_run(16) }
-func wiz_run13() { Self.Frame = float32(WIZ_FRAME_fly13); Self.NextThink = Time + 0.1; Self.Think = wiz_run14; ai_run(16) }
-func wiz_run14() { Self.Frame = float32(WIZ_FRAME_fly14); Self.NextThink = Time + 0.1; Self.Think = wiz_run1_impl; ai_run(16) }
+func wiz_run2() {
+	Self.Frame = float32(WIZ_FRAME_fly2)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run3
+	ai_run(16)
+}
+func wiz_run3() {
+	Self.Frame = float32(WIZ_FRAME_fly3)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run4
+	ai_run(16)
+}
+func wiz_run4() {
+	Self.Frame = float32(WIZ_FRAME_fly4)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run5
+	ai_run(16)
+}
+func wiz_run5() {
+	Self.Frame = float32(WIZ_FRAME_fly5)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run6
+	ai_run(16)
+}
+func wiz_run6() {
+	Self.Frame = float32(WIZ_FRAME_fly6)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run7
+	ai_run(16)
+}
+func wiz_run7() {
+	Self.Frame = float32(WIZ_FRAME_fly7)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run8
+	ai_run(16)
+}
+func wiz_run8() {
+	Self.Frame = float32(WIZ_FRAME_fly8)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run9
+	ai_run(16)
+}
+func wiz_run9() {
+	Self.Frame = float32(WIZ_FRAME_fly9)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run10
+	ai_run(16)
+}
+func wiz_run10() {
+	Self.Frame = float32(WIZ_FRAME_fly10)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run11
+	ai_run(16)
+}
+func wiz_run11() {
+	Self.Frame = float32(WIZ_FRAME_fly11)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run12
+	ai_run(16)
+}
+func wiz_run12() {
+	Self.Frame = float32(WIZ_FRAME_fly12)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run13
+	ai_run(16)
+}
+func wiz_run13() {
+	Self.Frame = float32(WIZ_FRAME_fly13)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run14
+	ai_run(16)
+}
+func wiz_run14() {
+	Self.Frame = float32(WIZ_FRAME_fly14)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run1_impl
+	ai_run(16)
+}
 
 func wiz_fast1() {
 	Self.Frame = float32(WIZ_FRAME_magatt1)
@@ -311,14 +486,54 @@ func wiz_fast1() {
 	Wiz_StartFast()
 }
 
-func wiz_fast2() { Self.Frame = float32(WIZ_FRAME_magatt2); Self.NextThink = Time + 0.1; Self.Think = wiz_fast3; ai_face() }
-func wiz_fast3() { Self.Frame = float32(WIZ_FRAME_magatt3); Self.NextThink = Time + 0.1; Self.Think = wiz_fast4; ai_face() }
-func wiz_fast4() { Self.Frame = float32(WIZ_FRAME_magatt4); Self.NextThink = Time + 0.1; Self.Think = wiz_fast5; ai_face() }
-func wiz_fast5() { Self.Frame = float32(WIZ_FRAME_magatt5); Self.NextThink = Time + 0.1; Self.Think = wiz_fast6; ai_face() }
-func wiz_fast6() { Self.Frame = float32(WIZ_FRAME_magatt6); Self.NextThink = Time + 0.1; Self.Think = wiz_fast7; ai_face() }
-func wiz_fast7() { Self.Frame = float32(WIZ_FRAME_magatt5); Self.NextThink = Time + 0.1; Self.Think = wiz_fast8; ai_face() }
-func wiz_fast8() { Self.Frame = float32(WIZ_FRAME_magatt4); Self.NextThink = Time + 0.1; Self.Think = wiz_fast9; ai_face() }
-func wiz_fast9() { Self.Frame = float32(WIZ_FRAME_magatt3); Self.NextThink = Time + 0.1; Self.Think = wiz_fast10; ai_face() }
+func wiz_fast2() {
+	Self.Frame = float32(WIZ_FRAME_magatt2)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_fast3
+	ai_face()
+}
+func wiz_fast3() {
+	Self.Frame = float32(WIZ_FRAME_magatt3)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_fast4
+	ai_face()
+}
+func wiz_fast4() {
+	Self.Frame = float32(WIZ_FRAME_magatt4)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_fast5
+	ai_face()
+}
+func wiz_fast5() {
+	Self.Frame = float32(WIZ_FRAME_magatt5)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_fast6
+	ai_face()
+}
+func wiz_fast6() {
+	Self.Frame = float32(WIZ_FRAME_magatt6)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_fast7
+	ai_face()
+}
+func wiz_fast7() {
+	Self.Frame = float32(WIZ_FRAME_magatt5)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_fast8
+	ai_face()
+}
+func wiz_fast8() {
+	Self.Frame = float32(WIZ_FRAME_magatt4)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_fast9
+	ai_face()
+}
+func wiz_fast9() {
+	Self.Frame = float32(WIZ_FRAME_magatt3)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_fast10
+	ai_face()
+}
 func wiz_fast10() {
 	Self.Frame = float32(WIZ_FRAME_magatt2)
 	Self.NextThink = Time + 0.1
@@ -328,10 +543,26 @@ func wiz_fast10() {
 	WizardAttackFinished()
 }
 
-func wiz_pain1() { Self.Frame = float32(WIZ_FRAME_pain1); Self.NextThink = Time + 0.1; Self.Think = wiz_pain2 }
-func wiz_pain2() { Self.Frame = float32(WIZ_FRAME_pain2); Self.NextThink = Time + 0.1; Self.Think = wiz_pain3 }
-func wiz_pain3() { Self.Frame = float32(WIZ_FRAME_pain3); Self.NextThink = Time + 0.1; Self.Think = wiz_pain4 }
-func wiz_pain4() { Self.Frame = float32(WIZ_FRAME_pain4); Self.NextThink = Time + 0.1; Self.Think = wiz_run1_impl }
+func wiz_pain1() {
+	Self.Frame = float32(WIZ_FRAME_pain1)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_pain2
+}
+func wiz_pain2() {
+	Self.Frame = float32(WIZ_FRAME_pain2)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_pain3
+}
+func wiz_pain3() {
+	Self.Frame = float32(WIZ_FRAME_pain3)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_pain4
+}
+func wiz_pain4() {
+	Self.Frame = float32(WIZ_FRAME_pain4)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_run1_impl
+}
 
 func wiz_death1() {
 	Self.Frame = float32(WIZ_FRAME_death1)
@@ -345,13 +576,42 @@ func wiz_death1() {
 	engine.Sound(Self, int(CHAN_VOICE), "wizard/wdeath.wav", 1, ATTN_NORM)
 }
 
-func wiz_death2() { Self.Frame = float32(WIZ_FRAME_death2); Self.NextThink = Time + 0.1; Self.Think = wiz_death3 }
-func wiz_death3() { Self.Frame = float32(WIZ_FRAME_death3); Self.NextThink = Time + 0.1; Self.Think = wiz_death4; Self.Solid = SOLID_NOT }
-func wiz_death4() { Self.Frame = float32(WIZ_FRAME_death4); Self.NextThink = Time + 0.1; Self.Think = wiz_death5 }
-func wiz_death5() { Self.Frame = float32(WIZ_FRAME_death5); Self.NextThink = Time + 0.1; Self.Think = wiz_death6 }
-func wiz_death6() { Self.Frame = float32(WIZ_FRAME_death6); Self.NextThink = Time + 0.1; Self.Think = wiz_death7 }
-func wiz_death7() { Self.Frame = float32(WIZ_FRAME_death7); Self.NextThink = Time + 0.1; Self.Think = wiz_death8 }
-func wiz_death8() { Self.Frame = float32(WIZ_FRAME_death8); Self.NextThink = Time + 0.1; Self.Think = wiz_death8 }
+func wiz_death2() {
+	Self.Frame = float32(WIZ_FRAME_death2)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_death3
+}
+func wiz_death3() {
+	Self.Frame = float32(WIZ_FRAME_death3)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_death4
+	Self.Solid = SOLID_NOT
+}
+func wiz_death4() {
+	Self.Frame = float32(WIZ_FRAME_death4)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_death5
+}
+func wiz_death5() {
+	Self.Frame = float32(WIZ_FRAME_death5)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_death6
+}
+func wiz_death6() {
+	Self.Frame = float32(WIZ_FRAME_death6)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_death7
+}
+func wiz_death7() {
+	Self.Frame = float32(WIZ_FRAME_death7)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_death8
+}
+func wiz_death8() {
+	Self.Frame = float32(WIZ_FRAME_death8)
+	Self.NextThink = Time + 0.1
+	Self.Think = wiz_death8
+}
 
 func wiz_die() {
 	if Self.Health < -40 {

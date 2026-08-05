@@ -87,19 +87,84 @@ const (
 // Prototyped elsewhere
 var Demon_JumpTouch func()
 
-func demon1_stand1()  { Self.Frame = float32(FIEND_FRAME_stand1); Self.NextThink = Time + 0.1; Self.Think = demon1_stand2; ai_stand() }
-func demon1_stand2()  { Self.Frame = float32(FIEND_FRAME_stand2); Self.NextThink = Time + 0.1; Self.Think = demon1_stand3; ai_stand() }
-func demon1_stand3()  { Self.Frame = float32(FIEND_FRAME_stand3); Self.NextThink = Time + 0.1; Self.Think = demon1_stand4; ai_stand() }
-func demon1_stand4()  { Self.Frame = float32(FIEND_FRAME_stand4); Self.NextThink = Time + 0.1; Self.Think = demon1_stand5; ai_stand() }
-func demon1_stand5()  { Self.Frame = float32(FIEND_FRAME_stand5); Self.NextThink = Time + 0.1; Self.Think = demon1_stand6; ai_stand() }
-func demon1_stand6()  { Self.Frame = float32(FIEND_FRAME_stand6); Self.NextThink = Time + 0.1; Self.Think = demon1_stand7; ai_stand() }
-func demon1_stand7()  { Self.Frame = float32(FIEND_FRAME_stand7); Self.NextThink = Time + 0.1; Self.Think = demon1_stand8; ai_stand() }
-func demon1_stand8()  { Self.Frame = float32(FIEND_FRAME_stand8); Self.NextThink = Time + 0.1; Self.Think = demon1_stand9; ai_stand() }
-func demon1_stand9()  { Self.Frame = float32(FIEND_FRAME_stand9); Self.NextThink = Time + 0.1; Self.Think = demon1_stand10; ai_stand() }
-func demon1_stand10() { Self.Frame = float32(FIEND_FRAME_stand10); Self.NextThink = Time + 0.1; Self.Think = demon1_stand11; ai_stand() }
-func demon1_stand11() { Self.Frame = float32(FIEND_FRAME_stand11); Self.NextThink = Time + 0.1; Self.Think = demon1_stand12; ai_stand() }
-func demon1_stand12() { Self.Frame = float32(FIEND_FRAME_stand12); Self.NextThink = Time + 0.1; Self.Think = demon1_stand13; ai_stand() }
-func demon1_stand13() { Self.Frame = float32(FIEND_FRAME_stand13); Self.NextThink = Time + 0.1; Self.Think = demon1_stand1; ai_stand() }
+func demon1_stand1() {
+	Self.Frame = float32(FIEND_FRAME_stand1)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand2
+	ai_stand()
+}
+func demon1_stand2() {
+	Self.Frame = float32(FIEND_FRAME_stand2)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand3
+	ai_stand()
+}
+func demon1_stand3() {
+	Self.Frame = float32(FIEND_FRAME_stand3)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand4
+	ai_stand()
+}
+func demon1_stand4() {
+	Self.Frame = float32(FIEND_FRAME_stand4)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand5
+	ai_stand()
+}
+func demon1_stand5() {
+	Self.Frame = float32(FIEND_FRAME_stand5)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand6
+	ai_stand()
+}
+func demon1_stand6() {
+	Self.Frame = float32(FIEND_FRAME_stand6)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand7
+	ai_stand()
+}
+func demon1_stand7() {
+	Self.Frame = float32(FIEND_FRAME_stand7)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand8
+	ai_stand()
+}
+func demon1_stand8() {
+	Self.Frame = float32(FIEND_FRAME_stand8)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand9
+	ai_stand()
+}
+func demon1_stand9() {
+	Self.Frame = float32(FIEND_FRAME_stand9)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand10
+	ai_stand()
+}
+func demon1_stand10() {
+	Self.Frame = float32(FIEND_FRAME_stand10)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand11
+	ai_stand()
+}
+func demon1_stand11() {
+	Self.Frame = float32(FIEND_FRAME_stand11)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand12
+	ai_stand()
+}
+func demon1_stand12() {
+	Self.Frame = float32(FIEND_FRAME_stand12)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand13
+	ai_stand()
+}
+func demon1_stand13() {
+	Self.Frame = float32(FIEND_FRAME_stand13)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_stand1
+	ai_stand()
+}
 
 func demon1_walk1() {
 	Self.Frame = float32(FIEND_FRAME_walk1)
@@ -110,13 +175,48 @@ func demon1_walk1() {
 	}
 	ai_walk(8)
 }
-func demon1_walk2() { Self.Frame = float32(FIEND_FRAME_walk2); Self.NextThink = Time + 0.1; Self.Think = demon1_walk3; ai_walk(6) }
-func demon1_walk3() { Self.Frame = float32(FIEND_FRAME_walk3); Self.NextThink = Time + 0.1; Self.Think = demon1_walk4; ai_walk(6) }
-func demon1_walk4() { Self.Frame = float32(FIEND_FRAME_walk4); Self.NextThink = Time + 0.1; Self.Think = demon1_walk5; ai_walk(7) }
-func demon1_walk5() { Self.Frame = float32(FIEND_FRAME_walk5); Self.NextThink = Time + 0.1; Self.Think = demon1_walk6; ai_walk(4) }
-func demon1_walk6() { Self.Frame = float32(FIEND_FRAME_walk6); Self.NextThink = Time + 0.1; Self.Think = demon1_walk7; ai_walk(6) }
-func demon1_walk7() { Self.Frame = float32(FIEND_FRAME_walk7); Self.NextThink = Time + 0.1; Self.Think = demon1_walk8; ai_walk(10) }
-func demon1_walk8() { Self.Frame = float32(FIEND_FRAME_walk8); Self.NextThink = Time + 0.1; Self.Think = demon1_walk1; ai_walk(10) }
+func demon1_walk2() {
+	Self.Frame = float32(FIEND_FRAME_walk2)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_walk3
+	ai_walk(6)
+}
+func demon1_walk3() {
+	Self.Frame = float32(FIEND_FRAME_walk3)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_walk4
+	ai_walk(6)
+}
+func demon1_walk4() {
+	Self.Frame = float32(FIEND_FRAME_walk4)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_walk5
+	ai_walk(7)
+}
+func demon1_walk5() {
+	Self.Frame = float32(FIEND_FRAME_walk5)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_walk6
+	ai_walk(4)
+}
+func demon1_walk6() {
+	Self.Frame = float32(FIEND_FRAME_walk6)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_walk7
+	ai_walk(6)
+}
+func demon1_walk7() {
+	Self.Frame = float32(FIEND_FRAME_walk7)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_walk8
+	ai_walk(10)
+}
+func demon1_walk8() {
+	Self.Frame = float32(FIEND_FRAME_walk8)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_walk1
+	ai_walk(10)
+}
 
 func demon1_run1() {
 	Self.Frame = float32(FIEND_FRAME_run1)
@@ -127,15 +227,55 @@ func demon1_run1() {
 	}
 	ai_run(20)
 }
-func demon1_run2() { Self.Frame = float32(FIEND_FRAME_run2); Self.NextThink = Time + 0.1; Self.Think = demon1_run3; ai_run(15) }
-func demon1_run3() { Self.Frame = float32(FIEND_FRAME_run3); Self.NextThink = Time + 0.1; Self.Think = demon1_run4; ai_run(36) }
-func demon1_run4() { Self.Frame = float32(FIEND_FRAME_run4); Self.NextThink = Time + 0.1; Self.Think = demon1_run5; ai_run(20) }
-func demon1_run5() { Self.Frame = float32(FIEND_FRAME_run5); Self.NextThink = Time + 0.1; Self.Think = demon1_run6; ai_run(15) }
-func demon1_run6() { Self.Frame = float32(FIEND_FRAME_run6); Self.NextThink = Time + 0.1; Self.Think = demon1_run1; ai_run(36) }
+func demon1_run2() {
+	Self.Frame = float32(FIEND_FRAME_run2)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_run3
+	ai_run(15)
+}
+func demon1_run3() {
+	Self.Frame = float32(FIEND_FRAME_run3)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_run4
+	ai_run(36)
+}
+func demon1_run4() {
+	Self.Frame = float32(FIEND_FRAME_run4)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_run5
+	ai_run(20)
+}
+func demon1_run5() {
+	Self.Frame = float32(FIEND_FRAME_run5)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_run6
+	ai_run(15)
+}
+func demon1_run6() {
+	Self.Frame = float32(FIEND_FRAME_run6)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_run1
+	ai_run(36)
+}
 
-func demon1_jump1() { Self.Frame = float32(FIEND_FRAME_leap1); Self.NextThink = Time + 0.1; Self.Think = demon1_jump2; ai_face() }
-func demon1_jump2() { Self.Frame = float32(FIEND_FRAME_leap2); Self.NextThink = Time + 0.1; Self.Think = demon1_jump3; ai_face() }
-func demon1_jump3() { Self.Frame = float32(FIEND_FRAME_leap3); Self.NextThink = Time + 0.1; Self.Think = demon1_jump4; ai_face() }
+func demon1_jump1() {
+	Self.Frame = float32(FIEND_FRAME_leap1)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_jump2
+	ai_face()
+}
+func demon1_jump2() {
+	Self.Frame = float32(FIEND_FRAME_leap2)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_jump3
+	ai_face()
+}
+func demon1_jump3() {
+	Self.Frame = float32(FIEND_FRAME_leap3)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_jump4
+	ai_face()
+}
 func demon1_jump4() {
 	Self.Frame = float32(FIEND_FRAME_leap4)
 	Self.NextThink = Time + 0.1
@@ -152,11 +292,31 @@ func demon1_jump4() {
 	}
 }
 
-func demon1_jump5()  { Self.Frame = float32(FIEND_FRAME_leap5); Self.NextThink = Time + 0.1; Self.Think = demon1_jump6 }
-func demon1_jump6()  { Self.Frame = float32(FIEND_FRAME_leap6); Self.NextThink = Time + 0.1; Self.Think = demon1_jump7 }
-func demon1_jump7()  { Self.Frame = float32(FIEND_FRAME_leap7); Self.NextThink = Time + 0.1; Self.Think = demon1_jump8 }
-func demon1_jump8()  { Self.Frame = float32(FIEND_FRAME_leap8); Self.NextThink = Time + 0.1; Self.Think = demon1_jump9 }
-func demon1_jump9()  { Self.Frame = float32(FIEND_FRAME_leap9); Self.NextThink = Time + 0.1; Self.Think = demon1_jump10 }
+func demon1_jump5() {
+	Self.Frame = float32(FIEND_FRAME_leap5)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_jump6
+}
+func demon1_jump6() {
+	Self.Frame = float32(FIEND_FRAME_leap6)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_jump7
+}
+func demon1_jump7() {
+	Self.Frame = float32(FIEND_FRAME_leap7)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_jump8
+}
+func demon1_jump8() {
+	Self.Frame = float32(FIEND_FRAME_leap8)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_jump9
+}
+func demon1_jump9() {
+	Self.Frame = float32(FIEND_FRAME_leap9)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_jump10
+}
 func demon1_jump10() {
 	Self.Frame = float32(FIEND_FRAME_leap10)
 	Self.NextThink = Time + 0.1
@@ -164,31 +324,139 @@ func demon1_jump10() {
 	Self.NextThink = Time + 3 // if three seconds pass, assume demon is stuck and jump again
 }
 
-func demon1_jump11() { Self.Frame = float32(FIEND_FRAME_leap11); Self.NextThink = Time + 0.1; Self.Think = demon1_jump12 }
-func demon1_jump12() { Self.Frame = float32(FIEND_FRAME_leap12); Self.NextThink = Time + 0.1; Self.Think = demon1_run1 }
+func demon1_jump11() {
+	Self.Frame = float32(FIEND_FRAME_leap11)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_jump12
+}
+func demon1_jump12() {
+	Self.Frame = float32(FIEND_FRAME_leap12)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_run1
+}
 
-func demon1_atta1()  { Self.Frame = float32(FIEND_FRAME_attacka1); Self.NextThink = Time + 0.1; Self.Think = demon1_atta2; ai_charge(4) }
-func demon1_atta2()  { Self.Frame = float32(FIEND_FRAME_attacka2); Self.NextThink = Time + 0.1; Self.Think = demon1_atta3; ai_charge(0) }
-func demon1_atta3()  { Self.Frame = float32(FIEND_FRAME_attacka3); Self.NextThink = Time + 0.1; Self.Think = demon1_atta4; ai_charge(0) }
-func demon1_atta4()  { Self.Frame = float32(FIEND_FRAME_attacka4); Self.NextThink = Time + 0.1; Self.Think = demon1_atta5; ai_charge(1) }
-func demon1_atta5()  { Self.Frame = float32(FIEND_FRAME_attacka5); Self.NextThink = Time + 0.1; Self.Think = demon1_atta6; ai_charge(2); Demon_Melee_impl(200) }
-func demon1_atta6()  { Self.Frame = float32(FIEND_FRAME_attacka6); Self.NextThink = Time + 0.1; Self.Think = demon1_atta7; ai_charge(1) }
-func demon1_atta7()  { Self.Frame = float32(FIEND_FRAME_attacka7); Self.NextThink = Time + 0.1; Self.Think = demon1_atta8; ai_charge(6) }
-func demon1_atta8()  { Self.Frame = float32(FIEND_FRAME_attacka8); Self.NextThink = Time + 0.1; Self.Think = demon1_atta9; ai_charge(8) }
-func demon1_atta9()  { Self.Frame = float32(FIEND_FRAME_attacka9); Self.NextThink = Time + 0.1; Self.Think = demon1_atta10; ai_charge(4) }
-func demon1_atta10() { Self.Frame = float32(FIEND_FRAME_attacka10); Self.NextThink = Time + 0.1; Self.Think = demon1_atta11; ai_charge(2) }
-func demon1_atta11() { Self.Frame = float32(FIEND_FRAME_attacka11); Self.NextThink = Time + 0.1; Self.Think = demon1_atta12; Demon_Melee_impl(-200) }
-func demon1_atta12() { Self.Frame = float32(FIEND_FRAME_attacka12); Self.NextThink = Time + 0.1; Self.Think = demon1_atta13; ai_charge(5) }
-func demon1_atta13() { Self.Frame = float32(FIEND_FRAME_attacka13); Self.NextThink = Time + 0.1; Self.Think = demon1_atta14; ai_charge(8) }
-func demon1_atta14() { Self.Frame = float32(FIEND_FRAME_attacka14); Self.NextThink = Time + 0.1; Self.Think = demon1_atta15; ai_charge(4) }
-func demon1_atta15() { Self.Frame = float32(FIEND_FRAME_attacka15); Self.NextThink = Time + 0.1; Self.Think = demon1_run1; ai_charge(4) }
+func demon1_atta1() {
+	Self.Frame = float32(FIEND_FRAME_attacka1)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta2
+	ai_charge(4)
+}
+func demon1_atta2() {
+	Self.Frame = float32(FIEND_FRAME_attacka2)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta3
+	ai_charge(0)
+}
+func demon1_atta3() {
+	Self.Frame = float32(FIEND_FRAME_attacka3)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta4
+	ai_charge(0)
+}
+func demon1_atta4() {
+	Self.Frame = float32(FIEND_FRAME_attacka4)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta5
+	ai_charge(1)
+}
+func demon1_atta5() {
+	Self.Frame = float32(FIEND_FRAME_attacka5)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta6
+	ai_charge(2)
+	Demon_Melee_impl(200)
+}
+func demon1_atta6() {
+	Self.Frame = float32(FIEND_FRAME_attacka6)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta7
+	ai_charge(1)
+}
+func demon1_atta7() {
+	Self.Frame = float32(FIEND_FRAME_attacka7)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta8
+	ai_charge(6)
+}
+func demon1_atta8() {
+	Self.Frame = float32(FIEND_FRAME_attacka8)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta9
+	ai_charge(8)
+}
+func demon1_atta9() {
+	Self.Frame = float32(FIEND_FRAME_attacka9)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta10
+	ai_charge(4)
+}
+func demon1_atta10() {
+	Self.Frame = float32(FIEND_FRAME_attacka10)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta11
+	ai_charge(2)
+}
+func demon1_atta11() {
+	Self.Frame = float32(FIEND_FRAME_attacka11)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta12
+	Demon_Melee_impl(-200)
+}
+func demon1_atta12() {
+	Self.Frame = float32(FIEND_FRAME_attacka12)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta13
+	ai_charge(5)
+}
+func demon1_atta13() {
+	Self.Frame = float32(FIEND_FRAME_attacka13)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta14
+	ai_charge(8)
+}
+func demon1_atta14() {
+	Self.Frame = float32(FIEND_FRAME_attacka14)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_atta15
+	ai_charge(4)
+}
+func demon1_atta15() {
+	Self.Frame = float32(FIEND_FRAME_attacka15)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_run1
+	ai_charge(4)
+}
 
-func demon1_pain1() { Self.Frame = float32(FIEND_FRAME_pain1); Self.NextThink = Time + 0.1; Self.Think = demon1_pain2 }
-func demon1_pain2() { Self.Frame = float32(FIEND_FRAME_pain2); Self.NextThink = Time + 0.1; Self.Think = demon1_pain3 }
-func demon1_pain3() { Self.Frame = float32(FIEND_FRAME_pain3); Self.NextThink = Time + 0.1; Self.Think = demon1_pain4 }
-func demon1_pain4() { Self.Frame = float32(FIEND_FRAME_pain4); Self.NextThink = Time + 0.1; Self.Think = demon1_pain5 }
-func demon1_pain5() { Self.Frame = float32(FIEND_FRAME_pain5); Self.NextThink = Time + 0.1; Self.Think = demon1_pain6 }
-func demon1_pain6() { Self.Frame = float32(FIEND_FRAME_pain6); Self.NextThink = Time + 0.1; Self.Think = demon1_run1 }
+func demon1_pain1() {
+	Self.Frame = float32(FIEND_FRAME_pain1)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_pain2
+}
+func demon1_pain2() {
+	Self.Frame = float32(FIEND_FRAME_pain2)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_pain3
+}
+func demon1_pain3() {
+	Self.Frame = float32(FIEND_FRAME_pain3)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_pain4
+}
+func demon1_pain4() {
+	Self.Frame = float32(FIEND_FRAME_pain4)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_pain5
+}
+func demon1_pain5() {
+	Self.Frame = float32(FIEND_FRAME_pain5)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_pain6
+}
+func demon1_pain6() {
+	Self.Frame = float32(FIEND_FRAME_pain6)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_run1
+}
 
 // Note: To avoid redefining demon1_pain from monsters.go or fight.go
 func demon1_pain_impl(attacker *quake.Entity, damage float32) {
@@ -222,19 +490,47 @@ func demon1_die1() {
 	engine.Sound(Self, int(CHAN_VOICE), "demon/ddeath.wav", 1, ATTN_NORM)
 }
 
-func demon1_die2() { Self.Frame = float32(FIEND_FRAME_death2); Self.NextThink = Time + 0.1; Self.Think = demon1_die3 }
-func demon1_die3() { Self.Frame = float32(FIEND_FRAME_death3); Self.NextThink = Time + 0.1; Self.Think = demon1_die4 }
-func demon1_die4() { Self.Frame = float32(FIEND_FRAME_death4); Self.NextThink = Time + 0.1; Self.Think = demon1_die5 }
-func demon1_die5() { Self.Frame = float32(FIEND_FRAME_death5); Self.NextThink = Time + 0.1; Self.Think = demon1_die6 }
+func demon1_die2() {
+	Self.Frame = float32(FIEND_FRAME_death2)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_die3
+}
+func demon1_die3() {
+	Self.Frame = float32(FIEND_FRAME_death3)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_die4
+}
+func demon1_die4() {
+	Self.Frame = float32(FIEND_FRAME_death4)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_die5
+}
+func demon1_die5() {
+	Self.Frame = float32(FIEND_FRAME_death5)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_die6
+}
 func demon1_die6() {
 	Self.Frame = float32(FIEND_FRAME_death6)
 	Self.NextThink = Time + 0.1
 	Self.Think = demon1_die7
 	Self.Solid = SOLID_NOT
 }
-func demon1_die7() { Self.Frame = float32(FIEND_FRAME_death7); Self.NextThink = Time + 0.1; Self.Think = demon1_die8 }
-func demon1_die8() { Self.Frame = float32(FIEND_FRAME_death8); Self.NextThink = Time + 0.1; Self.Think = demon1_die9 }
-func demon1_die9() { Self.Frame = float32(FIEND_FRAME_death9); Self.NextThink = Time + 0.1; Self.Think = demon1_die9 }
+func demon1_die7() {
+	Self.Frame = float32(FIEND_FRAME_death7)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_die8
+}
+func demon1_die8() {
+	Self.Frame = float32(FIEND_FRAME_death8)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_die9
+}
+func demon1_die9() {
+	Self.Frame = float32(FIEND_FRAME_death9)
+	Self.NextThink = Time + 0.1
+	Self.Think = demon1_die9
+}
 
 func demon_die() {
 	if Self.Health < -80 {

@@ -70,7 +70,7 @@ func TestEntityStateForClient_AlphaScaleDefaultsWhenFieldsMissing(t *testing.T) 
 	}
 	newServerTestVM(s, 8)
 	ent := &Edict{
-				Alpha: 77,
+		Alpha: 77,
 		Scale: 99,
 	}
 
@@ -539,7 +539,7 @@ func TestWriteEntityUpdate_NonNetQuakeSetsFitzExtensions(t *testing.T) {
 			t.Parallel()
 
 			s := &Server{Protocol: tc.protocol}
-   newServerTestVM(s, 8)
+			newServerTestVM(s, 8)
 			state := EntityState{
 				ModelIndex: 0x345,
 				Frame:      0x267,

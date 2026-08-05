@@ -89,8 +89,8 @@ type Server struct {
 
 	// pushMoveBuffers + touchLinkScratch avoid per-frame allocations
 	// (PushMove origin-restore, touchLinks trigger candidates).
-	pushMoveMoved   []*Edict
-	pushMoveFrom    [][3]float32
+	pushMoveMoved    []*Edict
+	pushMoveFrom     [][3]float32
 	touchLinkScratch []*Edict
 
 	// Network messaging

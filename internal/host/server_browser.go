@@ -1,8 +1,8 @@
 package host
 
 import (
-	"github.com/darkliquid/ironwail-go/internal/server"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
 func (h *Host) updateServerBrowserNetworking(subs *Subsystems) {

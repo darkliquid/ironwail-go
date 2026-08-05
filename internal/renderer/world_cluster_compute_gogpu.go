@@ -19,29 +19,29 @@ func (r *Renderer) createWorldClusterComputePipeline(device *wgpu.Device, comput
 		Label: "World Cluster Compute BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{
 			{
-				Binding: 0, // ComputeUniforms
+				Binding:    0, // ComputeUniforms
 				Visibility: gputypes.ShaderStageCompute,
 				Buffer: &gputypes.BufferBindingLayout{
-					Type:           gputypes.BufferBindingTypeUniform,
+					Type:             gputypes.BufferBindingTypeUniform,
 					HasDynamicOffset: false,
 					MinBindingSize:   0,
 				},
 			},
 			{
-				Binding: 1, // DynamicLight array
+				Binding:    1, // DynamicLight array
 				Visibility: gputypes.ShaderStageCompute,
 				Buffer: &gputypes.BufferBindingLayout{
-					Type:           gputypes.BufferBindingTypeReadOnlyStorage,
+					Type:             gputypes.BufferBindingTypeReadOnlyStorage,
 					HasDynamicOffset: false,
 					MinBindingSize:   0,
 				},
 			},
 			{
-				Binding: 2, // LightClusters storage texture
+				Binding:    2, // LightClusters storage texture
 				Visibility: gputypes.ShaderStageCompute,
 				StorageTexture: &gputypes.StorageTextureBindingLayout{
-					Access: gputypes.StorageTextureAccessWriteOnly,
-					Format: gputypes.TextureFormatRG32Uint,
+					Access:        gputypes.StorageTextureAccessWriteOnly,
+					Format:        gputypes.TextureFormatRG32Uint,
 					ViewDimension: gputypes.TextureViewDimension3D,
 				},
 			},
@@ -52,7 +52,7 @@ func (r *Renderer) createWorldClusterComputePipeline(device *wgpu.Device, comput
 	}
 
 	pipelineLayout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
-		Label: "World Cluster Compute Pipeline Layout",
+		Label:            "World Cluster Compute Pipeline Layout",
 		BindGroupLayouts: []*wgpu.BindGroupLayout{bindGroupLayout},
 	})
 	if err != nil {
@@ -60,8 +60,8 @@ func (r *Renderer) createWorldClusterComputePipeline(device *wgpu.Device, comput
 	}
 
 	pipeline, err := device.CreateComputePipeline(&wgpu.ComputePipelineDescriptor{
-		Label: "World Cluster Compute Pipeline",
-		Layout: pipelineLayout,
+		Label:      "World Cluster Compute Pipeline",
+		Layout:     pipelineLayout,
 		Module:     computeShader,
 		EntryPoint: "cs_main",
 	})
@@ -101,7 +101,7 @@ func (r *Renderer) dispatchWorldClusterCompute(device *wgpu.Device, queue *wgpu.
 	// 2. Upload compute uniforms
 	uniformBytes := make([]byte, 144)
 	putFloat32s(uniformBytes[0:64], viewMatrix[:])
-	
+
 	// The C version uses TransposedProj, which is just the projection matrix transposed.
 	transposedProj := projMatrix.Transpose()
 	putFloat32s(uniformBytes[64:128], transposedProj[:])

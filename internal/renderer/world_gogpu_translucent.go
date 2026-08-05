@@ -316,59 +316,7 @@ func gogpuWorldTranslucentLiquidFaceRenders(
 }
 
 func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTranslucentBrushFaceRender {
-	if dc == nil || dc.renderer == nil {
-		return nil
-	}
-	r := dc.renderer
-	r.mu.RLock()
-	worldData := r.worldData
-	camera := r.cameraState
-	worldVertexBuffer := r.worldVertexBuffer
-	worldIndexBuffer := r.worldIndexBuffer
-	worldLightmapArray := r.worldLightmapArray
-	cameraOriginWorld := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	cameraLeafIndex := -1
-	if worldData != nil && worldData.Geometry != nil && worldData.Geometry.Tree != nil {
-		cameraLeafIndex = worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
-	}
-	var cachedFaces []WorldFace
-	var liquidAlpha worldLiquidAlphaSettings
-	if worldData != nil && worldData.Geometry != nil {
-		liquidAlpha = worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
-		if cacheEntry := r.gogpuWorldBatchCacheEntry(cameraLeafIndex, liquidAlpha); cacheEntry != nil {
-			cachedFaces = cacheEntry.translucentLiquid
-		}
-	}
-	worldHasLitWater := worldData != nil && worldData.Geometry != nil && worldData.Geometry.HasLitWater
-	r.mu.RUnlock()
-	if worldData == nil || worldData.Geometry == nil || worldVertexBuffer == nil || worldIndexBuffer == nil {
-		return nil
-	}
-	if cachedFaces != nil {
-		return gogpuWorldTranslucentLiquidFaceRenders(cachedFaces, camera, worldVertexBuffer, worldIndexBuffer, worldLightmapArray, liquidAlpha, worldHasLitWater)
-	}
-	visibleFaces := r.worldVisibleFacesScratch.selectVisibleWorldFaces(
-		worldData.Geometry.Tree,
-		worldData.Geometry.Faces,
-		worldData.Geometry.LeafFaces,
-		cameraOriginWorld,
-	)
-	translucentFaces := make([]WorldFace, 0, len(visibleFaces))
-	for _, face := range visibleFaces {
-		if shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha) {
-			translucentFaces = append(translucentFaces, face)
-		}
-	}
-	renders := gogpuWorldTranslucentLiquidFaceRenders(translucentFaces, camera, worldVertexBuffer, worldIndexBuffer, worldLightmapArray, liquidAlpha, worldHasLitWater)
-	if rDebugWaterEnabled() {
-		slog.Debug("[rwater] collected translucent liquid renders",
-			"count", len(renders),
-			"cached", cachedFaces != nil,
-			"world_has_lit_water", worldHasLitWater,
-			"liquid_alpha_water", liquidAlpha.water,
-		)
-	}
-	return renders
+	return nil
 }
 
 func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []BrushEntity) ([]gogpuTranslucentBrushFaceRender, []*wgpu.Buffer) {
@@ -653,7 +601,6 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		lightmapBindGroup, litWater := gogpuLateTranslucentLightmapBindGroup(res, draw)
 		offset, uData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
 		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), res.camera.Time, draw.face.alpha, litWater)
-
 
 		// Select the frame-1 uniform bind group when the entity's frame != 0.
 		activeUniformBindGroup := res.uniformBindGroup

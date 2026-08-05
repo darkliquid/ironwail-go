@@ -166,4 +166,3 @@ type Edict struct {
 	OldThinkTime   float32
 	FreeTime       float32
 }
-

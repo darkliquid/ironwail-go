@@ -433,4 +433,3 @@ func (c *CSQC) Unload() {
 	c.precachedPics = make(map[string]int)
 	c.loaded = false
 }
-

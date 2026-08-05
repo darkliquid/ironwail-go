@@ -9,9 +9,9 @@ import srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 
 // Type aliases for types moved to the types sub-package.
 type (
-	ClientState    = srvtypes.ClientState
-	SignonStage    = srvtypes.SignonStage
-	NetMessageType = srvtypes.NetMessageType
+	ClientState      = srvtypes.ClientState
+	SignonStage      = srvtypes.SignonStage
+	NetMessageType   = srvtypes.NetMessageType
 	ServerNetMessage = srvtypes.ServerNetMessage
 )
 

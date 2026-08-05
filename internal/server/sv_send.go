@@ -942,4 +942,3 @@ func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	msg.PutByte(0xff)
 	s.recordDevStatsPacketSize(msg.Len())
 }
-

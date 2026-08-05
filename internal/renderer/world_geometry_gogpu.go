@@ -708,7 +708,6 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bs
 		return nil, nil
 	}
 
-
 	(*pages)[texNum].Surfaces = append((*pages)[texNum].Surfaces, WorldLightmapSurface{
 		X:       x,
 		Y:       y,
@@ -751,8 +750,6 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bs
 
 	return &faceLightmapSurface{pageIndex: texNum}, nil
 }
-
-
 
 func worldTexCoordDouble(position [3]float32, vec [4]float32) float64 {
 	return float64(position[0])*float64(vec[0]) +

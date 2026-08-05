@@ -79,52 +79,236 @@ const (
 
 var shub *quake.Entity
 
-func old_idle1()  { Self.Frame = float32(SHUB_FRAME_old1); Self.NextThink = Time + 0.1; Self.Think = old_idle2 }
-func old_idle2()  { Self.Frame = float32(SHUB_FRAME_old2); Self.NextThink = Time + 0.1; Self.Think = old_idle3 }
-func old_idle3()  { Self.Frame = float32(SHUB_FRAME_old3); Self.NextThink = Time + 0.1; Self.Think = old_idle4 }
-func old_idle4()  { Self.Frame = float32(SHUB_FRAME_old4); Self.NextThink = Time + 0.1; Self.Think = old_idle5 }
-func old_idle5()  { Self.Frame = float32(SHUB_FRAME_old5); Self.NextThink = Time + 0.1; Self.Think = old_idle6 }
-func old_idle6()  { Self.Frame = float32(SHUB_FRAME_old6); Self.NextThink = Time + 0.1; Self.Think = old_idle7 }
-func old_idle7()  { Self.Frame = float32(SHUB_FRAME_old7); Self.NextThink = Time + 0.1; Self.Think = old_idle8 }
-func old_idle8()  { Self.Frame = float32(SHUB_FRAME_old8); Self.NextThink = Time + 0.1; Self.Think = old_idle9 }
-func old_idle9()  { Self.Frame = float32(SHUB_FRAME_old9); Self.NextThink = Time + 0.1; Self.Think = old_idle10 }
-func old_idle10() { Self.Frame = float32(SHUB_FRAME_old10); Self.NextThink = Time + 0.1; Self.Think = old_idle11 }
-func old_idle11() { Self.Frame = float32(SHUB_FRAME_old11); Self.NextThink = Time + 0.1; Self.Think = old_idle12 }
-func old_idle12() { Self.Frame = float32(SHUB_FRAME_old12); Self.NextThink = Time + 0.1; Self.Think = old_idle13 }
-func old_idle13() { Self.Frame = float32(SHUB_FRAME_old13); Self.NextThink = Time + 0.1; Self.Think = old_idle14 }
-func old_idle14() { Self.Frame = float32(SHUB_FRAME_old14); Self.NextThink = Time + 0.1; Self.Think = old_idle15 }
-func old_idle15() { Self.Frame = float32(SHUB_FRAME_old15); Self.NextThink = Time + 0.1; Self.Think = old_idle16 }
-func old_idle16() { Self.Frame = float32(SHUB_FRAME_old16); Self.NextThink = Time + 0.1; Self.Think = old_idle17 }
-func old_idle17() { Self.Frame = float32(SHUB_FRAME_old17); Self.NextThink = Time + 0.1; Self.Think = old_idle18 }
-func old_idle18() { Self.Frame = float32(SHUB_FRAME_old18); Self.NextThink = Time + 0.1; Self.Think = old_idle19 }
-func old_idle19() { Self.Frame = float32(SHUB_FRAME_old19); Self.NextThink = Time + 0.1; Self.Think = old_idle20 }
-func old_idle20() { Self.Frame = float32(SHUB_FRAME_old20); Self.NextThink = Time + 0.1; Self.Think = old_idle21 }
-func old_idle21() { Self.Frame = float32(SHUB_FRAME_old21); Self.NextThink = Time + 0.1; Self.Think = old_idle22 }
-func old_idle22() { Self.Frame = float32(SHUB_FRAME_old22); Self.NextThink = Time + 0.1; Self.Think = old_idle23 }
-func old_idle23() { Self.Frame = float32(SHUB_FRAME_old23); Self.NextThink = Time + 0.1; Self.Think = old_idle24 }
-func old_idle24() { Self.Frame = float32(SHUB_FRAME_old24); Self.NextThink = Time + 0.1; Self.Think = old_idle25 }
-func old_idle25() { Self.Frame = float32(SHUB_FRAME_old25); Self.NextThink = Time + 0.1; Self.Think = old_idle26 }
-func old_idle26() { Self.Frame = float32(SHUB_FRAME_old26); Self.NextThink = Time + 0.1; Self.Think = old_idle27 }
-func old_idle27() { Self.Frame = float32(SHUB_FRAME_old27); Self.NextThink = Time + 0.1; Self.Think = old_idle28 }
-func old_idle28() { Self.Frame = float32(SHUB_FRAME_old28); Self.NextThink = Time + 0.1; Self.Think = old_idle29 }
-func old_idle29() { Self.Frame = float32(SHUB_FRAME_old29); Self.NextThink = Time + 0.1; Self.Think = old_idle30 }
-func old_idle30() { Self.Frame = float32(SHUB_FRAME_old30); Self.NextThink = Time + 0.1; Self.Think = old_idle31 }
-func old_idle31() { Self.Frame = float32(SHUB_FRAME_old31); Self.NextThink = Time + 0.1; Self.Think = old_idle32 }
-func old_idle32() { Self.Frame = float32(SHUB_FRAME_old32); Self.NextThink = Time + 0.1; Self.Think = old_idle33 }
-func old_idle33() { Self.Frame = float32(SHUB_FRAME_old33); Self.NextThink = Time + 0.1; Self.Think = old_idle34 }
-func old_idle34() { Self.Frame = float32(SHUB_FRAME_old34); Self.NextThink = Time + 0.1; Self.Think = old_idle35 }
-func old_idle35() { Self.Frame = float32(SHUB_FRAME_old35); Self.NextThink = Time + 0.1; Self.Think = old_idle36 }
-func old_idle36() { Self.Frame = float32(SHUB_FRAME_old36); Self.NextThink = Time + 0.1; Self.Think = old_idle37 }
-func old_idle37() { Self.Frame = float32(SHUB_FRAME_old37); Self.NextThink = Time + 0.1; Self.Think = old_idle38 }
-func old_idle38() { Self.Frame = float32(SHUB_FRAME_old38); Self.NextThink = Time + 0.1; Self.Think = old_idle39 }
-func old_idle39() { Self.Frame = float32(SHUB_FRAME_old39); Self.NextThink = Time + 0.1; Self.Think = old_idle40 }
-func old_idle40() { Self.Frame = float32(SHUB_FRAME_old40); Self.NextThink = Time + 0.1; Self.Think = old_idle41 }
-func old_idle41() { Self.Frame = float32(SHUB_FRAME_old41); Self.NextThink = Time + 0.1; Self.Think = old_idle42 }
-func old_idle42() { Self.Frame = float32(SHUB_FRAME_old42); Self.NextThink = Time + 0.1; Self.Think = old_idle43 }
-func old_idle43() { Self.Frame = float32(SHUB_FRAME_old43); Self.NextThink = Time + 0.1; Self.Think = old_idle44 }
-func old_idle44() { Self.Frame = float32(SHUB_FRAME_old44); Self.NextThink = Time + 0.1; Self.Think = old_idle45 }
-func old_idle45() { Self.Frame = float32(SHUB_FRAME_old45); Self.NextThink = Time + 0.1; Self.Think = old_idle46 }
-func old_idle46() { Self.Frame = float32(SHUB_FRAME_old46); Self.NextThink = Time + 0.1; Self.Think = old_idle1 }
+func old_idle1() {
+	Self.Frame = float32(SHUB_FRAME_old1)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle2
+}
+func old_idle2() {
+	Self.Frame = float32(SHUB_FRAME_old2)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle3
+}
+func old_idle3() {
+	Self.Frame = float32(SHUB_FRAME_old3)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle4
+}
+func old_idle4() {
+	Self.Frame = float32(SHUB_FRAME_old4)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle5
+}
+func old_idle5() {
+	Self.Frame = float32(SHUB_FRAME_old5)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle6
+}
+func old_idle6() {
+	Self.Frame = float32(SHUB_FRAME_old6)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle7
+}
+func old_idle7() {
+	Self.Frame = float32(SHUB_FRAME_old7)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle8
+}
+func old_idle8() {
+	Self.Frame = float32(SHUB_FRAME_old8)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle9
+}
+func old_idle9() {
+	Self.Frame = float32(SHUB_FRAME_old9)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle10
+}
+func old_idle10() {
+	Self.Frame = float32(SHUB_FRAME_old10)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle11
+}
+func old_idle11() {
+	Self.Frame = float32(SHUB_FRAME_old11)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle12
+}
+func old_idle12() {
+	Self.Frame = float32(SHUB_FRAME_old12)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle13
+}
+func old_idle13() {
+	Self.Frame = float32(SHUB_FRAME_old13)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle14
+}
+func old_idle14() {
+	Self.Frame = float32(SHUB_FRAME_old14)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle15
+}
+func old_idle15() {
+	Self.Frame = float32(SHUB_FRAME_old15)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle16
+}
+func old_idle16() {
+	Self.Frame = float32(SHUB_FRAME_old16)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle17
+}
+func old_idle17() {
+	Self.Frame = float32(SHUB_FRAME_old17)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle18
+}
+func old_idle18() {
+	Self.Frame = float32(SHUB_FRAME_old18)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle19
+}
+func old_idle19() {
+	Self.Frame = float32(SHUB_FRAME_old19)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle20
+}
+func old_idle20() {
+	Self.Frame = float32(SHUB_FRAME_old20)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle21
+}
+func old_idle21() {
+	Self.Frame = float32(SHUB_FRAME_old21)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle22
+}
+func old_idle22() {
+	Self.Frame = float32(SHUB_FRAME_old22)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle23
+}
+func old_idle23() {
+	Self.Frame = float32(SHUB_FRAME_old23)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle24
+}
+func old_idle24() {
+	Self.Frame = float32(SHUB_FRAME_old24)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle25
+}
+func old_idle25() {
+	Self.Frame = float32(SHUB_FRAME_old25)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle26
+}
+func old_idle26() {
+	Self.Frame = float32(SHUB_FRAME_old26)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle27
+}
+func old_idle27() {
+	Self.Frame = float32(SHUB_FRAME_old27)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle28
+}
+func old_idle28() {
+	Self.Frame = float32(SHUB_FRAME_old28)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle29
+}
+func old_idle29() {
+	Self.Frame = float32(SHUB_FRAME_old29)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle30
+}
+func old_idle30() {
+	Self.Frame = float32(SHUB_FRAME_old30)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle31
+}
+func old_idle31() {
+	Self.Frame = float32(SHUB_FRAME_old31)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle32
+}
+func old_idle32() {
+	Self.Frame = float32(SHUB_FRAME_old32)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle33
+}
+func old_idle33() {
+	Self.Frame = float32(SHUB_FRAME_old33)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle34
+}
+func old_idle34() {
+	Self.Frame = float32(SHUB_FRAME_old34)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle35
+}
+func old_idle35() {
+	Self.Frame = float32(SHUB_FRAME_old35)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle36
+}
+func old_idle36() {
+	Self.Frame = float32(SHUB_FRAME_old36)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle37
+}
+func old_idle37() {
+	Self.Frame = float32(SHUB_FRAME_old37)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle38
+}
+func old_idle38() {
+	Self.Frame = float32(SHUB_FRAME_old38)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle39
+}
+func old_idle39() {
+	Self.Frame = float32(SHUB_FRAME_old39)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle40
+}
+func old_idle40() {
+	Self.Frame = float32(SHUB_FRAME_old40)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle41
+}
+func old_idle41() {
+	Self.Frame = float32(SHUB_FRAME_old41)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle42
+}
+func old_idle42() {
+	Self.Frame = float32(SHUB_FRAME_old42)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle43
+}
+func old_idle43() {
+	Self.Frame = float32(SHUB_FRAME_old43)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle44
+}
+func old_idle44() {
+	Self.Frame = float32(SHUB_FRAME_old44)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle45
+}
+func old_idle45() {
+	Self.Frame = float32(SHUB_FRAME_old45)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle46
+}
+func old_idle46() {
+	Self.Frame = float32(SHUB_FRAME_old46)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_idle1
+}
 
 // Prototyped elsewhere
 var finale_4 func()
@@ -135,19 +319,84 @@ func old_thrash1_impl() {
 	Self.Think = old_thrash2
 	engine.LightStyle(0, "m")
 }
-func old_thrash2()  { Self.Frame = float32(SHUB_FRAME_shake2); Self.NextThink = Time + 0.1; Self.Think = old_thrash3; engine.LightStyle(0, "k") }
-func old_thrash3()  { Self.Frame = float32(SHUB_FRAME_shake3); Self.NextThink = Time + 0.1; Self.Think = old_thrash4; engine.LightStyle(0, "k") }
-func old_thrash4()  { Self.Frame = float32(SHUB_FRAME_shake4); Self.NextThink = Time + 0.1; Self.Think = old_thrash5; engine.LightStyle(0, "i") }
-func old_thrash5()  { Self.Frame = float32(SHUB_FRAME_shake5); Self.NextThink = Time + 0.1; Self.Think = old_thrash6; engine.LightStyle(0, "g") }
-func old_thrash6()  { Self.Frame = float32(SHUB_FRAME_shake6); Self.NextThink = Time + 0.1; Self.Think = old_thrash7; engine.LightStyle(0, "e") }
-func old_thrash7()  { Self.Frame = float32(SHUB_FRAME_shake7); Self.NextThink = Time + 0.1; Self.Think = old_thrash8; engine.LightStyle(0, "c") }
-func old_thrash8()  { Self.Frame = float32(SHUB_FRAME_shake8); Self.NextThink = Time + 0.1; Self.Think = old_thrash9; engine.LightStyle(0, "a") }
-func old_thrash9()  { Self.Frame = float32(SHUB_FRAME_shake9); Self.NextThink = Time + 0.1; Self.Think = old_thrash10; engine.LightStyle(0, "c") }
-func old_thrash10() { Self.Frame = float32(SHUB_FRAME_shake10); Self.NextThink = Time + 0.1; Self.Think = old_thrash11; engine.LightStyle(0, "e") }
-func old_thrash11() { Self.Frame = float32(SHUB_FRAME_shake11); Self.NextThink = Time + 0.1; Self.Think = old_thrash12; engine.LightStyle(0, "g") }
-func old_thrash12() { Self.Frame = float32(SHUB_FRAME_shake12); Self.NextThink = Time + 0.1; Self.Think = old_thrash13; engine.LightStyle(0, "i") }
-func old_thrash13() { Self.Frame = float32(SHUB_FRAME_shake13); Self.NextThink = Time + 0.1; Self.Think = old_thrash14; engine.LightStyle(0, "k") }
-func old_thrash14() { Self.Frame = float32(SHUB_FRAME_shake14); Self.NextThink = Time + 0.1; Self.Think = old_thrash15; engine.LightStyle(0, "m") }
+func old_thrash2() {
+	Self.Frame = float32(SHUB_FRAME_shake2)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash3
+	engine.LightStyle(0, "k")
+}
+func old_thrash3() {
+	Self.Frame = float32(SHUB_FRAME_shake3)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash4
+	engine.LightStyle(0, "k")
+}
+func old_thrash4() {
+	Self.Frame = float32(SHUB_FRAME_shake4)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash5
+	engine.LightStyle(0, "i")
+}
+func old_thrash5() {
+	Self.Frame = float32(SHUB_FRAME_shake5)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash6
+	engine.LightStyle(0, "g")
+}
+func old_thrash6() {
+	Self.Frame = float32(SHUB_FRAME_shake6)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash7
+	engine.LightStyle(0, "e")
+}
+func old_thrash7() {
+	Self.Frame = float32(SHUB_FRAME_shake7)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash8
+	engine.LightStyle(0, "c")
+}
+func old_thrash8() {
+	Self.Frame = float32(SHUB_FRAME_shake8)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash9
+	engine.LightStyle(0, "a")
+}
+func old_thrash9() {
+	Self.Frame = float32(SHUB_FRAME_shake9)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash10
+	engine.LightStyle(0, "c")
+}
+func old_thrash10() {
+	Self.Frame = float32(SHUB_FRAME_shake10)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash11
+	engine.LightStyle(0, "e")
+}
+func old_thrash11() {
+	Self.Frame = float32(SHUB_FRAME_shake11)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash12
+	engine.LightStyle(0, "g")
+}
+func old_thrash12() {
+	Self.Frame = float32(SHUB_FRAME_shake12)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash13
+	engine.LightStyle(0, "i")
+}
+func old_thrash13() {
+	Self.Frame = float32(SHUB_FRAME_shake13)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash14
+	engine.LightStyle(0, "k")
+}
+func old_thrash14() {
+	Self.Frame = float32(SHUB_FRAME_shake14)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash15
+	engine.LightStyle(0, "m")
+}
 func old_thrash15() {
 	Self.Frame = float32(SHUB_FRAME_shake15)
 	Self.NextThink = Time + 0.1
@@ -160,11 +409,36 @@ func old_thrash15() {
 	}
 }
 
-func old_thrash16() { Self.Frame = float32(SHUB_FRAME_shake16); Self.NextThink = Time + 0.1; Self.Think = old_thrash17; engine.LightStyle(0, "g") }
-func old_thrash17() { Self.Frame = float32(SHUB_FRAME_shake17); Self.NextThink = Time + 0.1; Self.Think = old_thrash18; engine.LightStyle(0, "c") }
-func old_thrash18() { Self.Frame = float32(SHUB_FRAME_shake18); Self.NextThink = Time + 0.1; Self.Think = old_thrash19; engine.LightStyle(0, "b") }
-func old_thrash19() { Self.Frame = float32(SHUB_FRAME_shake19); Self.NextThink = Time + 0.1; Self.Think = old_thrash20; engine.LightStyle(0, "a") }
-func old_thrash20() { Self.Frame = float32(SHUB_FRAME_shake20); Self.NextThink = Time + 0.1; Self.Think = old_thrash20; finale_4() }
+func old_thrash16() {
+	Self.Frame = float32(SHUB_FRAME_shake16)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash17
+	engine.LightStyle(0, "g")
+}
+func old_thrash17() {
+	Self.Frame = float32(SHUB_FRAME_shake17)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash18
+	engine.LightStyle(0, "c")
+}
+func old_thrash18() {
+	Self.Frame = float32(SHUB_FRAME_shake18)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash19
+	engine.LightStyle(0, "b")
+}
+func old_thrash19() {
+	Self.Frame = float32(SHUB_FRAME_shake19)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash20
+	engine.LightStyle(0, "a")
+}
+func old_thrash20() {
+	Self.Frame = float32(SHUB_FRAME_shake20)
+	Self.NextThink = Time + 0.1
+	Self.Think = old_thrash20
+	finale_4()
+}
 
 // Prototyped elsewhere
 var finale_2 func()

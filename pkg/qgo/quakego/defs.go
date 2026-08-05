@@ -6,23 +6,23 @@ const (
 	FALSE = 0
 	TRUE  = 1
 
-	FL_FLY            = 1
-	FL_SWIM           = 2
-	FL_CLIENT         = 8
-	FL_INWATER        = 16
-	FL_MONSTER        = 32
-	FL_GODMODE        = 64
-	FL_NOTARGET       = 128
-	FL_ITEM           = 256
-	FL_ONGROUND       = 512
-	FL_PARTIALGROUND  = 1024
-	FL_WATERJUMP      = 2048
-	FL_JUMPRELEASED   = 4096
-	FL_ISBOT          = 8192
-	FL_NO_PLAYERS     = 16384
-	FL_NO_MONSTERS    = 32768
-	FL_NO_BOTS        = 65536
-	FL_OBJECTIVE      = 131072
+	FL_FLY           = 1
+	FL_SWIM          = 2
+	FL_CLIENT        = 8
+	FL_INWATER       = 16
+	FL_MONSTER       = 32
+	FL_GODMODE       = 64
+	FL_NOTARGET      = 128
+	FL_ITEM          = 256
+	FL_ONGROUND      = 512
+	FL_PARTIALGROUND = 1024
+	FL_WATERJUMP     = 2048
+	FL_JUMPRELEASED  = 4096
+	FL_ISBOT         = 8192
+	FL_NO_PLAYERS    = 16384
+	FL_NO_MONSTERS   = 32768
+	FL_NO_BOTS       = 65536
+	FL_OBJECTIVE     = 131072
 
 	MOVETYPE_NONE       = 0
 	MOVETYPE_WALK       = 3
@@ -138,13 +138,13 @@ const (
 	UPDATE_BINARY  = 2
 	UPDATE_TEMP    = 3
 
-	EF_BRIGHTFIELD  = 1
-	EF_MUZZLEFLASH  = 2
-	EF_BRIGHTLIGHT  = 4
-	EF_DIMLIGHT     = 8
-	EF_QUADLIGHT    = 16
-	EF_PENTALIGHT   = 32
-	EF_CANDLELIGHT  = 64
+	EF_BRIGHTFIELD = 1
+	EF_MUZZLEFLASH = 2
+	EF_BRIGHTLIGHT = 4
+	EF_DIMLIGHT    = 8
+	EF_QUADLIGHT   = 16
+	EF_PENTALIGHT  = 32
+	EF_CANDLELIGHT = 64
 
 	MSG_BROADCAST = 0
 	MSG_ONE       = 1
@@ -195,17 +195,17 @@ var (
 	TotalSecrets   float32       //qgo:total_secrets
 	TotalMonsters  float32       //qgo:total_monsters
 	FoundSecrets   float32       //qgo:found_secrets
-	KilledMonsters float32      //qgo:killed_monsters
+	KilledMonsters float32       //qgo:killed_monsters
 
-	Parm1 float32 //qgo:parm1
-	Parm2 float32 //qgo:parm2
-	Parm3 float32 //qgo:parm3
-	Parm4 float32 //qgo:parm4
-	Parm5 float32 //qgo:parm5
-	Parm6 float32 //qgo:parm6
-	Parm7 float32 //qgo:parm7
-	Parm8 float32 //qgo:parm8
-	Parm9 float32 //qgo:parm9
+	Parm1  float32 //qgo:parm1
+	Parm2  float32 //qgo:parm2
+	Parm3  float32 //qgo:parm3
+	Parm4  float32 //qgo:parm4
+	Parm5  float32 //qgo:parm5
+	Parm6  float32 //qgo:parm6
+	Parm7  float32 //qgo:parm7
+	Parm8  float32 //qgo:parm8
+	Parm9  float32 //qgo:parm9
 	Parm10 float32 //qgo:parm10
 	Parm11 float32 //qgo:parm11
 	Parm12 float32 //qgo:parm12
@@ -218,16 +218,16 @@ var (
 	VUp      quake.Vec3 //qgo:v_up
 	VRight   quake.Vec3 //qgo:v_right
 
-	TraceAllSolid     float32    //qgo:trace_allsolid
-	TraceStartSolid   float32    //qgo:trace_startsolid
-	TraceFraction     float32    //qgo:trace_fraction
-	TraceEndPos       quake.Vec3 //qgo:trace_endpos
-	TracePlaneNormal  quake.Vec3 //qgo:trace_plane_normal
-	TracePlaneDist    float32    //qgo:trace_plane_dist
-	TraceEnt          *quake.Entity //qgo:trace_ent
-	TraceInOpen       float32    //qgo:trace_inopen
-	TraceInWater      float32    //qgo:trace_inwater
-	MsgEntity         *quake.Entity //qgo:msg_entity
+	TraceAllSolid    float32       //qgo:trace_allsolid
+	TraceStartSolid  float32       //qgo:trace_startsolid
+	TraceFraction    float32       //qgo:trace_fraction
+	TraceEndPos      quake.Vec3    //qgo:trace_endpos
+	TracePlaneNormal quake.Vec3    //qgo:trace_plane_normal
+	TracePlaneDist   float32       //qgo:trace_plane_dist
+	TraceEnt         *quake.Entity //qgo:trace_ent
+	TraceInOpen      float32       //qgo:trace_inopen
+	TraceInWater     float32       //qgo:trace_inwater
+	MsgEntity        *quake.Entity //qgo:msg_entity
 
 	// Game Globals
 	Movedist float32
@@ -235,21 +235,21 @@ var (
 
 	StringNull string //qgo:string_null
 
-	Newmis          *quake.Entity
-	Activator       *quake.Entity
-	DamageAttacker  *quake.Entity
-	Framecount      float32
-	Skill           float32
-	CampaignValid   float32
-	Campaign        float32
-	CheatsAllowed   float32
+	Newmis         *quake.Entity
+	Activator      *quake.Entity
+	DamageAttacker *quake.Entity
+	Framecount     float32
+	Skill          float32
+	CampaignValid  float32
+	Campaign       float32
+	CheatsAllowed  float32
 
 	ModelIndexPlayer float32
 	ModelIndexEyes   float32
 
 	BodyqueueHead *quake.Entity
 
-	VEC_ORIGIN    = quake.Vec3{0, 0, 0}
+	VEC_ORIGIN = quake.Vec3{0, 0, 0}
 
 	VEC_HULL_MIN  = quake.MakeVec3(-16, -16, -24)
 	VEC_HULL_MAX  = quake.MakeVec3(16, 16, 32)

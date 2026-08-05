@@ -12,12 +12,12 @@ import (
 )
 
 // newProductionOrderServer simulates the production init order:
-// 1. NewServer() — QCVM created, EdictSize=0, Edicts=nil
-// 2. LoadProgs() — sets EdictSize from progs.dat, Edicts still nil
-// 3. Init(maxClients) — calls ensureDefaultQCVMEdictStorage which returns
-//    early because EdictSize > 0, so Edicts is NOT allocated here
-// 4. SpawnServer(mapName) — sets world fields via accessors, then
-//    reloadProgs, then syncQCVMState (which calls ensureQCVMEdictStorage)
+//  1. NewServer() — QCVM created, EdictSize=0, Edicts=nil
+//  2. LoadProgs() — sets EdictSize from progs.dat, Edicts still nil
+//  3. Init(maxClients) — calls ensureDefaultQCVMEdictStorage which returns
+//     early because EdictSize > 0, so Edicts is NOT allocated here
+//  4. SpawnServer(mapName) — sets world fields via accessors, then
+//     reloadProgs, then syncQCVMState (which calls ensureQCVMEdictStorage)
 //
 // This matches the real game flow: game_init.go creates the server,
 // loadRuntimePrograms calls LoadProgs, then CmdMap calls Init+SpawnServer.

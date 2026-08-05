@@ -6,11 +6,11 @@ import (
 )
 
 const (
-	HUDClassic           = 0
-	HUDModernCenterAmmo  = 1
-	HUDModernSideAmmo    = 2
-	HUDQuakeWorld        = 3
-	HUDCount             = 4
+	HUDClassic          = 0
+	HUDModernCenterAmmo = 1
+	HUDModernSideAmmo   = 2
+	HUDQuakeWorld       = 3
+	HUDCount            = 4
 
 	// HUDCompact is a backwards-compatible alias for HUDModernCenterAmmo,
 	// retained for call sites that predate the C-parity renumber.

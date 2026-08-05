@@ -43,18 +43,18 @@ type Resources struct {
 	WorldClusterComputeTexture         *wgpu.Texture
 	WorldClusterComputeTextureView     *wgpu.TextureView
 
-	WorldBindGroup                       *wgpu.BindGroup
-	WorldShader                          *wgpu.ShaderModule
-	UniformBuffer                        *wgpu.Buffer
-	WorldMaterialsBuffer                 *wgpu.Buffer
-	WorldMaterialsBufferFrame1           *wgpu.Buffer
-	WorldUniformBindGroupFrame1          *wgpu.BindGroup
-	UniformBindGroup                     *wgpu.BindGroup
-	UniformBindGroupLayout               *wgpu.BindGroupLayout
-	TextureBindGroupLayout               *wgpu.BindGroupLayout
-	LightmapBindGroupLayout              *wgpu.BindGroupLayout
-	WorldSkyExternalBindGroupLayout      *wgpu.BindGroupLayout
-	WorldTextureSampler                  *wgpu.Sampler
+	WorldBindGroup                  *wgpu.BindGroup
+	WorldShader                     *wgpu.ShaderModule
+	UniformBuffer                   *wgpu.Buffer
+	WorldMaterialsBuffer            *wgpu.Buffer
+	WorldMaterialsBufferFrame1      *wgpu.Buffer
+	WorldUniformBindGroupFrame1     *wgpu.BindGroup
+	UniformBindGroup                *wgpu.BindGroup
+	UniformBindGroupLayout          *wgpu.BindGroupLayout
+	TextureBindGroupLayout          *wgpu.BindGroupLayout
+	LightmapBindGroupLayout         *wgpu.BindGroupLayout
+	WorldSkyExternalBindGroupLayout *wgpu.BindGroupLayout
+	WorldTextureSampler             *wgpu.Sampler
 
 	WorldSkyExternalTextures  [6]*wgpu.Texture
 	WorldSkyExternalViews     [6]*wgpu.TextureView

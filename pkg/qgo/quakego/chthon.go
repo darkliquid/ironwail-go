@@ -122,9 +122,9 @@ const (
 )
 
 var (
-	le1            *quake.Entity
-	le2            *quake.Entity
-	lightning_end  float32
+	le1           *quake.Entity
+	le2           *quake.Entity
+	lightning_end float32
 )
 
 // Prototyped elsewhere
@@ -165,21 +165,81 @@ func boss_rise2() {
 	engine.Sound(Self, int(CHAN_VOICE), "boss1/sight1.wav", 1, ATTN_NORM)
 }
 
-func boss_rise3()  { Self.Frame = float32(BOSS1_FRAME_rise3); Self.NextThink = Time + 0.1; Self.Think = boss_rise4 }
-func boss_rise4()  { Self.Frame = float32(BOSS1_FRAME_rise4); Self.NextThink = Time + 0.1; Self.Think = boss_rise5 }
-func boss_rise5()  { Self.Frame = float32(BOSS1_FRAME_rise5); Self.NextThink = Time + 0.1; Self.Think = boss_rise6 }
-func boss_rise6()  { Self.Frame = float32(BOSS1_FRAME_rise6); Self.NextThink = Time + 0.1; Self.Think = boss_rise7 }
-func boss_rise7()  { Self.Frame = float32(BOSS1_FRAME_rise7); Self.NextThink = Time + 0.1; Self.Think = boss_rise8 }
-func boss_rise8()  { Self.Frame = float32(BOSS1_FRAME_rise8); Self.NextThink = Time + 0.1; Self.Think = boss_rise9 }
-func boss_rise9()  { Self.Frame = float32(BOSS1_FRAME_rise9); Self.NextThink = Time + 0.1; Self.Think = boss_rise10 }
-func boss_rise10() { Self.Frame = float32(BOSS1_FRAME_rise10); Self.NextThink = Time + 0.1; Self.Think = boss_rise11 }
-func boss_rise11() { Self.Frame = float32(BOSS1_FRAME_rise11); Self.NextThink = Time + 0.1; Self.Think = boss_rise12 }
-func boss_rise12() { Self.Frame = float32(BOSS1_FRAME_rise12); Self.NextThink = Time + 0.1; Self.Think = boss_rise13 }
-func boss_rise13() { Self.Frame = float32(BOSS1_FRAME_rise13); Self.NextThink = Time + 0.1; Self.Think = boss_rise14 }
-func boss_rise14() { Self.Frame = float32(BOSS1_FRAME_rise14); Self.NextThink = Time + 0.1; Self.Think = boss_rise15 }
-func boss_rise15() { Self.Frame = float32(BOSS1_FRAME_rise15); Self.NextThink = Time + 0.1; Self.Think = boss_rise16 }
-func boss_rise16() { Self.Frame = float32(BOSS1_FRAME_rise16); Self.NextThink = Time + 0.1; Self.Think = boss_rise17 }
-func boss_rise17() { Self.Frame = float32(BOSS1_FRAME_rise17); Self.NextThink = Time + 0.1; Self.Think = boss_missile1 }
+func boss_rise3() {
+	Self.Frame = float32(BOSS1_FRAME_rise3)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise4
+}
+func boss_rise4() {
+	Self.Frame = float32(BOSS1_FRAME_rise4)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise5
+}
+func boss_rise5() {
+	Self.Frame = float32(BOSS1_FRAME_rise5)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise6
+}
+func boss_rise6() {
+	Self.Frame = float32(BOSS1_FRAME_rise6)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise7
+}
+func boss_rise7() {
+	Self.Frame = float32(BOSS1_FRAME_rise7)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise8
+}
+func boss_rise8() {
+	Self.Frame = float32(BOSS1_FRAME_rise8)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise9
+}
+func boss_rise9() {
+	Self.Frame = float32(BOSS1_FRAME_rise9)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise10
+}
+func boss_rise10() {
+	Self.Frame = float32(BOSS1_FRAME_rise10)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise11
+}
+func boss_rise11() {
+	Self.Frame = float32(BOSS1_FRAME_rise11)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise12
+}
+func boss_rise12() {
+	Self.Frame = float32(BOSS1_FRAME_rise12)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise13
+}
+func boss_rise13() {
+	Self.Frame = float32(BOSS1_FRAME_rise13)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise14
+}
+func boss_rise14() {
+	Self.Frame = float32(BOSS1_FRAME_rise14)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise15
+}
+func boss_rise15() {
+	Self.Frame = float32(BOSS1_FRAME_rise15)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise16
+}
+func boss_rise16() {
+	Self.Frame = float32(BOSS1_FRAME_rise16)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_rise17
+}
+func boss_rise17() {
+	Self.Frame = float32(BOSS1_FRAME_rise17)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile1
+}
 
 func boss_idle1_impl() {
 	Self.Frame = float32(BOSS1_FRAME_walk1)
@@ -193,103 +253,478 @@ func boss_idle1_impl() {
 	}
 }
 
-func boss_idle2()  { Self.Frame = float32(BOSS1_FRAME_walk2); Self.NextThink = Time + 0.1; Self.Think = boss_idle3; boss_face() }
-func boss_idle3()  { Self.Frame = float32(BOSS1_FRAME_walk3); Self.NextThink = Time + 0.1; Self.Think = boss_idle4; boss_face() }
-func boss_idle4()  { Self.Frame = float32(BOSS1_FRAME_walk4); Self.NextThink = Time + 0.1; Self.Think = boss_idle5; boss_face() }
-func boss_idle5()  { Self.Frame = float32(BOSS1_FRAME_walk5); Self.NextThink = Time + 0.1; Self.Think = boss_idle6; boss_face() }
-func boss_idle6()  { Self.Frame = float32(BOSS1_FRAME_walk6); Self.NextThink = Time + 0.1; Self.Think = boss_idle7; boss_face() }
-func boss_idle7()  { Self.Frame = float32(BOSS1_FRAME_walk7); Self.NextThink = Time + 0.1; Self.Think = boss_idle8; boss_face() }
-func boss_idle8()  { Self.Frame = float32(BOSS1_FRAME_walk8); Self.NextThink = Time + 0.1; Self.Think = boss_idle9; boss_face() }
-func boss_idle9()  { Self.Frame = float32(BOSS1_FRAME_walk9); Self.NextThink = Time + 0.1; Self.Think = boss_idle10; boss_face() }
-func boss_idle10() { Self.Frame = float32(BOSS1_FRAME_walk10); Self.NextThink = Time + 0.1; Self.Think = boss_idle11; boss_face() }
-func boss_idle11() { Self.Frame = float32(BOSS1_FRAME_walk11); Self.NextThink = Time + 0.1; Self.Think = boss_idle12; boss_face() }
-func boss_idle12() { Self.Frame = float32(BOSS1_FRAME_walk12); Self.NextThink = Time + 0.1; Self.Think = boss_idle13; boss_face() }
-func boss_idle13() { Self.Frame = float32(BOSS1_FRAME_walk13); Self.NextThink = Time + 0.1; Self.Think = boss_idle14; boss_face() }
-func boss_idle14() { Self.Frame = float32(BOSS1_FRAME_walk14); Self.NextThink = Time + 0.1; Self.Think = boss_idle15; boss_face() }
-func boss_idle15() { Self.Frame = float32(BOSS1_FRAME_walk15); Self.NextThink = Time + 0.1; Self.Think = boss_idle16; boss_face() }
-func boss_idle16() { Self.Frame = float32(BOSS1_FRAME_walk16); Self.NextThink = Time + 0.1; Self.Think = boss_idle17; boss_face() }
-func boss_idle17() { Self.Frame = float32(BOSS1_FRAME_walk17); Self.NextThink = Time + 0.1; Self.Think = boss_idle18; boss_face() }
-func boss_idle18() { Self.Frame = float32(BOSS1_FRAME_walk18); Self.NextThink = Time + 0.1; Self.Think = boss_idle19; boss_face() }
-func boss_idle19() { Self.Frame = float32(BOSS1_FRAME_walk19); Self.NextThink = Time + 0.1; Self.Think = boss_idle20; boss_face() }
-func boss_idle20() { Self.Frame = float32(BOSS1_FRAME_walk20); Self.NextThink = Time + 0.1; Self.Think = boss_idle21; boss_face() }
-func boss_idle21() { Self.Frame = float32(BOSS1_FRAME_walk21); Self.NextThink = Time + 0.1; Self.Think = boss_idle22; boss_face() }
-func boss_idle22() { Self.Frame = float32(BOSS1_FRAME_walk22); Self.NextThink = Time + 0.1; Self.Think = boss_idle23; boss_face() }
-func boss_idle23() { Self.Frame = float32(BOSS1_FRAME_walk23); Self.NextThink = Time + 0.1; Self.Think = boss_idle24; boss_face() }
-func boss_idle24() { Self.Frame = float32(BOSS1_FRAME_walk24); Self.NextThink = Time + 0.1; Self.Think = boss_idle25; boss_face() }
-func boss_idle25() { Self.Frame = float32(BOSS1_FRAME_walk25); Self.NextThink = Time + 0.1; Self.Think = boss_idle26; boss_face() }
-func boss_idle26() { Self.Frame = float32(BOSS1_FRAME_walk26); Self.NextThink = Time + 0.1; Self.Think = boss_idle27; boss_face() }
-func boss_idle27() { Self.Frame = float32(BOSS1_FRAME_walk27); Self.NextThink = Time + 0.1; Self.Think = boss_idle28; boss_face() }
-func boss_idle28() { Self.Frame = float32(BOSS1_FRAME_walk28); Self.NextThink = Time + 0.1; Self.Think = boss_idle29; boss_face() }
-func boss_idle29() { Self.Frame = float32(BOSS1_FRAME_walk29); Self.NextThink = Time + 0.1; Self.Think = boss_idle30; boss_face() }
-func boss_idle30() { Self.Frame = float32(BOSS1_FRAME_walk30); Self.NextThink = Time + 0.1; Self.Think = boss_idle31; boss_face() }
-func boss_idle31() { Self.Frame = float32(BOSS1_FRAME_walk31); Self.NextThink = Time + 0.1; Self.Think = boss_idle1_impl; boss_face() }
+func boss_idle2() {
+	Self.Frame = float32(BOSS1_FRAME_walk2)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle3
+	boss_face()
+}
+func boss_idle3() {
+	Self.Frame = float32(BOSS1_FRAME_walk3)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle4
+	boss_face()
+}
+func boss_idle4() {
+	Self.Frame = float32(BOSS1_FRAME_walk4)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle5
+	boss_face()
+}
+func boss_idle5() {
+	Self.Frame = float32(BOSS1_FRAME_walk5)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle6
+	boss_face()
+}
+func boss_idle6() {
+	Self.Frame = float32(BOSS1_FRAME_walk6)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle7
+	boss_face()
+}
+func boss_idle7() {
+	Self.Frame = float32(BOSS1_FRAME_walk7)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle8
+	boss_face()
+}
+func boss_idle8() {
+	Self.Frame = float32(BOSS1_FRAME_walk8)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle9
+	boss_face()
+}
+func boss_idle9() {
+	Self.Frame = float32(BOSS1_FRAME_walk9)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle10
+	boss_face()
+}
+func boss_idle10() {
+	Self.Frame = float32(BOSS1_FRAME_walk10)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle11
+	boss_face()
+}
+func boss_idle11() {
+	Self.Frame = float32(BOSS1_FRAME_walk11)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle12
+	boss_face()
+}
+func boss_idle12() {
+	Self.Frame = float32(BOSS1_FRAME_walk12)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle13
+	boss_face()
+}
+func boss_idle13() {
+	Self.Frame = float32(BOSS1_FRAME_walk13)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle14
+	boss_face()
+}
+func boss_idle14() {
+	Self.Frame = float32(BOSS1_FRAME_walk14)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle15
+	boss_face()
+}
+func boss_idle15() {
+	Self.Frame = float32(BOSS1_FRAME_walk15)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle16
+	boss_face()
+}
+func boss_idle16() {
+	Self.Frame = float32(BOSS1_FRAME_walk16)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle17
+	boss_face()
+}
+func boss_idle17() {
+	Self.Frame = float32(BOSS1_FRAME_walk17)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle18
+	boss_face()
+}
+func boss_idle18() {
+	Self.Frame = float32(BOSS1_FRAME_walk18)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle19
+	boss_face()
+}
+func boss_idle19() {
+	Self.Frame = float32(BOSS1_FRAME_walk19)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle20
+	boss_face()
+}
+func boss_idle20() {
+	Self.Frame = float32(BOSS1_FRAME_walk20)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle21
+	boss_face()
+}
+func boss_idle21() {
+	Self.Frame = float32(BOSS1_FRAME_walk21)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle22
+	boss_face()
+}
+func boss_idle22() {
+	Self.Frame = float32(BOSS1_FRAME_walk22)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle23
+	boss_face()
+}
+func boss_idle23() {
+	Self.Frame = float32(BOSS1_FRAME_walk23)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle24
+	boss_face()
+}
+func boss_idle24() {
+	Self.Frame = float32(BOSS1_FRAME_walk24)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle25
+	boss_face()
+}
+func boss_idle25() {
+	Self.Frame = float32(BOSS1_FRAME_walk25)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle26
+	boss_face()
+}
+func boss_idle26() {
+	Self.Frame = float32(BOSS1_FRAME_walk26)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle27
+	boss_face()
+}
+func boss_idle27() {
+	Self.Frame = float32(BOSS1_FRAME_walk27)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle28
+	boss_face()
+}
+func boss_idle28() {
+	Self.Frame = float32(BOSS1_FRAME_walk28)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle29
+	boss_face()
+}
+func boss_idle29() {
+	Self.Frame = float32(BOSS1_FRAME_walk29)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle30
+	boss_face()
+}
+func boss_idle30() {
+	Self.Frame = float32(BOSS1_FRAME_walk30)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle31
+	boss_face()
+}
+func boss_idle31() {
+	Self.Frame = float32(BOSS1_FRAME_walk31)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_idle1_impl
+	boss_face()
+}
 
-func boss_missile1_impl() { Self.Frame = float32(BOSS1_FRAME_attack1); Self.NextThink = Time + 0.1; Self.Think = boss_missile2; boss_face() }
-func boss_missile2() { Self.Frame = float32(BOSS1_FRAME_attack2); Self.NextThink = Time + 0.1; Self.Think = boss_missile3; boss_face() }
-func boss_missile3() { Self.Frame = float32(BOSS1_FRAME_attack3); Self.NextThink = Time + 0.1; Self.Think = boss_missile4; boss_face() }
-func boss_missile4() { Self.Frame = float32(BOSS1_FRAME_attack4); Self.NextThink = Time + 0.1; Self.Think = boss_missile5; boss_face() }
-func boss_missile5() { Self.Frame = float32(BOSS1_FRAME_attack5); Self.NextThink = Time + 0.1; Self.Think = boss_missile6; boss_face() }
-func boss_missile6() { Self.Frame = float32(BOSS1_FRAME_attack6); Self.NextThink = Time + 0.1; Self.Think = boss_missile7; boss_face() }
-func boss_missile7() { Self.Frame = float32(BOSS1_FRAME_attack7); Self.NextThink = Time + 0.1; Self.Think = boss_missile8; boss_face() }
-func boss_missile8() { Self.Frame = float32(BOSS1_FRAME_attack8); Self.NextThink = Time + 0.1; Self.Think = boss_missile9; boss_face() }
+func boss_missile1_impl() {
+	Self.Frame = float32(BOSS1_FRAME_attack1)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile2
+	boss_face()
+}
+func boss_missile2() {
+	Self.Frame = float32(BOSS1_FRAME_attack2)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile3
+	boss_face()
+}
+func boss_missile3() {
+	Self.Frame = float32(BOSS1_FRAME_attack3)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile4
+	boss_face()
+}
+func boss_missile4() {
+	Self.Frame = float32(BOSS1_FRAME_attack4)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile5
+	boss_face()
+}
+func boss_missile5() {
+	Self.Frame = float32(BOSS1_FRAME_attack5)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile6
+	boss_face()
+}
+func boss_missile6() {
+	Self.Frame = float32(BOSS1_FRAME_attack6)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile7
+	boss_face()
+}
+func boss_missile7() {
+	Self.Frame = float32(BOSS1_FRAME_attack7)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile8
+	boss_face()
+}
+func boss_missile8() {
+	Self.Frame = float32(BOSS1_FRAME_attack8)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile9
+	boss_face()
+}
 func boss_missile9() {
 	Self.Frame = float32(BOSS1_FRAME_attack9)
 	Self.NextThink = Time + 0.1
 	Self.Think = boss_missile10
 	boss_missile(quake.MakeVec3(100, 100, 200))
 }
-func boss_missile10() { Self.Frame = float32(BOSS1_FRAME_attack10); Self.NextThink = Time + 0.1; Self.Think = boss_missile11; boss_face() }
-func boss_missile11() { Self.Frame = float32(BOSS1_FRAME_attack11); Self.NextThink = Time + 0.1; Self.Think = boss_missile12; boss_face() }
-func boss_missile12() { Self.Frame = float32(BOSS1_FRAME_attack12); Self.NextThink = Time + 0.1; Self.Think = boss_missile13; boss_face() }
-func boss_missile13() { Self.Frame = float32(BOSS1_FRAME_attack13); Self.NextThink = Time + 0.1; Self.Think = boss_missile14; boss_face() }
-func boss_missile14() { Self.Frame = float32(BOSS1_FRAME_attack14); Self.NextThink = Time + 0.1; Self.Think = boss_missile15; boss_face() }
-func boss_missile15() { Self.Frame = float32(BOSS1_FRAME_attack15); Self.NextThink = Time + 0.1; Self.Think = boss_missile16; boss_face() }
-func boss_missile16() { Self.Frame = float32(BOSS1_FRAME_attack16); Self.NextThink = Time + 0.1; Self.Think = boss_missile17; boss_face() }
-func boss_missile17() { Self.Frame = float32(BOSS1_FRAME_attack17); Self.NextThink = Time + 0.1; Self.Think = boss_missile18; boss_face() }
-func boss_missile18() { Self.Frame = float32(BOSS1_FRAME_attack18); Self.NextThink = Time + 0.1; Self.Think = boss_missile19; boss_face() }
-func boss_missile19() { Self.Frame = float32(BOSS1_FRAME_attack19); Self.NextThink = Time + 0.1; Self.Think = boss_missile20; boss_face() }
+func boss_missile10() {
+	Self.Frame = float32(BOSS1_FRAME_attack10)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile11
+	boss_face()
+}
+func boss_missile11() {
+	Self.Frame = float32(BOSS1_FRAME_attack11)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile12
+	boss_face()
+}
+func boss_missile12() {
+	Self.Frame = float32(BOSS1_FRAME_attack12)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile13
+	boss_face()
+}
+func boss_missile13() {
+	Self.Frame = float32(BOSS1_FRAME_attack13)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile14
+	boss_face()
+}
+func boss_missile14() {
+	Self.Frame = float32(BOSS1_FRAME_attack14)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile15
+	boss_face()
+}
+func boss_missile15() {
+	Self.Frame = float32(BOSS1_FRAME_attack15)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile16
+	boss_face()
+}
+func boss_missile16() {
+	Self.Frame = float32(BOSS1_FRAME_attack16)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile17
+	boss_face()
+}
+func boss_missile17() {
+	Self.Frame = float32(BOSS1_FRAME_attack17)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile18
+	boss_face()
+}
+func boss_missile18() {
+	Self.Frame = float32(BOSS1_FRAME_attack18)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile19
+	boss_face()
+}
+func boss_missile19() {
+	Self.Frame = float32(BOSS1_FRAME_attack19)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile20
+	boss_face()
+}
 func boss_missile20() {
 	Self.Frame = float32(BOSS1_FRAME_attack20)
 	Self.NextThink = Time + 0.1
 	Self.Think = boss_missile21
 	boss_missile(quake.MakeVec3(100, -100, 200))
 }
-func boss_missile21() { Self.Frame = float32(BOSS1_FRAME_attack21); Self.NextThink = Time + 0.1; Self.Think = boss_missile22; boss_face() }
-func boss_missile22() { Self.Frame = float32(BOSS1_FRAME_attack22); Self.NextThink = Time + 0.1; Self.Think = boss_missile23; boss_face() }
-func boss_missile23() { Self.Frame = float32(BOSS1_FRAME_attack23); Self.NextThink = Time + 0.1; Self.Think = boss_missile1_impl; boss_face() }
+func boss_missile21() {
+	Self.Frame = float32(BOSS1_FRAME_attack21)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile22
+	boss_face()
+}
+func boss_missile22() {
+	Self.Frame = float32(BOSS1_FRAME_attack22)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile23
+	boss_face()
+}
+func boss_missile23() {
+	Self.Frame = float32(BOSS1_FRAME_attack23)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile1_impl
+	boss_face()
+}
 
-func boss_shocka1()  { Self.Frame = float32(BOSS1_FRAME_shocka1); Self.NextThink = Time + 0.1; Self.Think = boss_shocka2 }
-func boss_shocka2()  { Self.Frame = float32(BOSS1_FRAME_shocka2); Self.NextThink = Time + 0.1; Self.Think = boss_shocka3 }
-func boss_shocka3()  { Self.Frame = float32(BOSS1_FRAME_shocka3); Self.NextThink = Time + 0.1; Self.Think = boss_shocka4 }
-func boss_shocka4()  { Self.Frame = float32(BOSS1_FRAME_shocka4); Self.NextThink = Time + 0.1; Self.Think = boss_shocka5 }
-func boss_shocka5()  { Self.Frame = float32(BOSS1_FRAME_shocka5); Self.NextThink = Time + 0.1; Self.Think = boss_shocka6 }
-func boss_shocka6()  { Self.Frame = float32(BOSS1_FRAME_shocka6); Self.NextThink = Time + 0.1; Self.Think = boss_shocka7 }
-func boss_shocka7()  { Self.Frame = float32(BOSS1_FRAME_shocka7); Self.NextThink = Time + 0.1; Self.Think = boss_shocka8 }
-func boss_shocka8()  { Self.Frame = float32(BOSS1_FRAME_shocka8); Self.NextThink = Time + 0.1; Self.Think = boss_shocka9 }
-func boss_shocka9()  { Self.Frame = float32(BOSS1_FRAME_shocka9); Self.NextThink = Time + 0.1; Self.Think = boss_shocka10 }
-func boss_shocka10() { Self.Frame = float32(BOSS1_FRAME_shocka10); Self.NextThink = Time + 0.1; Self.Think = boss_missile1_impl }
+func boss_shocka1() {
+	Self.Frame = float32(BOSS1_FRAME_shocka1)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shocka2
+}
+func boss_shocka2() {
+	Self.Frame = float32(BOSS1_FRAME_shocka2)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shocka3
+}
+func boss_shocka3() {
+	Self.Frame = float32(BOSS1_FRAME_shocka3)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shocka4
+}
+func boss_shocka4() {
+	Self.Frame = float32(BOSS1_FRAME_shocka4)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shocka5
+}
+func boss_shocka5() {
+	Self.Frame = float32(BOSS1_FRAME_shocka5)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shocka6
+}
+func boss_shocka6() {
+	Self.Frame = float32(BOSS1_FRAME_shocka6)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shocka7
+}
+func boss_shocka7() {
+	Self.Frame = float32(BOSS1_FRAME_shocka7)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shocka8
+}
+func boss_shocka8() {
+	Self.Frame = float32(BOSS1_FRAME_shocka8)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shocka9
+}
+func boss_shocka9() {
+	Self.Frame = float32(BOSS1_FRAME_shocka9)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shocka10
+}
+func boss_shocka10() {
+	Self.Frame = float32(BOSS1_FRAME_shocka10)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile1_impl
+}
 
-func boss_shockb1()  { Self.Frame = float32(BOSS1_FRAME_shockb1); Self.NextThink = Time + 0.1; Self.Think = boss_shockb2 }
-func boss_shockb2()  { Self.Frame = float32(BOSS1_FRAME_shockb2); Self.NextThink = Time + 0.1; Self.Think = boss_shockb3 }
-func boss_shockb3()  { Self.Frame = float32(BOSS1_FRAME_shockb3); Self.NextThink = Time + 0.1; Self.Think = boss_shockb4 }
-func boss_shockb4()  { Self.Frame = float32(BOSS1_FRAME_shockb4); Self.NextThink = Time + 0.1; Self.Think = boss_shockb5 }
-func boss_shockb5()  { Self.Frame = float32(BOSS1_FRAME_shockb5); Self.NextThink = Time + 0.1; Self.Think = boss_shockb6 }
-func boss_shockb6()  { Self.Frame = float32(BOSS1_FRAME_shockb6); Self.NextThink = Time + 0.1; Self.Think = boss_shockb7 }
-func boss_shockb7()  { Self.Frame = float32(BOSS1_FRAME_shockb1); Self.NextThink = Time + 0.1; Self.Think = boss_shockb8 }
-func boss_shockb8()  { Self.Frame = float32(BOSS1_FRAME_shockb2); Self.NextThink = Time + 0.1; Self.Think = boss_shockb9 }
-func boss_shockb9()  { Self.Frame = float32(BOSS1_FRAME_shockb3); Self.NextThink = Time + 0.1; Self.Think = boss_shockb10 }
-func boss_shockb10() { Self.Frame = float32(BOSS1_FRAME_shockb4); Self.NextThink = Time + 0.1; Self.Think = boss_missile1_impl }
+func boss_shockb1() {
+	Self.Frame = float32(BOSS1_FRAME_shockb1)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockb2
+}
+func boss_shockb2() {
+	Self.Frame = float32(BOSS1_FRAME_shockb2)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockb3
+}
+func boss_shockb3() {
+	Self.Frame = float32(BOSS1_FRAME_shockb3)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockb4
+}
+func boss_shockb4() {
+	Self.Frame = float32(BOSS1_FRAME_shockb4)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockb5
+}
+func boss_shockb5() {
+	Self.Frame = float32(BOSS1_FRAME_shockb5)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockb6
+}
+func boss_shockb6() {
+	Self.Frame = float32(BOSS1_FRAME_shockb6)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockb7
+}
+func boss_shockb7() {
+	Self.Frame = float32(BOSS1_FRAME_shockb1)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockb8
+}
+func boss_shockb8() {
+	Self.Frame = float32(BOSS1_FRAME_shockb2)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockb9
+}
+func boss_shockb9() {
+	Self.Frame = float32(BOSS1_FRAME_shockb3)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockb10
+}
+func boss_shockb10() {
+	Self.Frame = float32(BOSS1_FRAME_shockb4)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_missile1_impl
+}
 
-func boss_shockc1()  { Self.Frame = float32(BOSS1_FRAME_shockc1); Self.NextThink = Time + 0.1; Self.Think = boss_shockc2 }
-func boss_shockc2()  { Self.Frame = float32(BOSS1_FRAME_shockc2); Self.NextThink = Time + 0.1; Self.Think = boss_shockc3 }
-func boss_shockc3()  { Self.Frame = float32(BOSS1_FRAME_shockc3); Self.NextThink = Time + 0.1; Self.Think = boss_shockc4 }
-func boss_shockc4()  { Self.Frame = float32(BOSS1_FRAME_shockc4); Self.NextThink = Time + 0.1; Self.Think = boss_shockc5 }
-func boss_shockc5()  { Self.Frame = float32(BOSS1_FRAME_shockc5); Self.NextThink = Time + 0.1; Self.Think = boss_shockc6 }
-func boss_shockc6()  { Self.Frame = float32(BOSS1_FRAME_shockc6); Self.NextThink = Time + 0.1; Self.Think = boss_shockc7 }
-func boss_shockc7()  { Self.Frame = float32(BOSS1_FRAME_shockc7); Self.NextThink = Time + 0.1; Self.Think = boss_shockc8 }
-func boss_shockc8()  { Self.Frame = float32(BOSS1_FRAME_shockc8); Self.NextThink = Time + 0.1; Self.Think = boss_shockc9 }
-func boss_shockc9()  { Self.Frame = float32(BOSS1_FRAME_shockc9); Self.NextThink = Time + 0.1; Self.Think = boss_shockc10 }
-func boss_shockc10() { Self.Frame = float32(BOSS1_FRAME_shockc10); Self.NextThink = Time + 0.1; Self.Think = boss_death1 }
+func boss_shockc1() {
+	Self.Frame = float32(BOSS1_FRAME_shockc1)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockc2
+}
+func boss_shockc2() {
+	Self.Frame = float32(BOSS1_FRAME_shockc2)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockc3
+}
+func boss_shockc3() {
+	Self.Frame = float32(BOSS1_FRAME_shockc3)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockc4
+}
+func boss_shockc4() {
+	Self.Frame = float32(BOSS1_FRAME_shockc4)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockc5
+}
+func boss_shockc5() {
+	Self.Frame = float32(BOSS1_FRAME_shockc5)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockc6
+}
+func boss_shockc6() {
+	Self.Frame = float32(BOSS1_FRAME_shockc6)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockc7
+}
+func boss_shockc7() {
+	Self.Frame = float32(BOSS1_FRAME_shockc7)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockc8
+}
+func boss_shockc8() {
+	Self.Frame = float32(BOSS1_FRAME_shockc8)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockc9
+}
+func boss_shockc9() {
+	Self.Frame = float32(BOSS1_FRAME_shockc9)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_shockc10
+}
+func boss_shockc10() {
+	Self.Frame = float32(BOSS1_FRAME_shockc10)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_death1
+}
 
 func boss_death1() {
 	Self.Frame = float32(BOSS1_FRAME_death1)
@@ -298,13 +733,41 @@ func boss_death1() {
 	engine.Sound(Self, int(CHAN_VOICE), "boss1/death.wav", 1, ATTN_NORM)
 }
 
-func boss_death2() { Self.Frame = float32(BOSS1_FRAME_death2); Self.NextThink = Time + 0.1; Self.Think = boss_death3 }
-func boss_death3() { Self.Frame = float32(BOSS1_FRAME_death3); Self.NextThink = Time + 0.1; Self.Think = boss_death4 }
-func boss_death4() { Self.Frame = float32(BOSS1_FRAME_death4); Self.NextThink = Time + 0.1; Self.Think = boss_death5 }
-func boss_death5() { Self.Frame = float32(BOSS1_FRAME_death5); Self.NextThink = Time + 0.1; Self.Think = boss_death6 }
-func boss_death6() { Self.Frame = float32(BOSS1_FRAME_death6); Self.NextThink = Time + 0.1; Self.Think = boss_death7 }
-func boss_death7() { Self.Frame = float32(BOSS1_FRAME_death7); Self.NextThink = Time + 0.1; Self.Think = boss_death8 }
-func boss_death8() { Self.Frame = float32(BOSS1_FRAME_death8); Self.NextThink = Time + 0.1; Self.Think = boss_death9 }
+func boss_death2() {
+	Self.Frame = float32(BOSS1_FRAME_death2)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_death3
+}
+func boss_death3() {
+	Self.Frame = float32(BOSS1_FRAME_death3)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_death4
+}
+func boss_death4() {
+	Self.Frame = float32(BOSS1_FRAME_death4)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_death5
+}
+func boss_death5() {
+	Self.Frame = float32(BOSS1_FRAME_death5)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_death6
+}
+func boss_death6() {
+	Self.Frame = float32(BOSS1_FRAME_death6)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_death7
+}
+func boss_death7() {
+	Self.Frame = float32(BOSS1_FRAME_death7)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_death8
+}
+func boss_death8() {
+	Self.Frame = float32(BOSS1_FRAME_death8)
+	Self.NextThink = Time + 0.1
+	Self.Think = boss_death9
+}
 func boss_death9() {
 	Self.Frame = float32(BOSS1_FRAME_death9)
 	Self.NextThink = Time + 0.1

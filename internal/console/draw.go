@@ -441,7 +441,6 @@ func drawWhiteText(rc DrawContext, x, y int, text string) {
 	}
 }
 
-
 func clipPromptWithCursor(prompt []rune, cursor, maxChars int) ([]rune, int) {
 	if maxChars <= 0 {
 		return nil, 0

@@ -863,4 +863,26 @@ func TestQbj2StartWaterVisibility(t *testing.T) {
 		skyCount, translucentLiquidCount, opaqueCount, opaqueLiquidCount, alphaTestCount)
 }
 
+func TestGoGPUWorldBatchCacheImmutability(t *testing.T) {
+	r := &Renderer{}
+	liquidAlpha := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
 
+	batchedIndices := []uint32{0, 1, 2, 3, 4, 5}
+	opaqueBatches := []gogpuWorldFaceBatch{{firstIndex: 0, numIndices: 3}}
+	alphaBatches := []gogpuWorldFaceBatch{{firstIndex: 3, numIndices: 3}}
+
+	r.storeGoGPUWorldBatchCacheEntry(1, liquidAlpha, 2, nil, nil, batchedIndices, opaqueBatches, alphaBatches, nil)
+
+	entry := r.gogpuWorldBatchCacheEntry(1, liquidAlpha)
+	if entry == nil {
+		t.Fatal("expected cache entry to be found")
+	}
+	if len(entry.indices) != 6 {
+		t.Fatalf("expected entry.indices length 6, got %d", len(entry.indices))
+	}
+	for i, idx := range batchedIndices {
+		if entry.indices[i] != idx {
+			t.Errorf("entry.indices[%d] = %d, want %d", i, entry.indices[i], idx)
+		}
+	}
+}

@@ -153,7 +153,6 @@ type Renderer struct {
 	// charTextures caches uploaded GPU textures for the 256 font characters.
 	charTextures [256]*gogpu.Texture
 
-
 	// Camera state and matrices for view/projection
 	// cameraState holds the current camera position and orientation.
 	cameraState CameraState
@@ -181,31 +180,31 @@ type Renderer struct {
 
 	// Scratch buffers for render state
 	// (removed scratch maps for textures)
-	brushTextureAnimationsScratch      []*surfacepkg.SurfaceTexture
-	activeDynamicLightsScratch         []DynamicLight
-	uniformDataScratch                 []byte
-	uniformOffset                      uint32
-	particleScratchBuffer              *wgpu.Buffer
-	decalScratchBuffer                 *wgpu.Buffer
-	worldVertexBuffer                  *wgpu.Buffer
-	worldIndexBuffer                   *wgpu.Buffer
-	worldDynamicIndexBuffer            *wgpu.Buffer
-	worldDynamicIndexBufferSize        uint64
-	worldIndexCount                    uint32
+	brushTextureAnimationsScratch []*surfacepkg.SurfaceTexture
+	activeDynamicLightsScratch    []DynamicLight
+	uniformDataScratch            []byte
+	uniformOffset                 uint32
+	particleScratchBuffer         *wgpu.Buffer
+	decalScratchBuffer            *wgpu.Buffer
+	worldVertexBuffer             *wgpu.Buffer
+	worldIndexBuffer              *wgpu.Buffer
+	worldDynamicIndexBuffer       *wgpu.Buffer
+	worldDynamicIndexBufferSize   uint64
+	worldIndexCount               uint32
 	// resources owns the renderer's wgpu object graph (plan 16+2a); the
 	// fields below are the ones whose types live in renderer-root and cannot
 	// move into pipeline.Resources without an import cycle.
-	resources   *pipeline.Resources
-	worldTextures                      *gpuWorldTexture
-	worldFullbrightTextures            *gpuWorldTexture
-	worldSkySolidTextures              map[int32]*gpuWorldTexture
-	worldSkyAlphaTextures              map[int32]*gpuWorldTexture
-	worldTextureAnimations             []*surfacepkg.SurfaceTexture
-	worldBaseMaterials                 []WorldMaterialData
-	worldSkyExternalFaces              [6]externalSkyboxFace
-	worldSkyExternalWind               externalSkyboxWind
-	worldSkyExternalMode               externalSkyboxRenderMode
-	worldLightmapArray                 *gpuWorldTexture
+	resources               *pipeline.Resources
+	worldTextures           *gpuWorldTexture
+	worldFullbrightTextures *gpuWorldTexture
+	worldSkySolidTextures   map[int32]*gpuWorldTexture
+	worldSkyAlphaTextures   map[int32]*gpuWorldTexture
+	worldTextureAnimations  []*surfacepkg.SurfaceTexture
+	worldBaseMaterials      []WorldMaterialData
+	worldSkyExternalFaces   [6]externalSkyboxFace
+	worldSkyExternalWind    externalSkyboxWind
+	worldSkyExternalMode    externalSkyboxRenderMode
+	worldLightmapArray      *gpuWorldTexture
 	// Alias-model resources for the gogpu backend.
 	lightPool                            *glLightPool
 	brushModelGeometry                   map[int]*WorldGeometry

@@ -223,7 +223,7 @@ func CompositeSurfaceRGBA(rgba []byte, pageWidth int, surface world.WorldLightma
 	if styleCount == 1 && scales[0] == 1.0 {
 		for y := 0; y < surface.Height; y++ {
 			srcRow := (y * surface.Width) * 3
-			dstRow := ((surface.Y + y) * pageWidth + surface.X) * 4
+			dstRow := ((surface.Y+y)*pageWidth + surface.X) * 4
 			for x := 0; x < surface.Width; x++ {
 				src := srcRow + x*3
 				dst := dstRow + x*4
@@ -241,7 +241,7 @@ func CompositeSurfaceRGBA(rgba []byte, pageWidth int, surface world.WorldLightma
 		s0 := scales[0]
 		for y := 0; y < surface.Height; y++ {
 			srcRow := (y * surface.Width) * 3
-			dstRow := ((surface.Y + y) * pageWidth + surface.X) * 4
+			dstRow := ((surface.Y+y)*pageWidth + surface.X) * 4
 			for x := 0; x < surface.Width; x++ {
 				src := srcRow + x*3
 				dst := dstRow + x*4
@@ -271,7 +271,7 @@ func CompositeSurfaceRGBA(rgba []byte, pageWidth int, surface world.WorldLightma
 		s0, s1 := scales[0], scales[1]
 		for y := 0; y < surface.Height; y++ {
 			srcRow := (y * surface.Width) * 3
-			dstRow := ((surface.Y + y) * pageWidth + surface.X) * 4
+			dstRow := ((surface.Y+y)*pageWidth + surface.X) * 4
 			for x := 0; x < surface.Width; x++ {
 				src0 := srcRow + x*3
 				src1 := src0 + faceSize
@@ -300,7 +300,7 @@ func CompositeSurfaceRGBA(rgba []byte, pageWidth int, surface world.WorldLightma
 	// General path: 3 or 4 styles
 	for y := 0; y < surface.Height; y++ {
 		srcRow := (y * surface.Width) * 3
-		dstRow := ((surface.Y + y) * pageWidth + surface.X) * 4
+		dstRow := ((surface.Y+y)*pageWidth + surface.X) * 4
 		for x := 0; x < surface.Width; x++ {
 			sampleIndex := srcRow + x*3
 			var rSum, gSum, bSum float32

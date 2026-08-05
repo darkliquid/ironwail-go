@@ -31,10 +31,10 @@ import (
 
 // Type aliases for savegame types moved to the savegame sub-package.
 type (
-	SaveGameState    = sgsavegame.SaveGameState
-	SaveClientState  = sgsavegame.SaveClientState
-	SaveEdictState   = sgsavegame.SaveEdictState
-	SaveGlobalState  = sgsavegame.SaveGlobalState
+	SaveGameState     = sgsavegame.SaveGameState
+	SaveClientState   = sgsavegame.SaveClientState
+	SaveEdictState    = sgsavegame.SaveEdictState
+	SaveGlobalState   = sgsavegame.SaveGlobalState
 	TextSaveGameState = sgsavegame.TextSaveGameState
 )
 

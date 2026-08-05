@@ -338,8 +338,8 @@ func (r *Renderer) createWorldTextureFromRGBA(device *wgpu.Device, queue *wgpu.Q
 		return nil, fmt.Errorf("write world texture: %w", err)
 	}
 	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
-		Label:           label + " View",
-		Format:          gputypes.TextureFormatRGBA8Unorm,
+		Label:         label + " View",
+		Format:        gputypes.TextureFormatRGBA8Unorm,
 		Dimension:     gputypes.TextureViewDimension2D,
 		Aspect:        gputypes.TextureAspectAll,
 		BaseMipLevel:  0,
@@ -817,10 +817,10 @@ func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.
 			baseMaterials[i].AtlasBounds[1] = baseMaterials[i].AtlasBounds[1] * float32(atlasHeight) / float32(totalTallHeight) // V
 			baseMaterials[i].AtlasBounds[3] = baseMaterials[i].AtlasBounds[3] * float32(atlasHeight) / float32(totalTallHeight) // H
 			// Apply half-texel inset to prevent inter-texture bleeding.
-			baseMaterials[i].AtlasBounds[0] += halfTexelU              // U: shift right by half texel
-			baseMaterials[i].AtlasBounds[1] += halfTexelV              // V: shift down by half texel
-			baseMaterials[i].AtlasBounds[2] -= 2 * halfTexelU          // W: shrink by one texel
-			baseMaterials[i].AtlasBounds[3] -= 2 * halfTexelV          // H: shrink by one texel
+			baseMaterials[i].AtlasBounds[0] += halfTexelU     // U: shift right by half texel
+			baseMaterials[i].AtlasBounds[1] += halfTexelV     // V: shift down by half texel
+			baseMaterials[i].AtlasBounds[2] -= 2 * halfTexelU // W: shrink by one texel
+			baseMaterials[i].AtlasBounds[3] -= 2 * halfTexelV // H: shrink by one texel
 		}
 	}
 
@@ -963,7 +963,7 @@ func writeTextureChunked(queue *wgpu.Queue, texture *wgpu.Texture, rgba []byte, 
 
 		if err := queue.WriteTexture(
 			&wgpu.ImageCopyTexture{
-				Texture: texture,
+				Texture:  texture,
 				MipLevel: 0,
 				Origin: wgpu.Origin3D{
 					X: 0,

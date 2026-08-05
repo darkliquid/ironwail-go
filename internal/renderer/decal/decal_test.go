@@ -15,12 +15,12 @@ type markStub struct {
 	variant  int
 }
 
-func (m markStub) DecalOrigin() [3]float32    { return m.origin }
-func (m markStub) DecalNormal() [3]float32    { return m.normal }
-func (m markStub) DecalSize() float32         { return m.size }
-func (m markStub) DecalRotation() float32     { return m.rotation }
-func (m markStub) DecalAlpha() float32        { return m.alpha }
-func (m markStub) DecalVariant() int          { return m.variant }
+func (m markStub) DecalOrigin() [3]float32 { return m.origin }
+func (m markStub) DecalNormal() [3]float32 { return m.normal }
+func (m markStub) DecalSize() float32      { return m.size }
+func (m markStub) DecalRotation() float32  { return m.rotation }
+func (m markStub) DecalAlpha() float32     { return m.alpha }
+func (m markStub) DecalVariant() int       { return m.variant }
 
 func TestBuildQuadFloorFacingUp(t *testing.T) {
 	got, ok := BuildQuad(markStub{
@@ -208,4 +208,3 @@ func TestNormalizeVariantPinsInvalidDefault(t *testing.T) {
 		t.Fatalf("NormalizeVariant(-1) = %d, want 0 (invalid -> bullet)", got)
 	}
 }
-

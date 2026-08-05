@@ -13,14 +13,14 @@ var debugViewTelemetryEmit = func(line string) {
 }
 
 type debugViewTelemetryState struct {
-	frame         uint64
-	currentLevel  int
-	levelLoaded   bool
+	frame          uint64
+	currentLevel   int
+	levelLoaded    bool
 	viewModelFrame uint64
-	originSelect  runtimeOriginSelectTelemetry
-	coalesceKey   string
-	coalesceKind  string
-	coalesceCount int
+	originSelect   runtimeOriginSelectTelemetry
+	coalesceKey    string
+	coalesceKind   string
+	coalesceCount  int
 }
 
 var runtimeDebugView debugViewTelemetryState

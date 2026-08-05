@@ -333,7 +333,6 @@ func (c *System) PointContents(p [3]float32) int {
 		return bsp.ContentsSolid
 	}
 
-
 	hull := m.Hull(0)
 	cont := hullPointContents(&hull, 0, p)
 

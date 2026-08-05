@@ -30,7 +30,7 @@ func TestWriteClientDataToMessage_NetQuakeOmitsExtensions(t *testing.T) {
 	}
 	newServerTestVM(s, 8)
 	ent := &Edict{
-				Alpha: 0x7f,
+		Alpha: 0x7f,
 	}
 	ent.SetWeaponModel(s, weaponModel)
 	ent.SetWeaponFrame(s, 0x234)
@@ -79,8 +79,7 @@ func TestWriteClientDataToMessage_FitzSendsWeapon2(t *testing.T) {
 		ModelPrecache: modelPrecache,
 	}
 	newServerTestVM(s, 8)
-	ent := &Edict{
-			}
+	ent := &Edict{}
 	ent.SetWeaponModel(s, weaponModel)
 	ent.SetHealth(s, 100)
 
@@ -121,7 +120,7 @@ func TestWriteClientDataToMessage_FitzExtensionsPayloadOrder(t *testing.T) {
 	}
 	newServerTestVM(s, 8)
 	ent := &Edict{
-				Alpha: 0x7f,
+		Alpha: 0x7f,
 	}
 	ent.SetWeaponModel(s, weaponModel)
 	ent.SetWeaponFrame(s, 0x234)
@@ -204,9 +203,8 @@ func TestWriteClientDataToMessage_SendsBaseWeaponBitmask(t *testing.T) {
 
 	s := &Server{Protocol: ProtocolNetQuake}
 	newServerTestVM(s, 8)
-	ent := &Edict{
-			}
-	ent.SetWeapon(s, 1 << 5)
+	ent := &Edict{}
+	ent.SetWeapon(s, 1<<5)
 	ent.SetHealth(s, 100)
 	ent.SetCurrentAmmo(s, 5)
 
@@ -227,9 +225,8 @@ func TestWriteClientDataToMessage_MissionPackEncodesWeaponAsBitNumber(t *testing
 		FileSystem: testGameDirFS{gameDir: "rogue"},
 	}
 	newServerTestVM(s, 8)
-	ent := &Edict{
-			}
-	ent.SetWeapon(s, 1 << 5)
+	ent := &Edict{}
+	ent.SetWeapon(s, 1<<5)
 	ent.SetHealth(s, 100)
 	ent.SetCurrentAmmo(s, 5)
 
@@ -247,9 +244,8 @@ func TestWriteClientDataToMessage_SendsFullActiveWeaponStatWhenBitmaskExceedsByt
 
 	s := &Server{Protocol: ProtocolNetQuake}
 	newServerTestVM(s, 8)
-	ent := &Edict{
-			}
-	ent.SetWeapon(s, 1 << 8)
+	ent := &Edict{}
+	ent.SetWeapon(s, 1<<8)
 	ent.SetHealth(s, 100)
 	ent.SetCurrentAmmo(s, 5)
 
@@ -357,7 +353,7 @@ func TestWriteEntitiesToClient_DoesNotEmitRetireForFreedBaselineOnlyEntity(t *te
 	t.Parallel()
 
 	ent := &Edict{
-				Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
+		Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
 	}
 	client := &Client{}
 	s := &Server{
@@ -383,7 +379,7 @@ func TestWriteEntitiesToClient_DoesNotEmitStickyRetireForOmittedTrackedEntity(t 
 	t.Parallel()
 
 	ent := &Edict{
-				Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
+		Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
 	}
 	client := &Client{EntityStates: map[int]EntityState{1: ent.Baseline}}
 	s := &Server{

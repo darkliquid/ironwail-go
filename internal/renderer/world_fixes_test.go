@@ -1,10 +1,14 @@
 package renderer
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
+	"github.com/darkliquid/ironwail-go/internal/bsp"
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
+	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
 
 // TestAnimateWorldMaterialsFrame1 verifies that frame=1 selects the alternate
@@ -43,3 +47,47 @@ func TestAnimateWorldMaterialsFrame1(t *testing.T) {
 		t.Errorf("frame=1: animated[0] = %v, want %v (alternate)", animated1[0], baseMaterials[1])
 	}
 }
+
+func TestWaterTranslucencyClassification(t *testing.T) {
+	quakeDir, err := testutil.LocateQuakeDir()
+	if err != nil || quakeDir == "" {
+		t.Skip("QUAKE_DIR not set")
+	}
+	bspPath := filepath.Join(quakeDir, "qbj2", "maps", "start.bsp")
+	f, err := os.Open(bspPath)
+	if err != nil {
+		t.Skipf("qbj2 start.bsp not found: %v", err)
+	}
+	defer f.Close()
+
+	tree, err := bsp.LoadTree(f)
+	testutil.AssertNoError(t, err)
+
+	geom, err := BuildWorldGeometry(tree)
+	testutil.AssertNoError(t, err)
+
+	cameraPos := [3]float32{-231.38, -1768.12, -2114.00}
+	visibleFaces := selectVisibleWorldFaces(geom.Tree, geom.Faces, geom.LeafFaces, cameraPos)
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(geom)
+
+	if liquidAlpha.water >= 1 {
+		t.Fatalf("qbj2 start.bsp liquidAlpha.water = %v, want < 1 (from worldspawn wateralpha .6)", liquidAlpha.water)
+	}
+
+	var translucentLiquidCount int
+	var submergedOpaqueCount int
+	var nonLiquidCount int
+	for _, face := range visibleFaces {
+		if shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha) {
+			translucentLiquidCount++
+		} else {
+			nonLiquidCount++
+			if face.Center[2] < -2170 {
+				submergedOpaqueCount++
+			}
+		}
+	}
+	t.Logf("At camera %v: translucentLiquidFaces=%d, nonLiquidFaces=%d, submergedOpaqueFaces(Z < -2170)=%d", cameraPos, translucentLiquidCount, nonLiquidCount, submergedOpaqueCount)
+}
+
+

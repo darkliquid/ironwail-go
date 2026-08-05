@@ -21,7 +21,7 @@ type viewCalcState struct {
 	oldZInit bool
 	// Per-frame runtime stair smoothing cache so multiple consumers
 	// (camera/viewmodel/audio) share the same smoothed local-player Z.
-	originSelectLatch   runtimeOriginSelectLatch
+	originSelectLatch runtimeOriginSelectLatch
 }
 
 type runtimeOriginSelectLatch struct {

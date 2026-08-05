@@ -556,7 +556,7 @@ func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
 		trigger.AbsMin(s)[2] - player.Mins(s)[2] + 1,
 	})
 	player.SetVelocity(s, [3]float32{})
-	player.SetFlags(s, float32(uint32(player.Flags(s)) | uint32(FlagOnGround)))
+	player.SetFlags(s, float32(uint32(player.Flags(s))|uint32(FlagOnGround)))
 	s.LinkEdict(player, false)
 	s.touchLinks(player)
 	cs.Execute()

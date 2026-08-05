@@ -62,4 +62,3 @@ type (
 
 // Note: TraceResult struct definition has been moved to internal/server/types/trace.go.
 // The type alias server.TraceResult is exported in internal/server/types.go.
-

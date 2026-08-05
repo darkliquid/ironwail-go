@@ -452,5 +452,3 @@ const (
 	FL_WATERJUMP     = FlagWaterJump
 	FL_JUMPRELEASED  = FlagJumpReleased
 )
-
-

@@ -3,7 +3,6 @@
 package server
 
 import (
-
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
@@ -176,7 +175,6 @@ func (s *Server) newCheckClient() int {
 	return s.NumForEdict(client.Edict)
 }
 
-
 var defaultEntFieldOffsets = map[string]int{
 	normalizeFieldName("ModelIndex"):   qc.EntFieldModelIndex,
 	normalizeFieldName("AbsMin"):       qc.EntFieldAbsMin,
@@ -256,7 +254,6 @@ var defaultEntFieldOffsets = map[string]int{
 	normalizeFieldName("Noise2"):       qc.EntFieldNoise2,
 	normalizeFieldName("Noise3"):       qc.EntFieldNoise3,
 }
-
 
 // ensureQCVMEdictStorage grows VM edict backing storage to match server edict capacity.
 // QuakeC addresses entities by index into a flat byte block; this guarantees indexes

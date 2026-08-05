@@ -7,12 +7,12 @@ type fakeBackend struct{}
 func (fakeBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error) {
 	return nil, nil
 }
-func (fakeBackend) Shutdown()        {}
-func (fakeBackend) Lock()            {}
-func (fakeBackend) Unlock()          {}
+func (fakeBackend) Shutdown()     {}
+func (fakeBackend) Lock()         {}
+func (fakeBackend) Unlock()       {}
 func (fakeBackend) Position() int { return 0 }
-func (fakeBackend) Block()           {}
-func (fakeBackend) Unblock()         {}
+func (fakeBackend) Block()        {}
+func (fakeBackend) Unblock()      {}
 
 func TestSelectAudioBackendPrefersProvidedBackend(t *testing.T) {
 	backend := fakeBackend{}

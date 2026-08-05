@@ -374,8 +374,6 @@ func TestSinglePlayerActions(t *testing.T) {
 	}
 }
 
-
-
 func TestLoadSaveCommands(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}

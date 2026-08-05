@@ -27,14 +27,14 @@
 //
 // # Key types
 //
-// - WorldVertex: GPU vertex format (position, texcoord, lightmap UV,
-//   normal, lightmap layer, material ID) — 48 bytes, matches WGSL
-//   VertexInput struct
-// - WorldFace: per-face render metadata (first index, num indices,
-//   texture index, lightmap index, flags)
-// - WorldGeometry: aggregated BSP geometry (vertices, indices, faces,
-//   tree, lightmap pages)
-// - WorldLightmapPage: lightmap atlas page with surfaces and RGBA cache
+//   - WorldVertex: GPU vertex format (position, texcoord, lightmap UV,
+//     normal, lightmap layer, material ID) — 48 bytes, matches WGSL
+//     VertexInput struct
+//   - WorldFace: per-face render metadata (first index, num indices,
+//     texture index, lightmap index, flags)
+//   - WorldGeometry: aggregated BSP geometry (vertices, indices, faces,
+//     tree, lightmap pages)
+//   - WorldLightmapPage: lightmap atlas page with surfaces and RGBA cache
 //
 // # Testing
 //

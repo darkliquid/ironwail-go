@@ -512,4 +512,3 @@ func (e *Edict) SetSounds(vmp VMProvider, v float32) {
 		vm.SetEFloat(e.Num, qc.EntFieldSounds, v)
 	}
 }
-

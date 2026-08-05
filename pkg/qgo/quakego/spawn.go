@@ -82,60 +82,320 @@ var tbaby_jump1 func()
 var tbaby_jump5 func()
 var tbaby_fly1 func()
 
-func tbaby_stand1_impl() { Self.Frame = float32(TBABY_FRAME_walk1); Self.NextThink = Time + 0.1; Self.Think = tbaby_stand1_impl; ai_stand() }
-func tbaby_hang1()       { Self.Frame = float32(TBABY_FRAME_walk1); Self.NextThink = Time + 0.1; Self.Think = tbaby_hang1; ai_stand() }
+func tbaby_stand1_impl() {
+	Self.Frame = float32(TBABY_FRAME_walk1)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_stand1_impl
+	ai_stand()
+}
+func tbaby_hang1() {
+	Self.Frame = float32(TBABY_FRAME_walk1)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_hang1
+	ai_stand()
+}
 
-func tbaby_walk1_impl()  { Self.Frame = float32(TBABY_FRAME_walk1); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk2; ai_turn() }
-func tbaby_walk2()  { Self.Frame = float32(TBABY_FRAME_walk2); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk3; ai_turn() }
-func tbaby_walk3()  { Self.Frame = float32(TBABY_FRAME_walk3); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk4; ai_turn() }
-func tbaby_walk4()  { Self.Frame = float32(TBABY_FRAME_walk4); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk5; ai_turn() }
-func tbaby_walk5()  { Self.Frame = float32(TBABY_FRAME_walk5); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk6; ai_turn() }
-func tbaby_walk6()  { Self.Frame = float32(TBABY_FRAME_walk6); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk7; ai_turn() }
-func tbaby_walk7()  { Self.Frame = float32(TBABY_FRAME_walk7); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk8; ai_turn() }
-func tbaby_walk8()  { Self.Frame = float32(TBABY_FRAME_walk8); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk9; ai_turn() }
-func tbaby_walk9()  { Self.Frame = float32(TBABY_FRAME_walk9); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk10; ai_turn() }
-func tbaby_walk10() { Self.Frame = float32(TBABY_FRAME_walk10); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk11; ai_turn() }
-func tbaby_walk11() { Self.Frame = float32(TBABY_FRAME_walk11); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk12; ai_walk(2) }
-func tbaby_walk12() { Self.Frame = float32(TBABY_FRAME_walk12); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk13; ai_walk(2) }
-func tbaby_walk13() { Self.Frame = float32(TBABY_FRAME_walk13); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk14; ai_walk(2) }
-func tbaby_walk14() { Self.Frame = float32(TBABY_FRAME_walk14); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk15; ai_walk(2) }
-func tbaby_walk15() { Self.Frame = float32(TBABY_FRAME_walk15); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk16; ai_walk(2) }
-func tbaby_walk16() { Self.Frame = float32(TBABY_FRAME_walk16); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk17; ai_walk(2) }
-func tbaby_walk17() { Self.Frame = float32(TBABY_FRAME_walk17); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk18; ai_walk(2) }
-func tbaby_walk18() { Self.Frame = float32(TBABY_FRAME_walk18); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk19; ai_walk(2) }
-func tbaby_walk19() { Self.Frame = float32(TBABY_FRAME_walk19); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk20; ai_walk(2) }
-func tbaby_walk20() { Self.Frame = float32(TBABY_FRAME_walk20); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk21; ai_walk(2) }
-func tbaby_walk21() { Self.Frame = float32(TBABY_FRAME_walk21); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk22; ai_walk(2) }
-func tbaby_walk22() { Self.Frame = float32(TBABY_FRAME_walk22); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk23; ai_walk(2) }
-func tbaby_walk23() { Self.Frame = float32(TBABY_FRAME_walk23); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk24; ai_walk(2) }
-func tbaby_walk24() { Self.Frame = float32(TBABY_FRAME_walk24); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk25; ai_walk(2) }
-func tbaby_walk25() { Self.Frame = float32(TBABY_FRAME_walk25); Self.NextThink = Time + 0.1; Self.Think = tbaby_walk1_impl; ai_walk(2) }
+func tbaby_walk1_impl() {
+	Self.Frame = float32(TBABY_FRAME_walk1)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk2
+	ai_turn()
+}
+func tbaby_walk2() {
+	Self.Frame = float32(TBABY_FRAME_walk2)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk3
+	ai_turn()
+}
+func tbaby_walk3() {
+	Self.Frame = float32(TBABY_FRAME_walk3)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk4
+	ai_turn()
+}
+func tbaby_walk4() {
+	Self.Frame = float32(TBABY_FRAME_walk4)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk5
+	ai_turn()
+}
+func tbaby_walk5() {
+	Self.Frame = float32(TBABY_FRAME_walk5)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk6
+	ai_turn()
+}
+func tbaby_walk6() {
+	Self.Frame = float32(TBABY_FRAME_walk6)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk7
+	ai_turn()
+}
+func tbaby_walk7() {
+	Self.Frame = float32(TBABY_FRAME_walk7)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk8
+	ai_turn()
+}
+func tbaby_walk8() {
+	Self.Frame = float32(TBABY_FRAME_walk8)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk9
+	ai_turn()
+}
+func tbaby_walk9() {
+	Self.Frame = float32(TBABY_FRAME_walk9)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk10
+	ai_turn()
+}
+func tbaby_walk10() {
+	Self.Frame = float32(TBABY_FRAME_walk10)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk11
+	ai_turn()
+}
+func tbaby_walk11() {
+	Self.Frame = float32(TBABY_FRAME_walk11)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk12
+	ai_walk(2)
+}
+func tbaby_walk12() {
+	Self.Frame = float32(TBABY_FRAME_walk12)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk13
+	ai_walk(2)
+}
+func tbaby_walk13() {
+	Self.Frame = float32(TBABY_FRAME_walk13)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk14
+	ai_walk(2)
+}
+func tbaby_walk14() {
+	Self.Frame = float32(TBABY_FRAME_walk14)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk15
+	ai_walk(2)
+}
+func tbaby_walk15() {
+	Self.Frame = float32(TBABY_FRAME_walk15)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk16
+	ai_walk(2)
+}
+func tbaby_walk16() {
+	Self.Frame = float32(TBABY_FRAME_walk16)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk17
+	ai_walk(2)
+}
+func tbaby_walk17() {
+	Self.Frame = float32(TBABY_FRAME_walk17)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk18
+	ai_walk(2)
+}
+func tbaby_walk18() {
+	Self.Frame = float32(TBABY_FRAME_walk18)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk19
+	ai_walk(2)
+}
+func tbaby_walk19() {
+	Self.Frame = float32(TBABY_FRAME_walk19)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk20
+	ai_walk(2)
+}
+func tbaby_walk20() {
+	Self.Frame = float32(TBABY_FRAME_walk20)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk21
+	ai_walk(2)
+}
+func tbaby_walk21() {
+	Self.Frame = float32(TBABY_FRAME_walk21)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk22
+	ai_walk(2)
+}
+func tbaby_walk22() {
+	Self.Frame = float32(TBABY_FRAME_walk22)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk23
+	ai_walk(2)
+}
+func tbaby_walk23() {
+	Self.Frame = float32(TBABY_FRAME_walk23)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk24
+	ai_walk(2)
+}
+func tbaby_walk24() {
+	Self.Frame = float32(TBABY_FRAME_walk24)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk25
+	ai_walk(2)
+}
+func tbaby_walk25() {
+	Self.Frame = float32(TBABY_FRAME_walk25)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_walk1_impl
+	ai_walk(2)
+}
 
-func tbaby_run1_impl()  { Self.Frame = float32(TBABY_FRAME_run1); Self.NextThink = Time + 0.1; Self.Think = tbaby_run2; ai_face() }
-func tbaby_run2()  { Self.Frame = float32(TBABY_FRAME_run2); Self.NextThink = Time + 0.1; Self.Think = tbaby_run3; ai_face() }
-func tbaby_run3()  { Self.Frame = float32(TBABY_FRAME_run3); Self.NextThink = Time + 0.1; Self.Think = tbaby_run4; ai_face() }
-func tbaby_run4()  { Self.Frame = float32(TBABY_FRAME_run4); Self.NextThink = Time + 0.1; Self.Think = tbaby_run5; ai_face() }
-func tbaby_run5()  { Self.Frame = float32(TBABY_FRAME_run5); Self.NextThink = Time + 0.1; Self.Think = tbaby_run6; ai_face() }
-func tbaby_run6()  { Self.Frame = float32(TBABY_FRAME_run6); Self.NextThink = Time + 0.1; Self.Think = tbaby_run7; ai_face() }
-func tbaby_run7()  { Self.Frame = float32(TBABY_FRAME_run7); Self.NextThink = Time + 0.1; Self.Think = tbaby_run8; ai_face() }
-func tbaby_run8()  { Self.Frame = float32(TBABY_FRAME_run8); Self.NextThink = Time + 0.1; Self.Think = tbaby_run9; ai_face() }
-func tbaby_run9()  { Self.Frame = float32(TBABY_FRAME_run9); Self.NextThink = Time + 0.1; Self.Think = tbaby_run10; ai_face() }
-func tbaby_run10() { Self.Frame = float32(TBABY_FRAME_run10); Self.NextThink = Time + 0.1; Self.Think = tbaby_run11; ai_face() }
-func tbaby_run11() { Self.Frame = float32(TBABY_FRAME_run11); Self.NextThink = Time + 0.1; Self.Think = tbaby_run12; ai_run(2) }
-func tbaby_run12() { Self.Frame = float32(TBABY_FRAME_run12); Self.NextThink = Time + 0.1; Self.Think = tbaby_run13; ai_run(2) }
-func tbaby_run13() { Self.Frame = float32(TBABY_FRAME_run13); Self.NextThink = Time + 0.1; Self.Think = tbaby_run14; ai_run(2) }
-func tbaby_run14() { Self.Frame = float32(TBABY_FRAME_run14); Self.NextThink = Time + 0.1; Self.Think = tbaby_run15; ai_run(2) }
-func tbaby_run15() { Self.Frame = float32(TBABY_FRAME_run15); Self.NextThink = Time + 0.1; Self.Think = tbaby_run16; ai_run(2) }
-func tbaby_run16() { Self.Frame = float32(TBABY_FRAME_run16); Self.NextThink = Time + 0.1; Self.Think = tbaby_run17; ai_run(2) }
-func tbaby_run17() { Self.Frame = float32(TBABY_FRAME_run17); Self.NextThink = Time + 0.1; Self.Think = tbaby_run18; ai_run(2) }
-func tbaby_run18() { Self.Frame = float32(TBABY_FRAME_run18); Self.NextThink = Time + 0.1; Self.Think = tbaby_run19; ai_run(2) }
-func tbaby_run19() { Self.Frame = float32(TBABY_FRAME_run19); Self.NextThink = Time + 0.1; Self.Think = tbaby_run20; ai_run(2) }
-func tbaby_run20() { Self.Frame = float32(TBABY_FRAME_run20); Self.NextThink = Time + 0.1; Self.Think = tbaby_run21; ai_run(2) }
-func tbaby_run21() { Self.Frame = float32(TBABY_FRAME_run21); Self.NextThink = Time + 0.1; Self.Think = tbaby_run22; ai_run(2) }
-func tbaby_run22() { Self.Frame = float32(TBABY_FRAME_run22); Self.NextThink = Time + 0.1; Self.Think = tbaby_run23; ai_run(2) }
-func tbaby_run23() { Self.Frame = float32(TBABY_FRAME_run23); Self.NextThink = Time + 0.1; Self.Think = tbaby_run24; ai_run(2) }
-func tbaby_run24() { Self.Frame = float32(TBABY_FRAME_run24); Self.NextThink = Time + 0.1; Self.Think = tbaby_run25; ai_run(2) }
-func tbaby_run25() { Self.Frame = float32(TBABY_FRAME_run25); Self.NextThink = Time + 0.1; Self.Think = tbaby_run1_impl; ai_run(2) }
+func tbaby_run1_impl() {
+	Self.Frame = float32(TBABY_FRAME_run1)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run2
+	ai_face()
+}
+func tbaby_run2() {
+	Self.Frame = float32(TBABY_FRAME_run2)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run3
+	ai_face()
+}
+func tbaby_run3() {
+	Self.Frame = float32(TBABY_FRAME_run3)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run4
+	ai_face()
+}
+func tbaby_run4() {
+	Self.Frame = float32(TBABY_FRAME_run4)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run5
+	ai_face()
+}
+func tbaby_run5() {
+	Self.Frame = float32(TBABY_FRAME_run5)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run6
+	ai_face()
+}
+func tbaby_run6() {
+	Self.Frame = float32(TBABY_FRAME_run6)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run7
+	ai_face()
+}
+func tbaby_run7() {
+	Self.Frame = float32(TBABY_FRAME_run7)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run8
+	ai_face()
+}
+func tbaby_run8() {
+	Self.Frame = float32(TBABY_FRAME_run8)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run9
+	ai_face()
+}
+func tbaby_run9() {
+	Self.Frame = float32(TBABY_FRAME_run9)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run10
+	ai_face()
+}
+func tbaby_run10() {
+	Self.Frame = float32(TBABY_FRAME_run10)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run11
+	ai_face()
+}
+func tbaby_run11() {
+	Self.Frame = float32(TBABY_FRAME_run11)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run12
+	ai_run(2)
+}
+func tbaby_run12() {
+	Self.Frame = float32(TBABY_FRAME_run12)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run13
+	ai_run(2)
+}
+func tbaby_run13() {
+	Self.Frame = float32(TBABY_FRAME_run13)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run14
+	ai_run(2)
+}
+func tbaby_run14() {
+	Self.Frame = float32(TBABY_FRAME_run14)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run15
+	ai_run(2)
+}
+func tbaby_run15() {
+	Self.Frame = float32(TBABY_FRAME_run15)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run16
+	ai_run(2)
+}
+func tbaby_run16() {
+	Self.Frame = float32(TBABY_FRAME_run16)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run17
+	ai_run(2)
+}
+func tbaby_run17() {
+	Self.Frame = float32(TBABY_FRAME_run17)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run18
+	ai_run(2)
+}
+func tbaby_run18() {
+	Self.Frame = float32(TBABY_FRAME_run18)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run19
+	ai_run(2)
+}
+func tbaby_run19() {
+	Self.Frame = float32(TBABY_FRAME_run19)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run20
+	ai_run(2)
+}
+func tbaby_run20() {
+	Self.Frame = float32(TBABY_FRAME_run20)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run21
+	ai_run(2)
+}
+func tbaby_run21() {
+	Self.Frame = float32(TBABY_FRAME_run21)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run22
+	ai_run(2)
+}
+func tbaby_run22() {
+	Self.Frame = float32(TBABY_FRAME_run22)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run23
+	ai_run(2)
+}
+func tbaby_run23() {
+	Self.Frame = float32(TBABY_FRAME_run23)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run24
+	ai_run(2)
+}
+func tbaby_run24() {
+	Self.Frame = float32(TBABY_FRAME_run24)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run25
+	ai_run(2)
+}
+func tbaby_run25() {
+	Self.Frame = float32(TBABY_FRAME_run25)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_run1_impl
+	ai_run(2)
+}
 
 func Tar_JumpTouch() {
 	var ldmg float32
@@ -165,9 +425,21 @@ func Tar_JumpTouch() {
 	Self.NextThink = Time + 0.1
 }
 
-func tbaby_fly1_impl() { Self.Frame = float32(TBABY_FRAME_fly1); Self.NextThink = Time + 0.1; Self.Think = tbaby_fly2 }
-func tbaby_fly2() { Self.Frame = float32(TBABY_FRAME_fly2); Self.NextThink = Time + 0.1; Self.Think = tbaby_fly3 }
-func tbaby_fly3() { Self.Frame = float32(TBABY_FRAME_fly3); Self.NextThink = Time + 0.1; Self.Think = tbaby_fly4 }
+func tbaby_fly1_impl() {
+	Self.Frame = float32(TBABY_FRAME_fly1)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_fly2
+}
+func tbaby_fly2() {
+	Self.Frame = float32(TBABY_FRAME_fly2)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_fly3
+}
+func tbaby_fly3() {
+	Self.Frame = float32(TBABY_FRAME_fly3)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_fly4
+}
 func tbaby_fly4() {
 	Self.Frame = float32(TBABY_FRAME_fly4)
 	Self.NextThink = Time + 0.1
@@ -179,10 +451,30 @@ func tbaby_fly4() {
 	}
 }
 
-func tbaby_jump1_impl() { Self.Frame = float32(TBABY_FRAME_jump1); Self.NextThink = Time + 0.1; Self.Think = tbaby_jump2; ai_face() }
-func tbaby_jump2() { Self.Frame = float32(TBABY_FRAME_jump2); Self.NextThink = Time + 0.1; Self.Think = tbaby_jump3; ai_face() }
-func tbaby_jump3() { Self.Frame = float32(TBABY_FRAME_jump3); Self.NextThink = Time + 0.1; Self.Think = tbaby_jump4; ai_face() }
-func tbaby_jump4() { Self.Frame = float32(TBABY_FRAME_jump4); Self.NextThink = Time + 0.1; Self.Think = tbaby_jump5_impl; ai_face() }
+func tbaby_jump1_impl() {
+	Self.Frame = float32(TBABY_FRAME_jump1)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_jump2
+	ai_face()
+}
+func tbaby_jump2() {
+	Self.Frame = float32(TBABY_FRAME_jump2)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_jump3
+	ai_face()
+}
+func tbaby_jump3() {
+	Self.Frame = float32(TBABY_FRAME_jump3)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_jump4
+	ai_face()
+}
+func tbaby_jump4() {
+	Self.Frame = float32(TBABY_FRAME_jump4)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_jump5_impl
+	ai_face()
+}
 func tbaby_jump5_impl() {
 	Self.Frame = float32(TBABY_FRAME_jump5)
 	Self.NextThink = Time + 0.1
@@ -201,9 +493,18 @@ func tbaby_jump5_impl() {
 	Self.Cnt = 0
 }
 
-func tbaby_jump6() { Self.Frame = float32(TBABY_FRAME_jump6); Self.NextThink = Time + 0.1; Self.Think = tbaby_fly1_impl }
+func tbaby_jump6() {
+	Self.Frame = float32(TBABY_FRAME_jump6)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_fly1_impl
+}
 
-func tbaby_die1() { Self.Frame = float32(TBABY_FRAME_exp); Self.NextThink = Time + 0.1; Self.Think = tbaby_die2; Self.TakeDamage = DAMAGE_NO }
+func tbaby_die1() {
+	Self.Frame = float32(TBABY_FRAME_exp)
+	Self.NextThink = Time + 0.1
+	Self.Think = tbaby_die2
+	Self.TakeDamage = DAMAGE_NO
+}
 func tbaby_die2() {
 	Self.Frame = float32(TBABY_FRAME_exp)
 	Self.NextThink = Time + 0.1

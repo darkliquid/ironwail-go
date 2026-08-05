@@ -182,7 +182,7 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	player.SetAmmoRockets(srv, 8)
 	player.SetAmmoCells(srv, 31)
 	player.SetWeapon(srv, 8)
-	player.SetItems(srv, 0x0001 | 0x0002 | 0x0040)
+	player.SetItems(srv, 0x0001|0x0002|0x0040)
 	player.SetArmorType(srv, 0.6)
 	player.SetArmorValue(srv, 95)
 	srv.LightStyles[3] = "az"
@@ -317,7 +317,7 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 	player.SetAmmoRockets(srv, 8)
 	player.SetAmmoCells(srv, 31)
 	player.SetWeapon(srv, 8)
-	player.SetItems(srv, 0x0001 | 0x0002 | 0x0040)
+	player.SetItems(srv, 0x0001|0x0002|0x0040)
 	player.SetArmorType(srv, 0.6)
 	player.SetArmorValue(srv, 95)
 	player.SetMoveType(srv, float32(server.MoveTypeWalk))
@@ -849,7 +849,7 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 		trigger.AbsMin(srv)[2] - player.Mins(srv)[2] + 1,
 	})
 	player.SetVelocity(srv, [3]float32{})
-	player.SetFlags(srv, float32(uint32(player.Flags(srv)) | uint32(server.FlagOnGround)))
+	player.SetFlags(srv, float32(uint32(player.Flags(srv))|uint32(server.FlagOnGround)))
 	srv.LinkEdict(player, false)
 
 	enteredIntermission := false

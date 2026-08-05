@@ -238,4 +238,3 @@ func (l *loadedPackages) displayPath(rootDir, filename string) (string, error) {
 	}
 	return filepath.ToSlash(rel), nil
 }
-

@@ -342,10 +342,10 @@ type Manager struct {
 
 	playSound func(name string)
 
-	saveSlotProvider     func(slotCount int) []SaveSlotInfo
-	loadSlotLabels       [maxSaveGames]string
-	saveSlotLabels       [maxSaveGames]string
-	saveEntryAllowed     func() bool
+	saveSlotProvider func(slotCount int) []SaveSlotInfo
+	loadSlotLabels   [maxSaveGames]string
+	saveSlotLabels   [maxSaveGames]string
+	saveEntryAllowed func() bool
 }
 
 // DrawManager defines the interface for loading menu graphics.

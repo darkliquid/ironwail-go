@@ -399,7 +399,9 @@ func TestServerHooksChangeYawImportsPendingQCState(t *testing.T) {
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	a := ent.Angles(s); a[1] = 10; ent.SetAngles(s, a)
+	a := ent.Angles(s)
+	a[1] = 10
+	ent.SetAngles(s, a)
 	ent.SetIdealYaw(s, 20)
 	ent.SetYawSpeed(s, 1)
 	s.syncEdictToQCVM(entNum, ent)

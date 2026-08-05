@@ -606,4 +606,3 @@ func (e *Edict) ThCheckAttack(sh ServerHandle) int32 {
 	}
 	return 0
 }
-

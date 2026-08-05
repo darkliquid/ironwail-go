@@ -5,7 +5,6 @@
 // the main entry point for launching the game.
 package main
 
-
 import (
 	"flag"
 	"fmt"

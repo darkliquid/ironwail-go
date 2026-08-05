@@ -28,15 +28,15 @@ const (
 	FRAME_stand4 = 15
 	FRAME_stand5 = 16
 
-	FRAME_axstnd1 = 17
-	FRAME_axstnd2 = 18
-	FRAME_axstnd3 = 19
-	FRAME_axstnd4 = 20
-	FRAME_axstnd5 = 21
-	FRAME_axstnd6 = 22
-	FRAME_axstnd7 = 23
-	FRAME_axstnd8 = 24
-	FRAME_axstnd9 = 25
+	FRAME_axstnd1  = 17
+	FRAME_axstnd2  = 18
+	FRAME_axstnd3  = 19
+	FRAME_axstnd4  = 20
+	FRAME_axstnd5  = 21
+	FRAME_axstnd6  = 22
+	FRAME_axstnd7  = 23
+	FRAME_axstnd8  = 24
+	FRAME_axstnd9  = 25
 	FRAME_axstnd10 = 26
 	FRAME_axstnd11 = 27
 	FRAME_axstnd12 = 28
@@ -67,15 +67,15 @@ const (
 	FRAME_axdeth8 = 48
 	FRAME_axdeth9 = 49
 
-	FRAME_deatha1 = 50
-	FRAME_deatha2 = 51
-	FRAME_deatha3 = 52
-	FRAME_deatha4 = 53
-	FRAME_deatha5 = 54
-	FRAME_deatha6 = 55
-	FRAME_deatha7 = 56
-	FRAME_deatha8 = 57
-	FRAME_deatha9 = 58
+	FRAME_deatha1  = 50
+	FRAME_deatha2  = 51
+	FRAME_deatha3  = 52
+	FRAME_deatha4  = 53
+	FRAME_deatha5  = 54
+	FRAME_deatha6  = 55
+	FRAME_deatha7  = 56
+	FRAME_deatha8  = 57
+	FRAME_deatha9  = 58
 	FRAME_deatha10 = 59
 	FRAME_deatha11 = 60
 
@@ -89,15 +89,15 @@ const (
 	FRAME_deathb8 = 68
 	FRAME_deathb9 = 69
 
-	FRAME_deathc1 = 70
-	FRAME_deathc2 = 71
-	FRAME_deathc3 = 72
-	FRAME_deathc4 = 73
-	FRAME_deathc5 = 74
-	FRAME_deathc6 = 75
-	FRAME_deathc7 = 76
-	FRAME_deathc8 = 77
-	FRAME_deathc9 = 78
+	FRAME_deathc1  = 70
+	FRAME_deathc2  = 71
+	FRAME_deathc3  = 72
+	FRAME_deathc4  = 73
+	FRAME_deathc5  = 74
+	FRAME_deathc6  = 75
+	FRAME_deathc7  = 76
+	FRAME_deathc8  = 77
+	FRAME_deathc9  = 78
 	FRAME_deathc10 = 79
 	FRAME_deathc11 = 80
 	FRAME_deathc12 = 81
@@ -238,31 +238,140 @@ func player_shot1() {
 	Self.WeaponFrame = 1
 	Self.Effects = float32(int(Self.Effects) | EF_MUZZLEFLASH)
 }
-func player_shot2() { Self.Frame = float32(FRAME_shotatt2); Self.NextThink = Time + 0.1; Self.Think = player_shot3; Self.WeaponFrame = 2 }
-func player_shot3() { Self.Frame = float32(FRAME_shotatt3); Self.NextThink = Time + 0.1; Self.Think = player_shot4; Self.WeaponFrame = 3 }
-func player_shot4() { Self.Frame = float32(FRAME_shotatt4); Self.NextThink = Time + 0.1; Self.Think = player_shot5; Self.WeaponFrame = 4 }
-func player_shot5() { Self.Frame = float32(FRAME_shotatt5); Self.NextThink = Time + 0.1; Self.Think = player_shot6; Self.WeaponFrame = 5 }
-func player_shot6() { Self.Frame = float32(FRAME_shotatt6); Self.NextThink = Time + 0.1; Self.Think = player_run; Self.WeaponFrame = 6 }
+func player_shot2() {
+	Self.Frame = float32(FRAME_shotatt2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_shot3
+	Self.WeaponFrame = 2
+}
+func player_shot3() {
+	Self.Frame = float32(FRAME_shotatt3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_shot4
+	Self.WeaponFrame = 3
+}
+func player_shot4() {
+	Self.Frame = float32(FRAME_shotatt4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_shot5
+	Self.WeaponFrame = 4
+}
+func player_shot5() {
+	Self.Frame = float32(FRAME_shotatt5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_shot6
+	Self.WeaponFrame = 5
+}
+func player_shot6() {
+	Self.Frame = float32(FRAME_shotatt6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_run
+	Self.WeaponFrame = 6
+}
 
-func player_axe1() { Self.Frame = float32(FRAME_axatt1); Self.NextThink = Time + 0.1; Self.Think = player_axe2; Self.WeaponFrame = 1 }
-func player_axe2() { Self.Frame = float32(FRAME_axatt2); Self.NextThink = Time + 0.1; Self.Think = player_axe3; Self.WeaponFrame = 2 }
-func player_axe3() { Self.Frame = float32(FRAME_axatt3); Self.NextThink = Time + 0.1; Self.Think = player_axe4; Self.WeaponFrame = 3; W_FireAxe() }
-func player_axe4() { Self.Frame = float32(FRAME_axatt4); Self.NextThink = Time + 0.1; Self.Think = player_run; Self.WeaponFrame = 4 }
+func player_axe1() {
+	Self.Frame = float32(FRAME_axatt1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axe2
+	Self.WeaponFrame = 1
+}
+func player_axe2() {
+	Self.Frame = float32(FRAME_axatt2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axe3
+	Self.WeaponFrame = 2
+}
+func player_axe3() {
+	Self.Frame = float32(FRAME_axatt3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axe4
+	Self.WeaponFrame = 3
+	W_FireAxe()
+}
+func player_axe4() {
+	Self.Frame = float32(FRAME_axatt4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_run
+	Self.WeaponFrame = 4
+}
 
-func player_axeb1() { Self.Frame = float32(FRAME_axattb1); Self.NextThink = Time + 0.1; Self.Think = player_axeb2; Self.WeaponFrame = 5 }
-func player_axeb2() { Self.Frame = float32(FRAME_axattb2); Self.NextThink = Time + 0.1; Self.Think = player_axeb3; Self.WeaponFrame = 6 }
-func player_axeb3() { Self.Frame = float32(FRAME_axattb3); Self.NextThink = Time + 0.1; Self.Think = player_axeb4; Self.WeaponFrame = 7; W_FireAxe() }
-func player_axeb4() { Self.Frame = float32(FRAME_axattb4); Self.NextThink = Time + 0.1; Self.Think = player_run; Self.WeaponFrame = 8 }
+func player_axeb1() {
+	Self.Frame = float32(FRAME_axattb1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axeb2
+	Self.WeaponFrame = 5
+}
+func player_axeb2() {
+	Self.Frame = float32(FRAME_axattb2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axeb3
+	Self.WeaponFrame = 6
+}
+func player_axeb3() {
+	Self.Frame = float32(FRAME_axattb3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axeb4
+	Self.WeaponFrame = 7
+	W_FireAxe()
+}
+func player_axeb4() {
+	Self.Frame = float32(FRAME_axattb4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_run
+	Self.WeaponFrame = 8
+}
 
-func player_axec1() { Self.Frame = float32(FRAME_axattc1); Self.NextThink = Time + 0.1; Self.Think = player_axec2; Self.WeaponFrame = 1 }
-func player_axec2() { Self.Frame = float32(FRAME_axattc2); Self.NextThink = Time + 0.1; Self.Think = player_axec3; Self.WeaponFrame = 2 }
-func player_axec3() { Self.Frame = float32(FRAME_axattc3); Self.NextThink = Time + 0.1; Self.Think = player_axec4; Self.WeaponFrame = 3; W_FireAxe() }
-func player_axec4() { Self.Frame = float32(FRAME_axattc4); Self.NextThink = Time + 0.1; Self.Think = player_run; Self.WeaponFrame = 4 }
+func player_axec1() {
+	Self.Frame = float32(FRAME_axattc1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axec2
+	Self.WeaponFrame = 1
+}
+func player_axec2() {
+	Self.Frame = float32(FRAME_axattc2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axec3
+	Self.WeaponFrame = 2
+}
+func player_axec3() {
+	Self.Frame = float32(FRAME_axattc3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axec4
+	Self.WeaponFrame = 3
+	W_FireAxe()
+}
+func player_axec4() {
+	Self.Frame = float32(FRAME_axattc4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_run
+	Self.WeaponFrame = 4
+}
 
-func player_axed1() { Self.Frame = float32(FRAME_axattd1); Self.NextThink = Time + 0.1; Self.Think = player_axed2; Self.WeaponFrame = 5 }
-func player_axed2() { Self.Frame = float32(FRAME_axattd2); Self.NextThink = Time + 0.1; Self.Think = player_axed3; Self.WeaponFrame = 6 }
-func player_axed3() { Self.Frame = float32(FRAME_axattd3); Self.NextThink = Time + 0.1; Self.Think = player_axed4; Self.WeaponFrame = 7; W_FireAxe() }
-func player_axed4() { Self.Frame = float32(FRAME_axattd4); Self.NextThink = Time + 0.1; Self.Think = player_run; Self.WeaponFrame = 8 }
+func player_axed1() {
+	Self.Frame = float32(FRAME_axattd1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axed2
+	Self.WeaponFrame = 5
+}
+func player_axed2() {
+	Self.Frame = float32(FRAME_axattd2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axed3
+	Self.WeaponFrame = 6
+}
+func player_axed3() {
+	Self.Frame = float32(FRAME_axattd3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axed4
+	Self.WeaponFrame = 7
+	W_FireAxe()
+}
+func player_axed4() {
+	Self.Frame = float32(FRAME_axattd4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_run
+	Self.WeaponFrame = 8
+}
 
 func player_nail1() {
 	Self.Frame = float32(FRAME_nailatt1)
@@ -359,11 +468,36 @@ func player_rocket1() {
 	Self.WeaponFrame = 1
 	Self.Effects = float32(int(Self.Effects) | EF_MUZZLEFLASH)
 }
-func player_rocket2() { Self.Frame = float32(FRAME_rockatt2); Self.NextThink = Time + 0.1; Self.Think = player_rocket3; Self.WeaponFrame = 2 }
-func player_rocket3() { Self.Frame = float32(FRAME_rockatt3); Self.NextThink = Time + 0.1; Self.Think = player_rocket4; Self.WeaponFrame = 3 }
-func player_rocket4() { Self.Frame = float32(FRAME_rockatt4); Self.NextThink = Time + 0.1; Self.Think = player_rocket5; Self.WeaponFrame = 4 }
-func player_rocket5() { Self.Frame = float32(FRAME_rockatt5); Self.NextThink = Time + 0.1; Self.Think = player_rocket6; Self.WeaponFrame = 5 }
-func player_rocket6() { Self.Frame = float32(FRAME_rockatt6); Self.NextThink = Time + 0.1; Self.Think = player_run; Self.WeaponFrame = 6 }
+func player_rocket2() {
+	Self.Frame = float32(FRAME_rockatt2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_rocket3
+	Self.WeaponFrame = 2
+}
+func player_rocket3() {
+	Self.Frame = float32(FRAME_rockatt3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_rocket4
+	Self.WeaponFrame = 3
+}
+func player_rocket4() {
+	Self.Frame = float32(FRAME_rockatt4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_rocket5
+	Self.WeaponFrame = 4
+}
+func player_rocket5() {
+	Self.Frame = float32(FRAME_rockatt5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_rocket6
+	Self.WeaponFrame = 5
+}
+func player_rocket6() {
+	Self.Frame = float32(FRAME_rockatt6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_run
+	Self.WeaponFrame = 6
+}
 
 func PainSound() {
 	var rs float32
@@ -439,19 +573,71 @@ func PainSound() {
 	engine.Sound(Self, int(CHAN_VOICE), Self.Noise, 1, ATTN_NORM)
 }
 
-func player_pain1() { Self.Frame = float32(FRAME_pain1); Self.NextThink = Time + 0.1; Self.Think = player_pain2; PainSound(); Self.WeaponFrame = 0 }
-func player_pain2() { Self.Frame = float32(FRAME_pain2); Self.NextThink = Time + 0.1; Self.Think = player_pain3 }
-func player_pain3() { Self.Frame = float32(FRAME_pain3); Self.NextThink = Time + 0.1; Self.Think = player_pain4 }
-func player_pain4() { Self.Frame = float32(FRAME_pain4); Self.NextThink = Time + 0.1; Self.Think = player_pain5 }
-func player_pain5() { Self.Frame = float32(FRAME_pain5); Self.NextThink = Time + 0.1; Self.Think = player_pain6 }
-func player_pain6() { Self.Frame = float32(FRAME_pain6); Self.NextThink = Time + 0.1; Self.Think = player_run }
+func player_pain1() {
+	Self.Frame = float32(FRAME_pain1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_pain2
+	PainSound()
+	Self.WeaponFrame = 0
+}
+func player_pain2() {
+	Self.Frame = float32(FRAME_pain2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_pain3
+}
+func player_pain3() {
+	Self.Frame = float32(FRAME_pain3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_pain4
+}
+func player_pain4() {
+	Self.Frame = float32(FRAME_pain4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_pain5
+}
+func player_pain5() {
+	Self.Frame = float32(FRAME_pain5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_pain6
+}
+func player_pain6() {
+	Self.Frame = float32(FRAME_pain6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_run
+}
 
-func player_axpain1() { Self.Frame = float32(FRAME_axpain1); Self.NextThink = Time + 0.1; Self.Think = player_axpain2; PainSound(); Self.WeaponFrame = 0 }
-func player_axpain2() { Self.Frame = float32(FRAME_axpain2); Self.NextThink = Time + 0.1; Self.Think = player_axpain3 }
-func player_axpain3() { Self.Frame = float32(FRAME_axpain3); Self.NextThink = Time + 0.1; Self.Think = player_axpain4 }
-func player_axpain4() { Self.Frame = float32(FRAME_axpain4); Self.NextThink = Time + 0.1; Self.Think = player_axpain5 }
-func player_axpain5() { Self.Frame = float32(FRAME_axpain5); Self.NextThink = Time + 0.1; Self.Think = player_axpain6 }
-func player_axpain6() { Self.Frame = float32(FRAME_axpain6); Self.NextThink = Time + 0.1; Self.Think = player_run }
+func player_axpain1() {
+	Self.Frame = float32(FRAME_axpain1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axpain2
+	PainSound()
+	Self.WeaponFrame = 0
+}
+func player_axpain2() {
+	Self.Frame = float32(FRAME_axpain2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axpain3
+}
+func player_axpain3() {
+	Self.Frame = float32(FRAME_axpain3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axpain4
+}
+func player_axpain4() {
+	Self.Frame = float32(FRAME_axpain4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axpain5
+}
+func player_axpain5() {
+	Self.Frame = float32(FRAME_axpain5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_axpain6
+}
+func player_axpain6() {
+	Self.Frame = float32(FRAME_axpain6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_run
+}
 
 func player_pain(attacker *quake.Entity, damage float32) {
 	if Self.WeaponFrame != 0 {
@@ -694,70 +880,324 @@ func set_suicide_frame() {
 	Self.NextThink = -1
 }
 
-func player_diea1()  { Self.Frame = float32(FRAME_deatha1); Self.NextThink = Time + 0.1; Self.Think = player_diea2 }
-func player_diea2()  { Self.Frame = float32(FRAME_deatha2); Self.NextThink = Time + 0.1; Self.Think = player_diea3 }
-func player_diea3()  { Self.Frame = float32(FRAME_deatha3); Self.NextThink = Time + 0.1; Self.Think = player_diea4 }
-func player_diea4()  { Self.Frame = float32(FRAME_deatha4); Self.NextThink = Time + 0.1; Self.Think = player_diea5 }
-func player_diea5()  { Self.Frame = float32(FRAME_deatha5); Self.NextThink = Time + 0.1; Self.Think = player_diea6 }
-func player_diea6()  { Self.Frame = float32(FRAME_deatha6); Self.NextThink = Time + 0.1; Self.Think = player_diea7 }
-func player_diea7()  { Self.Frame = float32(FRAME_deatha7); Self.NextThink = Time + 0.1; Self.Think = player_diea8 }
-func player_diea8()  { Self.Frame = float32(FRAME_deatha8); Self.NextThink = Time + 0.1; Self.Think = player_diea9 }
-func player_diea9()  { Self.Frame = float32(FRAME_deatha9); Self.NextThink = Time + 0.1; Self.Think = player_diea10 }
-func player_diea10() { Self.Frame = float32(FRAME_deatha10); Self.NextThink = Time + 0.1; Self.Think = player_diea11 }
-func player_diea11() { Self.Frame = float32(FRAME_deatha11); Self.NextThink = Time + 0.1; Self.Think = player_diea11; PlayerDead() }
+func player_diea1() {
+	Self.Frame = float32(FRAME_deatha1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea2
+}
+func player_diea2() {
+	Self.Frame = float32(FRAME_deatha2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea3
+}
+func player_diea3() {
+	Self.Frame = float32(FRAME_deatha3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea4
+}
+func player_diea4() {
+	Self.Frame = float32(FRAME_deatha4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea5
+}
+func player_diea5() {
+	Self.Frame = float32(FRAME_deatha5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea6
+}
+func player_diea6() {
+	Self.Frame = float32(FRAME_deatha6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea7
+}
+func player_diea7() {
+	Self.Frame = float32(FRAME_deatha7)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea8
+}
+func player_diea8() {
+	Self.Frame = float32(FRAME_deatha8)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea9
+}
+func player_diea9() {
+	Self.Frame = float32(FRAME_deatha9)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea10
+}
+func player_diea10() {
+	Self.Frame = float32(FRAME_deatha10)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea11
+}
+func player_diea11() {
+	Self.Frame = float32(FRAME_deatha11)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diea11
+	PlayerDead()
+}
 
-func player_dieb1() { Self.Frame = float32(FRAME_deathb1); Self.NextThink = Time + 0.1; Self.Think = player_dieb2 }
-func player_dieb2() { Self.Frame = float32(FRAME_deathb2); Self.NextThink = Time + 0.1; Self.Think = player_dieb3 }
-func player_dieb3() { Self.Frame = float32(FRAME_deathb3); Self.NextThink = Time + 0.1; Self.Think = player_dieb4 }
-func player_dieb4() { Self.Frame = float32(FRAME_deathb4); Self.NextThink = Time + 0.1; Self.Think = player_dieb5 }
-func player_dieb5() { Self.Frame = float32(FRAME_deathb5); Self.NextThink = Time + 0.1; Self.Think = player_dieb6 }
-func player_dieb6() { Self.Frame = float32(FRAME_deathb6); Self.NextThink = Time + 0.1; Self.Think = player_dieb7 }
-func player_dieb7() { Self.Frame = float32(FRAME_deathb7); Self.NextThink = Time + 0.1; Self.Think = player_dieb8 }
-func player_dieb8() { Self.Frame = float32(FRAME_deathb8); Self.NextThink = Time + 0.1; Self.Think = player_dieb9 }
-func player_dieb9() { Self.Frame = float32(FRAME_deathb9); Self.NextThink = Time + 0.1; Self.Think = player_dieb9; PlayerDead() }
+func player_dieb1() {
+	Self.Frame = float32(FRAME_deathb1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_dieb2
+}
+func player_dieb2() {
+	Self.Frame = float32(FRAME_deathb2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_dieb3
+}
+func player_dieb3() {
+	Self.Frame = float32(FRAME_deathb3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_dieb4
+}
+func player_dieb4() {
+	Self.Frame = float32(FRAME_deathb4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_dieb5
+}
+func player_dieb5() {
+	Self.Frame = float32(FRAME_deathb5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_dieb6
+}
+func player_dieb6() {
+	Self.Frame = float32(FRAME_deathb6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_dieb7
+}
+func player_dieb7() {
+	Self.Frame = float32(FRAME_deathb7)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_dieb8
+}
+func player_dieb8() {
+	Self.Frame = float32(FRAME_deathb8)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_dieb9
+}
+func player_dieb9() {
+	Self.Frame = float32(FRAME_deathb9)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_dieb9
+	PlayerDead()
+}
 
-func player_diec1()  { Self.Frame = float32(FRAME_deathc1); Self.NextThink = Time + 0.1; Self.Think = player_diec2 }
-func player_diec2()  { Self.Frame = float32(FRAME_deathc2); Self.NextThink = Time + 0.1; Self.Think = player_diec3 }
-func player_diec3()  { Self.Frame = float32(FRAME_deathc3); Self.NextThink = Time + 0.1; Self.Think = player_diec4 }
-func player_diec4()  { Self.Frame = float32(FRAME_deathc4); Self.NextThink = Time + 0.1; Self.Think = player_diec5 }
-func player_diec5()  { Self.Frame = float32(FRAME_deathc5); Self.NextThink = Time + 0.1; Self.Think = player_diec6 }
-func player_diec6()  { Self.Frame = float32(FRAME_deathc6); Self.NextThink = Time + 0.1; Self.Think = player_diec7 }
-func player_diec7()  { Self.Frame = float32(FRAME_deathc7); Self.NextThink = Time + 0.1; Self.Think = player_diec8 }
-func player_diec8()  { Self.Frame = float32(FRAME_deathc8); Self.NextThink = Time + 0.1; Self.Think = player_diec9 }
-func player_diec9()  { Self.Frame = float32(FRAME_deathc9); Self.NextThink = Time + 0.1; Self.Think = player_diec10 }
-func player_diec10() { Self.Frame = float32(FRAME_deathc10); Self.NextThink = Time + 0.1; Self.Think = player_diec11 }
-func player_diec11() { Self.Frame = float32(FRAME_deathc11); Self.NextThink = Time + 0.1; Self.Think = player_diec12 }
-func player_diec12() { Self.Frame = float32(FRAME_deathc12); Self.NextThink = Time + 0.1; Self.Think = player_diec13 }
-func player_diec13() { Self.Frame = float32(FRAME_deathc13); Self.NextThink = Time + 0.1; Self.Think = player_diec14 }
-func player_diec14() { Self.Frame = float32(FRAME_deathc14); Self.NextThink = Time + 0.1; Self.Think = player_diec15 }
-func player_diec15() { Self.Frame = float32(FRAME_deathc15); Self.NextThink = Time + 0.1; Self.Think = player_diec15; PlayerDead() }
+func player_diec1() {
+	Self.Frame = float32(FRAME_deathc1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec2
+}
+func player_diec2() {
+	Self.Frame = float32(FRAME_deathc2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec3
+}
+func player_diec3() {
+	Self.Frame = float32(FRAME_deathc3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec4
+}
+func player_diec4() {
+	Self.Frame = float32(FRAME_deathc4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec5
+}
+func player_diec5() {
+	Self.Frame = float32(FRAME_deathc5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec6
+}
+func player_diec6() {
+	Self.Frame = float32(FRAME_deathc6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec7
+}
+func player_diec7() {
+	Self.Frame = float32(FRAME_deathc7)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec8
+}
+func player_diec8() {
+	Self.Frame = float32(FRAME_deathc8)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec9
+}
+func player_diec9() {
+	Self.Frame = float32(FRAME_deathc9)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec10
+}
+func player_diec10() {
+	Self.Frame = float32(FRAME_deathc10)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec11
+}
+func player_diec11() {
+	Self.Frame = float32(FRAME_deathc11)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec12
+}
+func player_diec12() {
+	Self.Frame = float32(FRAME_deathc12)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec13
+}
+func player_diec13() {
+	Self.Frame = float32(FRAME_deathc13)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec14
+}
+func player_diec14() {
+	Self.Frame = float32(FRAME_deathc14)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec15
+}
+func player_diec15() {
+	Self.Frame = float32(FRAME_deathc15)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diec15
+	PlayerDead()
+}
 
-func player_died1() { Self.Frame = float32(FRAME_deathd1); Self.NextThink = Time + 0.1; Self.Think = player_died2 }
-func player_died2() { Self.Frame = float32(FRAME_deathd2); Self.NextThink = Time + 0.1; Self.Think = player_died3 }
-func player_died3() { Self.Frame = float32(FRAME_deathd3); Self.NextThink = Time + 0.1; Self.Think = player_died4 }
-func player_died4() { Self.Frame = float32(FRAME_deathd4); Self.NextThink = Time + 0.1; Self.Think = player_died5 }
-func player_died5() { Self.Frame = float32(FRAME_deathd5); Self.NextThink = Time + 0.1; Self.Think = player_died6 }
-func player_died6() { Self.Frame = float32(FRAME_deathd6); Self.NextThink = Time + 0.1; Self.Think = player_died7 }
-func player_died7() { Self.Frame = float32(FRAME_deathd7); Self.NextThink = Time + 0.1; Self.Think = player_died8 }
-func player_died8() { Self.Frame = float32(FRAME_deathd8); Self.NextThink = Time + 0.1; Self.Think = player_died9 }
-func player_died9() { Self.Frame = float32(FRAME_deathd9); Self.NextThink = Time + 0.1; Self.Think = player_died9; PlayerDead() }
+func player_died1() {
+	Self.Frame = float32(FRAME_deathd1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_died2
+}
+func player_died2() {
+	Self.Frame = float32(FRAME_deathd2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_died3
+}
+func player_died3() {
+	Self.Frame = float32(FRAME_deathd3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_died4
+}
+func player_died4() {
+	Self.Frame = float32(FRAME_deathd4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_died5
+}
+func player_died5() {
+	Self.Frame = float32(FRAME_deathd5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_died6
+}
+func player_died6() {
+	Self.Frame = float32(FRAME_deathd6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_died7
+}
+func player_died7() {
+	Self.Frame = float32(FRAME_deathd7)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_died8
+}
+func player_died8() {
+	Self.Frame = float32(FRAME_deathd8)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_died9
+}
+func player_died9() {
+	Self.Frame = float32(FRAME_deathd9)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_died9
+	PlayerDead()
+}
 
-func player_diee1() { Self.Frame = float32(FRAME_deathe1); Self.NextThink = Time + 0.1; Self.Think = player_diee2 }
-func player_diee2() { Self.Frame = float32(FRAME_deathe2); Self.NextThink = Time + 0.1; Self.Think = player_diee3 }
-func player_diee3() { Self.Frame = float32(FRAME_deathe3); Self.NextThink = Time + 0.1; Self.Think = player_diee4 }
-func player_diee4() { Self.Frame = float32(FRAME_deathe4); Self.NextThink = Time + 0.1; Self.Think = player_diee5 }
-func player_diee5() { Self.Frame = float32(FRAME_deathe5); Self.NextThink = Time + 0.1; Self.Think = player_diee6 }
-func player_diee6() { Self.Frame = float32(FRAME_deathe6); Self.NextThink = Time + 0.1; Self.Think = player_diee7 }
-func player_diee7() { Self.Frame = float32(FRAME_deathe7); Self.NextThink = Time + 0.1; Self.Think = player_diee8 }
-func player_diee8() { Self.Frame = float32(FRAME_deathe8); Self.NextThink = Time + 0.1; Self.Think = player_diee9 }
-func player_diee9() { Self.Frame = float32(FRAME_deathe9); Self.NextThink = Time + 0.1; Self.Think = player_diee9; PlayerDead() }
+func player_diee1() {
+	Self.Frame = float32(FRAME_deathe1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diee2
+}
+func player_diee2() {
+	Self.Frame = float32(FRAME_deathe2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diee3
+}
+func player_diee3() {
+	Self.Frame = float32(FRAME_deathe3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diee4
+}
+func player_diee4() {
+	Self.Frame = float32(FRAME_deathe4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diee5
+}
+func player_diee5() {
+	Self.Frame = float32(FRAME_deathe5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diee6
+}
+func player_diee6() {
+	Self.Frame = float32(FRAME_deathe6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diee7
+}
+func player_diee7() {
+	Self.Frame = float32(FRAME_deathe7)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diee8
+}
+func player_diee8() {
+	Self.Frame = float32(FRAME_deathe8)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diee9
+}
+func player_diee9() {
+	Self.Frame = float32(FRAME_deathe9)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_diee9
+	PlayerDead()
+}
 
-func player_die_ax1() { Self.Frame = float32(FRAME_axdeth1); Self.NextThink = Time + 0.1; Self.Think = player_die_ax2 }
-func player_die_ax2() { Self.Frame = float32(FRAME_axdeth2); Self.NextThink = Time + 0.1; Self.Think = player_die_ax3 }
-func player_die_ax3() { Self.Frame = float32(FRAME_axdeth3); Self.NextThink = Time + 0.1; Self.Think = player_die_ax4 }
-func player_die_ax4() { Self.Frame = float32(FRAME_axdeth4); Self.NextThink = Time + 0.1; Self.Think = player_die_ax5 }
-func player_die_ax5() { Self.Frame = float32(FRAME_axdeth5); Self.NextThink = Time + 0.1; Self.Think = player_die_ax6 }
-func player_die_ax6() { Self.Frame = float32(FRAME_axdeth6); Self.NextThink = Time + 0.1; Self.Think = player_die_ax7 }
-func player_die_ax7() { Self.Frame = float32(FRAME_axdeth7); Self.NextThink = Time + 0.1; Self.Think = player_die_ax8 }
-func player_die_ax8() { Self.Frame = float32(FRAME_axdeth8); Self.NextThink = Time + 0.1; Self.Think = player_die_ax9 }
-func player_die_ax9() { Self.Frame = float32(FRAME_axdeth9); Self.NextThink = Time + 0.1; Self.Think = player_die_ax9; PlayerDead() }
+func player_die_ax1() {
+	Self.Frame = float32(FRAME_axdeth1)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_die_ax2
+}
+func player_die_ax2() {
+	Self.Frame = float32(FRAME_axdeth2)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_die_ax3
+}
+func player_die_ax3() {
+	Self.Frame = float32(FRAME_axdeth3)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_die_ax4
+}
+func player_die_ax4() {
+	Self.Frame = float32(FRAME_axdeth4)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_die_ax5
+}
+func player_die_ax5() {
+	Self.Frame = float32(FRAME_axdeth5)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_die_ax6
+}
+func player_die_ax6() {
+	Self.Frame = float32(FRAME_axdeth6)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_die_ax7
+}
+func player_die_ax7() {
+	Self.Frame = float32(FRAME_axdeth7)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_die_ax8
+}
+func player_die_ax8() {
+	Self.Frame = float32(FRAME_axdeth8)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_die_ax9
+}
+func player_die_ax9() {
+	Self.Frame = float32(FRAME_axdeth9)
+	Self.NextThink = Time + 0.1
+	Self.Think = player_die_ax9
+	PlayerDead()
+}

@@ -29,28 +29,28 @@ const (
 
 // EntityFlags constants
 const (
-	FlagFly          = srvtypes.FlagFly
-	FlagSwim         = srvtypes.FlagSwim
-	FlagConveyor     = srvtypes.FlagConveyor
-	FlagClient       = srvtypes.FlagClient
-	FlagInWater      = srvtypes.FlagInWater
-	FlagMonster      = srvtypes.FlagMonster
-	FlagGodMode      = srvtypes.FlagGodMode
-	FlagNoTarget     = srvtypes.FlagNoTarget
-	FlagItem         = srvtypes.FlagItem
-	FlagOnGround     = srvtypes.FlagOnGround
+	FlagFly           = srvtypes.FlagFly
+	FlagSwim          = srvtypes.FlagSwim
+	FlagConveyor      = srvtypes.FlagConveyor
+	FlagClient        = srvtypes.FlagClient
+	FlagInWater       = srvtypes.FlagInWater
+	FlagMonster       = srvtypes.FlagMonster
+	FlagGodMode       = srvtypes.FlagGodMode
+	FlagNoTarget      = srvtypes.FlagNoTarget
+	FlagItem          = srvtypes.FlagItem
+	FlagOnGround      = srvtypes.FlagOnGround
 	FlagPartialGround = srvtypes.FlagPartialGround
-	FlagWaterJump    = srvtypes.FlagWaterJump
-	FlagJumpReleased = srvtypes.FlagJumpReleased
+	FlagWaterJump     = srvtypes.FlagWaterJump
+	FlagJumpReleased  = srvtypes.FlagJumpReleased
 )
 
 // EntityEffects constants
 const (
-	EffectBrightField  = srvtypes.EffectBrightField
-	EffectMuzzleFlash  = srvtypes.EffectMuzzleFlash
-	EffectBrightLight  = srvtypes.EffectBrightLight
-	EffectDimLight     = srvtypes.EffectDimLight
-	EffectQuadLight    = srvtypes.EffectQuadLight
-	EffectPentaLight   = srvtypes.EffectPentaLight
-	EffectCandleLight   = srvtypes.EffectCandleLight
+	EffectBrightField = srvtypes.EffectBrightField
+	EffectMuzzleFlash = srvtypes.EffectMuzzleFlash
+	EffectBrightLight = srvtypes.EffectBrightLight
+	EffectDimLight    = srvtypes.EffectDimLight
+	EffectQuadLight   = srvtypes.EffectQuadLight
+	EffectPentaLight  = srvtypes.EffectPentaLight
+	EffectCandleLight = srvtypes.EffectCandleLight
 )

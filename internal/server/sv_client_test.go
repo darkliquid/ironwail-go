@@ -159,8 +159,7 @@ func TestBuildSignonBuffers_WritesSpawnBaselines(t *testing.T) {
 		NumEdicts: 2,
 		Edicts: []*Edict{
 			{Free: true}, // skipped
-			{
-							},
+			{},
 		},
 		ModelPrecache: []string{"", "progs/player.mdl"},
 	}

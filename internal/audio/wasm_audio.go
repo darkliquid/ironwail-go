@@ -147,7 +147,6 @@ func (b *WASMAudioBackend) Shutdown() {
 	b.scriptNode = js.Null()
 }
 
-
 func (b *WASMAudioBackend) Lock() {
 	if b.dma != nil {
 		b.dma.mu.Lock()

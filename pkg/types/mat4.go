@@ -446,4 +446,3 @@ func (m Mat4) Transpose() Mat4 {
 		m[3], m[7], m[11], m[15],
 	}
 }
-

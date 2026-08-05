@@ -172,20 +172,22 @@ func (dc *DrawContext) renderWorldTranslucentPass(
 	translucentLiquidFaces []WorldFace,
 	worldHasLitWater bool,
 	liquidAlpha worldLiquidAlphaSettings,
-	vpMatrix [16]float32,
-	cameraOrigin [3]float32,
-	state *RenderFrameState,
-	fogDensity float32,
-	timeValue float32,
-	queue *wgpu.Queue,
-	worldIndices []uint32,
-	batchedIndices []uint32,
-) ([]uint32, error) {
+	writeWorldUniform func(float32, float32) bool,
+) error {
 	if dc.renderer.resources.WorldTranslucentTurbulentPipeline == nil || len(translucentLiquidFaces) == 0 {
-		return batchedIndices, nil
+		return nil
 	}
-	dynUniformStart := dc.renderer.uniformOffset
-	translucentLiquidDraws := dc.renderer.worldLiquidDrawsScratch[:0]
+	if dc.renderer.worldIndexBuffer == nil {
+		return nil
+	}
+
+	renderPass.SetPipeline(dc.renderer.resources.WorldTranslucentTurbulentPipeline)
+	renderPass.SetIndexBuffer(dc.renderer.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
+
+	var materialBindState gogpuWorldMaterialBindState
+	materialBindState.invalidate()
+
+	translucentAlpha := liquidAlpha.water
 	for _, face := range translucentLiquidFaces {
 		textureBindGroup := dc.renderer.resources.WhiteTextureBindGroup
 		if dc.renderer.worldTextures != nil && dc.renderer.worldTextures.bindGroup != nil {
@@ -199,55 +201,29 @@ func (dc *DrawContext) renderWorldTranslucentPass(
 		if dc.renderer.worldFullbrightTextures != nil && dc.renderer.worldFullbrightTextures.bindGroup != nil {
 			fullbrightBindGroup = dc.renderer.worldFullbrightTextures.bindGroup
 		}
-		translucentLiquidDraws = append(translucentLiquidDraws, gogpuWorldFaceDraw{
-			face:                face,
-			textureBindGroup:    textureBindGroup,
-			lightmapBindGroup:   lightmapBindGroup,
-			fullbrightBindGroup: fullbrightBindGroup,
-			litWater:            litWater,
-		})
-	}
-	translucentLiquidBatches := dc.renderer.worldLiquidBatchScratch[:0]
-	batchedIndices, translucentLiquidBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, translucentLiquidBatches, translucentLiquidDraws, worldIndices)
 
-	translucentAlpha := liquidAlpha.water
-	for _, batch := range translucentLiquidBatches {
-		tOffset, tUData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
-		fillWorldSceneUniformBytes(tUData, vpMatrix, cameraOrigin, state.FogColor, worldFogUniformDensity(fogDensity), timeValue, translucentAlpha, batch.key.litWater)
-		_ = tOffset
-	}
-	if dc.renderer.uniformOffset > dynUniformStart {
-		dynData := dc.renderer.uniformDataScratch[dynUniformStart:dc.renderer.uniformOffset]
-		_ = queue.WriteBuffer(dc.renderer.resources.UniformBuffer, uint64(dynUniformStart), dynData)
-	}
-
-	renderPass.SetPipeline(dc.renderer.resources.WorldTranslucentTurbulentPipeline)
-	var materialBindState gogpuWorldMaterialBindState
-	materialBindState.invalidate()
-	tOffset := dynUniformStart
-	for i, batch := range translucentLiquidBatches {
-		if rDebugWaterEnabled() {
-			slog.Debug("[rwater] translucent liquid batch (in-world-pass)",
-				"batch_idx", i,
-				"num_indices", batch.numIndices,
-				"lit_water", batch.key.litWater,
-				"alpha", translucentAlpha,
-				"uniform_offset", tOffset,
-			)
+		if writeWorldUniform != nil {
+			if !writeWorldUniform(translucentAlpha, litWater) {
+				return fmt.Errorf("failed to write translucent liquid uniform")
+			}
 		}
-		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, []uint32{tOffset})
-		tOffset += worldUniformAlign
-		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
+		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, nil)
+
+		setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
 		if setTexture {
-			renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
+			renderPass.SetBindGroup(1, textureBindGroup, nil)
 		}
 		if setLightmap {
-			renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
+			renderPass.SetBindGroup(2, lightmapBindGroup, nil)
 		}
 		if setFullbright {
-			renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
+			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		}
-		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+
+		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 	}
-	return batchedIndices, nil
+
+	return nil
 }
+
+

@@ -272,10 +272,30 @@ func ogre_chainsaw(side float32) {
 	}
 }
 
-func ogre_stand1() { Self.Frame = float32(OGRE_FRAME_stand1); Self.NextThink = Time + 0.1; Self.Think = ogre_stand2; ai_stand() }
-func ogre_stand2() { Self.Frame = float32(OGRE_FRAME_stand2); Self.NextThink = Time + 0.1; Self.Think = ogre_stand3; ai_stand() }
-func ogre_stand3() { Self.Frame = float32(OGRE_FRAME_stand3); Self.NextThink = Time + 0.1; Self.Think = ogre_stand4; ai_stand() }
-func ogre_stand4() { Self.Frame = float32(OGRE_FRAME_stand4); Self.NextThink = Time + 0.1; Self.Think = ogre_stand5; ai_stand() }
+func ogre_stand1() {
+	Self.Frame = float32(OGRE_FRAME_stand1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_stand2
+	ai_stand()
+}
+func ogre_stand2() {
+	Self.Frame = float32(OGRE_FRAME_stand2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_stand3
+	ai_stand()
+}
+func ogre_stand3() {
+	Self.Frame = float32(OGRE_FRAME_stand3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_stand4
+	ai_stand()
+}
+func ogre_stand4() {
+	Self.Frame = float32(OGRE_FRAME_stand4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_stand5
+	ai_stand()
+}
 func ogre_stand5() {
 	Self.Frame = float32(OGRE_FRAME_stand5)
 	Self.NextThink = Time + 0.1
@@ -285,13 +305,43 @@ func ogre_stand5() {
 	}
 	ai_stand()
 }
-func ogre_stand6() { Self.Frame = float32(OGRE_FRAME_stand6); Self.NextThink = Time + 0.1; Self.Think = ogre_stand7; ai_stand() }
-func ogre_stand7() { Self.Frame = float32(OGRE_FRAME_stand7); Self.NextThink = Time + 0.1; Self.Think = ogre_stand8; ai_stand() }
-func ogre_stand8() { Self.Frame = float32(OGRE_FRAME_stand8); Self.NextThink = Time + 0.1; Self.Think = ogre_stand9; ai_stand() }
-func ogre_stand9() { Self.Frame = float32(OGRE_FRAME_stand9); Self.NextThink = Time + 0.1; Self.Think = ogre_stand1; ai_stand() }
+func ogre_stand6() {
+	Self.Frame = float32(OGRE_FRAME_stand6)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_stand7
+	ai_stand()
+}
+func ogre_stand7() {
+	Self.Frame = float32(OGRE_FRAME_stand7)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_stand8
+	ai_stand()
+}
+func ogre_stand8() {
+	Self.Frame = float32(OGRE_FRAME_stand8)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_stand9
+	ai_stand()
+}
+func ogre_stand9() {
+	Self.Frame = float32(OGRE_FRAME_stand9)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_stand1
+	ai_stand()
+}
 
-func ogre_walk1() { Self.Frame = float32(OGRE_FRAME_walk1); Self.NextThink = Time + 0.1; Self.Think = ogre_walk2; ai_walk(3) }
-func ogre_walk2() { Self.Frame = float32(OGRE_FRAME_walk2); Self.NextThink = Time + 0.1; Self.Think = ogre_walk3; ai_walk(2) }
+func ogre_walk1() {
+	Self.Frame = float32(OGRE_FRAME_walk1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk2
+	ai_walk(3)
+}
+func ogre_walk2() {
+	Self.Frame = float32(OGRE_FRAME_walk2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk3
+	ai_walk(2)
+}
 func ogre_walk3() {
 	Self.Frame = float32(OGRE_FRAME_walk3)
 	Self.NextThink = Time + 0.1
@@ -301,8 +351,18 @@ func ogre_walk3() {
 		engine.Sound(Self, int(CHAN_VOICE), "ogre/ogidle.wav", 1, ATTN_IDLE)
 	}
 }
-func ogre_walk4() { Self.Frame = float32(OGRE_FRAME_walk4); Self.NextThink = Time + 0.1; Self.Think = ogre_walk5; ai_walk(2) }
-func ogre_walk5() { Self.Frame = float32(OGRE_FRAME_walk5); Self.NextThink = Time + 0.1; Self.Think = ogre_walk6; ai_walk(2) }
+func ogre_walk4() {
+	Self.Frame = float32(OGRE_FRAME_walk4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk5
+	ai_walk(2)
+}
+func ogre_walk5() {
+	Self.Frame = float32(OGRE_FRAME_walk5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk6
+	ai_walk(2)
+}
 func ogre_walk6() {
 	Self.Frame = float32(OGRE_FRAME_walk6)
 	Self.NextThink = Time + 0.1
@@ -312,16 +372,66 @@ func ogre_walk6() {
 		engine.Sound(Self, int(CHAN_VOICE), "ogre/ogdrag.wav", 1, ATTN_IDLE)
 	}
 }
-func ogre_walk7()  { Self.Frame = float32(OGRE_FRAME_walk7); Self.NextThink = Time + 0.1; Self.Think = ogre_walk8; ai_walk(3) }
-func ogre_walk8()  { Self.Frame = float32(OGRE_FRAME_walk8); Self.NextThink = Time + 0.1; Self.Think = ogre_walk9; ai_walk(2) }
-func ogre_walk9()  { Self.Frame = float32(OGRE_FRAME_walk9); Self.NextThink = Time + 0.1; Self.Think = ogre_walk10; ai_walk(3) }
-func ogre_walk10() { Self.Frame = float32(OGRE_FRAME_walk10); Self.NextThink = Time + 0.1; Self.Think = ogre_walk11; ai_walk(1) }
-func ogre_walk11() { Self.Frame = float32(OGRE_FRAME_walk11); Self.NextThink = Time + 0.1; Self.Think = ogre_walk12; ai_walk(2) }
-func ogre_walk12() { Self.Frame = float32(OGRE_FRAME_walk12); Self.NextThink = Time + 0.1; Self.Think = ogre_walk13; ai_walk(3) }
-func ogre_walk13() { Self.Frame = float32(OGRE_FRAME_walk13); Self.NextThink = Time + 0.1; Self.Think = ogre_walk14; ai_walk(3) }
-func ogre_walk14() { Self.Frame = float32(OGRE_FRAME_walk14); Self.NextThink = Time + 0.1; Self.Think = ogre_walk15; ai_walk(3) }
-func ogre_walk15() { Self.Frame = float32(OGRE_FRAME_walk15); Self.NextThink = Time + 0.1; Self.Think = ogre_walk16; ai_walk(3) }
-func ogre_walk16() { Self.Frame = float32(OGRE_FRAME_walk16); Self.NextThink = Time + 0.1; Self.Think = ogre_walk1; ai_walk(4) }
+func ogre_walk7() {
+	Self.Frame = float32(OGRE_FRAME_walk7)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk8
+	ai_walk(3)
+}
+func ogre_walk8() {
+	Self.Frame = float32(OGRE_FRAME_walk8)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk9
+	ai_walk(2)
+}
+func ogre_walk9() {
+	Self.Frame = float32(OGRE_FRAME_walk9)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk10
+	ai_walk(3)
+}
+func ogre_walk10() {
+	Self.Frame = float32(OGRE_FRAME_walk10)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk11
+	ai_walk(1)
+}
+func ogre_walk11() {
+	Self.Frame = float32(OGRE_FRAME_walk11)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk12
+	ai_walk(2)
+}
+func ogre_walk12() {
+	Self.Frame = float32(OGRE_FRAME_walk12)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk13
+	ai_walk(3)
+}
+func ogre_walk13() {
+	Self.Frame = float32(OGRE_FRAME_walk13)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk14
+	ai_walk(3)
+}
+func ogre_walk14() {
+	Self.Frame = float32(OGRE_FRAME_walk14)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk15
+	ai_walk(3)
+}
+func ogre_walk15() {
+	Self.Frame = float32(OGRE_FRAME_walk15)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk16
+	ai_walk(3)
+}
+func ogre_walk16() {
+	Self.Frame = float32(OGRE_FRAME_walk16)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_walk1
+	ai_walk(4)
+}
 
 func ogre_run1() {
 	Self.Frame = float32(OGRE_FRAME_run1)
@@ -332,13 +442,48 @@ func ogre_run1() {
 		engine.Sound(Self, int(CHAN_VOICE), "ogre/ogidle2.wav", 1, ATTN_IDLE)
 	}
 }
-func ogre_run2() { Self.Frame = float32(OGRE_FRAME_run2); Self.NextThink = Time + 0.1; Self.Think = ogre_run3; ai_run(12) }
-func ogre_run3() { Self.Frame = float32(OGRE_FRAME_run3); Self.NextThink = Time + 0.1; Self.Think = ogre_run4; ai_run(8) }
-func ogre_run4() { Self.Frame = float32(OGRE_FRAME_run4); Self.NextThink = Time + 0.1; Self.Think = ogre_run5; ai_run(22) }
-func ogre_run5() { Self.Frame = float32(OGRE_FRAME_run5); Self.NextThink = Time + 0.1; Self.Think = ogre_run6; ai_run(16) }
-func ogre_run6() { Self.Frame = float32(OGRE_FRAME_run6); Self.NextThink = Time + 0.1; Self.Think = ogre_run7; ai_run(4) }
-func ogre_run7() { Self.Frame = float32(OGRE_FRAME_run7); Self.NextThink = Time + 0.1; Self.Think = ogre_run8; ai_run(13) }
-func ogre_run8() { Self.Frame = float32(OGRE_FRAME_run8); Self.NextThink = Time + 0.1; Self.Think = ogre_run1; ai_run(24) }
+func ogre_run2() {
+	Self.Frame = float32(OGRE_FRAME_run2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run3
+	ai_run(12)
+}
+func ogre_run3() {
+	Self.Frame = float32(OGRE_FRAME_run3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run4
+	ai_run(8)
+}
+func ogre_run4() {
+	Self.Frame = float32(OGRE_FRAME_run4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run5
+	ai_run(22)
+}
+func ogre_run5() {
+	Self.Frame = float32(OGRE_FRAME_run5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run6
+	ai_run(16)
+}
+func ogre_run6() {
+	Self.Frame = float32(OGRE_FRAME_run6)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run7
+	ai_run(4)
+}
+func ogre_run7() {
+	Self.Frame = float32(OGRE_FRAME_run7)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run8
+	ai_run(13)
+}
+func ogre_run8() {
+	Self.Frame = float32(OGRE_FRAME_run8)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run1
+	ai_run(24)
+}
 
 func ogre_swing1() {
 	Self.Frame = float32(OGRE_FRAME_swing1)
@@ -347,9 +492,24 @@ func ogre_swing1() {
 	ai_charge(11)
 	engine.Sound(Self, int(CHAN_WEAPON), "ogre/ogsawatk.wav", 1, ATTN_NORM)
 }
-func ogre_swing2() { Self.Frame = float32(OGRE_FRAME_swing2); Self.NextThink = Time + 0.1; Self.Think = ogre_swing3; ai_charge(1) }
-func ogre_swing3() { Self.Frame = float32(OGRE_FRAME_swing3); Self.NextThink = Time + 0.1; Self.Think = ogre_swing4; ai_charge(4) }
-func ogre_swing4() { Self.Frame = float32(OGRE_FRAME_swing4); Self.NextThink = Time + 0.1; Self.Think = ogre_swing5; ai_charge(13) }
+func ogre_swing2() {
+	Self.Frame = float32(OGRE_FRAME_swing2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_swing3
+	ai_charge(1)
+}
+func ogre_swing3() {
+	Self.Frame = float32(OGRE_FRAME_swing3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_swing4
+	ai_charge(4)
+}
+func ogre_swing4() {
+	Self.Frame = float32(OGRE_FRAME_swing4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_swing5
+	ai_charge(13)
+}
 func ogre_swing5() {
 	Self.Frame = float32(OGRE_FRAME_swing5)
 	Self.NextThink = Time + 0.1
@@ -400,9 +560,24 @@ func ogre_swing11() {
 	ogre_chainsaw(0)
 	Self.Angles[1] = Self.Angles[1] + engine.Random()*25
 }
-func ogre_swing12() { Self.Frame = float32(OGRE_FRAME_swing12); Self.NextThink = Time + 0.1; Self.Think = ogre_swing13; ai_charge(3) }
-func ogre_swing13() { Self.Frame = float32(OGRE_FRAME_swing13); Self.NextThink = Time + 0.1; Self.Think = ogre_swing14; ai_charge(8) }
-func ogre_swing14() { Self.Frame = float32(OGRE_FRAME_swing14); Self.NextThink = Time + 0.1; Self.Think = ogre_run1; ai_charge(9) }
+func ogre_swing12() {
+	Self.Frame = float32(OGRE_FRAME_swing12)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_swing13
+	ai_charge(3)
+}
+func ogre_swing13() {
+	Self.Frame = float32(OGRE_FRAME_swing13)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_swing14
+	ai_charge(8)
+}
+func ogre_swing14() {
+	Self.Frame = float32(OGRE_FRAME_swing14)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run1
+	ai_charge(9)
+}
 
 func ogre_smash1_impl() {
 	Self.Frame = float32(OGRE_FRAME_smash1)
@@ -411,15 +586,64 @@ func ogre_smash1_impl() {
 	ai_charge(6)
 	engine.Sound(Self, int(CHAN_WEAPON), "ogre/ogsawatk.wav", 1, ATTN_NORM)
 }
-func ogre_smash2() { Self.Frame = float32(OGRE_FRAME_smash2); Self.NextThink = Time + 0.1; Self.Think = ogre_smash3; ai_charge(0) }
-func ogre_smash3() { Self.Frame = float32(OGRE_FRAME_smash3); Self.NextThink = Time + 0.1; Self.Think = ogre_smash4; ai_charge(0) }
-func ogre_smash4() { Self.Frame = float32(OGRE_FRAME_smash4); Self.NextThink = Time + 0.1; Self.Think = ogre_smash5; ai_charge(1) }
-func ogre_smash5() { Self.Frame = float32(OGRE_FRAME_smash5); Self.NextThink = Time + 0.1; Self.Think = ogre_smash6; ai_charge(4) }
-func ogre_smash6() { Self.Frame = float32(OGRE_FRAME_smash6); Self.NextThink = Time + 0.1; Self.Think = ogre_smash7; ai_charge(4); ogre_chainsaw(0) }
-func ogre_smash7() { Self.Frame = float32(OGRE_FRAME_smash7); Self.NextThink = Time + 0.1; Self.Think = ogre_smash8; ai_charge(4); ogre_chainsaw(0) }
-func ogre_smash8() { Self.Frame = float32(OGRE_FRAME_smash8); Self.NextThink = Time + 0.1; Self.Think = ogre_smash9; ai_charge(10); ogre_chainsaw(0) }
-func ogre_smash9() { Self.Frame = float32(OGRE_FRAME_smash9); Self.NextThink = Time + 0.1; Self.Think = ogre_smash10; ai_charge(13); ogre_chainsaw(0) }
-func ogre_smash10() { Self.Frame = float32(OGRE_FRAME_smash10); Self.NextThink = Time + 0.1; Self.Think = ogre_smash11; ogre_chainsaw(1) }
+func ogre_smash2() {
+	Self.Frame = float32(OGRE_FRAME_smash2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash3
+	ai_charge(0)
+}
+func ogre_smash3() {
+	Self.Frame = float32(OGRE_FRAME_smash3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash4
+	ai_charge(0)
+}
+func ogre_smash4() {
+	Self.Frame = float32(OGRE_FRAME_smash4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash5
+	ai_charge(1)
+}
+func ogre_smash5() {
+	Self.Frame = float32(OGRE_FRAME_smash5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash6
+	ai_charge(4)
+}
+func ogre_smash6() {
+	Self.Frame = float32(OGRE_FRAME_smash6)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash7
+	ai_charge(4)
+	ogre_chainsaw(0)
+}
+func ogre_smash7() {
+	Self.Frame = float32(OGRE_FRAME_smash7)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash8
+	ai_charge(4)
+	ogre_chainsaw(0)
+}
+func ogre_smash8() {
+	Self.Frame = float32(OGRE_FRAME_smash8)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash9
+	ai_charge(10)
+	ogre_chainsaw(0)
+}
+func ogre_smash9() {
+	Self.Frame = float32(OGRE_FRAME_smash9)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash10
+	ai_charge(13)
+	ogre_chainsaw(0)
+}
+func ogre_smash10() {
+	Self.Frame = float32(OGRE_FRAME_smash10)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash11
+	ogre_chainsaw(1)
+}
 func ogre_smash11() {
 	Self.Frame = float32(OGRE_FRAME_smash11)
 	Self.NextThink = Time + 0.1
@@ -428,67 +652,304 @@ func ogre_smash11() {
 	ogre_chainsaw(0)
 	Self.NextThink = Self.NextThink + engine.Random()*0.2
 }
-func ogre_smash12() { Self.Frame = float32(OGRE_FRAME_smash12); Self.NextThink = Time + 0.1; Self.Think = ogre_smash13; ai_charge(0) }
-func ogre_smash13() { Self.Frame = float32(OGRE_FRAME_smash13); Self.NextThink = Time + 0.1; Self.Think = ogre_smash14; ai_charge(4) }
-func ogre_smash14() { Self.Frame = float32(OGRE_FRAME_smash14); Self.NextThink = Time + 0.1; Self.Think = ogre_run1; ai_charge(12) }
+func ogre_smash12() {
+	Self.Frame = float32(OGRE_FRAME_smash12)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash13
+	ai_charge(0)
+}
+func ogre_smash13() {
+	Self.Frame = float32(OGRE_FRAME_smash13)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_smash14
+	ai_charge(4)
+}
+func ogre_smash14() {
+	Self.Frame = float32(OGRE_FRAME_smash14)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run1
+	ai_charge(12)
+}
 
-func ogre_nail1() { Self.Frame = float32(OGRE_FRAME_shoot1); Self.NextThink = Time + 0.1; Self.Think = ogre_nail2; ai_face() }
-func ogre_nail2() { Self.Frame = float32(OGRE_FRAME_shoot2); Self.NextThink = Time + 0.1; Self.Think = ogre_nail3; ai_face() }
-func ogre_nail3() { Self.Frame = float32(OGRE_FRAME_shoot2); Self.NextThink = Time + 0.1; Self.Think = ogre_nail4; ai_face() }
-func ogre_nail4() { Self.Frame = float32(OGRE_FRAME_shoot3); Self.NextThink = Time + 0.1; Self.Think = ogre_nail5; ai_face(); OgreFireGrenade() }
-func ogre_nail5() { Self.Frame = float32(OGRE_FRAME_shoot4); Self.NextThink = Time + 0.1; Self.Think = ogre_nail6; ai_face() }
-func ogre_nail6() { Self.Frame = float32(OGRE_FRAME_shoot5); Self.NextThink = Time + 0.1; Self.Think = ogre_nail7; ai_face() }
-func ogre_nail7() { Self.Frame = float32(OGRE_FRAME_shoot6); Self.NextThink = Time + 0.1; Self.Think = ogre_run1; ai_face() }
+func ogre_nail1() {
+	Self.Frame = float32(OGRE_FRAME_shoot1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_nail2
+	ai_face()
+}
+func ogre_nail2() {
+	Self.Frame = float32(OGRE_FRAME_shoot2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_nail3
+	ai_face()
+}
+func ogre_nail3() {
+	Self.Frame = float32(OGRE_FRAME_shoot2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_nail4
+	ai_face()
+}
+func ogre_nail4() {
+	Self.Frame = float32(OGRE_FRAME_shoot3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_nail5
+	ai_face()
+	OgreFireGrenade()
+}
+func ogre_nail5() {
+	Self.Frame = float32(OGRE_FRAME_shoot4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_nail6
+	ai_face()
+}
+func ogre_nail6() {
+	Self.Frame = float32(OGRE_FRAME_shoot5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_nail7
+	ai_face()
+}
+func ogre_nail7() {
+	Self.Frame = float32(OGRE_FRAME_shoot6)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run1
+	ai_face()
+}
 
-func ogre_pain1() { Self.Frame = float32(OGRE_FRAME_pain1); Self.NextThink = Time + 0.1; Self.Think = ogre_pain2 }
-func ogre_pain2() { Self.Frame = float32(OGRE_FRAME_pain2); Self.NextThink = Time + 0.1; Self.Think = ogre_pain3 }
-func ogre_pain3() { Self.Frame = float32(OGRE_FRAME_pain3); Self.NextThink = Time + 0.1; Self.Think = ogre_pain4 }
-func ogre_pain4() { Self.Frame = float32(OGRE_FRAME_pain4); Self.NextThink = Time + 0.1; Self.Think = ogre_pain5 }
-func ogre_pain5() { Self.Frame = float32(OGRE_FRAME_pain5); Self.NextThink = Time + 0.1; Self.Think = ogre_run1 }
+func ogre_pain1() {
+	Self.Frame = float32(OGRE_FRAME_pain1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_pain2
+}
+func ogre_pain2() {
+	Self.Frame = float32(OGRE_FRAME_pain2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_pain3
+}
+func ogre_pain3() {
+	Self.Frame = float32(OGRE_FRAME_pain3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_pain4
+}
+func ogre_pain4() {
+	Self.Frame = float32(OGRE_FRAME_pain4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_pain5
+}
+func ogre_pain5() {
+	Self.Frame = float32(OGRE_FRAME_pain5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run1
+}
 
-func ogre_painb1() { Self.Frame = float32(OGRE_FRAME_painb1); Self.NextThink = Time + 0.1; Self.Think = ogre_painb2 }
-func ogre_painb2() { Self.Frame = float32(OGRE_FRAME_painb2); Self.NextThink = Time + 0.1; Self.Think = ogre_painb3 }
-func ogre_painb3() { Self.Frame = float32(OGRE_FRAME_painb3); Self.NextThink = Time + 0.1; Self.Think = ogre_run1 }
+func ogre_painb1() {
+	Self.Frame = float32(OGRE_FRAME_painb1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_painb2
+}
+func ogre_painb2() {
+	Self.Frame = float32(OGRE_FRAME_painb2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_painb3
+}
+func ogre_painb3() {
+	Self.Frame = float32(OGRE_FRAME_painb3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run1
+}
 
-func ogre_painc1() { Self.Frame = float32(OGRE_FRAME_painc1); Self.NextThink = Time + 0.1; Self.Think = ogre_painc2 }
-func ogre_painc2() { Self.Frame = float32(OGRE_FRAME_painc2); Self.NextThink = Time + 0.1; Self.Think = ogre_painc3 }
-func ogre_painc3() { Self.Frame = float32(OGRE_FRAME_painc3); Self.NextThink = Time + 0.1; Self.Think = ogre_painc4 }
-func ogre_painc4() { Self.Frame = float32(OGRE_FRAME_painc4); Self.NextThink = Time + 0.1; Self.Think = ogre_painc5 }
-func ogre_painc5() { Self.Frame = float32(OGRE_FRAME_painc5); Self.NextThink = Time + 0.1; Self.Think = ogre_painc6 }
-func ogre_painc6() { Self.Frame = float32(OGRE_FRAME_painc6); Self.NextThink = Time + 0.1; Self.Think = ogre_run1 }
+func ogre_painc1() {
+	Self.Frame = float32(OGRE_FRAME_painc1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_painc2
+}
+func ogre_painc2() {
+	Self.Frame = float32(OGRE_FRAME_painc2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_painc3
+}
+func ogre_painc3() {
+	Self.Frame = float32(OGRE_FRAME_painc3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_painc4
+}
+func ogre_painc4() {
+	Self.Frame = float32(OGRE_FRAME_painc4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_painc5
+}
+func ogre_painc5() {
+	Self.Frame = float32(OGRE_FRAME_painc5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_painc6
+}
+func ogre_painc6() {
+	Self.Frame = float32(OGRE_FRAME_painc6)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run1
+}
 
-func ogre_paind1()  { Self.Frame = float32(OGRE_FRAME_paind1); Self.NextThink = Time + 0.1; Self.Think = ogre_paind2 }
-func ogre_paind2()  { Self.Frame = float32(OGRE_FRAME_paind2); Self.NextThink = Time + 0.1; Self.Think = ogre_paind3; ai_pain(10) }
-func ogre_paind3()  { Self.Frame = float32(OGRE_FRAME_paind3); Self.NextThink = Time + 0.1; Self.Think = ogre_paind4; ai_pain(9) }
-func ogre_paind4()  { Self.Frame = float32(OGRE_FRAME_paind4); Self.NextThink = Time + 0.1; Self.Think = ogre_paind5; ai_pain(4) }
-func ogre_paind5()  { Self.Frame = float32(OGRE_FRAME_paind5); Self.NextThink = Time + 0.1; Self.Think = ogre_paind6 }
-func ogre_paind6()  { Self.Frame = float32(OGRE_FRAME_paind6); Self.NextThink = Time + 0.1; Self.Think = ogre_paind7 }
-func ogre_paind7()  { Self.Frame = float32(OGRE_FRAME_paind7); Self.NextThink = Time + 0.1; Self.Think = ogre_paind8 }
-func ogre_paind8()  { Self.Frame = float32(OGRE_FRAME_paind8); Self.NextThink = Time + 0.1; Self.Think = ogre_paind9 }
-func ogre_paind9()  { Self.Frame = float32(OGRE_FRAME_paind9); Self.NextThink = Time + 0.1; Self.Think = ogre_paind10 }
-func ogre_paind10() { Self.Frame = float32(OGRE_FRAME_paind10); Self.NextThink = Time + 0.1; Self.Think = ogre_paind11 }
-func ogre_paind11() { Self.Frame = float32(OGRE_FRAME_paind11); Self.NextThink = Time + 0.1; Self.Think = ogre_paind12 }
-func ogre_paind12() { Self.Frame = float32(OGRE_FRAME_paind12); Self.NextThink = Time + 0.1; Self.Think = ogre_paind13 }
-func ogre_paind13() { Self.Frame = float32(OGRE_FRAME_paind13); Self.NextThink = Time + 0.1; Self.Think = ogre_paind14 }
-func ogre_paind14() { Self.Frame = float32(OGRE_FRAME_paind14); Self.NextThink = Time + 0.1; Self.Think = ogre_paind15 }
-func ogre_paind15() { Self.Frame = float32(OGRE_FRAME_paind15); Self.NextThink = Time + 0.1; Self.Think = ogre_paind16 }
-func ogre_paind16() { Self.Frame = float32(OGRE_FRAME_paind16); Self.NextThink = Time + 0.1; Self.Think = ogre_run1 }
+func ogre_paind1() {
+	Self.Frame = float32(OGRE_FRAME_paind1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind2
+}
+func ogre_paind2() {
+	Self.Frame = float32(OGRE_FRAME_paind2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind3
+	ai_pain(10)
+}
+func ogre_paind3() {
+	Self.Frame = float32(OGRE_FRAME_paind3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind4
+	ai_pain(9)
+}
+func ogre_paind4() {
+	Self.Frame = float32(OGRE_FRAME_paind4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind5
+	ai_pain(4)
+}
+func ogre_paind5() {
+	Self.Frame = float32(OGRE_FRAME_paind5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind6
+}
+func ogre_paind6() {
+	Self.Frame = float32(OGRE_FRAME_paind6)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind7
+}
+func ogre_paind7() {
+	Self.Frame = float32(OGRE_FRAME_paind7)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind8
+}
+func ogre_paind8() {
+	Self.Frame = float32(OGRE_FRAME_paind8)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind9
+}
+func ogre_paind9() {
+	Self.Frame = float32(OGRE_FRAME_paind9)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind10
+}
+func ogre_paind10() {
+	Self.Frame = float32(OGRE_FRAME_paind10)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind11
+}
+func ogre_paind11() {
+	Self.Frame = float32(OGRE_FRAME_paind11)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind12
+}
+func ogre_paind12() {
+	Self.Frame = float32(OGRE_FRAME_paind12)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind13
+}
+func ogre_paind13() {
+	Self.Frame = float32(OGRE_FRAME_paind13)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind14
+}
+func ogre_paind14() {
+	Self.Frame = float32(OGRE_FRAME_paind14)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind15
+}
+func ogre_paind15() {
+	Self.Frame = float32(OGRE_FRAME_paind15)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paind16
+}
+func ogre_paind16() {
+	Self.Frame = float32(OGRE_FRAME_paind16)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run1
+}
 
-func ogre_paine1()  { Self.Frame = float32(OGRE_FRAME_paine1); Self.NextThink = Time + 0.1; Self.Think = ogre_paine2 }
-func ogre_paine2()  { Self.Frame = float32(OGRE_FRAME_paine2); Self.NextThink = Time + 0.1; Self.Think = ogre_paine3; ai_pain(10) }
-func ogre_paine3()  { Self.Frame = float32(OGRE_FRAME_paine3); Self.NextThink = Time + 0.1; Self.Think = ogre_paine4; ai_pain(9) }
-func ogre_paine4()  { Self.Frame = float32(OGRE_FRAME_paine4); Self.NextThink = Time + 0.1; Self.Think = ogre_paine5; ai_pain(4) }
-func ogre_paine5()  { Self.Frame = float32(OGRE_FRAME_paine5); Self.NextThink = Time + 0.1; Self.Think = ogre_paine6 }
-func ogre_paine6()  { Self.Frame = float32(OGRE_FRAME_paine6); Self.NextThink = Time + 0.1; Self.Think = ogre_paine7 }
-func ogre_paine7()  { Self.Frame = float32(OGRE_FRAME_paine7); Self.NextThink = Time + 0.1; Self.Think = ogre_paine8 }
-func ogre_paine8()  { Self.Frame = float32(OGRE_FRAME_paine8); Self.NextThink = Time + 0.1; Self.Think = ogre_paine9 }
-func ogre_paine9()  { Self.Frame = float32(OGRE_FRAME_paine9); Self.NextThink = Time + 0.1; Self.Think = ogre_paine10 }
-func ogre_paine10() { Self.Frame = float32(OGRE_FRAME_paine10); Self.NextThink = Time + 0.1; Self.Think = ogre_paine11 }
-func ogre_paine11() { Self.Frame = float32(OGRE_FRAME_paine11); Self.NextThink = Time + 0.1; Self.Think = ogre_paine12 }
-func ogre_paine12() { Self.Frame = float32(OGRE_FRAME_paine12); Self.NextThink = Time + 0.1; Self.Think = ogre_paine13 }
-func ogre_paine13() { Self.Frame = float32(OGRE_FRAME_paine13); Self.NextThink = Time + 0.1; Self.Think = ogre_paine14 }
-func ogre_paine14() { Self.Frame = float32(OGRE_FRAME_paine14); Self.NextThink = Time + 0.1; Self.Think = ogre_paine15 }
-func ogre_paine15() { Self.Frame = float32(OGRE_FRAME_paine15); Self.NextThink = Time + 0.1; Self.Think = ogre_run1 }
+func ogre_paine1() {
+	Self.Frame = float32(OGRE_FRAME_paine1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine2
+}
+func ogre_paine2() {
+	Self.Frame = float32(OGRE_FRAME_paine2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine3
+	ai_pain(10)
+}
+func ogre_paine3() {
+	Self.Frame = float32(OGRE_FRAME_paine3)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine4
+	ai_pain(9)
+}
+func ogre_paine4() {
+	Self.Frame = float32(OGRE_FRAME_paine4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine5
+	ai_pain(4)
+}
+func ogre_paine5() {
+	Self.Frame = float32(OGRE_FRAME_paine5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine6
+}
+func ogre_paine6() {
+	Self.Frame = float32(OGRE_FRAME_paine6)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine7
+}
+func ogre_paine7() {
+	Self.Frame = float32(OGRE_FRAME_paine7)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine8
+}
+func ogre_paine8() {
+	Self.Frame = float32(OGRE_FRAME_paine8)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine9
+}
+func ogre_paine9() {
+	Self.Frame = float32(OGRE_FRAME_paine9)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine10
+}
+func ogre_paine10() {
+	Self.Frame = float32(OGRE_FRAME_paine10)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine11
+}
+func ogre_paine11() {
+	Self.Frame = float32(OGRE_FRAME_paine11)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine12
+}
+func ogre_paine12() {
+	Self.Frame = float32(OGRE_FRAME_paine12)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine13
+}
+func ogre_paine13() {
+	Self.Frame = float32(OGRE_FRAME_paine13)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine14
+}
+func ogre_paine14() {
+	Self.Frame = float32(OGRE_FRAME_paine14)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_paine15
+}
+func ogre_paine15() {
+	Self.Frame = float32(OGRE_FRAME_paine15)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_run1
+}
 
 func ogre_pain(attacker *quake.Entity, damage float32) {
 	var r float32
@@ -519,8 +980,16 @@ func ogre_pain(attacker *quake.Entity, damage float32) {
 	}
 }
 
-func ogre_die1() { Self.Frame = float32(OGRE_FRAME_death1); Self.NextThink = Time + 0.1; Self.Think = ogre_die2 }
-func ogre_die2() { Self.Frame = float32(OGRE_FRAME_death2); Self.NextThink = Time + 0.1; Self.Think = ogre_die3 }
+func ogre_die1() {
+	Self.Frame = float32(OGRE_FRAME_death1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die2
+}
+func ogre_die2() {
+	Self.Frame = float32(OGRE_FRAME_death2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die3
+}
 func ogre_die3() {
 	Self.Frame = float32(OGRE_FRAME_death3)
 	Self.NextThink = Time + 0.1
@@ -529,20 +998,73 @@ func ogre_die3() {
 	Self.AmmoRockets = 2
 	DropBackpack()
 }
-func ogre_die4()  { Self.Frame = float32(OGRE_FRAME_death4); Self.NextThink = Time + 0.1; Self.Think = ogre_die5 }
-func ogre_die5()  { Self.Frame = float32(OGRE_FRAME_death5); Self.NextThink = Time + 0.1; Self.Think = ogre_die6 }
-func ogre_die6()  { Self.Frame = float32(OGRE_FRAME_death6); Self.NextThink = Time + 0.1; Self.Think = ogre_die7 }
-func ogre_die7()  { Self.Frame = float32(OGRE_FRAME_death7); Self.NextThink = Time + 0.1; Self.Think = ogre_die8 }
-func ogre_die8()  { Self.Frame = float32(OGRE_FRAME_death8); Self.NextThink = Time + 0.1; Self.Think = ogre_die9 }
-func ogre_die9()  { Self.Frame = float32(OGRE_FRAME_death9); Self.NextThink = Time + 0.1; Self.Think = ogre_die10 }
-func ogre_die10() { Self.Frame = float32(OGRE_FRAME_death10); Self.NextThink = Time + 0.1; Self.Think = ogre_die11 }
-func ogre_die11() { Self.Frame = float32(OGRE_FRAME_death11); Self.NextThink = Time + 0.1; Self.Think = ogre_die12 }
-func ogre_die12() { Self.Frame = float32(OGRE_FRAME_death12); Self.NextThink = Time + 0.1; Self.Think = ogre_die13 }
-func ogre_die13() { Self.Frame = float32(OGRE_FRAME_death13); Self.NextThink = Time + 0.1; Self.Think = ogre_die14 }
-func ogre_die14() { Self.Frame = float32(OGRE_FRAME_death14); Self.NextThink = Time + 0.1; Self.Think = ogre_die14 }
+func ogre_die4() {
+	Self.Frame = float32(OGRE_FRAME_death4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die5
+}
+func ogre_die5() {
+	Self.Frame = float32(OGRE_FRAME_death5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die6
+}
+func ogre_die6() {
+	Self.Frame = float32(OGRE_FRAME_death6)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die7
+}
+func ogre_die7() {
+	Self.Frame = float32(OGRE_FRAME_death7)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die8
+}
+func ogre_die8() {
+	Self.Frame = float32(OGRE_FRAME_death8)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die9
+}
+func ogre_die9() {
+	Self.Frame = float32(OGRE_FRAME_death9)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die10
+}
+func ogre_die10() {
+	Self.Frame = float32(OGRE_FRAME_death10)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die11
+}
+func ogre_die11() {
+	Self.Frame = float32(OGRE_FRAME_death11)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die12
+}
+func ogre_die12() {
+	Self.Frame = float32(OGRE_FRAME_death12)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die13
+}
+func ogre_die13() {
+	Self.Frame = float32(OGRE_FRAME_death13)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die14
+}
+func ogre_die14() {
+	Self.Frame = float32(OGRE_FRAME_death14)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_die14
+}
 
-func ogre_bdie1() { Self.Frame = float32(OGRE_FRAME_bdeath1); Self.NextThink = Time + 0.1; Self.Think = ogre_bdie2 }
-func ogre_bdie2() { Self.Frame = float32(OGRE_FRAME_bdeath2); Self.NextThink = Time + 0.1; Self.Think = ogre_bdie3; ai_forward(5) }
+func ogre_bdie1() {
+	Self.Frame = float32(OGRE_FRAME_bdeath1)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_bdie2
+}
+func ogre_bdie2() {
+	Self.Frame = float32(OGRE_FRAME_bdeath2)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_bdie3
+	ai_forward(5)
+}
 func ogre_bdie3() {
 	Self.Frame = float32(OGRE_FRAME_bdeath3)
 	Self.NextThink = Time + 0.1
@@ -551,13 +1073,45 @@ func ogre_bdie3() {
 	Self.AmmoRockets = 2
 	DropBackpack()
 }
-func ogre_bdie4()  { Self.Frame = float32(OGRE_FRAME_bdeath4); Self.NextThink = Time + 0.1; Self.Think = ogre_bdie5; ai_forward(1) }
-func ogre_bdie5()  { Self.Frame = float32(OGRE_FRAME_bdeath5); Self.NextThink = Time + 0.1; Self.Think = ogre_bdie6; ai_forward(3) }
-func ogre_bdie6()  { Self.Frame = float32(OGRE_FRAME_bdeath6); Self.NextThink = Time + 0.1; Self.Think = ogre_bdie7; ai_forward(7) }
-func ogre_bdie7()  { Self.Frame = float32(OGRE_FRAME_bdeath7); Self.NextThink = Time + 0.1; Self.Think = ogre_bdie8; ai_forward(25) }
-func ogre_bdie8()  { Self.Frame = float32(OGRE_FRAME_bdeath8); Self.NextThink = Time + 0.1; Self.Think = ogre_bdie9 }
-func ogre_bdie9()  { Self.Frame = float32(OGRE_FRAME_bdeath9); Self.NextThink = Time + 0.1; Self.Think = ogre_bdie10 }
-func ogre_bdie10() { Self.Frame = float32(OGRE_FRAME_bdeath10); Self.NextThink = Time + 0.1; Self.Think = ogre_bdie10 }
+func ogre_bdie4() {
+	Self.Frame = float32(OGRE_FRAME_bdeath4)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_bdie5
+	ai_forward(1)
+}
+func ogre_bdie5() {
+	Self.Frame = float32(OGRE_FRAME_bdeath5)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_bdie6
+	ai_forward(3)
+}
+func ogre_bdie6() {
+	Self.Frame = float32(OGRE_FRAME_bdeath6)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_bdie7
+	ai_forward(7)
+}
+func ogre_bdie7() {
+	Self.Frame = float32(OGRE_FRAME_bdeath7)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_bdie8
+	ai_forward(25)
+}
+func ogre_bdie8() {
+	Self.Frame = float32(OGRE_FRAME_bdeath8)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_bdie9
+}
+func ogre_bdie9() {
+	Self.Frame = float32(OGRE_FRAME_bdeath9)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_bdie10
+}
+func ogre_bdie10() {
+	Self.Frame = float32(OGRE_FRAME_bdeath10)
+	Self.NextThink = Time + 0.1
+	Self.Think = ogre_bdie10
+}
 
 func ogre_die() {
 	if Self.Health < -80 {

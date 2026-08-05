@@ -22,4 +22,3 @@ func writeQGoModule(t *testing.T, dir, moduleDecl string) {
 go 1.26
 `)
 }
-

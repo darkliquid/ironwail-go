@@ -49,13 +49,13 @@ type ParityTolerances struct {
 
 // ParityConfig defines the execution and validation settings for a demo parity run.
 type ParityConfig struct {
-	DemoName       string
-	ReferenceFile  string
-	VidWidth       string
-	VidHeight      string
-	Tolerances     ParityTolerances
-	PrePumpFrames  int
-	CatchUpFrames  int
+	DemoName      string
+	ReferenceFile string
+	VidWidth      string
+	VidHeight     string
+	Tolerances    ParityTolerances
+	PrePumpFrames int
+	CatchUpFrames int
 }
 
 // DefaultParityTolerances returns standard thresholds allowing for float drift and lack of Go damage kicks.
@@ -72,13 +72,13 @@ func DefaultParityTolerances() ParityTolerances {
 // DefaultParityConfig returns a configuration pre-populated with standard parameters.
 func DefaultParityConfig(demoName string) ParityConfig {
 	return ParityConfig{
-		DemoName:       demoName,
-		ReferenceFile:  "../../testdata/parity/reference_" + demoName + "_state.json",
-		VidWidth:       "1237",
-		VidHeight:      "1428",
-		Tolerances:     DefaultParityTolerances(),
-		PrePumpFrames:  10,
-		CatchUpFrames:  1,
+		DemoName:      demoName,
+		ReferenceFile: "../../testdata/parity/reference_" + demoName + "_state.json",
+		VidWidth:      "1237",
+		VidHeight:     "1428",
+		Tolerances:    DefaultParityTolerances(),
+		PrePumpFrames: 10,
+		CatchUpFrames: 1,
 	}
 }
 

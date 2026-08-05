@@ -474,4 +474,3 @@ func (h *gameCSQCHandler) EntUpdate(isNew bool) {
 		slog.Error("CSQC_Ent_Update failed", "error", err)
 	}
 }
-

@@ -417,14 +417,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)
 	}
 
-	// Draw translucent liquid faces within the same render pass.
-	batchedIndices, err = dc.renderWorldTranslucentPass(renderPass, translucentLiquidFaces, worldHasLitWater, liquidAlpha, vpMatrix, cameraOrigin, state, fogDensity, timeValue, queue, worldData.Geometry.Indices, batchedIndices)
-	if err != nil {
-		_ = renderPass.End()
-		return
-	}
-	if dc.renderer.resources.WorldTranslucentTurbulentPipeline != nil && len(translucentLiquidFaces) > 0 {
-		translucentLiquidFaces = nil
+	if err := dc.renderWorldTranslucentPass(renderPass, translucentLiquidFaces, worldHasLitWater, liquidAlpha, writeWorldUniform); err != nil {
+		slog.Warn("renderWorldInternal: translucent liquid pass error", "error", err)
 	}
 
 	// End render pass
@@ -786,4 +780,3 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 		slog.Warn("clearGoGPUSharedDepthStencil: failed to submit clear pass", "error", err)
 	}
 }
-

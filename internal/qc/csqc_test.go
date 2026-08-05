@@ -295,7 +295,6 @@ func TestCSQCCallParseStuffCmd(t *testing.T) {
 	}
 }
 
-
 func TestCSQCCallEntUpdate(t *testing.T) {
 	csqc := NewCSQC()
 	csqc.loaded = true
@@ -313,4 +312,3 @@ func TestCSQCCallEntUpdate(t *testing.T) {
 		t.Fatalf("CallEntUpdate() error = %v", err)
 	}
 }
-

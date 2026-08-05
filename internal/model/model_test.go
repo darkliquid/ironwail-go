@@ -334,14 +334,14 @@ func TestLoadAliasModelWithArenaSynthetic(t *testing.T) {
 	write([3]float32{0, 0, 0})
 	write(float32(1))
 	write([3]float32{0, 0, 0})
-	write(int32(1)) // 1 skin
-	write(int32(2)) // 2 width
-	write(int32(2)) // 2 height
-	write(int32(1)) // 1 vert
-	write(int32(1)) // 1 tri
-	write(int32(1)) // 1 frame
-	write(int32(0)) // sync
-	write(int32(0)) // flags
+	write(int32(1))   // 1 skin
+	write(int32(2))   // 2 width
+	write(int32(2))   // 2 height
+	write(int32(1))   // 1 vert
+	write(int32(1))   // 1 tri
+	write(int32(1))   // 1 frame
+	write(int32(0))   // sync
+	write(int32(0))   // flags
 	write(float32(1)) // size
 
 	// skin 0 (single)
@@ -358,10 +358,10 @@ func TestLoadAliasModelWithArenaSynthetic(t *testing.T) {
 	write([3]int32{0, 0, 0})
 
 	// frame 0 (single)
-	write(int32(0)) // type
-	write([4]byte{0, 0, 0, 0}) // bbox min
-	write([4]byte{1, 1, 1, 0}) // bbox max
-	write([16]byte{}) // name
+	write(int32(0))                // type
+	write([4]byte{0, 0, 0, 0})     // bbox min
+	write([4]byte{1, 1, 1, 0})     // bbox max
+	write([16]byte{})              // name
 	data.Write([]byte{0, 0, 0, 0}) // pose vert (TriVertX)
 
 	ar := arena.NewArena(1024)

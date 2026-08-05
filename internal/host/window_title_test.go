@@ -9,9 +9,9 @@ type stubWindowSetter struct {
 	calls []string
 }
 
-func (s *stubWindowSetter) Init() error    { return nil }
-func (s *stubWindowSetter) UpdateScreen()  {}
-func (s *stubWindowSetter) Shutdown()      {}
+func (s *stubWindowSetter) Init() error   { return nil }
+func (s *stubWindowSetter) UpdateScreen() {}
+func (s *stubWindowSetter) Shutdown()     {}
 func (s *stubWindowSetter) SetWindowTitle(t string) {
 	s.calls = append(s.calls, t)
 }
