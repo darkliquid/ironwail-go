@@ -49,10 +49,11 @@ The goal of this project is to create the WebAssembly entry point (`cmd/ironwail
   - Implemented WASM DOM input listener implementation mapping browser keyboard (keydown/keyup), mouse movement deltas, character composition, and mouse buttons to Quake engine key codes.
 
 
-### Step 7.4: Implement Web Audio API Adapter
-- **Files**: `internal/audio/wasm_audio.go` (new file)
+### Step 7.4: Implement Web Audio API Adapter (COMPLETED - commit d2f86ae)
+- **Files**: `internal/audio/wasm_audio.go`
 - **Actions**:
-  - Connect Oto audio stream to browser `AudioContext` / `AudioWorklet`.
+  - Implemented WASM Web Audio API backend implementation utilizing `AudioContext` and `ScriptProcessorNode` for real-time PCM audio streaming from DMA buffer to browser audio output.
+
 
 ### Step 7.5: HTTP Asset & Memory PAK VFS (COMPLETED - commit 94c61ad)
 - **Files**: `internal/fs/fs.go`, `internal/fs/fs_search.go`, `internal/fs/fs_test.go`
