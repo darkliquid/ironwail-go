@@ -374,76 +374,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		batchUploadMS = float64(time.Since(batchUploadStart)) / float64(time.Millisecond)
 	}
 
-	skyDrawnIndices := uint32(0)
-	var materialBindState gogpuWorldMaterialBindState
 	skyDrawStart := time.Now()
-	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.worldSkyExternalPipeline != nil && dc.renderer.worldSkyExternalBindGroup != nil {
-		logExternalSkyDraw := !dc.renderer.worldSkyExternalWorldDrawLogged
-		if logExternalSkyDraw {
-			slog.Info("external sky world draw begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "sky_faces", len(skyFaces))
-		}
-		if !writeExternalSkyUniform(skyFogDensity) {
-			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
-			_ = renderPass.End()
-			return
-		}
-		if logExternalSkyDraw {
-			slog.Info("external sky world draw uniform written", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "sky_fog_density", skyFogDensity, "wind_loaded", dc.renderer.worldSkyExternalWindLoaded, "wind_dist", dc.renderer.worldSkyExternalWind.Dist, "wind_period", dc.renderer.worldSkyExternalWind.Period)
-		}
-		renderPass.SetPipeline(dc.renderer.worldSkyExternalPipeline)
-		renderPass.SetBindGroup(1, dc.renderer.worldSkyExternalBindGroup, nil)
-		// The external sky shader only samples bind group 1, but the pipeline
-		// layout intentionally matches the shared world layout so group 4
-		// (dynamic lights) can remain bound across sky and brush draws.
-		// WebGPU still requires every lower bind group in that layout to be set.
-		renderPass.SetBindGroup(2, dc.renderer.whiteTextureBindGroup, nil)
-		renderPass.SetBindGroup(3, dc.renderer.whiteTextureBindGroup, nil)
-		if logExternalSkyDraw {
-			slog.Info("external sky world draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
-		}
-		for _, face := range skyFaces {
-			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
-			skyDrawnIndices += face.NumIndices
-		}
-		if logExternalSkyDraw {
-			slog.Info("external sky world draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "drawn_indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
-		}
-	} else if dc.renderer.worldSkyPipeline != nil {
-		if !writeWorldUniformWithFog(1, 0, skyFogDensity) {
-			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
-			_ = renderPass.End()
-			return
-		}
-		renderPass.SetPipeline(dc.renderer.worldSkyPipeline)
-		materialBindState.invalidate()
-		for _, face := range skyFaces {
-			textureIndex := resolveWorldSkyTextureIndex(face, dc.renderer.worldTextureAnimations, 0, timeSeconds)
-			solidBindGroup := dc.renderer.whiteTextureBindGroup
-			if worldTexture := dc.renderer.worldSkySolidTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
-				solidBindGroup = worldTexture.bindGroup
-			}
-			alphaBindGroup := dc.renderer.transparentBindGroup
-			if alphaBindGroup == nil {
-				alphaBindGroup = dc.renderer.whiteTextureBindGroup
-			}
-			if worldTexture := dc.renderer.worldSkyAlphaTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
-				alphaBindGroup = worldTexture.bindGroup
-			}
-			setTexture, setLightmap, setFullbright := materialBindState.update(solidBindGroup, alphaBindGroup, dc.renderer.whiteTextureBindGroup)
-			if setTexture {
-				renderPass.SetBindGroup(1, solidBindGroup, nil)
-			}
-			if setLightmap {
-				renderPass.SetBindGroup(2, alphaBindGroup, nil)
-			}
-			// Bind group 3 (fullbright/lightmap) is required by the shared pipeline
-			// layout even though the sky shader doesn't use it.
-			if setFullbright {
-				renderPass.SetBindGroup(3, dc.renderer.whiteTextureBindGroup, nil)
-			}
-			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
-			skyDrawnIndices += face.NumIndices
-		}
+	skyDrawnIndices, err := dc.renderWorldSkyPass(renderPass, skyFaces, skyFogDensity, timeSeconds, writeWorldUniformWithFog, writeExternalSkyUniform)
+
+	if err != nil {
+		_ = renderPass.End()
+		return
 	}
 	skyDrawMS = float64(time.Since(skyDrawStart)) / float64(time.Millisecond)
 
@@ -453,94 +389,14 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 
-	renderPass.SetPipeline(dc.renderer.worldPipeline)
-	materialBindState.invalidate()
-	drawnIndices := uint32(0)
-	alphaTestDrawnIndices := uint32(0)
-	liquidDrawnIndices := uint32(0)
-	if opaqueBatchBuffer != nil {
-		renderPass.SetIndexBuffer(opaqueBatchBuffer, gputypes.IndexFormatUint32, 0)
-	}
 	opaqueDrawStart := time.Now()
-	for _, batch := range opaqueBatches {
-		if !writeWorldUniform(1, batch.key.litWater) {
-			slog.Error("renderWorldInternal: Failed to update world dynamic-light uniform")
-			_ = renderPass.End()
-			return
-		}
-		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
-		if setTexture {
-			renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
-		}
-		if setLightmap {
-			renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
-		}
-		if setFullbright {
-			renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
-		}
-		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
-		drawnIndices += batch.numIndices
-	}
-	if dc.renderer.worldAlphaTestPipeline != nil {
-		renderPass.SetPipeline(dc.renderer.worldAlphaTestPipeline)
-		materialBindState.invalidate()
-		for _, batch := range alphaTestBatches {
-			if !writeWorldUniform(1, batch.key.litWater) {
-				slog.Error("renderWorldInternal: Failed to update alpha-test world dynamic-light uniform")
-				_ = renderPass.End()
-				return
-			}
-			setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
-			if setTexture {
-				renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
-			}
-			if setLightmap {
-				renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
-			}
-			if setFullbright {
-				renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
-			}
-			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
-			alphaTestDrawnIndices += batch.numIndices
-		}
-	} else if len(alphaTestBatches) > 0 {
-		slog.Warn("renderWorldInternal: alpha-test faces exist but alpha-test pipeline is nil",
-			"alpha_test_batches", len(alphaTestBatches))
-	}
-	if dc.renderer.worldTurbulentPipeline != nil {
-		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
-		materialBindState.invalidate()
-		for i, batch := range opaqueLiquidBatches {
-			if rDebugWaterEnabled() {
-				slog.Debug("[rwater] opaque liquid batch",
-					"batch_idx", i,
-					"num_indices", batch.numIndices,
-					"lit_water", batch.key.litWater,
-					"alpha_uniform", 1,
-					"texture_bind_group", fmt.Sprintf("%p", batch.key.textureBindGroup),
-					"lightmap_bind_group", fmt.Sprintf("%p", batch.key.lightmapBindGroup),
-				)
-			}
-			if !writeWorldUniform(1, batch.key.litWater) {
-				slog.Error("renderWorldInternal: Failed to update liquid lighting uniform")
-				_ = renderPass.End()
-				return
-			}
-			setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
-			if setTexture {
-				renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
-			}
-			if setLightmap {
-				renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
-			}
-			if setFullbright {
-				renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
-			}
-			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
-			liquidDrawnIndices += batch.numIndices
-		}
+	drawnIndices, alphaTestDrawnIndices, liquidDrawnIndices, err := dc.renderWorldOpaquePasses(renderPass, opaqueBatches, alphaTestBatches, opaqueLiquidBatches, opaqueBatchBuffer, writeWorldUniform)
+	if err != nil {
+		_ = renderPass.End()
+		return
 	}
 	opaqueDrawMS = float64(time.Since(opaqueDrawStart)) / float64(time.Millisecond)
+
 	if drawnIndices > 0 {
 		slog.Debug("World rendered",
 			"indices", drawnIndices,
@@ -562,81 +418,15 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	// Draw translucent liquid faces within the same render pass.
-	// This matches C Ironwail's R_DrawWater(true) which runs in the same
-	// framebuffer as R_DrawWater(false), using inline state changes
-	// (blend=ALPHA, depth write=OFF) without a separate command buffer submit.
+	batchedIndices, err = dc.renderWorldTranslucentPass(renderPass, translucentLiquidFaces, worldHasLitWater, liquidAlpha, vpMatrix, cameraOrigin, state, fogDensity, timeValue, queue, worldData.Geometry.Indices, batchedIndices)
+	if err != nil {
+		_ = renderPass.End()
+		return
+	}
 	if dc.renderer.worldTranslucentTurbulentPipeline != nil && len(translucentLiquidFaces) > 0 {
-		// Use the dynamic uniform buffer for translucent draws so they
-		// don't overwrite the opaque uniform at offset 0.
-		dynUniformStart := dc.renderer.uniformOffset
-		translucentLiquidDraws := dc.renderer.worldLiquidDrawsScratch[:0]
-		for _, face := range translucentLiquidFaces {
-			textureBindGroup := dc.renderer.whiteTextureBindGroup
-			if dc.renderer.worldTextures != nil && dc.renderer.worldTextures.bindGroup != nil {
-				textureBindGroup = dc.renderer.worldTextures.bindGroup
-			}
-			lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, dc.renderer.worldLightmapArray, dc.renderer.whiteLightmapBindGroup, worldHasLitWater)
-			fullbrightBindGroup := dc.renderer.transparentBindGroup
-			if fullbrightBindGroup == nil {
-				fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
-			}
-			if dc.renderer.worldFullbrightTextures != nil && dc.renderer.worldFullbrightTextures.bindGroup != nil {
-				fullbrightBindGroup = dc.renderer.worldFullbrightTextures.bindGroup
-			}
-			translucentLiquidDraws = append(translucentLiquidDraws, gogpuWorldFaceDraw{
-				face:                face,
-				textureBindGroup:    textureBindGroup,
-				lightmapBindGroup:   lightmapBindGroup,
-				fullbrightBindGroup: fullbrightBindGroup,
-				litWater:            litWater,
-			})
-		}
-		translucentLiquidBatches := dc.renderer.worldLiquidBatchScratch[:0]
-		batchedIndices, translucentLiquidBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, translucentLiquidBatches, translucentLiquidDraws, worldData.Geometry.Indices)
-
-		// Upload all dynamic uniform data to GPU before encoding draw commands
-		translucentAlpha := liquidAlpha.water
-		for _, batch := range translucentLiquidBatches {
-			tOffset, tUData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
-			fillWorldSceneUniformBytes(tUData, vpMatrix, cameraOrigin, state.FogColor, worldFogUniformDensity(fogDensity), timeValue, translucentAlpha, batch.key.litWater)
-			_ = tOffset
-		}
-		// Upload the dynamic uniform range to GPU
-		if dc.renderer.uniformOffset > dynUniformStart {
-			dynData := dc.renderer.uniformDataScratch[dynUniformStart:dc.renderer.uniformOffset]
-			_ = queue.WriteBuffer(dc.renderer.uniformBuffer, uint64(dynUniformStart), dynData)
-		}
-
-		renderPass.SetPipeline(dc.renderer.worldTranslucentTurbulentPipeline)
-		materialBindState.invalidate()
-		tOffset := dynUniformStart
-		for i, batch := range translucentLiquidBatches {
-			if rDebugWaterEnabled() {
-				slog.Debug("[rwater] translucent liquid batch (in-world-pass)",
-					"batch_idx", i,
-					"num_indices", batch.numIndices,
-					"lit_water", batch.key.litWater,
-					"alpha", translucentAlpha,
-					"uniform_offset", tOffset,
-				)
-			}
-			renderPass.SetBindGroup(0, dc.renderer.uniformBindGroup, []uint32{tOffset})
-			tOffset += worldUniformAlign
-			setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
-			if setTexture {
-				renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
-			}
-			if setLightmap {
-				renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
-			}
-			if setFullbright {
-				renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
-			}
-			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
-		}
-		// Don't collect these faces for the late translucent pass
 		translucentLiquidFaces = nil
 	}
+
 	// End render pass
 	slog.Debug("renderWorldInternal: ending render pass")
 	logExternalSkySubmit := skyDrawnIndices > 0 &&
@@ -996,3 +786,4 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 		slog.Warn("clearGoGPUSharedDepthStencil: failed to submit clear pass", "error", err)
 	}
 }
+
