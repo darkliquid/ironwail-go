@@ -56,6 +56,8 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
+
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
@@ -85,12 +87,20 @@ var stringEntFieldNames = map[string]struct{}{
 
 // EntityManager manages the entity pool for a Quake server.
 // It provides allocation, deallocation, and tracking of game entities.
+type fieldDefInfo struct {
+	ofs   int
+	eType qc.EType
+}
+
 type EntityManager struct {
 	// edicts is the array of all entities
 	edicts []*Edict
 
 	// vm is used to resolve QuakeC field types when parsing entities.
 	vm *qc.VM
+
+	// fieldDefMap caches O(1) field lookups for parsed entity keys.
+	fieldDefMap map[string]fieldDefInfo
 
 	// maxEdicts is the maximum number of entities
 	maxEdicts int
@@ -111,6 +121,7 @@ type EntityManager struct {
 	// maxClients is the number of client slots that should never be freed
 	maxClients int
 }
+
 
 // NewEntityManager creates a new entity manager with the given capacity.
 func NewEntityManager(maxEdicts, maxClients int) *EntityManager {
@@ -546,13 +557,21 @@ func (em *EntityManager) fieldDef(keyName string) (int, qc.EType, bool) {
 	if em == nil || em.vm == nil {
 		return 0, 0, false
 	}
-	normalized := normalizeFieldName(keyName)
-	for _, def := range em.vm.FieldDefs {
-		if normalizeFieldName(em.vm.String(def.Name)) != normalized {
-			continue
+	if em.fieldDefMap == nil {
+		em.fieldDefMap = make(map[string]fieldDefInfo, len(em.vm.FieldDefs))
+		for _, def := range em.vm.FieldDefs {
+			norm := normalizeFieldName(em.vm.String(def.Name))
+			em.fieldDefMap[norm] = fieldDefInfo{
+				ofs:   int(def.Ofs),
+				eType: qc.EType(def.Type &^ qc.DefSaveGlobal),
+			}
 		}
-		return int(def.Ofs), qc.EType(def.Type &^ qc.DefSaveGlobal), true
 	}
+	normalized := normalizeFieldName(keyName)
+	if info, ok := em.fieldDefMap[normalized]; ok {
+		return info.ofs, info.eType, true
+	}
+
 	// Fallback to default offsets for standard entvars fields when
 	// FieldDefs doesn't contain the field (e.g. minimal test VMs).
 	if ofs, ok := defaultEntFieldOffsets[normalized]; ok {
@@ -590,14 +609,33 @@ func isVectorField(normalized string) bool {
 	return ok
 }
 
+var (
+	normalizedNamesMu    sync.RWMutex
+	normalizedNamesCache = make(map[string]string, 512)
+)
+
 // normalizeFieldName strips underscores and lowercases the input string to
 // produce a canonical form suitable for case-insensitive,
 // underscore-insensitive field name matching. This mirrors the original
 // Quake engine's forgiving key-name lookup, allowing map editors and mods
 // to use "ClassName", "classname", "class_name", etc. interchangeably.
 func normalizeFieldName(name string) string {
-	return strings.ToLower(strings.ReplaceAll(name, "_", ""))
+	normalizedNamesMu.RLock()
+	if n, ok := normalizedNamesCache[name]; ok {
+		normalizedNamesMu.RUnlock()
+		return n
+	}
+	normalizedNamesMu.RUnlock()
+
+	n := strings.ToLower(strings.ReplaceAll(name, "_", ""))
+	normalizedNamesMu.Lock()
+	normalizedNamesCache[name] = n
+	normalizedNamesMu.Unlock()
+	return n
 }
+
+
+var vec3Replacer = strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
 
 // parseVec3 parses a space-separated "x y z" string (as found in map entity
 // definitions) into a [3]float32 vector. Quake's entity parser is lenient
@@ -605,7 +643,7 @@ func normalizeFieldName(name string) string {
 // ignored, matching the original C atof-based parsing.
 func parseVec3(raw string) ([3]float32, error) {
 	var out [3]float32
-	normalized := strings.NewReplacer("\t", " ", "\n", " ", "\r", " ").Replace(strings.TrimSpace(raw))
+	normalized := vec3Replacer.Replace(strings.TrimSpace(raw))
 	if normalized == "" {
 		return out, nil
 	}
@@ -628,6 +666,7 @@ func parseVec3(raw string) ([3]float32, error) {
 	}
 	return out, nil
 }
+
 
 // parseFloat32 parses a single string token into a float32, trimming
 // surrounding whitespace first. Used for scalar entity fields such as

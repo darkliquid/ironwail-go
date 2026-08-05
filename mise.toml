@@ -147,6 +147,12 @@ run = "go build -o bin/parity_generator ./tools/parity_generator"
 description = "Build the BSP diagnostic inspection CLI tool"
 run = "go build -o bin/bspdiag ./cmd/bspdiag"
 
+[tasks.profile-maps]
+description = "Capture pprof CPU and heap profiles across qbj2 and qbj3 benchmark maps"
+depends = ["build"]
+run = "bash ./tasks/profile_maps.sh"
+
+
 [tasks.parity-generate]
 description = "Generate a reference state JSON dump for a specific demo from C Ironwail"
 depends = ["build-parity-generator"]
