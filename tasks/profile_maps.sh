@@ -44,5 +44,7 @@ run_map_profile() {
 
 run_map_profile "qbj2" "qbj2_zetabyt"
 run_map_profile "qbj3" "qbj3_stickflip"
+run_map_profile "qbj3" "qbj3_softi"
 
 echo "==> Profiling complete. Profiles available in .tmp/profiles/"
+
