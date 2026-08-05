@@ -730,7 +730,7 @@ func (s *Server) SaveSpawnParms() {
 		if s.QCVM != nil {
 			if setChangeParms := s.QCVM.FindFunction("SetChangeParms"); setChangeParms >= 0 {
 				s.setQCTimeGlobal(s.Time)
-				s.QCVM.SetGlobal("self", s.NumForEdict(client.Edict))
+				s.QCVM.SetGlobalInt32("self", int32(s.NumForEdict(client.Edict)))
 				if err := s.executeQCFunctionLeavingGlobals(setChangeParms); err != nil {
 					slog.Warn("SetChangeParms QC failed", "error", err)
 				}

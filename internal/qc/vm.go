@@ -833,6 +833,37 @@ func (vm *VM) SetGlobalInt(name string, value int) {
 	vm.SetGlobal(name, value)
 }
 
+// SetGlobalFloat sets a float global by name without boxing the value into
+// an interface (avoids convT32/convT64 per call in per-frame paths).
+func (vm *VM) SetGlobalFloat(name string, value float32) {
+	def, ok := vm.findGlobalDef(name)
+	if !ok {
+		return
+	}
+	ofs := int(def.Ofs)
+	if EType(def.Type&0x7fff) == EvFloat {
+		vm.SetGFloat(ofs, value)
+	} else {
+		vm.SetGInt(ofs, int32(value))
+	}
+}
+
+// SetGlobalInt32 sets an int32 global by name without boxing the value into
+// an interface. "self"/"other" entity-number globals are written every frame
+// through this path.
+func (vm *VM) SetGlobalInt32(name string, value int32) {
+	def, ok := vm.findGlobalDef(name)
+	if !ok {
+		return
+	}
+	ofs := int(def.Ofs)
+	if EType(def.Type&0x7fff) == EvFloat {
+		vm.SetGFloat(ofs, float32(value))
+	} else {
+		vm.SetGInt(ofs, value)
+	}
+}
+
 // GlobalInt retrieves an integer global by name.
 // Returns 0 if the global is not found.
 func (vm *VM) GlobalInt(name string) int {

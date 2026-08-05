@@ -227,8 +227,8 @@ func (s *Server) touchLinks(ent *Edict) {
 			entNum, touchNum, touchClassName, touchTouchFn)
 
 		ctx := captureQCExecutionContext(s.QCVM)
-		s.QCVM.SetGlobal("self", touchNum)
-		s.QCVM.SetGlobal("other", entNum)
+		s.QCVM.SetGlobalInt32("self", int32(touchNum))
+		s.QCVM.SetGlobalInt32("other", int32(entNum))
 		s.setQCTimeGlobal(s.Time)
 		prevNumEdicts := s.NumEdicts
 		if err := s.executeQCFunction(int(touchTouchFn)); err != nil {

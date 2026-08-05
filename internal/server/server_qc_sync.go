@@ -315,17 +315,17 @@ func (s *Server) syncQCVMGlobals() {
 	s.ensureQCVMEdictStorage()
 	s.QCVM.SetGlobal("world", 0)
 	s.QCVM.SetGlobal("mapname", s.QCVM.AllocString(s.Name))
-	s.QCVM.SetGlobal("time", s.Time)
+	s.QCVM.SetGlobalFloat("time", s.Time)
 	if s.Static != nil {
-		s.QCVM.SetGlobal("serverflags", s.Static.ServerFlags)
+		s.QCVM.SetGlobalInt32("serverflags", int32(s.Static.ServerFlags))
 	}
 
 	coopVal := s.CVar.FloatValue("coop")
 	dmVal := s.CVar.FloatValue("deathmatch")
 	if coopVal != 0 {
-		s.QCVM.SetGlobal("coop", float32(coopVal))
+		s.QCVM.SetGlobalFloat("coop", float32(coopVal))
 	} else {
-		s.QCVM.SetGlobal("deathmatch", float32(dmVal))
+		s.QCVM.SetGlobalFloat("deathmatch", float32(dmVal))
 	}
 }
 
@@ -334,7 +334,7 @@ func (s *Server) setQCTimeGlobal(time float32) {
 		return
 	}
 	s.QCVM.Time = float64(time)
-	s.QCVM.SetGlobal("time", time)
+	s.QCVM.SetGlobalFloat("time", time)
 }
 
 // NewServer creates a new server instance.
