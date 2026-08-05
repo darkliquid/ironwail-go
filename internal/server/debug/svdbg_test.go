@@ -3,14 +3,13 @@
 
 // This file belongs to the Tests subsystem: unit, integration, parity, and e2e tests for the server package.
 
-package server
+package debug
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
-	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
 )
 
 func captureSvdbg(t *testing.T, mpLevel, moveLevel string) *strings.Builder {
@@ -20,11 +19,11 @@ func captureSvdbg(t *testing.T, mpLevel, moveLevel string) *strings.Builder {
 	cv.Set(SvDebugMultiplayerCVarName, mpLevel)
 	cv.Set(SvDebugMoveCVarName, moveLevel)
 	var buf strings.Builder
-	saved := srvdebug.SvdbgEmit
-	srvdebug.SvdbgEmit = func(line string) { buf.WriteString(line); buf.WriteByte('\n') }
+	saved := SvdbgEmit
+	SvdbgEmit = func(line string) { buf.WriteString(line); buf.WriteByte('\n') }
 	t.Cleanup(func() {
-		srvdebug.SvdbgEmit = saved
-		srvdebug.ResetSvdbgCVars()
+		SvdbgEmit = saved
+		ResetSvdbgCVars()
 	})
 	return &buf
 }
@@ -33,12 +32,12 @@ func TestSvdbgDisabledByDefault(t *testing.T) {
 	cv := cvar.NewCVarSystem()
 	RegisterSvdbgCVars(cv)
 	t.Cleanup(func() {
-		srvdebug.ResetSvdbgCVars()
+		ResetSvdbgCVars()
 	})
 	var got string
-	saved := srvdebug.SvdbgEmit
-	srvdebug.SvdbgEmit = func(line string) { got += line }
-	t.Cleanup(func() { srvdebug.SvdbgEmit = saved })
+	saved := SvdbgEmit
+	SvdbgEmit = func(line string) { got += line }
+	t.Cleanup(func() { SvdbgEmit = saved })
 	SvdbgMultiplayerLogf("ping")
 	SvdbgMoveLogf("walk")
 	if got != "" {
