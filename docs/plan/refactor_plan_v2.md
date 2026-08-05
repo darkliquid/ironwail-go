@@ -418,3 +418,37 @@ unregistered cvars to avoid the typed-nil interface bug).
 
 Verified: full module builds; all server + physics tests pass; only the two
 pre-existing failures remain.
+### Physics Leaf Migration (`server_physics*.go` → `physics.System`, DONE 2026-08-05)
+The largest single decoupling yet: **982 lines deleted from the root server
+package**, replaced by a 100-line delegator file. All 22 per-entity physics
+leaf algorithms now live in `physics.System`:
+
+- `server_physics.go` (783 → 103 lines): `CheckVelocity`, `RunThink`, `Impact`,
+  `ClipVelocity`, `AddGravity`, `SV_CheckWater`, `CheckWaterTransition`,
+  `FlyMove`, `PushEntity`, `PushMove`, `PhysicsNone/NoClip/Pusher/Step`,
+  `SV_CheckAllEnts`, `SV_TryUnstick`.
+- `server_physics_walk.go` (234 → 70 lines): `SV_WalkMove`, `SV_WallFriction`,
+  `PhysicsWalk`, `SV_CheckStuck`, `PhysicsToss`, `WalkMoveNeedsUnstick`.
+
+New seam: `types.PhysicsFacade` (embeds `QCCallback`, `ClientThinker`,
+`TelemetrySink`, `CVarReader`, `PhysicsConfig`, `FrameTiming`, plus
+`StartSound`/`FloatValue`/`MaxClients`/`SuppressTouchQC`/`DebugTriggerTouch`/
+`PushMoveScratch`/`GetFieldGravity`/`CaptureExecutionContext`/
+`RestoreExecutionContext`). `*Server` satisfies it, compile-time asserted.
+
+Also:
+- `AngleVectors` moved to `types/math.go` (pure math), re-exported in root.
+- `WalkMoveNeedsUnstick` moved to `types/math.go` (used by a root test via the
+  `server.WalkMoveNeedsUnstick` wrapper).
+- `NewPhysicsSystem` now wires `NewSystemWithFacade(col, store, s, s)`.
+- `PhysicsFacade.QCCallback` carries the QC execution context
+  (Capture/Restore) which the root implements via `qc_trace.go`.
+
+Tests: `physics/leafs_test.go` proves isolated testability — `ClipVelocity`
+slide, `SV_CheckWater` submersion (needs `vm.EdictSize >= 512` because
+`EntFieldWaterLevel = 83` → `83*4+4 = 336` bytes), `PushEntity` origin
+advance. Removed dead mocks in `system_test.go`.
+
+Verified: full module builds; all server + physics tests pass; only the two
+pre-existing failures remain. The server root package is down ~1,770 lines
+cumulatively (frame loop + leafs).

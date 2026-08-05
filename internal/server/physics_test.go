@@ -414,25 +414,25 @@ func TestWalkMoveNeedsUnstickUsesDistEpsilonThreshold(t *testing.T) {
 
 	// Strictly inside threshold on both axes should request unstick.
 	inside := [3]float32{100 + DistEpsilon - 0.0001, 200 - DistEpsilon + 0.0001, 0}
-	if !walkMoveNeedsUnstick(oldOrg, inside) {
-		t.Fatalf("walkMoveNeedsUnstick(%v, %v) = false, want true", oldOrg, inside)
+	if !WalkMoveNeedsUnstick(oldOrg, inside) {
+		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = false, want true", oldOrg, inside)
 	}
 
 	// Exact threshold should not request unstick (strict '<' parity with C code).
 	xEdge := [3]float32{100 + DistEpsilon, 200, 0}
-	if walkMoveNeedsUnstick(oldOrg, xEdge) {
-		t.Fatalf("walkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, xEdge)
+	if WalkMoveNeedsUnstick(oldOrg, xEdge) {
+		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, xEdge)
 	}
 
 	yEdge := [3]float32{100, 200 - DistEpsilon, 0}
-	if walkMoveNeedsUnstick(oldOrg, yEdge) {
-		t.Fatalf("walkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, yEdge)
+	if WalkMoveNeedsUnstick(oldOrg, yEdge) {
+		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, yEdge)
 	}
 
 	// Outside threshold on either axis should not request unstick.
 	outside := [3]float32{100 + DistEpsilon + 0.0001, 200, 0}
-	if walkMoveNeedsUnstick(oldOrg, outside) {
-		t.Fatalf("walkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, outside)
+	if WalkMoveNeedsUnstick(oldOrg, outside) {
+		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, outside)
 	}
 }
 

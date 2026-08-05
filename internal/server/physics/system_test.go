@@ -63,31 +63,6 @@ func (m *mockEntityStore) FreeEdict(ed *srvtypes.Edict) {
 func (m *mockEntityStore) GetNumEdicts() int { return len(m.edicts) }
 func (m *mockEntityStore) GetMaxEdicts() int { return len(m.edicts) }
 
-type mockPhysicsConfig struct {
-	gravity     float32
-	maxVelocity float32
-	friction    float32
-	stopSpeed   float32
-}
-
-func (m *mockPhysicsConfig) GetGravity() float32     { return m.gravity }
-func (m *mockPhysicsConfig) GetMaxVelocity() float32 { return m.maxVelocity }
-func (m *mockPhysicsConfig) GetFriction() float32    { return m.friction }
-func (m *mockPhysicsConfig) GetStopSpeed() float32   { return m.stopSpeed }
-
-type mockFrameTiming struct {
-	time      float32
-	frameTime float32
-}
-
-func (m *mockFrameTiming) GetTime() float32      { return m.time }
-func (m *mockFrameTiming) GetFrameTime() float32 { return m.frameTime }
-
-type mockThinkExecutor struct{}
-
-func (m *mockThinkExecutor) RunThink(ent *srvtypes.Edict) bool   { return true }
-func (m *mockThinkExecutor) ExecuteQCFunction(funcIdx int) error { return nil }
-
 func TestPhysicsSystemCheckBottomSolidGround(t *testing.T) {
 	col := &mockCollisionWorld{contents: bsp.ContentsSolid}
 	store := &mockEntityStore{}

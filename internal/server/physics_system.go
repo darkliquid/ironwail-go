@@ -10,5 +10,5 @@ type PhysicsSystem = physics.System
 
 // NewPhysicsSystem creates a new physics.System instance.
 func NewPhysicsSystem(col CollisionWorld, store EntityStore, s *Server) *PhysicsSystem {
-	return physics.NewSystem(col, store, s)
+	return physics.NewSystemWithFacade(col, store, s, s)
 }

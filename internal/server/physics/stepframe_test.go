@@ -84,7 +84,7 @@ func (d *mockDispatch) PhysicsWalk(ent *srvtypes.Edict)   { d.walk++ }
 
 func TestStepFrameDispatchesMovetypes(t *testing.T) {
 	vm := qc.NewVM()
-	vm.EdictSize = 128
+	vm.EdictSize = 512
 	vm.NumEdicts = 4
 	vm.Edicts = make([]byte, vm.EdictSize*vm.NumEdicts)
 	h := &handle{vm: vm}

@@ -7,9 +7,10 @@ import (
 
 // System encapsulates physics, collision resolution, and monster movement.
 type System struct {
-	col   srvtypes.CollisionWorld
-	store srvtypes.EntityStore
-	sh    srvtypes.ServerHandle
+	col    srvtypes.CollisionWorld
+	store  srvtypes.EntityStore
+	sh     srvtypes.ServerHandle
+	facade srvtypes.PhysicsFacade
 }
 
 // NewSystem creates a new physics System with injected dependencies.
@@ -22,6 +23,23 @@ func NewSystem(
 		col:   col,
 		store: store,
 		sh:    sh,
+	}
+}
+
+// NewSystemWithFacade creates a physics System that can also drive the
+// per-entity leaf algorithms (FlyMove, PushMove, PhysicsWalk, ...) which need
+// the server facade (QC callbacks, telemetry, sounds, scratch buffers).
+func NewSystemWithFacade(
+	col srvtypes.CollisionWorld,
+	store srvtypes.EntityStore,
+	sh srvtypes.ServerHandle,
+	facade srvtypes.PhysicsFacade,
+) *System {
+	return &System{
+		col:    col,
+		store:  store,
+		sh:     sh,
+		facade: facade,
 	}
 }
 

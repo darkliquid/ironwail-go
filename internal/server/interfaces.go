@@ -24,6 +24,7 @@ type (
 	CVarReader         = srvtypes.CVarReader
 	TelemetrySink      = srvtypes.TelemetrySink
 	CvarHandle         = srvtypes.CvarHandle
+	PhysicsFacade      = srvtypes.PhysicsFacade
 )
 
 func (s *Server) GetGravity() float32     { return s.Gravity }
@@ -81,6 +82,47 @@ func (s *Server) LogEventf(kind DebugEventKind, vm *qc.VM, entNum int, ent *Edic
 		return false
 	}
 	return s.DebugTelemetry.LogEventf(kind, vm, entNum, ent, format, args...)
+}
+
+// PhysicsFacade implementation: thin forwards to server state.
+func (s *Server) FloatValue(name string) float64 {
+	if s == nil || s.CVar == nil {
+		return 0
+	}
+	return s.CVar.FloatValue(name)
+}
+
+func (s *Server) SuppressTouchQC() bool {
+	return s != nil && s.suppressTouchQC
+}
+
+func (s *Server) DebugTriggerTouch(source string, touch, other *Edict) {
+	if s != nil {
+		s.debugTriggerTouch(source, touch, other)
+	}
+}
+
+func (s *Server) PushMoveScratch() (moved *[]*Edict, from *[][3]float32) {
+	if s == nil {
+		return nil, nil
+	}
+	return &s.pushMoveMoved, &s.pushMoveFrom
+}
+
+func (s *Server) CaptureExecutionContext() any {
+	if s == nil || s.QCVM == nil {
+		return nil
+	}
+	return captureQCExecutionContext(s.QCVM)
+}
+
+func (s *Server) RestoreExecutionContext(ctx any) {
+	if s == nil || s.QCVM == nil || ctx == nil {
+		return
+	}
+	if c, ok := ctx.(qcExecutionContext); ok {
+		restoreQCExecutionContext(s.QCVM, c)
+	}
 }
 
 func (s *Server) GetFieldAlpha() int {
