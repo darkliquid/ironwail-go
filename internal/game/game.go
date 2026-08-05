@@ -13,6 +13,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/draw"
+	"github.com/darkliquid/ironwail-go/internal/game/camera"
 	"github.com/darkliquid/ironwail-go/internal/host"
 	"github.com/darkliquid/ironwail-go/internal/hud"
 	"github.com/darkliquid/ironwail-go/internal/input"
@@ -62,6 +63,7 @@ type Game struct {
 	ShowScores        bool
 	ModDir            string
 
+	CameraSys          *camera.System
 	CameraInLiquid     bool
 	CameraLeafContents int32
 
@@ -194,6 +196,7 @@ type PendingRendererAssets struct {
 func New() *Game {
 	return &Game{
 		Host:                  host.NewHost(),
+		CameraSys:             camera.NewSystem(),
 		AliasModelCache:       make(map[string]*model.Model),
 		SpriteModelCache:      make(map[string]*SpriteModel),
 		SoundSFXByIndex:       make(map[int]*audio.SFX),

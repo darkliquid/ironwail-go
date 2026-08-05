@@ -495,3 +495,28 @@ func (g *Game) runtimeAngleVectors(angles [3]float32) (forward, right, up [3]flo
 		[3]float32{rightVec.X, rightVec.Y, rightVec.Z},
 		[3]float32{upVec.X, upVec.Y, upVec.Z}
 }
+
+func (g *Game) UpdateZoom(dt float64) {
+	if g == nil {
+		return
+	}
+	if g.CameraSys != nil {
+		g.CameraSys.Zoom = g.Zoom
+		g.CameraSys.ZoomDir = g.ZoomDir
+		g.CameraSys.UpdateZoom(dt)
+		g.Zoom = g.CameraSys.Zoom
+		g.ZoomDir = g.CameraSys.ZoomDir
+		return
+	}
+	if g.ZoomDir == 0 {
+		return
+	}
+	g.Zoom += float32(dt) * g.ZoomDir * 5.0
+	if g.Zoom < 1.0 {
+		g.Zoom = 1.0
+		g.ZoomDir = 0
+	} else if g.Zoom > 4.0 {
+		g.Zoom = 4.0
+		g.ZoomDir = 0
+	}
+}
