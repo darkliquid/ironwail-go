@@ -1,7 +1,21 @@
 // This file belongs to the Network/Protocol subsystem: client state, signon stages, and network message types.
 package types
 
+// ProtocolFlags controls network encoding precision for coords/angles/edicts.
+type ProtocolFlags uint32
+
+const (
+	ProtocolFlagShortAngle  ProtocolFlags = 1 << 1 // PRFL_SHORTANGLE: 16-bit angles
+	ProtocolFlagFloatAngle  ProtocolFlags = 1 << 2 // PRFL_FLOATANGLE: 32-bit angles
+	ProtocolFlag24BitCoord  ProtocolFlags = 1 << 3 // PRFL_24BITCOORD: 24-bit coords
+	ProtocolFlagFloatCoord  ProtocolFlags = 1 << 4 // PRFL_FLOATCOORD: 32-bit coords
+	ProtocolFlagEdictScale  ProtocolFlags = 1 << 5 // PRFL_EDICTSCALE: entity scale
+	ProtocolFlagAlphaSanity ProtocolFlags = 1 << 6 // PRFL_ALPHASANITY: alpha cleanup
+	ProtocolFlagInt32Coord  ProtocolFlags = 1 << 7 // PRFL_INT32COORD: 32-bit int coords
+)
+
 // ClientState tracks the current state of a connected client in the server's
+
 // client management lifecycle.
 //
 // A client progresses through: Disconnected → Connected → Spawned.

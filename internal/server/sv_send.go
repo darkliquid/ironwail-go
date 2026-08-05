@@ -474,7 +474,7 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	// Compatibility hack from C Ironwail for Alkaline: the clientdata payload only
 	// carries a byte for STAT_ACTIVEWEAPON, so resend the full 32-bit stat when the
 	// QuakeC weapon bitmask does not fit in that byte.
-	if uint32(byte(weaponValue)) != uint32(weaponValue) && msg.Len()+6 <= msg.limit() {
+	if uint32(byte(weaponValue)) != uint32(weaponValue) && msg.Len()+6 <= msg.Limit() {
 		msg.PutByte(byte(inet.SVCUpdateStat))
 		msg.PutByte(byte(inet.StatActiveWeapon))
 		msg.WriteLong(weaponValue)
@@ -839,7 +839,7 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 	})
 
 	for _, candidate := range candidates {
-		if msg.Len()+40 > msg.limit() {
+		if msg.Len()+40 > msg.Limit() {
 			break
 		}
 		if !s.writeEntityUpdate(msg, candidate.entNum, candidate.state, candidate.ent.Baseline, false, candidate.moveType, candidate.lerpFinish, candidate.hasLerpFinish) {
@@ -936,7 +936,7 @@ func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	s.WriteClientDataToMessage(client.Edict, msg)
 	s.writeEntitiesToClient(client, msg)
 
-	if s.Datagram != nil && s.Datagram.Len() > 0 && msg.Len()+s.Datagram.Len()+1 < msg.limit() {
+	if s.Datagram != nil && s.Datagram.Len() > 0 && msg.Len()+s.Datagram.Len()+1 < msg.Limit() {
 		msg.Write(s.Datagram.Data[:s.Datagram.Len()])
 	}
 	msg.PutByte(0xff)

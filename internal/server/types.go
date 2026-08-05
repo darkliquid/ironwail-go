@@ -20,7 +20,21 @@ type (
 	EntityState     = srvtypes.EntityState
 	CollisionModel  = srvtypes.CollisionModel
 	AreaNode        = srvtypes.AreaNode
+	MessageBuffer   = srvtypes.MessageBuffer
+	ProtocolFlags   = srvtypes.ProtocolFlags
 )
+
+const (
+	ProtocolFlagShortAngle  = srvtypes.ProtocolFlagShortAngle
+	ProtocolFlagFloatAngle  = srvtypes.ProtocolFlagFloatAngle
+	ProtocolFlag24BitCoord  = srvtypes.ProtocolFlag24BitCoord
+	ProtocolFlagFloatCoord  = srvtypes.ProtocolFlagFloatCoord
+	ProtocolFlagEdictScale  = srvtypes.ProtocolFlagEdictScale
+	ProtocolFlagAlphaSanity = srvtypes.ProtocolFlagAlphaSanity
+	ProtocolFlagInt32Coord  = srvtypes.ProtocolFlagInt32Coord
+)
+
+
 
 
 const (
