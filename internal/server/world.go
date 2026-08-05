@@ -136,13 +136,17 @@ func (s *Server) touchLinks(ent *Edict) {
 			entAbsMax[0], entAbsMax[1], entAbsMax[2])
 	}
 
-	touches := make([]*Edict, 0, s.NumEdicts)
+	// Reuse the per-server trigger-candidate scratch slice across calls so
+	// touchLinks (per-trigger per-frame) does not allocate a fresh
+	// NumEdicts-sized slice every time (plan 20.4; mirrors PushMove 0afc2db).
+	touches := s.touchLinkScratch[:0]
 	s.ensureCollisionSys()
 	var rootNode *collision.AreaNode
 	if len(s.CollisionSys.Areanodes()) > 0 {
 		rootNode = &s.CollisionSys.Areanodes()[0]
 	}
 	s.CollisionSys.AreaTriggerEdicts(ent, rootNode, &touches, s.NumEdicts)
+	s.touchLinkScratch = touches
 
 	if telemetryEnabled {
 		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,

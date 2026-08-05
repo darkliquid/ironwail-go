@@ -86,12 +86,11 @@ type Server struct {
 	Areanodes    []AreaNode
 	numAreaNodes int
 
-	// pushMoveBuffers reuse the origin-restore slices across PushMove calls.
-	// PushMove allocates them anew per call sized by NumEdicts, which costs
-	// millions of allocations on busy maps; the slices only matter on the
-	// rare fully-blocked path. Reset to length 0 at the start of each call.
-	pushMoveMoved []*Edict
-	pushMoveFrom  [][3]float32
+	// pushMoveBuffers + touchLinkScratch avoid per-frame allocations
+	// (PushMove origin-restore, touchLinks trigger candidates).
+	pushMoveMoved   []*Edict
+	pushMoveFrom    [][3]float32
+	touchLinkScratch []*Edict
 
 	// Network messaging
 	Datagram         *MessageBuffer
