@@ -9,6 +9,6 @@ import (
 type PhysicsSystem = physics.System
 
 // NewPhysicsSystem creates a new physics.System instance.
-func NewPhysicsSystem(col CollisionWorld, store EntityStore, cfg PhysicsConfig, timing FrameTiming, exec ThinkExecutor, s *Server) *PhysicsSystem {
-	return physics.NewSystem(col, store, cfg, timing, exec, s)
+func NewPhysicsSystem(col CollisionWorld, store EntityStore, s *Server) *PhysicsSystem {
+	return physics.NewSystem(col, store, s)
 }

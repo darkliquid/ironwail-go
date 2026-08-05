@@ -7,30 +7,21 @@ import (
 
 // System encapsulates physics, collision resolution, and monster movement.
 type System struct {
-	col    srvtypes.CollisionWorld
-	store  srvtypes.EntityStore
-	cfg    srvtypes.PhysicsConfig
-	timing srvtypes.FrameTiming
-	exec   srvtypes.ThinkExecutor
-	sh     srvtypes.ServerHandle
+	col   srvtypes.CollisionWorld
+	store srvtypes.EntityStore
+	sh    srvtypes.ServerHandle
 }
 
 // NewSystem creates a new physics System with injected dependencies.
 func NewSystem(
 	col srvtypes.CollisionWorld,
 	store srvtypes.EntityStore,
-	cfg srvtypes.PhysicsConfig,
-	timing srvtypes.FrameTiming,
-	exec srvtypes.ThinkExecutor,
 	sh srvtypes.ServerHandle,
 ) *System {
 	return &System{
-		col:    col,
-		store:  store,
-		cfg:    cfg,
-		timing: timing,
-		exec:   exec,
-		sh:     sh,
+		col:   col,
+		store: store,
+		sh:    sh,
 	}
 }
 
@@ -57,29 +48,4 @@ func (s *System) MoveToGoal(ent *srvtypes.Edict, dist float32) bool {
 // NewChaseDir drives monster chase direction selection.
 func (s *System) NewChaseDir(actor, enemy *srvtypes.Edict, dist float32) {
 	NewChaseDir(s.col, s.store, actor, enemy, dist, s.sh)
-}
-
-// CheckVelocity clamps an entity's velocity components to MaxVelocity bounds.
-func (s *System) CheckVelocity(ent *srvtypes.Edict) {
-	CheckVelocity(s.cfg, ent, s.sh)
-}
-
-// AddGravity applies frame gravity acceleration to an entity's Z velocity.
-func (s *System) AddGravity(ent *srvtypes.Edict) {
-	AddGravity(s.cfg, s.timing, ent, s.sh)
-}
-
-// SV_CheckWater checks if an entity is submerged in liquid.
-func (s *System) SV_CheckWater(ent *srvtypes.Edict) bool {
-	return SV_CheckWater(s.col, ent, s.sh)
-}
-
-// PushEntity moves an entity by a push vector, clipping against solid geometry.
-func (s *System) PushEntity(ent *srvtypes.Edict, push [3]float32) srvtypes.TraceResult {
-	return PushEntity(s.col, ent, push, s.sh)
-}
-
-// FlyMove integrates velocity across sliding planes for an entity over time.
-func (s *System) FlyMove(ent *srvtypes.Edict, time float32) int {
-	return FlyMove(s.col, s.cfg, s.timing, ent, time, s.sh)
 }

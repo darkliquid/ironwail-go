@@ -91,11 +91,8 @@ func (m *mockThinkExecutor) ExecuteQCFunction(funcIdx int) error { return nil }
 func TestPhysicsSystemCheckBottomSolidGround(t *testing.T) {
 	col := &mockCollisionWorld{contents: bsp.ContentsSolid}
 	store := &mockEntityStore{}
-	cfg := &mockPhysicsConfig{gravity: 800, maxVelocity: 2000}
-	timing := &mockFrameTiming{time: 1.0, frameTime: 0.05}
-	exec := &mockThinkExecutor{}
 
-	sys := NewSystem(col, store, cfg, timing, exec, nil)
+	sys := NewSystem(col, store, nil)
 
 	ent := &srvtypes.Edict{Num: 1}
 
@@ -107,11 +104,8 @@ func TestPhysicsSystemCheckBottomSolidGround(t *testing.T) {
 func TestPhysicsSystemMoveStepInIsolation(t *testing.T) {
 	col := &mockCollisionWorld{contents: bsp.ContentsSolid}
 	store := &mockEntityStore{}
-	cfg := &mockPhysicsConfig{gravity: 800, maxVelocity: 2000}
-	timing := &mockFrameTiming{time: 1.0, frameTime: 0.05}
-	exec := &mockThinkExecutor{}
 
-	sys := NewSystem(col, store, cfg, timing, exec, nil)
+	sys := NewSystem(col, store, nil)
 
 	ent := &srvtypes.Edict{Num: 1}
 
@@ -124,11 +118,8 @@ func TestPhysicsSystemMoveStepInIsolation(t *testing.T) {
 func TestPhysicsSystemStepDirectionWithMocks(t *testing.T) {
 	col := &mockCollisionWorld{contents: bsp.ContentsSolid}
 	store := &mockEntityStore{}
-	cfg := &mockPhysicsConfig{gravity: 800, maxVelocity: 2000}
-	timing := &mockFrameTiming{time: 1.0, frameTime: 0.05}
-	exec := &mockThinkExecutor{}
 
-	sys := NewSystem(col, store, cfg, timing, exec, nil)
+	sys := NewSystem(col, store, nil)
 
 	ent := &srvtypes.Edict{Num: 1}
 

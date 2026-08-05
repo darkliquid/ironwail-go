@@ -172,7 +172,7 @@ func (s *Server) EdictClearQCVMFunc(vm *qc.VM, entnum int) {
 }
 
 func (s *Server) EdictDefaultOffsets() map[string]int {
-	return defaultEntFieldOffsets
+	return EdictDefaultOffsets()
 }
 
 func (s *Server) SyncQCVMState() {

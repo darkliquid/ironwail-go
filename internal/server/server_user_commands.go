@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"strconv"
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	srvcmds "github.com/darkliquid/ironwail-go/internal/server/commands"
 )
 
 const (
@@ -655,50 +655,19 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 }
 
 func clientStringCommandVerb(cmd string) string {
-	fields := strings.Fields(strings.TrimSpace(cmd))
-	if len(fields) == 0 {
-		return ""
-	}
-	return strings.ToLower(fields[0])
+	return srvcmds.ClientStringCommandVerb(cmd)
 }
 
 func clientStringCommandArgs(cmd string) string {
-	trimmed := strings.TrimSpace(cmd)
-	verb := clientStringCommandVerb(trimmed)
-	if verb == "" {
-		return ""
-	}
-	args := strings.TrimSpace(trimmed[len(verb):])
-	return args
+	return srvcmds.ClientStringCommandArgs(cmd)
 }
 
 func parseClientNameCommand(cmd string) string {
-	value := clientStringCommandArgs(cmd)
-	if value == "" {
-		return ""
-	}
-	if unquoted, err := strconv.Unquote(value); err == nil {
-		value = unquoted
-	}
-	if len(value) > 15 {
-		value = value[:15]
-	}
-	return value
+	return srvcmds.ParseClientNameCommand(cmd)
 }
 
 func parseClientColorCommand(cmd string) int {
-	args := strings.Fields(clientStringCommandArgs(cmd))
-	if len(args) == 0 {
-		return 0
-	}
-	top, _ := strconv.Atoi(args[0])
-	if len(args) == 1 {
-		return top
-	}
-	bottom, _ := strconv.Atoi(args[1])
-	top &= 15
-	bottom &= 15
-	return top*16 + bottom
+	return srvcmds.ParseClientColorCommand(cmd)
 }
 
 func (s *Server) ExecuteClientString(client *Client, cmd string) bool {

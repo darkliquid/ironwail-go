@@ -31,7 +31,7 @@ func (s *Server) ensurePhysicsSys() {
 		if s.CollisionSys == nil {
 			s.CollisionSys = NewCollisionSystem(s)
 		}
-		s.PhysicsSys = NewPhysicsSystem(s.CollisionSys, s, s, s, s, s)
+		s.PhysicsSys = NewPhysicsSystem(s.CollisionSys, s, s)
 	}
 }
 

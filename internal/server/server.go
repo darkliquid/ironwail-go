@@ -280,7 +280,7 @@ func NewServer() *Server {
 	s.acceptConnection = s.Net.CheckNewConnections
 	s.CollisionSys = NewCollisionSystem(s)
 	s.NetManager = NewNetworkManager(s)
-	s.PhysicsSys = NewPhysicsSystem(s.CollisionSys, s, s, s, s, s)
+	s.PhysicsSys = NewPhysicsSystem(s.CollisionSys, s, s)
 	vm.IsServerActive = func() bool { return s.State == ServerStateActive }
 	vm.Cvars = s.CVar
 
@@ -290,7 +290,7 @@ func NewServer() *Server {
 	world := &Edict{Num: 0}
 	s.Edicts = append(s.Edicts, world)
 	s.NumEdicts = 1
-	s.EdictManager = edict.NewManager(s.Edicts, vm, MaxEdicts, 1, 16, nil, clearQCVMEdictData, defaultEntFieldOffsets)
+	s.EdictManager = edict.NewManager(s.Edicts, vm, MaxEdicts, 1, 16, nil, clearQCVMEdictData, EdictDefaultOffsets())
 
 	// Register a minimal set of builtin hooks so QuakeC code that calls
 	// simple entity APIs (spawn/remove/nextent) will be routed to the

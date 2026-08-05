@@ -5,6 +5,7 @@ package server
 import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	srvqc "github.com/darkliquid/ironwail-go/internal/server/qc"
 )
 
 func (s *Server) syncEdictToQCVM(entNum int, ent *Edict) {
@@ -36,7 +37,7 @@ func EdictClearQCVMFunc(vm *qc.VM, entNum int) {
 // EdictDefaultOffsets returns the default entvar field offset table used by
 // map/savegame entity parsing in the edict subpackage.
 func EdictDefaultOffsets() map[string]int {
-	return defaultEntFieldOffsets
+	return srvqc.DefaultEntFieldOffsets()
 }
 
 // ensureDefaultQCVMEdictStorage sets up QCVM edict storage with default
@@ -175,85 +176,6 @@ func (s *Server) newCheckClient() int {
 	return s.NumForEdict(client.Edict)
 }
 
-var defaultEntFieldOffsets = map[string]int{
-	normalizeFieldName("ModelIndex"):   qc.EntFieldModelIndex,
-	normalizeFieldName("AbsMin"):       qc.EntFieldAbsMin,
-	normalizeFieldName("AbsMax"):       qc.EntFieldAbsMax,
-	normalizeFieldName("LTime"):        qc.EntFieldLTime,
-	normalizeFieldName("MoveType"):     qc.EntFieldMoveType,
-	normalizeFieldName("Solid"):        qc.EntFieldSolid,
-	normalizeFieldName("Origin"):       qc.EntFieldOrigin,
-	normalizeFieldName("OldOrigin"):    qc.EntFieldOldOrigin,
-	normalizeFieldName("Velocity"):     qc.EntFieldVelocity,
-	normalizeFieldName("Angles"):       qc.EntFieldAngles,
-	normalizeFieldName("AVelocity"):    qc.EntFieldAVelocity,
-	normalizeFieldName("PunchAngle"):   qc.EntFieldPunchAngle,
-	normalizeFieldName("ClassName"):    qc.EntFieldClassName,
-	normalizeFieldName("Model"):        qc.EntFieldModel,
-	normalizeFieldName("Frame"):        qc.EntFieldFrame,
-	normalizeFieldName("Skin"):         qc.EntFieldSkin,
-	normalizeFieldName("Effects"):      qc.EntFieldEffects,
-	normalizeFieldName("Mins"):         qc.EntFieldMins,
-	normalizeFieldName("Maxs"):         qc.EntFieldMaxs,
-	normalizeFieldName("Size"):         qc.EntFieldSize,
-	normalizeFieldName("Touch"):        qc.EntFieldTouch,
-	normalizeFieldName("Use"):          qc.EntFieldUse,
-	normalizeFieldName("Think"):        qc.EntFieldThink,
-	normalizeFieldName("Blocked"):      qc.EntFieldBlocked,
-	normalizeFieldName("NextThink"):    qc.EntFieldNextThink,
-	normalizeFieldName("GroundEntity"): qc.EntFieldGroundEnt,
-	normalizeFieldName("Health"):       qc.EntFieldHealth,
-	normalizeFieldName("Frags"):        qc.EntFieldFrags,
-	normalizeFieldName("Weapon"):       qc.EntFieldWeapon,
-	normalizeFieldName("WeaponModel"):  qc.EntFieldWeaponModel,
-	normalizeFieldName("WeaponFrame"):  qc.EntFieldWeaponFrame,
-	normalizeFieldName("CurrentAmmo"):  qc.EntFieldCurrentAmmo,
-	normalizeFieldName("AmmoShells"):   qc.EntFieldAmmoShells,
-	normalizeFieldName("AmmoNails"):    qc.EntFieldAmmoNails,
-	normalizeFieldName("AmmoRockets"):  qc.EntFieldAmmoRockets,
-	normalizeFieldName("AmmoCells"):    qc.EntFieldAmmoCells,
-	normalizeFieldName("Items"):        qc.EntFieldItems,
-	normalizeFieldName("TakeDamage"):   qc.EntFieldTakeDamage,
-	normalizeFieldName("Chain"):        qc.EntFieldChain,
-	normalizeFieldName("DeadFlag"):     qc.EntFieldDeadFlag,
-	normalizeFieldName("ViewOfs"):      qc.EntFieldViewOfs,
-	normalizeFieldName("Button0"):      qc.EntFieldButton0,
-	normalizeFieldName("Button1"):      qc.EntFieldButton1,
-	normalizeFieldName("Button2"):      qc.EntFieldButton2,
-	normalizeFieldName("Impulse"):      qc.EntFieldImpulse,
-	normalizeFieldName("FixAngle"):     qc.EntFieldFixAngle,
-	normalizeFieldName("VAngle"):       qc.EntFieldVAngle,
-	normalizeFieldName("IdealPitch"):   qc.EntFieldIdealPitch,
-	normalizeFieldName("NetName"):      qc.EntFieldNetName,
-	normalizeFieldName("Enemy"):        qc.EntFieldEnemy,
-	normalizeFieldName("Flags"):        qc.EntFieldFlags,
-	normalizeFieldName("Colormap"):     qc.EntFieldColormap,
-	normalizeFieldName("Team"):         qc.EntFieldTeam,
-	normalizeFieldName("MaxHealth"):    qc.EntFieldMaxHealth,
-	normalizeFieldName("TeleportTime"): qc.EntFieldTeleportTime,
-	normalizeFieldName("ArmorType"):    qc.EntFieldArmorType,
-	normalizeFieldName("ArmorValue"):   qc.EntFieldArmorValue,
-	normalizeFieldName("WaterLevel"):   qc.EntFieldWaterLevel,
-	normalizeFieldName("WaterType"):    qc.EntFieldWaterType,
-	normalizeFieldName("IdealYaw"):     qc.EntFieldIdealYaw,
-	normalizeFieldName("YawSpeed"):     qc.EntFieldYawSpeed,
-	normalizeFieldName("AimEnt"):       qc.EntFieldAimEnt,
-	normalizeFieldName("GoalEntity"):   qc.EntFieldGoalEntity,
-	normalizeFieldName("SpawnFlags"):   qc.EntFieldSpawnFlags,
-	normalizeFieldName("Target"):       qc.EntFieldTarget,
-	normalizeFieldName("TargetName"):   qc.EntFieldTargetName,
-	normalizeFieldName("DmgTake"):      qc.EntFieldDmgTake,
-	normalizeFieldName("DmgSave"):      qc.EntFieldDmgSave,
-	normalizeFieldName("DmgInflictor"): qc.EntFieldDmgInflictor,
-	normalizeFieldName("Owner"):        qc.EntFieldOwner,
-	normalizeFieldName("MoveDir"):      qc.EntFieldMoveDir,
-	normalizeFieldName("Message"):      qc.EntFieldMessage,
-	normalizeFieldName("Sounds"):       qc.EntFieldSounds,
-	normalizeFieldName("Noise"):        qc.EntFieldNoise,
-	normalizeFieldName("Noise1"):       qc.EntFieldNoise1,
-	normalizeFieldName("Noise2"):       qc.EntFieldNoise2,
-	normalizeFieldName("Noise3"):       qc.EntFieldNoise3,
-}
 
 // ensureQCVMEdictStorage grows VM edict backing storage to match server edict capacity.
 // QuakeC addresses entities by index into a flat byte block; this guarantees indexes
