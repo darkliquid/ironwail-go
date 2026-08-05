@@ -687,3 +687,122 @@ func TestLoadPackFromBytesAndMount(t *testing.T) {
 }
 
 
+
+// TestPakFSReadFile verifies the io/fs.FS adapter reads archive bytes.
+func TestPakFSReadFile(t *testing.T) {
+	pakPath := filepath.Join(t.TempDir(), "pakfs.pak")
+	writeTestPak(t, pakPath, map[string][]byte{
+		"maps/e1m1.bsp":        []byte("bsp-data"),
+		"sound/ambience/water1.wav": []byte("wav-data"),
+	})
+	pakData, err := os.ReadFile(pakPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	pack, err := fs.LoadPackFromBytes("pakfs.pak", pakData)
+	if err != nil {
+		t.Fatalf("LoadPackFromBytes: %v", err)
+	}
+	defer pack.Handle.Close()
+
+	pfs := fs.NewPakFS(pack)
+
+	data, err := pfs.ReadFile("maps/e1m1.bsp")
+	if err != nil {
+		t.Fatalf("ReadFile(e1m1): %v", err)
+	}
+	if string(data) != "bsp-data" {
+		t.Fatalf("data = %q, want %q", string(data), "bsp-data")
+	}
+	if _, err := pfs.ReadFile("maps/missing.bsp"); err == nil {
+		t.Fatal("ReadFile(missing) = nil err, want fs.ErrNotExist")
+	}
+}
+
+// TestPakFSCaseInsensitive pins the Quake case-folding lookup.
+func TestPakFSCaseInsensitive(t *testing.T) {
+	pakPath := filepath.Join(t.TempDir(), "pakcase.pak")
+	writeTestPak(t, pakPath, map[string][]byte{
+		"MapS/E1m1.BSP": []byte("case-data"),
+	})
+	pakData, _ := os.ReadFile(pakPath)
+	pack, err := fs.LoadPackFromBytes("pakcase.pak", pakData)
+	if err != nil {
+		t.Fatalf("LoadPackFromBytes: %v", err)
+	}
+	defer pack.Handle.Close()
+
+	pfs := fs.NewPakFS(pack)
+	data, err := pfs.ReadFile("maps/e1m1.bsp")
+	if err != nil {
+		t.Fatalf("case-insensitive ReadFile: %v", err)
+	}
+	if string(data) != "case-data" {
+		t.Fatalf("data = %q, want %q", string(data), "case-data")
+	}
+}
+
+// TestPakFSStatAndOpen verifies Stat + Open (fs.File) surfaces.
+func TestPakFSStatAndOpen(t *testing.T) {
+	pakPath := filepath.Join(t.TempDir(), "pakstat.pak")
+	writeTestPak(t, pakPath, map[string][]byte{
+		"gfx/conchars.lmp": []byte("chars-0123456789abcdef"),
+	})
+	pakData, _ := os.ReadFile(pakPath)
+	pack, err := fs.LoadPackFromBytes("pakstat.pak", pakData)
+	if err != nil {
+		t.Fatalf("LoadPackFromBytes: %v", err)
+	}
+	defer pack.Handle.Close()
+
+	pfs := fs.NewPakFS(pack)
+
+	fi, err := pfs.Stat("gfx/conchars.lmp")
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if fi.Size() != int64(len("chars-0123456789abcdef")) {
+		t.Fatalf("Size = %d, want %d", fi.Size(), len("chars-0123456789abcdef"))
+	}
+
+	f, err := pfs.Open("gfx/conchars.lmp")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer f.Close()
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, f); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
+	if buf.String() != "chars-0123456789abcdef" {
+		t.Fatalf("read = %q", buf.String())
+	}
+}
+
+// TestPakFSReadDir verifies directory unfolding.
+func TestPakFSReadDir(t *testing.T) {
+	pakPath := filepath.Join(t.TempDir(), "pakdir.pak")
+	writeTestPak(t, pakPath, map[string][]byte{
+		"maps/e1m1.bsp":     []byte("a"),
+		"maps/e1m2.bsp":     []byte("b"),
+		"sound/ambience/1.wav": []byte("c"),
+	})
+	pakData, _ := os.ReadFile(pakPath)
+	pack, err := fs.LoadPackFromBytes("pakdir.pak", pakData)
+	if err != nil {
+		t.Fatalf("LoadPackFromBytes: %v", err)
+	}
+	defer pack.Handle.Close()
+
+	pfs := fs.NewPakFS(pack)
+	entries, err := pfs.ReadDir("maps")
+	if err != nil {
+		t.Fatalf("ReadDir(maps): %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("len(ReadDir(maps)) = %d, want 2", len(entries))
+	}
+	if entries[0].Name() != "e1m1.bsp" || entries[1].Name() != "e1m2.bsp" {
+		t.Fatalf("maps entries = %v, %v", entries[0].Name(), entries[1].Name())
+	}
+}

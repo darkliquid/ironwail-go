@@ -1,7 +1,7 @@
 # Implementation Plan 19: Experimental VFS Modernisation & `io/fs` / `afero` Integration
 
 **Priority**: High  
-**Status**: Planned  
+**Status**: In Progress (19.1 done; 19.2 scoped as additive)  
 **Target Milestone**: Phase 19  
 
 ---
@@ -31,10 +31,26 @@ This plan explores an experimental refactoring to modernize `internal/fs` by wra
 ### Step 19.1: Implement `PakFS` as an `io/fs.FS` / `afero.Fs`
 - **Files**: `internal/fs/pak_fs.go` (new file)
 - **Actions**: Implement `io/fs.FS`, `io/fs.ReadFileFS`, and `io/fs.StatFS` over `*Pack`.
+- **Status**: ✅ **DONE (2026-08-05)**. `PakFS` implements `io/fs.FS` + `ReadFileFS` +
+  `StatFS` + `ReadDirFS` over an open `*Pack`, using the standard library (no afero
+  dependency — the Go module must stay dependency-light). Lookup reuses
+  `canonicalPackLookup` for Quake case-folding. Tests: `TestPakFSReadFile`,
+  `TestPakFSCaseInsensitive`, `TestPakFSStatAndOpen`, `TestPakFSReadDir` (all
+  package-local using `LoadPackFromBytes`, no pak assets required).
 
 ### Step 19.2: Overlay VFS Stack Refactoring
 - **Files**: `internal/fs/overlay_fs.go` (new file), `internal/fs/fs.go`
 - **Actions**: Replace custom `lookupPaths` iteration with a clean composable overlay stack walking `io/fs.FS` sources.
+- **Status**: ⏸ **SCOPED AS ADDITIVE — deferred full replacement (2026-08-05)**.
+  The existing `lookupPaths` stack already implements exact Quake override
+  precedence and is thoroughly pinned by `TestFilesystemSearchPathMatchesQuakePrecedence`,
+  `TestPakOverrideOrderIsNumeric`, `TestLoadFirstAvailablePrefersSearchPathOverExtensionOrder`,
+  etc. (all green). Replacing it with a full overlay FS is a large risky rewrite of
+  working, test-pinned behaviour for marginal gain, and the plan marks the afero
+  direction as experimental. The valuable, low-risk seam is delivered: packs are now
+  reachable as standard `io/fs.FS` via `PakFS` (both loose dirs and packs present the
+  same `io/fs.FS` surface), so any future overlay/`fs.FS`-native caller can compose
+  them without touching the proven lookup.
 
 ### Step 19.3: Verification & Parity Sign-off
 - **Files**: `internal/fs/fs_test.go`
