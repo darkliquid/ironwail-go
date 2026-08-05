@@ -807,15 +807,11 @@ func TestPakFSReadDir(t *testing.T) {
 	}
 }
 
-// TestOverlaySameDirPrecedence pins the mount-stack override order within
-// one game directory: index-0 of the group wins. The pre-migration code
-// ordered paks above the loose dir in the search stack, so identical
-// behavior means pak wins over a same-dir loose file. This exercises the
-// single OverlayFS resolution path end-to-end and pins order parity with the
-// old lookupPaths stack.
-//
-// NOTE: C Ironwail actually places loose dirs above paks; that precedence
-// question is tracked separately as a parity fix, not changed by 19b.
+// TestOverlaySameDirPrecedence pins the mount-stack override order within one
+// game directory: paks sit ABOVE the loose dir, matching C Ironwail
+// COM_AddGameDirectory (which prepends each pak above the loose dir, so the
+// highest-numbered pak is the search head). This exercises the single
+// OverlayFS resolution path end-to-end and pins C parity.
 func TestOverlaySameDirPrecedence(t *testing.T) {
 	dir := t.TempDir()
 	// pak0 with data, and a loose file of the same name in the same dir.

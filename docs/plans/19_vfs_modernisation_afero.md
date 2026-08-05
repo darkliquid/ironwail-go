@@ -46,10 +46,10 @@ This plan explores an experimental refactoring to modernize `internal/fs` by wra
   `searchPaths` dual-slice design is deleted; `internal/fs` now resolves through a
   single ordered `mount` stack (loose `rootFS` + `PakFS`, both `io/fs.FS`), walked by
   an `OverlayFS`. Public API, `SearchResult`, `Priority`, case-folding, and traversal
-  protection are unchanged; all 20 existing fs tests plus a new same-dir precedence
-  test pass. NOTE: the migration preserved the pre-existing paks-above-loose ordering
-  within a game dir (C Ironwail places loose above paks); that parity question is
-  tracked as a separate follow-up, not changed by 19b.
+  protection are unchanged; all 20 existing fs tests plus a new same-dir precedence test pass.
+  C parity confirmed against ironwail/Quake/common.c COM_AddGameDirectory: paks
+  are prepended above the loose dir, so paks-above-loose IS the C behavior (the
+  search head is the highest-numbered pak).
 
 ### Step 19.3: Verification & Parity Sign-off
 - **Files**: `internal/fs/fs_test.go`
