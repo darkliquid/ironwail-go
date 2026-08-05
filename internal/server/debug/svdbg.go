@@ -59,6 +59,14 @@ func SvDebugPushLevel() int {
 	return svDebugPushCVar.Int
 }
 
+// SvDebugPushEnabled reports whether any sv_debug_push logging is active.
+// Hot-loop call sites use it to skip varargs formatting and interface-boxing
+// when the cvar is 0; without it every SvdbgPushLogf* call in the per-edict
+// PushMove loop allocates a []any even when diagnostics are off.
+func SvDebugPushEnabled() bool {
+	return svDebugPushCVar != nil && svDebugPushCVar.Int > 0
+}
+
 // ResetSvdbgCVars clears the svdbg cvar references. Used by tests to
 // ensure a clean state between test cases.
 func ResetSvdbgCVars() {

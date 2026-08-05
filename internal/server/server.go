@@ -86,6 +86,13 @@ type Server struct {
 	Areanodes    []AreaNode
 	numAreaNodes int
 
+	// pushMoveBuffers reuse the origin-restore slices across PushMove calls.
+	// PushMove allocates them anew per call sized by NumEdicts, which costs
+	// millions of allocations on busy maps; the slices only matter on the
+	// rare fully-blocked path. Reset to length 0 at the start of each call.
+	pushMoveMoved []*Edict
+	pushMoveFrom  [][3]float32
+
 	// Network messaging
 	Datagram         *MessageBuffer
 	ReliableDatagram *MessageBuffer
@@ -229,7 +236,6 @@ type Client struct {
 // Note: AreaNode struct definition has been moved to internal/server/types/area.go.
 // The type alias server.AreaNode is exported in internal/server/types.go.
 
-
 // syncEdictToQCVM copies one Go edict's EntVars into the QuakeC VM edict table.
 // This is part of the engine↔QC bridge: before QC runs, the authoritative Go state
 // is mirrored so QC builtins and scripts read the same fields (origin, health, etc.).
@@ -269,7 +275,6 @@ func NewServer() *Server {
 	s.PhysicsSys = NewPhysicsSystem(s.CollisionSys, s, s, s, s, s)
 	vm.IsServerActive = func() bool { return s.State == ServerStateActive }
 	vm.Cvars = s.CVar
-
 
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations
 	// return entity indices starting at 1, matching the VM's
