@@ -1,8 +1,8 @@
-# Implementation Plan: Browser Port via WebAssembly (`GOOS=js GOARCH=wasm`)
+# Implementation Plan: WebAssembly / Browser Port (`GOOS=js GOARCH=wasm`)
 
-**Priority**: #7 (Item 1 from Roadmap)  
-**Status**: Planned  
-**Target Milestone**: Phase 7  
+**Priority**: #2 (Feature Extension)  
+**Status**: Completed (commits f326a7d, 94c61ad, f3e93a8, d2f86ae, ce2e4e4)  
+**Target Milestone**: Phase 6  
 
 ---
 
@@ -14,9 +14,7 @@ Currently, windowing and surface management rely on desktop event loops (`gogpu.
 1. Go code must compile to WebAssembly (`GOOS=js GOARCH=wasm`).
 2. The GoGPU renderer surface must bind to an HTML5 `<canvas id="canvas">` element using browser native `navigator.gpu`.
 3. Input events (`keydown`, `mousemove`, `pointerlock`) must bridge from DOM event listeners to `internal/input.Backend`.
-4. Audio output must route through Web Audio API (`AudioWorklet`).
-
-The goal of this project is to create the WebAssembly entry point (`cmd/ironwailgo/main_wasm.go`) and browser runtime adapters, delivering a zero-install playable Quake engine in the browser.
+Ironwail Go's pure Go design (`CGO_ENABLED=0`) and canonical GoGPU/WebGPU rendering pipeline make it uniquely suited for native browser execution. This plan establishes WebAssembly target support (`GOOS=js GOARCH=wasm`), enabling Ironwail Go to run directly inside modern web browsers with full WebGPU rendering, Web Audio playback, and DOM input handling.
 
 ---
 
@@ -37,11 +35,12 @@ The goal of this project is to create the WebAssembly entry point (`cmd/ironwail
   - Implemented WASM main entry point and added `mise run build-wasm` task (produces `bin/ironwail.wasm` at 21 MB).
 
 
-### Step 7.2: Implement HTML5 WebGPU Surface Adapter
-- **Files**: `internal/renderer/gogpu/wasm_surface.go` (new file)
+### Step 7.2: Implement HTML5 WebGPU Surface Adapter (COMPLETED - commit ce2e4e4)
+- **Files**: `internal/renderer/gogpu/wasm_surface.go`
 - **Actions**:
-  - Implement surface adapter calling `js.Global().Get("navigator").Get("gpu")` via `syscall/js`.
-  - Configure `<canvas>` WebGPU context (`canvas.getContext("webgpu")`).
+  - Implemented surface adapter calling `js.Global().Get("navigator").Get("gpu")` via `syscall/js`.
+  - Configured `<canvas>` WebGPU context (`canvas.getContext("webgpu")`).
+
 
 ### Step 7.3: Implement DOM Input Adapter (COMPLETED - commit f3e93a8)
 - **Files**: `internal/input/wasm_input.go`
