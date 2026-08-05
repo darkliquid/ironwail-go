@@ -78,3 +78,8 @@ func (s *System) SV_CheckWater(ent *srvtypes.Edict) bool {
 func (s *System) PushEntity(ent *srvtypes.Edict, push [3]float32) srvtypes.TraceResult {
 	return PushEntity(s.col, ent, push, s.sh)
 }
+
+// FlyMove integrates velocity across sliding planes for an entity over time.
+func (s *System) FlyMove(ent *srvtypes.Edict, time float32) int {
+	return FlyMove(s.col, s.cfg, s.timing, ent, time, s.sh)
+}
