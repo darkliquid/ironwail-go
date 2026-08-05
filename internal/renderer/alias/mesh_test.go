@@ -139,6 +139,34 @@ func TestBuildVerticesUsesSinglePose(t *testing.T) {
 	}
 }
 
+func BenchmarkBuildVerticesInterpolatedInto(b *testing.B) {
+	poses := make([][]model.TriVertX, 2)
+	poses[0] = make([]model.TriVertX, 500)
+	poses[1] = make([]model.TriVertX, 500)
+	refs := make([]MeshRef, 1500)
+	for i := 0; i < 500; i++ {
+		poses[0][i] = model.TriVertX{V: [3]byte{byte(i % 250), byte((i * 2) % 250), byte((i * 3) % 250)}, LightNormalIndex: byte(i % 162)}
+		poses[1][i] = model.TriVertX{V: [3]byte{byte((i + 10) % 250), byte((i * 2 + 10) % 250), byte((i * 3 + 10) % 250)}, LightNormalIndex: byte(i % 162)}
+	}
+	for i := 0; i < 1500; i++ {
+		refs[i] = MeshRef{VertexIndex: i % 500, TexCoord: [2]float32{float32(i) / 1500.0, float32(i) / 1500.0}}
+	}
+	mesh := MeshFromRefs(poses, refs)
+	hdr := &model.AliasHeader{
+		Scale:       [3]float32{1, 1, 1},
+		ScaleOrigin: [3]float32{0, 0, 0},
+	}
+	dst := make([]worldimpl.WorldVertex, 0, 1500)
+	angles := [3]float32{15, 45, 10}
+	origin := [3]float32{100, 200, 300}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		dst = BuildVerticesInterpolatedInto(dst, mesh, hdr, 0, 1, 0.5, origin, angles, 1.0, true)
+	}
+}
+
+
 func TestMeshFromAccessor(t *testing.T) {
 	type backendRef struct {
 		index int

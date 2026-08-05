@@ -20,6 +20,7 @@ type Mesh struct {
 	Poses    [][]model.TriVertX
 	RefCount int
 	RefAt    func(index int) MeshRef
+	Refs     []MeshRef
 }
 
 type FrameDesc struct {
@@ -42,6 +43,7 @@ func MeshFromRefs(poses [][]model.TriVertX, refs []MeshRef) Mesh {
 	return Mesh{
 		Poses:    poses,
 		RefCount: len(refs),
+		Refs:     refs,
 		RefAt: func(index int) MeshRef {
 			return refs[index]
 		},
@@ -137,7 +139,7 @@ func BuildVerticesInterpolated(mesh Mesh, hdr *model.AliasHeader, pose1Index, po
 }
 
 func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *model.AliasHeader, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []worldimpl.WorldVertex {
-	if hdr == nil || mesh.RefAt == nil {
+	if hdr == nil || (mesh.RefAt == nil && mesh.Refs == nil) {
 		return nil
 	}
 	if pose1Index < 0 || pose1Index >= len(mesh.Poses) || pose2Index < 0 || pose2Index >= len(mesh.Poses) {
@@ -154,39 +156,133 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 	if vertices == nil {
 		vertices = make([]worldimpl.WorldVertex, 0, mesh.RefCount)
 	}
+
+	// Pre-compute rotation ONCE per entity draw call instead of per vertex
+	useYawOnly := !fullAngles || (angles[0] == 0 && angles[2] == 0)
+	var (
+		sinYaw, cosYaw float32
+		rotMat         [9]float32
+	)
+
+	if useYawOnly {
+		if angles[1] != 0 {
+			yaw := float32(math.Pi) * angles[1] / 180.0
+			sinYaw = float32(math.Sin(float64(yaw)))
+			cosYaw = float32(math.Cos(float64(yaw)))
+		} else {
+			cosYaw = 1.0
+		}
+	} else {
+		rotMat = entityRotationMatrix(angles)
+	}
+
+	fastRefs := mesh.Refs
+
+	scale := hdr.Scale
+	scaleOrigin := hdr.ScaleOrigin
+
 	for i := 0; i < mesh.RefCount; i++ {
-		ref := mesh.RefAt(i)
+		var ref MeshRef
+		if fastRefs != nil {
+			ref = fastRefs[i]
+		} else {
+			ref = mesh.RefAt(i)
+		}
 		if ref.VertexIndex < 0 || ref.VertexIndex >= len(pose1) || ref.VertexIndex >= len(pose2) {
 			continue
 		}
 
-		position := InterpolateVertexPosition(pose1[ref.VertexIndex], pose2[ref.VertexIndex], hdr.Scale, hdr.ScaleOrigin, blend)
-		position[0] *= entityScale
-		position[1] *= entityScale
-		position[2] *= entityScale
+		v1 := pose1[ref.VertexIndex]
+		v1x := float32(v1.V[0])
+		v1y := float32(v1.V[1])
+		v1z := float32(v1.V[2])
 
-		normal := model.GetNormal(pose1[ref.VertexIndex].LightNormalIndex)
-		if fullAngles {
-			position = RotateAngles(position, angles)
-			normal = RotateAngles(normal, angles)
+		var px, py, pz float32
+		if blend > 0 {
+			v2 := pose2[ref.VertexIndex]
+			px = (v1x + (float32(v2.V[0])-v1x)*blend) * scale[0] + scaleOrigin[0]
+			py = (v1y + (float32(v2.V[1])-v1y)*blend) * scale[1] + scaleOrigin[1]
+			pz = (v1z + (float32(v2.V[2])-v1z)*blend) * scale[2] + scaleOrigin[2]
 		} else {
-			position = RotateYaw(position, angles[1])
-			normal = RotateYaw(normal, angles[1])
+			px = v1x*scale[0] + scaleOrigin[0]
+			py = v1y*scale[1] + scaleOrigin[1]
+			pz = v1z*scale[2] + scaleOrigin[2]
 		}
 
-		position[0] += origin[0]
-		position[1] += origin[1]
-		position[2] += origin[2]
+		if entityScale != 1.0 {
+			px *= entityScale
+			py *= entityScale
+			pz *= entityScale
+		}
+
+		normal := model.GetNormal(v1.LightNormalIndex)
+		var nx, ny, nz float32
+		if useYawOnly {
+			if angles[1] != 0 {
+				rpx := px*cosYaw - py*sinYaw
+				rpy := px*sinYaw + py*cosYaw
+				px = rpx
+				py = rpy
+
+				rnx := normal[0]*cosYaw - normal[1]*sinYaw
+				rny := normal[0]*sinYaw + normal[1]*cosYaw
+				nx = rnx
+				ny = rny
+				nz = normal[2]
+			} else {
+				nx = normal[0]
+				ny = normal[1]
+				nz = normal[2]
+			}
+		} else {
+			rpx := rotMat[0]*px + rotMat[1]*py + rotMat[2]*pz
+			rpy := rotMat[3]*px + rotMat[4]*py + rotMat[5]*pz
+			rpz := rotMat[6]*px + rotMat[7]*py + rotMat[8]*pz
+			px = rpx
+			py = rpy
+			pz = rpz
+
+			nx = rotMat[0]*normal[0] + rotMat[1]*normal[1] + rotMat[2]*normal[2]
+			ny = rotMat[3]*normal[0] + rotMat[4]*normal[1] + rotMat[5]*normal[2]
+			nz = rotMat[6]*normal[0] + rotMat[7]*normal[1] + rotMat[8]*normal[2]
+		}
+
+		px += origin[0]
+		py += origin[1]
+		pz += origin[2]
 
 		vertices = append(vertices, worldimpl.WorldVertex{
-			Position:      position,
+			Position:      [3]float32{px, py, pz},
 			TexCoord:      ref.TexCoord,
 			LightmapCoord: [2]float32{},
-			Normal:        normal,
+			Normal:        [3]float32{nx, ny, nz},
 		})
 	}
 	return vertices
 }
+
+
+func entityRotationMatrix(angles [3]float32) [9]float32 {
+	pitch := float32(math.Pi) * angles[0] / 180.0
+	yaw := float32(math.Pi) * angles[1] / 180.0
+	roll := float32(math.Pi) * angles[2] / 180.0
+
+	sp := float32(math.Sin(float64(pitch)))
+	cp := float32(math.Cos(float64(pitch)))
+	sy := float32(math.Sin(float64(yaw)))
+	cy := float32(math.Cos(float64(yaw)))
+	sr := float32(math.Sin(float64(roll)))
+	cr := float32(math.Cos(float64(roll)))
+
+	// RotateAngles sequence: Rx(roll) -> Ry(-pitch) -> Rz(yaw)
+	// Output row-major 3x3 matrix:
+	return [9]float32{
+		cy*cp, -sy*cr - cy*sp*sr, sy*sr - cy*sp*cr,
+		sy*cp, cy*cr - sy*sp*sr, -cy*sr - sy*sp*cr,
+		sp, cp * sr, cp * cr,
+	}
+}
+
 
 // RotateAngles rotates v by Quake Euler angles (pitch, yaw, roll) matching
 // C R_EntityMatrix / R_DrawAliasModel's sequence of glRotatef calls:
