@@ -28,6 +28,18 @@ func clearQCVMEdictData(vm *qc.VM, entNum int) {
 	clear(data)
 }
 
+// EdictClearQCVMFunc is the injected QCVM-clear dependency for the edict
+// subpackage (edict.NewManager).
+func EdictClearQCVMFunc(vm *qc.VM, entNum int) {
+	clearQCVMEdictData(vm, entNum)
+}
+
+// EdictDefaultOffsets returns the default entvar field offset table used by
+// map/savegame entity parsing in the edict subpackage.
+func EdictDefaultOffsets() map[string]int {
+	return defaultEntFieldOffsets
+}
+
 // ensureDefaultQCVMEdictStorage sets up QCVM edict storage with default
 // parameters when no progs.dat has been loaded yet. This ensures accessor
 // methods work during tests and early initialization. When progs.dat has

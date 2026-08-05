@@ -27,6 +27,45 @@
 > The deep `Renderer.wgpu*` → `pipeline.Resources` ownership transfer (§10.1
 > row 1) remains TODO for 16+2. Pinned descriptor tests live in
 > `pipeline/pipeline_test.go`.
+>
+> **Step 2 (`renderer/lightmap` Uploader) ASSESSED, deferred**: the only
+> remaining lightmap code in the parent is GPU glue (texture creation,
+> `writeTextureChunked`, `createWorldLightmapBindGroup`) operating on the
+> root-owned `*gpuWorldTexture` handle. Moving that into a `lightmap.Uploader`
+> requires either importing wgpu into `renderer/world` (where `lightmap` can
+> reach the handle) or introducing a new handle type that churns 12+ root
+> consumers — and the GPU glue has no pure-CPU testable content (that already
+> lives in lightmap from 16.1). The `.lit` parsing stays with BSP loading.
+> Deferred as low-ROI; the CPU seam is already extracted.
+>
+> **`renderer/particle` (16+2.4) ASSESSED, deferred**: `ParticleSystem` is a
+> self-contained leaf with a clean public API already consumed by game via
+> `renderer.ParticleSystem`/`NewParticleSystem`/`MaxParticles`. Moving it to a
+> real package forces every emitter + game import to change for no added
+> isolation (there is no Pattern A leaf; the effect methods mutate the pool
+> and read package-level vars). The test-isolation value belongs to plan 17,
+> not a package move.
+>
+> **`game/runtime` + `game/ui` (16+2.5/16+2.6) ASSESSED, deferred**: the four
+> `runtime_*.go` files make ~109 distinct `g.*` references (many private:
+> `chatBuffer`, `buildCSQCDrawHooksWithActivity`, ...). A real facade would
+> need ~109 exported accessors, converting clean internal calls into
+> cross-package indirection; game is a coordinator that legitimately wires
+> sub-systems. File grouping (16.4) is done; a real runtime/ui package needs a
+> data-object decomposition, not a facade over Game.
+>
+> **Step 7 (`server/edict`) DONE** (2026-08-05): the full `EntityManager`
+> (853 lines) moved to `internal/server/edict` as `Manager` with the two root
+> server dependencies (`clearQCVMEdictData`, `defaultEntFieldOffsets`)
+> injected via constructor params (`EdictClearQCVMFunc`/`EdictDefaultOffsets`
+> exported from root). `Edict` stays in `server/types` (82-file shared type);
+> root keeps only the shared parse helpers + `stringEntFieldNames`/
+> `normalizeFieldName` (used by savegame.go/server_qc_sync.go) in
+> `edict_compat.go`. The two construction sites (`sv_main.go` map load,
+> `savegame_text.go` restore) now call `edict.NewManager`; mid-loop pool
+> growth is handled by `SetEdicts`/`SetNumEdicts`. Pinned tests
+> (alloc/free cooldown, parse structure, globals) live in
+> `edict/edict_test.go`. Zero import cycles; `go test ./...` green.
 
 ---
 

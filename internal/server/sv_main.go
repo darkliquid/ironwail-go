@@ -15,6 +15,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/server/edict"
 )
 
 func normalizeServerMapName(mapName string) string {
@@ -471,14 +472,7 @@ func (s *Server) loadMapEntities(raw string) error {
 	if s.Static != nil {
 		maxClients = s.Static.MaxClients
 	}
-	em := &EntityManager{
-		edicts:     s.Edicts,
-		vm:         s.QCVM,
-		maxEdicts:  s.MaxEdicts,
-		numEdicts:  s.NumEdicts,
-		maxClients: maxClients,
-		freeTime:   make([]float32, max(s.MaxEdicts, len(s.Edicts))),
-	}
+	em := edict.NewManager(s.Edicts, s.QCVM, s.MaxEdicts, s.NumEdicts, maxClients, make([]float32, max(s.MaxEdicts, len(s.Edicts))), EdictClearQCVMFunc, EdictDefaultOffsets())
 
 	// Read skill and deathmatch cvars for entity filtering.
 	skill := 1
@@ -509,8 +503,8 @@ func (s *Server) loadMapEntities(raw string) error {
 				return fmt.Errorf("no free edict for map entity %d", entIndex)
 			}
 			entNum = s.NumForEdict(ent)
-			em.edicts = s.Edicts
-			em.numEdicts = s.NumEdicts
+			em.SetEdicts(s.Edicts)
+			em.SetNumEdicts(s.NumEdicts)
 		}
 
 		next, err := em.ED_ParseEdict(remaining, entNum)

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/common"
+	"github.com/darkliquid/ironwail-go/internal/server/edict"
 )
 
 // maxInt returns the larger of a and b.
@@ -58,14 +59,7 @@ func (s *Server) RestoreTextSaveGameState(state *TextSaveGameState) error {
 		s.Static.Clients[0].SpawnParms = state.SpawnParms
 	}
 
-	em := &EntityManager{
-		edicts:     s.Edicts,
-		vm:         s.QCVM,
-		maxEdicts:  s.MaxEdicts,
-		numEdicts:  s.NumEdicts,
-		freeTime:   make([]float32, maxInt(s.MaxEdicts, len(s.Edicts))),
-		maxClients: s.MaxClients(),
-	}
+	em := edict.NewManager(s.Edicts, s.QCVM, s.MaxEdicts, s.NumEdicts, s.MaxClients(), make([]float32, maxInt(s.MaxEdicts, len(s.Edicts))), EdictClearQCVMFunc, EdictDefaultOffsets())
 	em.SetCurrentTime(s.Time)
 
 	s.ClearWorld()
@@ -92,8 +86,8 @@ func (s *Server) RestoreTextSaveGameState(state *TextSaveGameState) error {
 			if err := s.ensureTextSaveEdictCapacity(entnum + 1); err != nil {
 				return err
 			}
-			em.edicts = s.Edicts
-			if entnum < em.numEdicts {
+			em.SetEdicts(s.Edicts)
+			if entnum < em.NumEdicts() {
 				em.ED_ClearEdict(entnum)
 			} else {
 				s.Edicts[entnum] = &Edict{Scale: 16}
