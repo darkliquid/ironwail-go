@@ -1,13 +1,4 @@
-// Package server implements the Quake server physics and game logic.
-//
-// world.go provides world collision detection and spatial queries.
-// It implements:
-//   - Hull-based collision against BSP geometry
-//   - Entity-to-entity collision clipping
-//   - Area grid for efficient spatial queries
-//   - Point contents testing
-
-// This file belongs to the Physics/Collision subsystem: collision detection, spatial queries, movement, and per-entity physics simulation.
+// world.go provides server-side delegates to the collision subsystem.
 package server
 
 import (
@@ -15,629 +6,112 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/server/collision"
 )
 
-// Move types for SV_Move
-const (
-	MoveNormal     = 0 // Normal move
-	MoveNoMonsters = 1 // Ignore monsters (only BSP collision)
-	MoveMissile    = 2 // Missile move (uses larger bbox for clipping)
-	MoveWaterJump  = 3 // Water jump move
-)
-
-// Collision constants
-const (
-	DistEpsilon = 0.03125 // Distance epsilon for hull checks
-
-	// Area grid depth (affects spatial partitioning granularity)
-	AreaDepth = 4
-	AreaNodes = 2 << AreaDepth
-)
-
-// moveClip holds state during a move/clipping operation.
-type moveClip struct {
-	boxMins   [3]float32 // Enclose the test object along entire move
-	boxMaxs   [3]float32
-	mins      [3]float32 // Size of the moving object
-	maxs      [3]float32
-	mins2     [3]float32 // Size when clipping against monsters
-	maxs2     [3]float32
-	start     [3]float32
-	end       [3]float32
-	trace     TraceResult
-	moveType  int
-	passedict *Edict
-}
-
-// Box hull state - used for entity bounding box collision
-var (
-	boxHull       model.Hull
-	boxClipNodes  [6]model.MClipNode
-	boxPlanes     [6]model.MPlane
-	boxHullInited bool
-)
-
-// initBoxHull sets up the planes and clipnodes so that the six floats
-// of a bounding box can just be stored out and get a proper hull structure.
-func initBoxHull() {
-	if boxHullInited {
-		return
-	}
-
-	boxHull.ClipNodes = boxClipNodes[:]
-	boxHull.Planes = boxPlanes[:]
-	boxHull.FirstClipNode = 0
-	boxHull.LastClipNode = 5
-
-	for i := 0; i < 6; i++ {
-		boxClipNodes[i].PlaneNum = i
-		side := i & 1
-		boxClipNodes[i].Children[side] = bsp.ContentsEmpty
-		if i != 5 {
-			boxClipNodes[i].Children[side^1] = i + 1
-		} else {
-			boxClipNodes[i].Children[side^1] = bsp.ContentsSolid
-		}
-		boxPlanes[i].Type = uint8(i >> 1)
-		boxPlanes[i].Normal[i>>1] = 1
-	}
-
-	boxHullInited = true
-}
-
-// hullForBox creates a temporary hull from bounding box sizes.
-// To keep everything uniform, bounding boxes are turned into small
-// BSP trees instead of being compared directly.
-func hullForBox(mins, maxs [3]float32) *model.Hull {
-	initBoxHull()
-
-	boxPlanes[0].Dist = maxs[0]
-	boxPlanes[1].Dist = mins[0]
-	boxPlanes[2].Dist = maxs[1]
-	boxPlanes[3].Dist = mins[1]
-	boxPlanes[4].Dist = maxs[2]
-	boxPlanes[5].Dist = mins[2]
-
-	return &boxHull
-}
-
-// hullForEntity returns a hull that can be used for testing or clipping
-// an object of mins/maxs size.
-// The offset is filled in to contain the adjustment that must be added
-// to the testing object's origin to get a point to use with the returned hull.
-func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]float32) *model.Hull {
-	// Decide which clipping hull to use, based on the size
-	if int(ent.Solid(s)) == int(SolidBSP) {
-		// Explicit hulls in the BSP model.
-		size := [3]float32{
-			maxs[0] - mins[0],
-			maxs[1] - mins[1],
-			maxs[2] - mins[2],
-		}
-
-		hullNum := 0
-		if size[0] >= 3 {
-			if size[0] <= 32 {
-				hullNum = 1
-			} else {
-				hullNum = 2
-			}
-		}
-
-		if s.WorldModel != nil {
-			if m := s.WorldModel; m != nil {
-				var hull model.Hull
-				if hullNum >= 0 && hullNum < m.NumHulls() {
-					hull = m.Hull(hullNum)
-				}
-				modelIndex := int(ent.ModelIndex(s))
-				if ent == s.Edicts[0] || modelIndex <= 1 {
-					modelIndex = 1
-				}
-				if modelIndex > 1 && s.WorldTree != nil && modelIndex-1 < len(s.WorldTree.Models) {
-					headNode := int(s.WorldTree.Models[modelIndex-1].HeadNode[hullNum])
-					if headNode >= 0 {
-						hull.FirstClipNode = headNode
-					}
-				}
-				if len(hull.ClipNodes) > 0 && hull.FirstClipNode >= 0 {
-					origin := ent.Origin(s)
-					offset[0] = hull.ClipMins[0] - mins[0] + origin[0]
-					offset[1] = hull.ClipMins[1] - mins[1] + origin[1]
-					offset[2] = hull.ClipMins[2] - mins[2] + origin[2]
-					return &hull
-				}
-			}
-		}
-
-		// Fallback to box hull
-		entMins := ent.Mins(s)
-		entMaxs := ent.Maxs(s)
-		origin := ent.Origin(s)
-		hullMins := [3]float32{
-			entMins[0] - maxs[0],
-			entMins[1] - maxs[1],
-			entMins[2] - maxs[2],
-		}
-		hullMaxs := [3]float32{
-			entMaxs[0] - mins[0],
-			entMaxs[1] - mins[1],
-			entMaxs[2] - mins[2],
-		}
-		offset[0] = origin[0]
-		offset[1] = origin[1]
-		offset[2] = origin[2]
-		return hullForBox(hullMins, hullMaxs)
-	}
-
-	// Create a temp hull from bounding box sizes
-	entMins := ent.Mins(s)
-	entMaxs := ent.Maxs(s)
-	origin := ent.Origin(s)
-	hullMins := [3]float32{
-		entMins[0] - maxs[0],
-		entMins[1] - maxs[1],
-		entMins[2] - maxs[2],
-	}
-	hullMaxs := [3]float32{
-		entMaxs[0] - mins[0],
-		entMaxs[1] - mins[1],
-		entMaxs[2] - mins[2],
-	}
-	hull := hullForBox(hullMins, hullMaxs)
-
-	offset[0] = origin[0]
-	offset[1] = origin[1]
-	offset[2] = origin[2]
-	return hull
-}
-
-// ============================================================================
-// POINT TESTING IN HULLS
-// ============================================================================
-
-func hullPlaneDistance(plane *model.MPlane, p [3]float32) float32 {
-	if plane.Type < 3 {
-		return p[plane.Type] - plane.Dist
-	}
-
-	return float32(float64(plane.Normal[0])*float64(p[0]) +
-		float64(plane.Normal[1])*float64(p[1]) +
-		float64(plane.Normal[2])*float64(p[2]) -
-		float64(plane.Dist))
-}
-
-// hullPointContents returns the contents at a point within a hull.
-// This recursively traverses the BSP tree to find which leaf the point is in.
-func hullPointContents(hull *model.Hull, num int, p [3]float32) int {
-	// Handle leaf nodes (negative numbers)
-	if num < 0 {
-		return num
-	}
-
-	// Safety check
-	if num < hull.FirstClipNode || num > hull.LastClipNode {
-		return bsp.ContentsSolid
-	}
-
-	for num >= 0 {
-		if num < hull.FirstClipNode || num > hull.LastClipNode {
-			return bsp.ContentsSolid
-		}
-
-		node := &hull.ClipNodes[num]
-		plane := &hull.Planes[node.PlaneNum]
-		d := hullPlaneDistance(plane, p)
-
-		if d < 0 {
-			num = node.Children[1]
-		} else {
-			num = node.Children[0]
-		}
-	}
-
-	return num
-}
-
-// PointContents returns the contents at a point in the world.
-// This is the main entry point for checking what's at a location.
-func (s *Server) PointContents(p [3]float32) int {
-	// Get world model's hull 0 (point hull)
-	if s.WorldModel == nil {
-		return bsp.ContentsSolid
-	}
-
-	m := s.WorldModel
-	if m == nil || m.NumHulls() == 0 {
-		return bsp.ContentsSolid
-	}
-
-	hull := m.Hull(0)
-	cont := hullPointContents(&hull, 0, p)
-
-	// Current contents are simplified to water
-	if cont <= bsp.ContentsCurrent0 && cont >= bsp.ContentsCurrentDown {
-		cont = bsp.ContentsWater
-	}
-
-	return cont
-}
-
-// ============================================================================
-// LINE TESTING IN HULLS (Recursive Hull Check)
-// ============================================================================
-
-// recursiveHullCheck traces a line through a BSP hull.
-// This is the core collision detection function.
-func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]float32, trace *TraceResult) bool {
-	// Check for empty (leaf node)
-	if num < 0 {
-		if num != bsp.ContentsSolid {
-			trace.AllSolid = false
-			if num == bsp.ContentsEmpty {
-				trace.InOpen = true
-			} else {
-				trace.InWater = true
-			}
-		} else {
-			trace.StartSolid = true
-		}
-		return true // empty
-	}
-
-	// Safety check
-	if num < hull.FirstClipNode || num > hull.LastClipNode {
-		return false
-	}
-
-	// Find the point distances
-	node := &hull.ClipNodes[num]
-	plane := &hull.Planes[node.PlaneNum]
-	t1 := hullPlaneDistance(plane, p1)
-	t2 := hullPlaneDistance(plane, p2)
-
-	// Both points on same side - recurse down that side
-	if t1 >= 0 && t2 >= 0 {
-		return recursiveHullCheck(hull, node.Children[0], p1f, p2f, p1, p2, trace)
-	}
-	if t1 < 0 && t2 < 0 {
-		return recursiveHullCheck(hull, node.Children[1], p1f, p2f, p1, p2, trace)
-	}
-
-	// Put the crosspoint DIST_EPSILON pixels on the near side and keep a
-	// companion point on the far side. The far-side midpoint is required for
-	// checking whether the opposite child is immediately solid; reusing the
-	// near-side point can miss nested solids in thin BSP slivers.
-	var frac, frac2 float32
-	if t1 < 0 {
-		frac = (t1 + DistEpsilon) / (t1 - t2)
-		frac2 = (t1 - DistEpsilon) / (t1 - t2)
-	} else if t1 > 0 {
-		frac = (t1 - DistEpsilon) / (t1 - t2)
-		frac2 = (t1 + DistEpsilon) / (t1 - t2)
-	} else {
-		frac = 0
-		frac2 = 0
-	}
-	if frac < 0 {
-		frac = 0
-	}
-	if frac > 1 {
-		frac = 1
-	}
-	if frac2 < 0 {
-		frac2 = 0
-	}
-	if frac2 > 1 {
-		frac2 = 1
-	}
-
-	midf := p1f + (p2f-p1f)*frac
-	var mid [3]float32
-	for i := 0; i < 3; i++ {
-		mid[i] = p1[i] + frac*(p2[i]-p1[i])
-	}
-	midf2 := p1f + (p2f-p1f)*frac2
-	var mid2 [3]float32
-	for i := 0; i < 3; i++ {
-		mid2[i] = p1[i] + frac2*(p2[i]-p1[i])
-	}
-
-	side := 0
-	if t1 < 0 {
-		side = 1
-	}
-
-	// Move up to the node
-	if !recursiveHullCheck(hull, node.Children[side], p1f, midf, p1, mid, trace) {
-		return false
-	}
-
-	// Go past the node if the other side isn't solid
-	if hullPointContents(hull, node.Children[side^1], mid2) != bsp.ContentsSolid {
-		return recursiveHullCheck(hull, node.Children[side^1], midf2, p2f, mid2, p2, trace)
-	}
-
-	if trace.AllSolid {
-		return false // never got out of the solid area
-	}
-
-	// The other side of the node is solid, this is the impact point
-	if side == 0 {
-		trace.PlaneNormal = plane.Normal
-		trace.PlaneDist = plane.Dist
-	} else {
-		trace.PlaneNormal = [3]float32{-plane.Normal[0], -plane.Normal[1], -plane.Normal[2]}
-		trace.PlaneDist = -plane.Dist
-	}
-
-	// Back up until we're outside the solid
-	for hullPointContents(hull, hull.FirstClipNode, mid) == bsp.ContentsSolid {
-		frac -= 0.1
-		if frac < 0 {
-			trace.Fraction = midf
-			trace.EndPos = mid
-			return false
-		}
-		midf = p1f + (p2f-p1f)*frac
-		for i := 0; i < 3; i++ {
-			mid[i] = p1[i] + frac*(p2[i]-p1[i])
-		}
-	}
-
-	trace.Fraction = midf
-	trace.EndPos = mid
-
-	return false
-}
-
-// clipMoveToEntity handles selection of a clipping hull, and offsetting
-// of the end points for tracing against a single entity.
-func (s *Server) clipMoveToEntity(ent *Edict, start, mins, maxs, end [3]float32) TraceResult {
-	// Fill in a default trace
-	trace := TraceResult{
-		Fraction: 1,
-		AllSolid: true,
-		EndPos:   end,
-	}
-
-	// Get the clipping hull
-	var offset [3]float32
-	hull := s.hullForEntity(ent, mins, maxs, &offset)
-
-	// Offset start and end points
-	startL := [3]float32{
-		start[0] - offset[0],
-		start[1] - offset[1],
-		start[2] - offset[2],
-	}
-	endL := [3]float32{
-		end[0] - offset[0],
-		end[1] - offset[1],
-		end[2] - offset[2],
-	}
-
-	// Trace a line through the appropriate clipping hull
-	recursiveHullCheck(hull, hull.FirstClipNode, 0, 1, startL, endL, &trace)
-
-	// Fix trace up by the offset
-	if trace.Fraction != 1 {
-		trace.EndPos[0] += offset[0]
-		trace.EndPos[1] += offset[1]
-		trace.EndPos[2] += offset[2]
-	}
-
-	// Did we clip the move?
-	if trace.Fraction < 1 || trace.StartSolid {
-		trace.Entity = ent
-	}
-
-	return trace
-}
-
-// ============================================================================
-// ENTITY AREA CHECKING
-// ============================================================================
-
-// createAreaNode creates an area node for spatial partitioning.
-func (s *Server) createAreaNode(depth int, mins, maxs [3]float32) *AreaNode {
-	if len(s.Areanodes) <= s.numAreaNodes {
-		// Allocate more nodes if needed
+// GetWorldModel implements collision.WorldProvider.
+func (s *Server) GetWorldModel() CollisionModel {
+	if s == nil {
 		return nil
 	}
-
-	node := &s.Areanodes[s.numAreaNodes]
-	s.numAreaNodes++
-
-	// Initialize sentinel nodes for doubly-linked lists (matching C's ClearLink)
-	node.TriggerEdicts.AreaNext = &node.TriggerEdicts
-	node.TriggerEdicts.AreaPrev = &node.TriggerEdicts
-	node.SolidEdicts.AreaNext = &node.SolidEdicts
-	node.SolidEdicts.AreaPrev = &node.SolidEdicts
-
-	if depth == AreaDepth {
-		node.Axis = -1
-		node.Children[0] = nil
-		node.Children[1] = nil
-		return node
-	}
-
-	size := [3]float32{
-		maxs[0] - mins[0],
-		maxs[1] - mins[1],
-		maxs[2] - mins[2],
-	}
-
-	if size[0] > size[1] {
-		node.Axis = 0
-	} else {
-		node.Axis = 1
-	}
-
-	node.Dist = 0.5 * (maxs[node.Axis] + mins[node.Axis])
-
-	mins1 := mins
-	maxs1 := maxs
-	mins2 := mins
-	maxs2 := maxs
-
-	maxs1[node.Axis] = node.Dist
-	mins2[node.Axis] = node.Dist
-
-	node.Children[0] = s.createAreaNode(depth+1, mins2, maxs2)
-	node.Children[1] = s.createAreaNode(depth+1, mins1, maxs1)
-
-	return node
+	return s.WorldModel
 }
 
-// ClearWorld initializes the area nodes for a new map.
+// GetWorldTree implements collision.WorldProvider.
+func (s *Server) GetWorldTree() *bsp.Tree {
+	if s == nil {
+		return nil
+	}
+	return s.WorldTree
+}
+
+// TouchLinks implements collision.TouchProvider.
+func (s *Server) TouchLinks(ent *Edict) {
+	s.touchLinks(ent)
+}
+
+func (s *Server) ensureCollisionSys() {
+	if s.CollisionSys == nil {
+		s.CollisionSys = NewCollisionSystem(s)
+		s.Areanodes = s.CollisionSys.Areanodes()
+		s.numAreaNodes = cNumAreaNodes(s.CollisionSys)
+	}
+}
+
+func cNumAreaNodes(sys *CollisionSystem) int {
+	if sys == nil {
+		return 0
+	}
+	return sys.NumAreaNodes()
+}
+
+// ClearWorld initializes spatial nodes for a map.
 func (s *Server) ClearWorld() {
-	initBoxHull()
-
-	if len(s.Areanodes) != AreaNodes {
-		s.Areanodes = make([]AreaNode, AreaNodes)
-	}
-
-	// Reset area nodes
-	s.numAreaNodes = 0
-
-	// Get world bounds
-	var mins, maxs [3]float32
-	if s.WorldModel != nil {
-		mins = s.WorldModel.CollisionClipMins()
-		maxs = s.WorldModel.CollisionClipMaxs()
-	}
-
-	// Create area node tree
-	s.createAreaNode(0, mins, maxs)
+	s.ensureCollisionSys()
+	s.CollisionSys.ClearWorld()
+	s.Areanodes = s.CollisionSys.Areanodes()
+	s.numAreaNodes = cNumAreaNodes(s.CollisionSys)
 }
 
-// UnlinkEdict removes an entity from the area grid.
+// UnlinkEdict removes an edict from the spatial grid.
 func UnlinkEdict(ent *Edict) {
-	if ent.AreaPrev == nil {
-		return // not linked in anywhere
-	}
-
-	// Remove from linked list
-	if ent.AreaPrev != nil {
-		ent.AreaPrev.AreaNext = ent.AreaNext
-	}
-	if ent.AreaNext != nil {
-		ent.AreaNext.AreaPrev = ent.AreaPrev
-	}
-	ent.AreaPrev = nil
-	ent.AreaNext = nil
+	collision.UnlinkEdict(ent)
 }
 
-// LinkEdict adds an entity to the area grid.
+// LinkEdict adds an edict to the spatial grid.
 func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
-	if s == nil || ent == nil {
-		return
-	}
-	UnlinkEdict(ent)
-	if ent == s.Edicts[0] || ent.Free {
-		return
-	}
-
-	origin := ent.Origin(s)
-	mins := ent.Mins(s)
-	maxes := ent.Maxs(s)
-	absMin := [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]}
-	absMax := [3]float32{origin[0] + maxes[0], origin[1] + maxes[1], origin[2] + maxes[2]}
-
-	// Expand abs box: items get +15 on XY, everything else gets +/-1 on all axes
-	if uint32(ent.Flags(s))&FlagItem != 0 {
-		absMin[0] -= 15; absMin[1] -= 15
-		absMax[0] += 15; absMax[1] += 15
-	} else {
-		absMin[0] -= 1; absMin[1] -= 1; absMin[2] -= 1
-		absMax[0] += 1; absMax[1] += 1; absMax[2] += 1
-	}
-	ent.SetAbsMin(s, absMin)
-	ent.SetAbsMax(s, absMax)
-
-	// Link to PVS leafs
-	ent.NumLeafs = 0
-	if ent.ModelIndex(s) != 0 && s.WorldTree != nil && len(s.WorldTree.Nodes) > 0 {
-		s.findTouchedLeafs(ent, bsp.TreeChild{Index: 0, IsLeaf: false})
-	}
-	if int(ent.Solid(s)) == int(SolidNot) || len(s.Areanodes) == 0 {
-		return
-	}
-
-	// Find the first node that the ent's box crosses
-	node := &s.Areanodes[0]
-	for node.Axis != -1 {
-		if absMin[node.Axis] > node.Dist {
-			if node.Children[0] != nil {
-				node = node.Children[0]
-			}
-		} else if absMax[node.Axis] < node.Dist {
-			if node.Children[1] != nil {
-				node = node.Children[1]
-			}
-		}
-		if node.Axis == -1 || (absMin[node.Axis] <= node.Dist && absMax[node.Axis] >= node.Dist) {
-			break
-		}
-	}
-
-	// Link it in
-	sentinel := &node.SolidEdicts
-	if int(ent.Solid(s)) == int(SolidTrigger) {
-		sentinel = &node.TriggerEdicts
-	}
-	ent.AreaNext = sentinel
-	ent.AreaPrev = sentinel.AreaPrev
-	ent.AreaPrev.AreaNext = ent
-	ent.AreaNext.AreaPrev = ent
-
-	if touchTriggers {
-		s.touchLinks(ent)
-	}
+	s.ensureCollisionSys()
+	s.CollisionSys.LinkEdict(ent, touchTriggers)
+	s.Areanodes = s.CollisionSys.Areanodes()
+	s.numAreaNodes = cNumAreaNodes(s.CollisionSys)
 }
 
-func (s *Server) areaTriggerEdicts(ent *Edict, node *AreaNode, list *[]*Edict, listCap int) {
-	entAbsMin := ent.AbsMin(s)
-	entAbsMax := ent.AbsMax(s)
-	for touch := node.TriggerEdicts.AreaNext; touch != nil && touch != &node.TriggerEdicts; touch = touch.AreaNext {
-		if touch == ent {
-			continue
-		}
-		if touch.Touch(s) == 0 || int(touch.Solid(s)) != int(SolidTrigger) {
-			continue
-		}
-		touchAbsMin := touch.AbsMin(s)
-		touchAbsMax := touch.AbsMax(s)
-		if entAbsMin[0] > touchAbsMax[0] ||
-			entAbsMin[1] > touchAbsMax[1] ||
-			entAbsMin[2] > touchAbsMax[2] ||
-			entAbsMax[0] < touchAbsMin[0] ||
-			entAbsMax[1] < touchAbsMin[1] ||
-			entAbsMax[2] < touchAbsMin[2] {
-			continue
-		}
-
-		if len(*list) >= listCap {
-			return
-		}
-		*list = append(*list, touch)
-	}
-
-	if node.Axis == -1 {
-		return
-	}
-
-	if entAbsMax[node.Axis] > node.Dist && node.Children[0] != nil {
-		s.areaTriggerEdicts(ent, node.Children[0], list, listCap)
-	}
-	if entAbsMin[node.Axis] < node.Dist && node.Children[1] != nil {
-		s.areaTriggerEdicts(ent, node.Children[1], list, listCap)
-	}
+// PointContents returns the content flags at a 3D point.
+func (s *Server) PointContents(p [3]float32) int {
+	s.ensureCollisionSys()
+	return s.CollisionSys.PointContents(p)
 }
 
+// Move performs a sweep trace through the BSP world and entities.
+func (s *Server) Move(start, mins, maxs, end [3]float32, moveType MoveType, passedict *Edict) TraceResult {
+	s.ensureCollisionSys()
+	return s.CollisionSys.Move(start, mins, maxs, end, moveType, passedict)
+}
+
+// TestEntityPosition tests if an entity is stuck in solid.
+func (s *Server) TestEntityPosition(ent *Edict) *Edict {
+	s.ensureCollisionSys()
+	return s.CollisionSys.TestEntityPosition(ent)
+}
+
+func (s *Server) clipMoveToEntity(ent *Edict, start, mins, maxs, end [3]float32) TraceResult {
+	s.ensureCollisionSys()
+	return s.CollisionSys.ClipMoveToEntity(ent, start, mins, maxs, end)
+}
+
+func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]float32) *model.Hull {
+	s.ensureCollisionSys()
+	h, off := s.CollisionSys.SV_HullForEntity(ent, mins, maxs)
+	*offset = off
+	return h
+}
+
+func (s *Server) findTouchedLeafs(ent *Edict, child bsp.TreeChild) {
+	s.ensureCollisionSys()
+	s.CollisionSys.FindTouchedLeafs(ent, child)
+}
+
+func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]float32, trace *TraceResult) bool {
+	return collision.RecursiveHullCheck(hull, num, p1f, p2f, p1, p2, trace)
+}
+
+func hullPointContents(hull *model.Hull, num int, p [3]float32) int {
+	return collision.HullPointContents(hull, num, p)
+}
+
+// touchLinks executes QC touch callbacks for triggers overlapping an edict.
 func (s *Server) touchLinks(ent *Edict) {
-	if len(s.Areanodes) == 0 || s.QCVM == nil || s.suppressTouchQC {
+	if s == nil || s.QCVM == nil || s.suppressTouchQC {
 		return
 	}
 
@@ -648,6 +122,7 @@ func (s *Server) touchLinks(ent *Edict) {
 	entAbsMax := ent.AbsMax(s)
 	entTouchFn := ent.Touch(s)
 	entSolid := ent.Solid(s)
+
 	if telemetryEnabled {
 		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 			"touchlinks begin mover_classname=%q touchfn=%d solid=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
@@ -662,7 +137,13 @@ func (s *Server) touchLinks(ent *Edict) {
 	}
 
 	touches := make([]*Edict, 0, s.NumEdicts)
-	s.areaTriggerEdicts(ent, &s.Areanodes[0], &touches, s.NumEdicts)
+	s.ensureCollisionSys()
+	var rootNode *collision.AreaNode
+	if len(s.CollisionSys.Areanodes()) > 0 {
+		rootNode = &s.CollisionSys.Areanodes()[0]
+	}
+	s.CollisionSys.AreaTriggerEdicts(ent, rootNode, &touches, s.NumEdicts)
+
 	if telemetryEnabled {
 		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 			"touchlinks candidates=%d mover_classname=%q", len(touches), moverClassName)
@@ -674,6 +155,7 @@ func (s *Server) touchLinks(ent *Edict) {
 			entAbsMin[0], entAbsMin[1], entAbsMin[2],
 			entAbsMax[0], entAbsMax[1], entAbsMax[2])
 	}
+
 	for _, touch := range touches {
 		touchNum := s.NumForEdict(touch)
 		touchClassName := touch.ClassNameString(s)
@@ -716,7 +198,7 @@ func (s *Server) touchLinks(ent *Edict) {
 				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 					"touchlinks overlap-reject candidate=%d other=%d reason=%s candidate_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f)",
 					touchNum, entNum, reason,
-					touchAbsMin[0], touchAbsMin[1], touchAbsMin[2],
+					touchAbsMin[0], touchAbsMin[0], touchAbsMin[2],
 					touchAbsMax[0], touchAbsMax[1], touchAbsMax[2],
 					entAbsMin[0], entAbsMin[1], entAbsMin[2],
 					entAbsMax[0], entAbsMax[1], entAbsMax[2])
@@ -777,220 +259,10 @@ func (s *Server) touchLinks(ent *Edict) {
 	}
 }
 
-// findTouchedLeafs finds all PVS leafs that an entity touches.
-func (s *Server) findTouchedLeafs(ent *Edict, child bsp.TreeChild) {
-	if child.IsLeaf {
-		if child.Index < 0 || child.Index >= len(s.WorldTree.Leafs) {
-			return
-		}
-		leaf := &s.WorldTree.Leafs[child.Index]
-		if leaf.Contents != bsp.ContentsSolid {
-			visLeafIndex := child.Index - 1
-			if visLeafIndex < 0 {
-				return
-			}
-			if ent.NumLeafs < MaxEntityLeafs {
-				// Quake server PVS uses visleaf numbering: BSP leaf index minus 1,
-				// skipping solid leaf 0 entirely.
-				ent.LeafNums[ent.NumLeafs] = visLeafIndex
-				ent.NumLeafs++
-			}
-		}
-		return
+func (s *Server) areaTriggerEdicts(ent *Edict, node *AreaNode, list *[]*Edict, listCap int) {
+	s.ensureCollisionSys()
+	if node == nil && len(s.CollisionSys.Areanodes()) > 0 {
+		node = &s.CollisionSys.Areanodes()[0]
 	}
-
-	node := &s.WorldTree.Nodes[child.Index]
-	plane := &s.WorldTree.Planes[node.PlaneNum]
-	sides := boxOnPlaneSide(ent.AbsMin(s), ent.AbsMax(s), &model.MPlane{
-		Normal: plane.Normal,
-		Dist:   plane.Dist,
-		Type:   uint8(plane.Type),
-	})
-
-	if sides&1 != 0 {
-		s.findTouchedLeafs(ent, node.Children[0])
-	}
-	if sides&2 != 0 {
-		s.findTouchedLeafs(ent, node.Children[1])
-	}
+	s.CollisionSys.AreaTriggerEdicts(ent, node, list, listCap)
 }
-
-// ============================================================================
-// MAIN MOVE FUNCTION
-// ============================================================================
-
-// moveBounds calculates the bounding box for a move.
-func moveBounds(start, mins, maxs, end [3]float32) (boxmins, boxmaxs [3]float32) {
-	for i := 0; i < 3; i++ {
-		if end[i] > start[i] {
-			boxmins[i] = start[i] + mins[i] - 1
-			boxmaxs[i] = end[i] + maxs[i] + 1
-		} else {
-			boxmins[i] = end[i] + mins[i] - 1
-			boxmaxs[i] = start[i] + maxs[i] + 1
-		}
-	}
-	return
-}
-
-// clipToLinks clips a move to all entities in an area node.
-func (s *Server) clipToLinks(node *AreaNode, clip *moveClip) {
-	// Touch linked edicts
-	for ent := node.SolidEdicts.AreaNext; ent != nil && ent != &node.SolidEdicts; ent = ent.AreaNext {
-		entSolid := ent.Solid(s)
-		if entSolid == float32(SolidNot) {
-			continue
-		}
-		if ent == clip.passedict {
-			continue
-		}
-		if entSolid == float32(SolidTrigger) {
-			continue // Triggers shouldn't be in solid list
-		}
-
-		if clip.moveType == MoveNoMonsters && entSolid != float32(SolidBSP) {
-			continue
-		}
-
-		// Check bounding box overlap
-		entAbsMin := ent.AbsMin(s)
-		entAbsMax := ent.AbsMax(s)
-		if clip.boxMins[0] > entAbsMax[0] ||
-			clip.boxMins[1] > entAbsMax[1] ||
-			clip.boxMins[2] > entAbsMax[2] ||
-			clip.boxMaxs[0] < entAbsMin[0] ||
-			clip.boxMaxs[1] < entAbsMin[1] ||
-			clip.boxMaxs[2] < entAbsMin[2] {
-			continue
-		}
-
-		// Point entities never interact
-		if clip.passedict != nil && clip.passedict.Size(s)[0] != 0 && ent.Size(s)[0] == 0 {
-			continue
-		}
-
-		// Don't clip against own missiles or owner
-		if clip.passedict != nil {
-			if owner := s.edictFromEntRef(ent.Owner(s)); owner == clip.passedict {
-				continue
-			}
-			if owner := s.edictFromEntRef(clip.passedict.Owner(s)); owner == ent {
-				continue
-			}
-		}
-
-		// Do an exact clip
-		if clip.trace.AllSolid {
-			return
-		}
-
-		var trace TraceResult
-		if int(ent.Flags(s))&FlagMonster != 0 {
-			trace = s.clipMoveToEntity(ent, clip.start, clip.mins2, clip.maxs2, clip.end)
-		} else {
-			trace = s.clipMoveToEntity(ent, clip.start, clip.mins, clip.maxs, clip.end)
-		}
-
-		if trace.AllSolid || trace.StartSolid || trace.Fraction < clip.trace.Fraction {
-			trace.Entity = ent
-			if clip.trace.StartSolid {
-				clip.trace = trace
-				clip.trace.StartSolid = true
-			} else {
-				clip.trace = trace
-			}
-		} else if trace.StartSolid {
-			clip.trace.StartSolid = true
-		}
-	}
-
-	// Recurse down both sides
-	if node.Axis == -1 {
-		return
-	}
-
-	if clip.boxMaxs[node.Axis] > node.Dist && node.Children[0] != nil {
-		s.clipToLinks(node.Children[0], clip)
-	}
-	if clip.boxMins[node.Axis] < node.Dist && node.Children[1] != nil {
-		s.clipToLinks(node.Children[1], clip)
-	}
-}
-
-func (s *Server) edictFromEntRef(ref int32) *Edict {
-	if s == nil || ref == 0 {
-		return nil
-	}
-	if ent := s.EdictNum(int(ref)); ent != nil {
-		return ent
-	}
-	if s.QCVM == nil || s.QCVM.EdictSize <= 0 {
-		return nil
-	}
-	raw := int(ref)
-	if raw <= 0 || raw%s.QCVM.EdictSize != 0 {
-		return nil
-	}
-	return s.EdictNum(raw / s.QCVM.EdictSize)
-}
-
-// Move traces a move from start to end with the given bounding box.
-// This is the main entry point for all collision detection.
-func (s *Server) Move(start, mins, maxs, end [3]float32, moveType MoveType, passedict *Edict) TraceResult {
-	var clip moveClip
-
-	// Clip to world first
-	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
-		clip.trace = s.clipMoveToEntity(s.Edicts[0], start, mins, maxs, end)
-	}
-
-	clip.start = start
-	clip.end = end
-	clip.mins = mins
-	clip.maxs = maxs
-	clip.moveType = int(moveType)
-	clip.passedict = passedict
-
-	// Set up mins2/maxs2 for monster clipping
-	if moveType == MoveMissile {
-		for i := 0; i < 3; i++ {
-			clip.mins2[i] = -15
-			clip.maxs2[i] = 15
-		}
-	} else {
-		clip.mins2 = mins
-		clip.maxs2 = maxs
-	}
-
-	// Create the bounding box of the entire move
-	clip.boxMins, clip.boxMaxs = moveBounds(start, clip.mins2, clip.maxs2, end)
-
-	// Clip to entities
-	if len(s.Areanodes) > 0 {
-		s.clipToLinks(&s.Areanodes[0], &clip)
-	}
-
-	return clip.trace
-}
-
-// TestEntityPosition tests if an entity is stuck in solid.
-func (s *Server) TestEntityPosition(ent *Edict) *Edict {
-	origin := ent.Origin(s)
-	trace := s.Move(origin, ent.Mins(s), ent.Maxs(s), origin, MoveNormal, ent)
-
-	if trace.StartSolid {
-		if trace.Entity != nil {
-			return trace.Entity
-		}
-		return s.Edicts[0] // world
-	}
-
-	return nil
-}
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-// boxOnPlaneSide returns which side of a plane a box is on.
-// Returns 1, 2, or 3 (both sides).

@@ -226,14 +226,9 @@ type Client struct {
 	OldStats           [32]int32
 }
 
-// AreaNode is a node in the spatial partitioning tree for entity collision.
-type AreaNode struct {
-	Axis          int
-	Dist          float32
-	Children      [2]*AreaNode
-	TriggerEdicts Edict
-	SolidEdicts   Edict
-}
+// Note: AreaNode struct definition has been moved to internal/server/types/area.go.
+// The type alias server.AreaNode is exported in internal/server/types.go.
+
 
 // syncEdictToQCVM copies one Go edict's EntVars into the QuakeC VM edict table.
 // This is part of the engine↔QC bridge: before QC runs, the authoritative Go state

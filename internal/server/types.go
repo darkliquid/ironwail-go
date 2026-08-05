@@ -18,7 +18,18 @@ type (
 	SolidType       = srvtypes.SolidType
 	ServerState     = srvtypes.ServerState
 	EntityState     = srvtypes.EntityState
+	CollisionModel  = srvtypes.CollisionModel
+	AreaNode        = srvtypes.AreaNode
 )
+
+
+const (
+	DistEpsilon = srvtypes.DistEpsilon
+	AreaDepth   = srvtypes.AreaDepth
+	AreaNodes   = srvtypes.AreaNodes
+)
+
+
 
 
 

@@ -765,9 +765,10 @@ func (s *Server) SV_TryUnstick(ent *Edict, oldVel [3]float32) int {
 }
 
 func walkMoveNeedsUnstick(oldOrg, newOrg [3]float32) bool {
-	return math.Abs(float64(oldOrg[0]-newOrg[0])) < DistEpsilon &&
-		math.Abs(float64(oldOrg[1]-newOrg[1])) < DistEpsilon
+	return math.Abs(float64(oldOrg[0]-newOrg[0])) < float64(DistEpsilon) &&
+		math.Abs(float64(oldOrg[1]-newOrg[1])) < float64(DistEpsilon)
 }
+
 
 func (s *Server) SV_WalkMove(ent *Edict) {
 	flags := uint32(ent.Flags(s))

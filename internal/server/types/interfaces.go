@@ -5,6 +5,24 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
+const (
+	DistEpsilon = float32(0.03125)
+	AreaDepth   = 4
+	AreaNodes   = 2 << AreaDepth
+)
+
+// CollisionModel abstracts the collision-relevant aspects of a BSP world model.
+type CollisionModel interface {
+	ModelType() int
+	NumHulls() int
+	Hull(index int) model.Hull
+	CollisionClipNodes() []model.MClipNode
+	CollisionPlanes() []model.MPlane
+	IsClipBox() bool
+	CollisionClipMins() [3]float32
+	CollisionClipMaxs() [3]float32
+}
+
 // CollisionWorld defines the contract for BSP collision queries, trace sweeps, and spatial entity partitioning.
 type CollisionWorld interface {
 	SV_Move(start, mins, maxs, end [3]float32, moveType MoveType, passedict *Edict) TraceResult
