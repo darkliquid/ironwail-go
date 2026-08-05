@@ -37,6 +37,8 @@ type EntityStore interface {
 	EdictNum(num int) *Edict
 	AllocEdict() *Edict
 	FreeEdict(ed *Edict)
+	GetNumEdicts() int
+	GetMaxEdicts() int
 }
 
 // PhysicsConfig defines dynamic server CVars affecting entity physics.

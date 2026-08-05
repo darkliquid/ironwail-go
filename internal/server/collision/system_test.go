@@ -48,6 +48,9 @@ func (m *mockStore) FreeEdict(ed *srvtypes.Edict) {
 	}
 }
 
+func (m *mockStore) GetNumEdicts() int { return len(m.edicts) }
+func (m *mockStore) GetMaxEdicts() int { return len(m.edicts) }
+
 func TestCollisionSystem_ClearWorld(t *testing.T) {
 	world := &mockWorld{}
 	store := &mockStore{edicts: []*srvtypes.Edict{{Num: 0}}}

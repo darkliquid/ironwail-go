@@ -60,6 +60,9 @@ func (m *mockEntityStore) FreeEdict(ed *srvtypes.Edict) {
 	}
 }
 
+func (m *mockEntityStore) GetNumEdicts() int { return len(m.edicts) }
+func (m *mockEntityStore) GetMaxEdicts() int { return len(m.edicts) }
+
 type mockPhysicsConfig struct {
 	gravity     float32
 	maxVelocity float32
