@@ -1,7 +1,7 @@
 # Implementation Plan 18: Backward Compatibility Shim Removal & Educational Architecture Documentation
 
 **Priority**: High  
-**Status**: In Progress (18.3 done; 18.1/18.2 audited as no-ops)  
+**Status**: Completed (2026-08-05) — 18.1/18.2 audited as no-ops, 18.3 docs done  
 **Target Milestone**: Phase 18  
 
 ---

@@ -1,7 +1,7 @@
 # Implementation Plan 17: Sub-Package Test Isolation & Synthetic Test Scaffolding
 
 **Priority**: High  
-**Status**: In Progress (17.1-17.3 done)  
+**Status**: Completed (2026-08-05)  
 **Target Milestone**: Phase 17  
 
 ---

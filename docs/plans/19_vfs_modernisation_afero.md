@@ -1,7 +1,7 @@
 # Implementation Plan 19: Experimental VFS Modernisation & `io/fs` / `afero` Integration
 
 **Priority**: High  
-**Status**: In Progress (19.1 done; 19.2 scoped as additive)  
+**Status**: Completed (2026-08-05) — 19.1 PakFS + 19.2 overlay stack (via plan 19b)  
 **Target Milestone**: Phase 19  
 
 ---
