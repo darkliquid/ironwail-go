@@ -496,6 +496,24 @@ func (r *Renderer) Shutdown() {
 	r.destroyOverlayCompositeResourcesLocked()
 	r.destroyWorldRenderTargetLocked()
 	r.destroySceneCompositeResourcesLocked()
+	for i, tex := range r.charTextures {
+		if tex != nil {
+			tex.Destroy()
+			r.charTextures[i] = nil
+		}
+	}
+	for i, tex := range r.colorTextures {
+		if tex != nil {
+			tex.Destroy()
+			r.colorTextures[i] = nil
+		}
+	}
+	for _, entry := range r.textureCache {
+		if entry != nil && entry.texture != nil {
+			entry.texture.Destroy()
+		}
+	}
+	r.textureCache = make(map[cacheKey]*cachedTexture)
 	if r.overlayTexture != nil {
 		r.overlayTexture.Destroy()
 		r.overlayTexture = nil
@@ -508,6 +526,7 @@ func (r *Renderer) Shutdown() {
 	r.overlayTextureDirtyH = 0
 	r.overlayTextureDirtyValid = false
 	r.mu.Unlock()
+
 	// gogpu.App handles cleanup automatically
 }
 

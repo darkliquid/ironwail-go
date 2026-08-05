@@ -110,12 +110,13 @@ func (b *OtoBackend) Shutdown() {
 		close(quit)
 	}
 	if pipeW != nil {
-		_ = pipeW.Close()
+		_ = pipeW.CloseWithError(io.EOF)
 	}
 	if pipeR != nil {
-		_ = pipeR.Close()
+		_ = pipeR.CloseWithError(io.EOF)
 	}
 	b.wg.Wait()
+
 }
 
 func (b *OtoBackend) Lock() {
@@ -200,11 +201,12 @@ func (b *OtoBackend) ResetQueuedAudio() {
 
 	oldPlayer.Pause()
 	if oldPipeW != nil {
-		_ = oldPipeW.Close()
+		_ = oldPipeW.CloseWithError(io.EOF)
 	}
 	if oldPipeR != nil {
-		_ = oldPipeR.Close()
+		_ = oldPipeR.CloseWithError(io.EOF)
 	}
+
 }
 
 func (b *OtoBackend) startStreamLoop(quit <-chan struct{}, pipeW *io.PipeWriter, dma *DMAInfo) {

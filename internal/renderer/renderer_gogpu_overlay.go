@@ -548,7 +548,14 @@ func (r *Renderer) SetConchars(data []byte) {
 	}
 	r.concharsData = data
 	r.charCache = [256]*image.QPic{}
+	for i, tex := range r.charTextures {
+		if tex != nil {
+			tex.Destroy()
+			r.charTextures[i] = nil
+		}
+	}
 }
+
 
 func (dc *DrawContext) canvasRectToScreen(x, y, w, h int) (screenX, screenY, screenW, screenH int) {
 	if dc == nil || w <= 0 || h <= 0 || dc.canvas.Type == CanvasNone {

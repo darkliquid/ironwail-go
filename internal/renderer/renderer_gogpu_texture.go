@@ -36,27 +36,37 @@ func (r *Renderer) getCharPic(num int) *image.QPic {
 }
 
 // getOrCreateCharTexture returns a GPU texture for a character, uploading it if needed.
-// Character textures are cached using the character pic via the shared texture cache.
 // Uses ConvertConcharsToRGBA so index-0 pixels are transparent.
 func (r *Renderer) getOrCreateCharTexture(ctx *gogpu.Context, num int, pic *image.QPic) *gogpu.Texture {
-	key := cacheKey{pic: pic}
-	r.mu.RLock()
-	if entry, ok := r.textureCache[key]; ok {
-		r.mu.RUnlock()
-		return entry.texture
+	if num < 0 || num > 255 {
+		return nil
 	}
+	r.mu.RLock()
+	tex := r.charTextures[num]
+	palette := r.palette
 	r.mu.RUnlock()
 
-	rgba := ConvertConcharsToRGBA(pic.Pixels, r.palette)
-	tex, err := ctx.Renderer().NewTextureFromRGBA(int(pic.Width), int(pic.Height), rgba)
+	if tex != nil {
+		return tex
+	}
+
+	rgba := ConvertConcharsToRGBA(pic.Pixels, palette)
+	newTex, err := ctx.Renderer().NewTextureFromRGBA(int(pic.Width), int(pic.Height), rgba)
 	if err != nil {
 		slog.Error("getOrCreateCharTexture: upload failed", "num", num, "error", err)
 		return nil
 	}
 
 	r.mu.Lock()
-	r.textureCache[key] = &cachedTexture{texture: tex, width: int(pic.Width), height: int(pic.Height)}
+	if r.charTextures[num] != nil {
+		newTex.Destroy()
+		tex = r.charTextures[num]
+	} else {
+		r.charTextures[num] = newTex
+		tex = newTex
+	}
 	r.mu.Unlock()
+
 	return tex
 }
 
@@ -67,14 +77,32 @@ func (r *Renderer) SetPalette(palette []byte) {
 	r.palette = make([]byte, len(palette))
 	copy(r.palette, palette)
 
-	// Invalidate texture cache since palette changed
-	r.textureCache = make(map[cacheKey]*cachedTexture)
-	for i := range r.colorTextures {
-		r.colorTextures[i] = nil
+	// Destroy and invalidate texture cache entries to prevent GPU memory leaks
+	for _, entry := range r.textureCache {
+		if entry != nil && entry.texture != nil {
+			entry.texture.Destroy()
+		}
 	}
+	r.textureCache = make(map[cacheKey]*cachedTexture)
+
+	for i, tex := range r.colorTextures {
+		if tex != nil {
+			tex.Destroy()
+			r.colorTextures[i] = nil
+		}
+	}
+
+	for i, tex := range r.charTextures {
+		if tex != nil {
+			tex.Destroy()
+			r.charTextures[i] = nil
+		}
+	}
+
 	r.clearAliasModelsLocked()
 	r.clearSpriteModelsLocked()
 }
+
 
 func (r *Renderer) getOrCreateTexture(ctx *gogpu.Context, pic *image.QPic) *gogpu.Texture {
 	r.mu.RLock()

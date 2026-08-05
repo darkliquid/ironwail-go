@@ -149,6 +149,10 @@ type Renderer struct {
 	// charCache caches per-character 8×8 QPic objects extracted from concharsData.
 	charCache [256]*image.QPic
 
+	// charTextures caches uploaded GPU textures for the 256 font characters.
+	charTextures [256]*gogpu.Texture
+
+
 	// Camera state and matrices for view/projection
 	// cameraState holds the current camera position and orientation.
 	cameraState CameraState
