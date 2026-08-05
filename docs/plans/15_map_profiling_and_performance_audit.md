@@ -42,3 +42,22 @@ Empirical `pprof` heap and CPU profiling across `qbj2_zetabyt` (1,127 edicts), `
 mise run build
 ./ironwailgo -basedir ./quake-data -game qbj2 -headless +map qbj2_zetabyt
 ```
+
+## Step 15.3: Steady-State Per-Frame Allocation Sign-off (COMPLETED)
+
+**Added**:
+- Three console commands (`game_profile.go`):
+  - `perf_warmup [frames]` — begin a warmup window (one-time uploads settle).
+  - `perf_capture [frames]` — begin steady-state sampling (requires an active warmup session).
+  - `perf_reset` — clear an active session.
+- `perfTick` state machine driven from `HeadlessGameLoop` (`game_loop.go:387`) samples `runtime.ReadMemStats` every 15 frames and reports a machine-readable `PERF_RESULT` line (avg/max per-frame alloc bytes and objects, wall seconds).
+- `perf_commands_test.go` — lifecycle, arg-parsing, and measurement tests.
+- `tasks/profile_maps.sh` now also runs the warmup+capture session per map, appends `steady_state_summary.csv`, and prints the summary table.
+
+**Verification** (`PERF_FRAMES=40` short window):
+```
+PERF_RESULT frame_budget 0.215 avg_alloc 1620654 avg_objects 1251 max_alloc_frame 5761568 max_objects_frame 4514 samples 4
+PERF_RESULT frame_budget 0.204 avg_alloc 232206  avg_objects 261  max_alloc_frame 336593  max_objects_frame 311  samples 3
+PERF_RESULT frame_budget 0.212 avg_alloc 1462713 avg_objects 11492 max_alloc_frame 3217216 max_objects_frame 26203 samples 3
+```
+Full 240-frame steady-state baselines pending next `mise run profile-maps` run.

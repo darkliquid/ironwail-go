@@ -384,6 +384,7 @@ func (g *Game) HeadlessGameLoop() {
 		if g.Host != nil && g.Host.IsAborted() {
 			return
 		}
+		g.perfTick(dt)
 	}
 }
 

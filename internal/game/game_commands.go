@@ -7,8 +7,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"runtime"
-	runtimepprof "runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +44,9 @@ func (g *Game) registerGameplayBindCommands() {
 	g.Host.Cmd.AddCommand("profile_cpu_stop", g.cmdProfileCPUStop, "Stop the active CPU pprof capture and flush it to disk")
 	g.Host.Cmd.AddCommand("profile_dump_heap", g.cmdProfileDumpHeap, "Write a heap pprof capture to disk")
 	g.Host.Cmd.AddCommand("profile_dump_allocs", g.cmdProfileDumpAllocs, "Write an allocs pprof capture to disk")
+	g.Host.Cmd.AddCommand("perf_warmup", g.cmdPerfWarmup, "Enter per-frame allocation/profile warmup phase")
+	g.Host.Cmd.AddCommand("perf_capture", g.cmdPerfCapture, "Start steady-state per-frame measurement capture")
+	g.Host.Cmd.AddCommand("perf_reset", g.cmdPerfReset, "Reset any active warmup/measurement session")
 	g.Host.Cmd.AddCommand("vid_restart", func(args []string) {
 		if err := g.restartVideo(); err != nil {
 			console.Printf("vid_restart failed: %v\n", err)
@@ -324,8 +325,6 @@ func (g *Game) cmdCamDebug(_ []string) {
 	}
 	console.Printf("=========================\n")
 }
-
-
 
 func (g *Game) startupConfigPinsAnyCVar(userDir string, names []string) bool {
 	userDir = strings.TrimSpace(userDir)
@@ -729,175 +728,6 @@ func (g *Game) cmdScreenshot(args []string) {
 		console.Printf("screenshot failed: %v\n", err)
 		return
 	}
-}
-
-func (g *Game) profileBaseDirAndModDir() (baseDir, modDir string) {
-	baseDir = "."
-	if g.Host != nil && strings.TrimSpace(g.Host.BaseDir()) != "" {
-		baseDir = g.Host.BaseDir()
-	}
-	modDir = strings.TrimSpace(g.ModDir)
-	if modDir == "" {
-		modDir = "id1"
-	}
-	return baseDir, modDir
-}
-
-func (g *Game) resolveProfileOutputPath(filename, kind string, now time.Time) string {
-	filename = strings.TrimSpace(filename)
-	if filename == "" {
-		filename = filepath.Join("profiles", fmt.Sprintf("ironwail_%s_%s.pprof", now.Format("20060102_150405"), kind))
-	}
-	if filepath.IsAbs(filename) {
-		return filename
-	}
-	baseDir, modDir := g.profileBaseDirAndModDir()
-	return filepath.Join(baseDir, modDir, filename)
-}
-
-func (g *Game) ensureProfileOutputPath(filename, kind string) (string, error) {
-	outputPath := g.resolveProfileOutputPath(filename, kind, time.Now())
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-		return "", fmt.Errorf("create output directory: %w", err)
-	}
-	return outputPath, nil
-}
-
-func (g *Game) writeNamedRuntimeProfile(kind, filename string) error {
-	outputPath, err := g.ensureProfileOutputPath(filename, kind)
-	if err != nil {
-		return err
-	}
-	f, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("create profile file: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-
-	runtime.GC()
-
-	switch kind {
-	case "heap":
-		if err := runtimepprof.WriteHeapProfile(f); err != nil {
-			return fmt.Errorf("write heap profile: %w", err)
-		}
-	case "allocs":
-		profile := runtimepprof.Lookup("allocs")
-		if profile == nil {
-			return fmt.Errorf("allocs profile unavailable")
-		}
-		if err := profile.WriteTo(f, 0); err != nil {
-			return fmt.Errorf("write allocs profile: %w", err)
-		}
-	default:
-		return fmt.Errorf("unknown profile kind %q", kind)
-	}
-
-	console.Printf("%s profile saved to %s\n", kind, outputPath)
-	return nil
-}
-
-func (g *Game) cmdProfileCPUStart(args []string) {
-	if len(args) > 1 {
-		console.Printf("usage: profile_cpu_start [filename]\n")
-		return
-	}
-	filename := ""
-	if len(args) == 1 {
-		filename = args[0]
-	}
-	outputPath, err := g.ensureProfileOutputPath(filename, "cpu")
-	if err != nil {
-		console.Printf("profile_cpu_start: %v\n", err)
-		return
-	}
-
-	cpu := &g.cpuProfile
-	cpu.mu.Lock()
-	defer cpu.mu.Unlock()
-	if cpu.file != nil {
-		console.Printf("profile_cpu_start: CPU profiling already active (%s)\n", cpu.path)
-		return
-	}
-
-	f, err := os.Create(outputPath)
-	if err != nil {
-		console.Printf("profile_cpu_start: create profile file: %v\n", err)
-		return
-	}
-	if err := runtimepprof.StartCPUProfile(f); err != nil {
-		_ = f.Close()
-		console.Printf("profile_cpu_start: start CPU profile: %v\n", err)
-		return
-	}
-
-	cpu.file = f
-	cpu.path = outputPath
-	console.Printf("CPU profile started: %s\n", outputPath)
-}
-
-func (g *Game) cmdProfileCPUStop(_ []string) {
-	path, active, err := g.stopCPUProfile()
-	if !active {
-		console.Printf("profile_cpu_stop: CPU profiling is not active\n")
-		return
-	}
-	if err != nil {
-		console.Printf("profile_cpu_stop: close profile file: %v\n", err)
-		return
-	}
-	console.Printf("CPU profile saved to %s\n", path)
-}
-
-func (g *Game) cmdProfileDumpHeap(args []string) {
-	if len(args) > 1 {
-		console.Printf("usage: profile_dump_heap [filename]\n")
-		return
-	}
-	filename := ""
-	if len(args) == 1 {
-		filename = args[0]
-	}
-	if err := g.writeNamedRuntimeProfile("heap", filename); err != nil {
-		console.Printf("profile_dump_heap: %v\n", err)
-	}
-}
-
-func (g *Game) cmdProfileDumpAllocs(args []string) {
-	if len(args) > 1 {
-		console.Printf("usage: profile_dump_allocs [filename]\n")
-		return
-	}
-	filename := ""
-	if len(args) == 1 {
-		filename = args[0]
-	}
-	if err := g.writeNamedRuntimeProfile("allocs", filename); err != nil {
-		console.Printf("profile_dump_allocs: %v\n", err)
-	}
-}
-
-func (g *Game) stopCPUProfile() (path string, active bool, err error) {
-	return g.StopCPUProfile()
-}
-
-// StopCPUProfile stops an active CPU profile capture if one is in progress.
-// It returns the output path, whether profiling was active, and any error
-// from closing the profile file.
-func (g *Game) StopCPUProfile() (path string, active bool, err error) {
-	cpu := &g.cpuProfile
-	cpu.mu.Lock()
-	defer cpu.mu.Unlock()
-	if cpu.file == nil {
-		return "", false, nil
-	}
-
-	runtimepprof.StopCPUProfile()
-	path = cpu.path
-	err = cpu.file.Close()
-	cpu.file = nil
-	cpu.path = ""
-	return path, true, err
 }
 
 func (g *Game) cmdShowScores(_ []string) {

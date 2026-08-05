@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"runtime"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/darkliquid/ironwail-go/internal/audio"
 	"github.com/darkliquid/ironwail-go/internal/bsp"
@@ -46,20 +48,20 @@ type Game struct {
 	HUD   *hud.HUD
 	Audio *audio.AudioAdapter
 
-	MouseGrabbed     bool
-	AliasModelCache  map[string]*model.Model
-	SpriteModelCache map[string]*SpriteModel
-	BrushModelCache  map[string]*bsp.Tree
-	SoundSFXByIndex  map[int]*audio.SFX
-	AmbientSFX       [audio.NumAmbients]*audio.SFX
-	SoundPrecacheKey string
-	StaticSoundKey   string
-	MusicTrackKey    string
-	SkyboxNameKey    string
+	MouseGrabbed      bool
+	AliasModelCache   map[string]*model.Model
+	SpriteModelCache  map[string]*SpriteModel
+	BrushModelCache   map[string]*bsp.Tree
+	SoundSFXByIndex   map[int]*audio.SFX
+	AmbientSFX        [audio.NumAmbients]*audio.SFX
+	SoundPrecacheKey  string
+	StaticSoundKey    string
+	MusicTrackKey     string
+	SkyboxNameKey     string
 	lastSkyboxNameKey string
-	WorldUploadKey   string
-	ShowScores       bool
-	ModDir           string
+	WorldUploadKey    string
+	ShowScores        bool
+	ModDir            string
 
 	CameraInLiquid     bool
 	CameraLeafContents int32
@@ -93,6 +95,11 @@ type Game struct {
 	// cpuProfile tracks the active CPU profile capture state.
 	cpuProfile cpuProfileState
 
+	// perfMeas tracks an active warmup/steady-state per-frame measurement
+	// session driven by the perf_warmup / perf_capture console commands.
+	// It is only touched from the game loop goroutine, so no lock is needed.
+	perfMeas perfMeasureState
+
 	// loadDemoWorldTree is a test-swappable hook that loads the demo
 	// playback world (.bsp + .lit). Production code uses the default
 	// implementation set in New().
@@ -123,6 +130,47 @@ type cpuProfileState struct {
 	file *os.File
 	path string
 }
+
+// perfPhase is the lifecycle state of a perf_warmup / perf_capture session.
+type perfPhase int
+
+const (
+	perfIdle perfPhase = iota
+	perfWarming
+	perfCapturing
+)
+
+// perfMeasureState holds the steady-state per-frame measurement session
+// driven by the perf_warmup and perf_capture console commands. All fields are
+// written and read only from the game loop goroutine (commands execute there
+// via the console command buffer), so no synchronization is required.
+type perfMeasureState struct {
+	phase      perfPhase
+	startFrame int
+	frameCount int
+	startMem   runtime.MemStats
+	startTime  time.Time
+
+	totalAlloc   uint64
+	totalObjects uint64
+
+	sumSamples         int
+	lastSampleFrame    int
+	maxAllocPerFrame   uint64
+	maxObjectsPerFrame uint64
+}
+
+const (
+	// perfWarmupFrames is the default headless warmup window when the
+	// harness does not pass an explicit frame count.
+	perfWarmupFrames = 240
+	// perfCaptureFrames is the default steady-state measurement window.
+	perfCaptureFrames = 240
+	// perfSampleInterval throttles how often runtime.ReadMemStats is called
+	// during capture; each call is a full STW mark, so we sample every 15
+	// frames and report the max observed per-frame delta.
+	perfSampleInterval = 15
+)
 
 // PendingRendererAssets holds queued renderer assets to be applied.
 // This encapsulates the asset queuing logic and reduces global state.
