@@ -14,6 +14,19 @@
 > based on the prior work of this plan) with the ultimate goal of fully
 > isolated modules plugged into the parents via dependency injection, and
 > tests ported out of the parent packages into the new subpackages.
+>
+> **16+2 status**: Step 1 (`renderer/pipeline`) **DONE** (2026-08-05): the
+> receiver-pure world pipeline constructors moved into
+> `internal/renderer/pipeline` as exported free functions
+> (`CreateWorldPipeline`, `CreateWorldOpaquePipeline`, `CreateWorldSkyPipeline*`,
+> `CreateWorldExternalSkyPipeline`, `CreateWorldTurbulentPipeline`,
+> `CreateWorldTranslucentPipeline`, `CreateWorldTranslucentTurbulentPipeline`)
+> plus shared `NonDecalDepthStencilState`/`WorldDepthTextureFormat`/
+> `WorldUniformBufferSize`/`WorldVertexBufferLayout`; the parent keeps thin
+> `(*Renderer)` wrappers and stores the 4 created bind group layouts as before.
+> The deep `Renderer.wgpu*` → `pipeline.Resources` ownership transfer (§10.1
+> row 1) remains TODO for 16+2. Pinned descriptor tests live in
+> `pipeline/pipeline_test.go`.
 
 ---
 
