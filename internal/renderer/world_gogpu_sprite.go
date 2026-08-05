@@ -410,7 +410,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	uniformBuffer := r.spriteUniformBuffer
 	uniformBindGroup := r.spriteUniformBindGroup
 	scratchBuffer := r.aliasScratchBuffer
-	depthView := r.worldDepthTextureView
+	depthView := r.resources.WorldDepthTextureView
 	camera := r.cameraState
 	r.mu.Unlock()
 	if pipeline == nil || depthOffsetPipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {

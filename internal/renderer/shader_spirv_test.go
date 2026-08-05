@@ -100,7 +100,7 @@ func TestGoGPUWorldRenderBindsAlphaTestPipelineForAlphaTestBatches(t *testing.T)
 			t.Fatalf("ReadFile(world_render_passes_gogpu.go): %v", err)
 		}
 	}
-	want := "renderPass.SetPipeline(dc.renderer.worldAlphaTestPipeline)\n\t\tmaterialBindState.invalidate()\n\t\tfor _, batch := range alphaTestBatches"
+	want := "renderPass.SetPipeline(dc.renderer.resources.WorldAlphaTestPipeline)\n\t\tmaterialBindState.invalidate()\n\t\tfor _, batch := range alphaTestBatches"
 	if !strings.Contains(string(source), want) {
 		t.Fatalf("alpha-test batches are not rendered immediately after binding the alpha-test pipeline")
 	}

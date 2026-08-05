@@ -53,30 +53,30 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 `
 
 func (r *Renderer) destroyOverlayCompositeResourcesLocked() {
-	if r.overlayCompositeBindGroup != nil {
-		r.overlayCompositeBindGroup.Release()
-		r.overlayCompositeBindGroup = nil
+	if r.resources.OverlayCompositeBindGroup != nil {
+		r.resources.OverlayCompositeBindGroup.Release()
+		r.resources.OverlayCompositeBindGroup = nil
 	}
-	r.overlayCompositeTextureView = nil
-	if r.overlayCompositeBindGroupLayout != nil {
-		r.overlayCompositeBindGroupLayout.Release()
-		r.overlayCompositeBindGroupLayout = nil
+	r.resources.OverlayCompositeTextureView = nil
+	if r.resources.OverlayCompositeBindGroupLayout != nil {
+		r.resources.OverlayCompositeBindGroupLayout.Release()
+		r.resources.OverlayCompositeBindGroupLayout = nil
 	}
-	if r.overlayCompositePipelineLayout != nil {
-		r.overlayCompositePipelineLayout.Release()
-		r.overlayCompositePipelineLayout = nil
+	if r.resources.OverlayCompositePipelineLayout != nil {
+		r.resources.OverlayCompositePipelineLayout.Release()
+		r.resources.OverlayCompositePipelineLayout = nil
 	}
-	if r.overlayCompositePipeline != nil {
-		r.overlayCompositePipeline.Release()
-		r.overlayCompositePipeline = nil
+	if r.resources.OverlayCompositePipeline != nil {
+		r.resources.OverlayCompositePipeline.Release()
+		r.resources.OverlayCompositePipeline = nil
 	}
-	if r.overlayCompositeVertexShader != nil {
-		r.overlayCompositeVertexShader.Release()
-		r.overlayCompositeVertexShader = nil
+	if r.resources.OverlayCompositeVertexShader != nil {
+		r.resources.OverlayCompositeVertexShader.Release()
+		r.resources.OverlayCompositeVertexShader = nil
 	}
-	if r.overlayCompositeFragmentShader != nil {
-		r.overlayCompositeFragmentShader.Release()
-		r.overlayCompositeFragmentShader = nil
+	if r.resources.OverlayCompositeFragmentShader != nil {
+		r.resources.OverlayCompositeFragmentShader.Release()
+		r.resources.OverlayCompositeFragmentShader = nil
 	}
 }
 
@@ -84,7 +84,7 @@ func (r *Renderer) ensureOverlayCompositeResourcesLocked(device *wgpu.Device) er
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
-	if r.overlayCompositePipeline != nil && r.overlayCompositeBindGroupLayout != nil {
+	if r.resources.OverlayCompositePipeline != nil && r.resources.OverlayCompositeBindGroupLayout != nil {
 		return nil
 	}
 
@@ -178,11 +178,11 @@ func (r *Renderer) ensureOverlayCompositeResourcesLocked(device *wgpu.Device) er
 		return fmt.Errorf("create overlay composite pipeline: %w", err)
 	}
 
-	r.overlayCompositeVertexShader = vertexShader
-	r.overlayCompositeFragmentShader = fragmentShader
-	r.overlayCompositeBindGroupLayout = bindGroupLayout
-	r.overlayCompositePipelineLayout = pipelineLayout
-	r.overlayCompositePipeline = pipeline
+	r.resources.OverlayCompositeVertexShader = vertexShader
+	r.resources.OverlayCompositeFragmentShader = fragmentShader
+	r.resources.OverlayCompositeBindGroupLayout = bindGroupLayout
+	r.resources.OverlayCompositePipelineLayout = pipelineLayout
+	r.resources.OverlayCompositePipeline = pipeline
 	return nil
 }
 
@@ -190,17 +190,17 @@ func (r *Renderer) ensureOverlayCompositeBindGroupLocked(device *wgpu.Device, te
 	if device == nil || tex == nil || tex.View() == nil || tex.Sampler() == nil {
 		return fmt.Errorf("invalid overlay texture")
 	}
-	if r.overlayCompositeBindGroup != nil && r.overlayCompositeTextureView == tex.View() {
+	if r.resources.OverlayCompositeBindGroup != nil && r.resources.OverlayCompositeTextureView == tex.View() {
 		return nil
 	}
-	if r.overlayCompositeBindGroup != nil {
-		r.overlayCompositeBindGroup.Release()
-		r.overlayCompositeBindGroup = nil
+	if r.resources.OverlayCompositeBindGroup != nil {
+		r.resources.OverlayCompositeBindGroup.Release()
+		r.resources.OverlayCompositeBindGroup = nil
 	}
 
 	bindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "Overlay Composite BG",
-		Layout: r.overlayCompositeBindGroupLayout,
+		Layout: r.resources.OverlayCompositeBindGroupLayout,
 		Entries: []wgpu.BindGroupEntry{
 			{Binding: 0, Sampler: tex.Sampler()},
 			{Binding: 1, TextureView: tex.View()},
@@ -209,8 +209,8 @@ func (r *Renderer) ensureOverlayCompositeBindGroupLocked(device *wgpu.Device, te
 	if err != nil {
 		return fmt.Errorf("create overlay composite bind group: %w", err)
 	}
-	r.overlayCompositeBindGroup = bindGroup
-	r.overlayCompositeTextureView = tex.View()
+	r.resources.OverlayCompositeBindGroup = bindGroup
+	r.resources.OverlayCompositeTextureView = tex.View()
 	return nil
 }
 
@@ -234,7 +234,7 @@ func (dc *DrawContext) ensureOverlayTextureBindGroup(tex *gogpu.Texture) bool {
 	if err := r.ensureOverlayCompositeBindGroupLocked(device, tex); err != nil {
 		return false
 	}
-	return r.overlayCompositePipeline != nil && r.overlayCompositeBindGroup != nil
+	return r.resources.OverlayCompositePipeline != nil && r.resources.OverlayCompositeBindGroup != nil
 }
 
 func (dc *DrawContext) renderOverlayTextureHAL(tex *gogpu.Texture) bool {
@@ -254,8 +254,8 @@ func (dc *DrawContext) renderOverlayTextureHAL(tex *gogpu.Texture) bool {
 
 	r := dc.renderer
 	r.mu.RLock()
-	pipeline := r.overlayCompositePipeline
-	bindGroup := r.overlayCompositeBindGroup
+	pipeline := r.resources.OverlayCompositePipeline
+	bindGroup := r.resources.OverlayCompositeBindGroup
 	r.mu.RUnlock()
 	if pipeline == nil || bindGroup == nil {
 		return false

@@ -83,18 +83,18 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		slog.Warn("failed to ensure brush entity scratch buffers", "error", err)
 		return
 	}
-	pipeline := r.worldPipeline
-	alphaTestPipeline := r.worldAlphaTestPipeline
-	uniformBuffer := r.uniformBuffer
-	uniformBindGroup := r.uniformBindGroup
-	whiteTextureBindGroup := r.whiteTextureBindGroup
-	transparentBindGroup := r.transparentBindGroup
-	whiteLightmapBindGroup := r.whiteLightmapBindGroup
+	pipeline := r.resources.WorldPipeline
+	alphaTestPipeline := r.resources.WorldAlphaTestPipeline
+	uniformBuffer := r.resources.UniformBuffer
+	uniformBindGroup := r.resources.UniformBindGroup
+	whiteTextureBindGroup := r.resources.WhiteTextureBindGroup
+	transparentBindGroup := r.resources.TransparentBindGroup
+	whiteLightmapBindGroup := r.resources.WhiteLightmapBindGroup
 	vertexScratchBuffer := r.brushEntityScratchVertexBuffer
 	indexScratchBuffer := r.brushEntityScratchIndexBuffer
-	depthView := r.worldDepthTextureView
-	dynamicLightsBuffer := r.worldDynamicLightsBuffer
-	dynamicLightsBindGroup := r.worldDynamicLightsBindGroup
+	depthView := r.resources.WorldDepthTextureView
+	dynamicLightsBuffer := r.resources.WorldDynamicLightsBuffer
+	dynamicLightsBindGroup := r.resources.WorldDynamicLightsBindGroup
 	camera := r.cameraState
 	worldTextures := r.worldTextures
 	worldFullbrightTextures := r.worldFullbrightTextures
@@ -344,21 +344,21 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	r := dc.renderer
 	r.mu.RLock()
 	var treeEntities []byte
-	skyPipeline := r.worldSkyPipeline
-	externalSkyOverlayPipeline := r.worldSkyExternalOverlayPipeline
-	uniformBuffer := r.uniformBuffer
-	uniformBindGroup := r.uniformBindGroup
-	whiteTextureBindGroup := r.whiteTextureBindGroup
-	transparentBindGroup := r.transparentBindGroup
-	dynamicLightsBuffer := r.worldDynamicLightsBuffer
-	dynamicLightsBindGroup := r.worldDynamicLightsBindGroup
+	skyPipeline := r.resources.WorldSkyPipeline
+	externalSkyOverlayPipeline := r.resources.WorldSkyExternalOverlayPipeline
+	uniformBuffer := r.resources.UniformBuffer
+	uniformBindGroup := r.resources.UniformBindGroup
+	whiteTextureBindGroup := r.resources.WhiteTextureBindGroup
+	transparentBindGroup := r.resources.TransparentBindGroup
+	dynamicLightsBuffer := r.resources.WorldDynamicLightsBuffer
+	dynamicLightsBindGroup := r.resources.WorldDynamicLightsBindGroup
 	worldSkySolidTextures := r.worldSkySolidTextures
 	worldSkyAlphaTextures := r.worldSkyAlphaTextures
 	externalSkyMode := r.worldSkyExternalMode
-	externalSkyBindGroup := r.worldSkyExternalBindGroup
+	externalSkyBindGroup := r.resources.WorldSkyExternalBindGroup
 	externalSkyWind := r.worldSkyExternalWind
-	externalSkyWindLoaded := r.worldSkyExternalWindLoaded
-	depthView := r.worldDepthTextureView
+	externalSkyWindLoaded := r.resources.WorldSkyExternalWindLoaded
+	depthView := r.resources.WorldDepthTextureView
 	camera := r.cameraState
 	var activeDynamicLights []DynamicLight
 	if r.lightPool != nil {
@@ -399,7 +399,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		slog.Warn("renderSkyBrushEntitiesHAL: Failed to begin render pass", "error", err)
 		return
 	}
-	logExternalSkyDraw := useExternalSky && !r.worldSkyExternalBrushDrawLogged
+	logExternalSkyDraw := useExternalSky && !r.resources.WorldSkyExternalBrushDrawLogged
 	if logExternalSkyDraw {
 		totalFaces := 0
 		totalIndices := uint32(0)
@@ -409,7 +409,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 				totalIndices += face.NumIndices
 			}
 		}
-		slog.Info("external sky brush draw begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "draws", len(draws), "faces", totalFaces, "indices", totalIndices)
+		slog.Info("external sky brush draw begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "draws", len(draws), "faces", totalFaces, "indices", totalIndices)
 	}
 	if useExternalSky {
 		renderPass.SetPipeline(externalSkyOverlayPipeline)
@@ -419,7 +419,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		renderPass.SetBindGroup(2, whiteTextureBindGroup, nil)
 		renderPass.SetBindGroup(3, whiteTextureBindGroup, nil)
 		if logExternalSkyDraw {
-			slog.Info("external sky brush draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+			slog.Info("external sky brush draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 		}
 	} else {
 		renderPass.SetPipeline(skyPipeline)
@@ -500,15 +500,15 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		}
 	}
 	if logExternalSkyDraw {
-		slog.Info("external sky brush draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
-		slog.Info("external sky brush render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+		slog.Info("external sky brush draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Info("external sky brush render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 	}
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderSkyBrushEntitiesHAL: render pass end error", "error", err)
 	}
 	if logExternalSkyDraw {
-		slog.Info("external sky brush render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
-		slog.Info("external sky brush encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+		slog.Info("external sky brush render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Info("external sky brush encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
@@ -519,8 +519,8 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		return
 	}
 	if logExternalSkyDraw {
-		slog.Info("external sky brush encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
-		slog.Info("external sky brush queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+		slog.Info("external sky brush encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Info("external sky brush queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 	}
 	if r.uniformOffset > passStartUniformOffset {
 		_ = queue.WriteBuffer(uniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
@@ -529,8 +529,8 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		slog.Warn("failed to submit brush sky commands", "error", err)
 	}
 	if logExternalSkyDraw {
-		slog.Info("external sky brush queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
-		r.worldSkyExternalBrushDrawLogged = true
+		slog.Info("external sky brush queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		r.resources.WorldSkyExternalBrushDrawLogged = true
 	}
 	for _, buffer := range buffers {
 		buffer.Release()
@@ -621,17 +621,17 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		slog.Warn("failed to ensure brush liquid scratch buffers", "error", err)
 		return
 	}
-	pipeline := r.worldTurbulentPipeline
-	uniformBuffer := r.uniformBuffer
-	uniformBindGroup := r.uniformBindGroup
-	whiteTextureBindGroup := r.whiteTextureBindGroup
-	whiteLightmapBindGroup := r.whiteLightmapBindGroup
-	transparentBindGroup := r.transparentBindGroup
+	pipeline := r.resources.WorldTurbulentPipeline
+	uniformBuffer := r.resources.UniformBuffer
+	uniformBindGroup := r.resources.UniformBindGroup
+	whiteTextureBindGroup := r.resources.WhiteTextureBindGroup
+	whiteLightmapBindGroup := r.resources.WhiteLightmapBindGroup
+	transparentBindGroup := r.resources.TransparentBindGroup
 	vertexScratchBuffer := r.brushEntityScratchVertexBuffer
 	indexScratchBuffer := r.brushEntityScratchIndexBuffer
-	depthView := r.worldDepthTextureView
-	dynamicLightsBuffer := r.worldDynamicLightsBuffer
-	dynamicLightsBindGroup := r.worldDynamicLightsBindGroup
+	depthView := r.resources.WorldDepthTextureView
+	dynamicLightsBuffer := r.resources.WorldDynamicLightsBuffer
+	dynamicLightsBindGroup := r.resources.WorldDynamicLightsBindGroup
 	camera := r.cameraState
 	worldTextures := r.worldTextures
 	worldFullbrightTextures := r.worldFullbrightTextures

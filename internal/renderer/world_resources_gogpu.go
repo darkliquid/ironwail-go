@@ -564,12 +564,12 @@ func (r *Renderer) createWorldLightmapSampler(device *wgpu.Device) (*wgpu.Sample
 }
 
 func (r *Renderer) createWorldTextureBindGroup(device *wgpu.Device, sampler *wgpu.Sampler, view *wgpu.TextureView) (*wgpu.BindGroup, error) {
-	if device == nil || sampler == nil || view == nil || r.textureBindGroupLayout == nil {
+	if device == nil || sampler == nil || view == nil || r.resources.TextureBindGroupLayout == nil {
 		return nil, fmt.Errorf("missing world texture bind group resources")
 	}
 	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "World Texture BG",
-		Layout: r.textureBindGroupLayout,
+		Layout: r.resources.TextureBindGroupLayout,
 		Entries: []wgpu.BindGroupEntry{
 			{Binding: 0, Sampler: sampler},
 			{Binding: 1, TextureView: view},
@@ -578,12 +578,12 @@ func (r *Renderer) createWorldTextureBindGroup(device *wgpu.Device, sampler *wgp
 }
 
 func (r *Renderer) createWorldLightmapBindGroup(device *wgpu.Device, sampler *wgpu.Sampler, view *wgpu.TextureView) (*wgpu.BindGroup, error) {
-	if device == nil || sampler == nil || view == nil || r.lightmapBindGroupLayout == nil {
+	if device == nil || sampler == nil || view == nil || r.resources.LightmapBindGroupLayout == nil {
 		return nil, fmt.Errorf("missing world lightmap bind group resources")
 	}
 	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "World Lightmap Array BG",
-		Layout: r.lightmapBindGroupLayout,
+		Layout: r.resources.LightmapBindGroupLayout,
 		Entries: []wgpu.BindGroupEntry{
 			{Binding: 0, Sampler: sampler},
 			{Binding: 1, TextureView: view},

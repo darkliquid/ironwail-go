@@ -54,12 +54,12 @@ func animateWorldMaterials(baseMaterials []WorldMaterialData, animations []*surf
 // updateWorldMaterialsBuffer updates the materials uniform buffer with animated
 // texture layers. The caller must already hold r.mu (at least RLock) since this
 // reads r.worldBaseMaterials and r.worldTextureAnimations without locking.
-// It also updates the frame-1 variant (r.worldMaterialsBufferFrame1) so that
+// It also updates the frame-1 variant (r.resources.WorldMaterialsBufferFrame1) so that
 // brush entities with frame != 0 (pressed buttons, activated switches) can
 // select alternate texture chains without overwriting the frame-0 data that
 // world faces still need.
 func (r *Renderer) updateWorldMaterialsBuffer(queue *wgpu.Queue, timeValue float32) error {
-	if r.worldMaterialsBuffer == nil || len(r.worldBaseMaterials) == 0 {
+	if r.resources.WorldMaterialsBuffer == nil || len(r.worldBaseMaterials) == 0 {
 		return nil
 	}
 
@@ -71,18 +71,18 @@ func (r *Renderer) updateWorldMaterialsBuffer(queue *wgpu.Queue, timeValue float
 	byteLen := len(animatedMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
 	byteData := unsafe.Slice((*byte)(unsafe.Pointer(&animatedMaterials[0])), byteLen)
 
-	if err := queue.WriteBuffer(r.worldMaterialsBuffer, 0, byteData); err != nil {
+	if err := queue.WriteBuffer(r.resources.WorldMaterialsBuffer, 0, byteData); err != nil {
 		return err
 	}
 
 	// Update the frame-1 materials buffer so brush entities with frame != 0
 	// can bind alternate texture chains. This buffer is the same size and
 	// layout as the frame-0 buffer but with AlternateAnims selected.
-	if r.worldMaterialsBufferFrame1 != nil {
+	if r.resources.WorldMaterialsBufferFrame1 != nil {
 		frame1Materials := animateWorldMaterials(r.worldBaseMaterials, r.worldTextureAnimations, 1, timeValue)
 		f1ByteLen := len(frame1Materials) * int(unsafe.Sizeof(WorldMaterialData{}))
 		f1ByteData := unsafe.Slice((*byte)(unsafe.Pointer(&frame1Materials[0])), f1ByteLen)
-		if err := queue.WriteBuffer(r.worldMaterialsBufferFrame1, 0, f1ByteData); err != nil {
+		if err := queue.WriteBuffer(r.resources.WorldMaterialsBufferFrame1, 0, f1ByteData); err != nil {
 			return err
 		}
 	}

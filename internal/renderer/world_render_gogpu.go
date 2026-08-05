@@ -65,7 +65,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 
-	if dc.renderer.worldPipeline == nil {
+	if dc.renderer.resources.WorldPipeline == nil {
 		slog.Debug("renderWorldInternal: World pipeline not ready")
 		return
 	}
@@ -125,7 +125,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				ClearValue: clearColor,
 			},
 		},
-		DepthStencilAttachment: worldDepthAttachmentForView(dc.renderer.worldDepthTextureView),
+		DepthStencilAttachment: worldDepthAttachmentForView(dc.renderer.resources.WorldDepthTextureView),
 	}
 
 	// Begin render pass
@@ -138,8 +138,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	slog.Debug("renderWorldInternal: render pass created", "pass", fmt.Sprintf("%T", renderPass))
 
 	// Set pipeline
-	slog.Debug("renderWorldInternal: setting pipeline", "pipeline", fmt.Sprintf("%T", dc.renderer.worldPipeline))
-	renderPass.SetPipeline(dc.renderer.worldPipeline)
+	slog.Debug("renderWorldInternal: setting pipeline", "pipeline", fmt.Sprintf("%T", dc.renderer.resources.WorldPipeline))
+	renderPass.SetPipeline(dc.renderer.resources.WorldPipeline)
 
 	// Explicit viewport/scissor to avoid backend defaults that can yield zero-area rasterization.
 	w, h := dc.renderer.Size()
@@ -161,7 +161,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	slog.Debug("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Debug("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
-	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:])
+	err = queue.WriteBuffer(dc.renderer.resources.UniformBuffer, 0, uniformBytes[:])
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to update uniform buffer", "error", err)
 		_ = renderPass.End()
@@ -177,28 +177,28 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	renderPass.SetIndexBuffer(dc.renderer.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
 
 	// Set uniform bind group.
-	if dc.renderer.uniformBindGroup != nil {
-		slog.Debug("renderWorldInternal: setting bind group", "group", fmt.Sprintf("%T", dc.renderer.uniformBindGroup))
-		renderPass.SetBindGroup(0, dc.renderer.uniformBindGroup, nil)
+	if dc.renderer.resources.UniformBindGroup != nil {
+		slog.Debug("renderWorldInternal: setting bind group", "group", fmt.Sprintf("%T", dc.renderer.resources.UniformBindGroup))
+		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, nil)
 	} else {
 		slog.Warn("renderWorldInternal: NO uniform bind group set")
 	}
-	if dc.renderer.worldDynamicLightsBindGroup == nil || dc.renderer.worldDynamicLightsBuffer == nil {
+	if dc.renderer.resources.WorldDynamicLightsBindGroup == nil || dc.renderer.resources.WorldDynamicLightsBuffer == nil {
 		slog.Warn("renderWorldInternal: no dynamic light bind group available")
 		_ = renderPass.End()
 		return
 	}
 	// Light buffer was already uploaded in dispatchWorldClusterCompute
-	renderPass.SetBindGroup(4, dc.renderer.worldDynamicLightsBindGroup, nil)
+	renderPass.SetBindGroup(4, dc.renderer.resources.WorldDynamicLightsBindGroup, nil)
 
-	if dc.renderer.whiteTextureBindGroup == nil || dc.renderer.whiteLightmapBindGroup == nil {
+	if dc.renderer.resources.WhiteTextureBindGroup == nil || dc.renderer.resources.WhiteLightmapBindGroup == nil {
 		slog.Warn("renderWorldInternal: no world texture/lightmap bind group available")
 		_ = renderPass.End()
 		return
 	}
 	timeSeconds := float64(camera.Time)
 	// Update animated world texture material layers before drawing.
-	if dc.renderer.worldMaterialsBuffer != nil && queue != nil {
+	if dc.renderer.resources.WorldMaterialsBuffer != nil && queue != nil {
 		_ = dc.renderer.updateWorldMaterialsBuffer(queue, float32(timeSeconds))
 	}
 	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
@@ -226,7 +226,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		currentLitWater = litWater
 		currentFogDensity = activeFogDensity
 		fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, alpha, litWater)
-		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:]) == nil
+		return queue.WriteBuffer(dc.renderer.resources.UniformBuffer, 0, uniformBytes[:]) == nil
 	}
 	writeWorldUniform := func(alpha float32, litWater float32) bool {
 		return writeWorldUniformWithFog(alpha, litWater, worldFogUniformDensity(fogDensity))
@@ -235,8 +235,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		currentAlpha = 1
 		currentLitWater = 0
 		currentFogDensity = activeFogDensity
-		fillWorldSceneUniformBytesWithExternalSkyWind(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, dc.renderer.worldSkyExternalWind, dc.renderer.worldSkyExternalWindLoaded)
-		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:]) == nil
+		fillWorldSceneUniformBytesWithExternalSkyWind(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, dc.renderer.worldSkyExternalWind, dc.renderer.resources.WorldSkyExternalWindLoaded)
+		return queue.WriteBuffer(dc.renderer.resources.UniformBuffer, 0, uniformBytes[:]) == nil
 	}
 	cameraOriginWorld := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	cameraLeafIndex := worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
@@ -295,14 +295,14 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			case shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha):
 				translucentLiquidFaces = append(translucentLiquidFaces, face)
 			case shouldDrawGoGPUOpaqueWorldFace(face), shouldDrawGoGPUAlphaTestWorldFace(face), shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha):
-				textureBindGroup := dc.renderer.whiteTextureBindGroup
+				textureBindGroup := dc.renderer.resources.WhiteTextureBindGroup
 				if dc.renderer.worldTextures != nil && dc.renderer.worldTextures.bindGroup != nil {
 					textureBindGroup = dc.renderer.worldTextures.bindGroup
 				}
-				lightmapBindGroup := dc.renderer.whiteLightmapBindGroup
+				lightmapBindGroup := dc.renderer.resources.WhiteLightmapBindGroup
 				litWater := float32(0)
 				if shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha) {
-					lightmapBindGroup, litWater = gogpuWorldLightmapArrayBindGroupForFace(face, dc.renderer.worldLightmapArray, dc.renderer.whiteLightmapBindGroup, worldHasLitWater)
+					lightmapBindGroup, litWater = gogpuWorldLightmapArrayBindGroupForFace(face, dc.renderer.worldLightmapArray, dc.renderer.resources.WhiteLightmapBindGroup, worldHasLitWater)
 					if rDebugWaterEnabled() {
 						slog.Debug("[rwater] face classified as OPAQUE liquid",
 							"face_idx", face.FirstIndex,
@@ -317,9 +317,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 						lightmapBindGroup = dc.renderer.worldLightmapArray.bindGroup
 					}
 				}
-				fullbrightBindGroup := dc.renderer.transparentBindGroup
+				fullbrightBindGroup := dc.renderer.resources.TransparentBindGroup
 				if fullbrightBindGroup == nil {
-					fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+					fullbrightBindGroup = dc.renderer.resources.WhiteTextureBindGroup
 				}
 				if dc.renderer.worldFullbrightTextures != nil && dc.renderer.worldFullbrightTextures.bindGroup != nil {
 					fullbrightBindGroup = dc.renderer.worldFullbrightTextures.bindGroup
@@ -423,7 +423,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		_ = renderPass.End()
 		return
 	}
-	if dc.renderer.worldTranslucentTurbulentPipeline != nil && len(translucentLiquidFaces) > 0 {
+	if dc.renderer.resources.WorldTranslucentTurbulentPipeline != nil && len(translucentLiquidFaces) > 0 {
 		translucentLiquidFaces = nil
 	}
 
@@ -431,21 +431,21 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	slog.Debug("renderWorldInternal: ending render pass")
 	logExternalSkySubmit := skyDrawnIndices > 0 &&
 		dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces &&
-		dc.renderer.worldSkyExternalBindGroup != nil &&
-		!dc.renderer.worldSkyExternalWorldDrawLogged
+		dc.renderer.resources.WorldSkyExternalBindGroup != nil &&
+		!dc.renderer.resources.WorldSkyExternalWorldDrawLogged
 	if logExternalSkySubmit {
-		slog.Info("external sky world render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+		slog.Info("external sky world render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderWorldInternal: render pass end error", "error", err)
 	}
 	if logExternalSkySubmit {
-		slog.Info("external sky world render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+		slog.Info("external sky world render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 
 	// Finish encoding and get command buffer
 	if logExternalSkySubmit {
-		slog.Info("external sky world encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+		slog.Info("external sky world encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
@@ -453,13 +453,13 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 	if logExternalSkySubmit {
-		slog.Info("external sky world encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+		slog.Info("external sky world encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 
 	// Submit to queue
 	slog.Debug("renderWorldInternal: submitting to queue")
 	if logExternalSkySubmit {
-		slog.Info("external sky world queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+		slog.Info("external sky world queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 	submitStart := time.Now()
 	_, err = queue.Submit(cmdBuffer)
@@ -469,8 +469,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 	if logExternalSkySubmit {
-		slog.Info("external sky world queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "submit_ms", submitMS)
-		dc.renderer.worldSkyExternalWorldDrawLogged = true
+		slog.Info("external sky world queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "submit_ms", submitMS)
+		dc.renderer.resources.WorldSkyExternalWorldDrawLogged = true
 	}
 
 	if hostSpeeds {
@@ -511,32 +511,32 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor [3]float32, fog
 
 	dc.renderer.mu.RLock()
 	if dc.renderer.worldSkyExternalMode != externalSkyboxRenderFaces ||
-		dc.renderer.worldSkyExternalOverlayPipeline == nil ||
-		dc.renderer.worldSkyExternalBindGroup == nil ||
+		dc.renderer.resources.WorldSkyExternalOverlayPipeline == nil ||
+		dc.renderer.resources.WorldSkyExternalBindGroup == nil ||
 		dc.renderer.worldVertexBuffer == nil ||
 		dc.renderer.worldIndexBuffer == nil ||
-		dc.renderer.uniformBuffer == nil ||
-		dc.renderer.uniformBindGroup == nil ||
-		dc.renderer.whiteTextureBindGroup == nil ||
-		dc.renderer.worldDynamicLightsBindGroup == nil ||
-		dc.renderer.worldDepthTextureView == nil {
+		dc.renderer.resources.UniformBuffer == nil ||
+		dc.renderer.resources.UniformBindGroup == nil ||
+		dc.renderer.resources.WhiteTextureBindGroup == nil ||
+		dc.renderer.resources.WorldDynamicLightsBindGroup == nil ||
+		dc.renderer.resources.WorldDepthTextureView == nil {
 		dc.renderer.mu.RUnlock()
 		return
 	}
-	pipeline := dc.renderer.worldSkyExternalOverlayPipeline
-	externalSkyBindGroup := dc.renderer.worldSkyExternalBindGroup
-	whiteTextureBindGroup := dc.renderer.whiteTextureBindGroup
-	dynamicLightsBindGroup := dc.renderer.worldDynamicLightsBindGroup
-	uniformBuffer := dc.renderer.uniformBuffer
-	uniformBindGroup := dc.renderer.uniformBindGroup
+	pipeline := dc.renderer.resources.WorldSkyExternalOverlayPipeline
+	externalSkyBindGroup := dc.renderer.resources.WorldSkyExternalBindGroup
+	whiteTextureBindGroup := dc.renderer.resources.WhiteTextureBindGroup
+	dynamicLightsBindGroup := dc.renderer.resources.WorldDynamicLightsBindGroup
+	uniformBuffer := dc.renderer.resources.UniformBuffer
+	uniformBindGroup := dc.renderer.resources.UniformBindGroup
 	vertexBuffer := dc.renderer.worldVertexBuffer
 	indexBuffer := dc.renderer.worldIndexBuffer
-	depthView := dc.renderer.worldDepthTextureView
+	depthView := dc.renderer.resources.WorldDepthTextureView
 	camera := dc.renderer.cameraState
 	vpMatrix := dc.renderer.viewMatrices.VP
 	externalSkyWind := dc.renderer.worldSkyExternalWind
-	externalSkyWindLoaded := dc.renderer.worldSkyExternalWindLoaded
-	name := dc.renderer.worldSkyExternalName
+	externalSkyWindLoaded := dc.renderer.resources.WorldSkyExternalWindLoaded
+	name := dc.renderer.resources.WorldSkyExternalName
 	dc.renderer.mu.RUnlock()
 
 	visibleFaces := selectVisibleWorldFaces(
@@ -748,7 +748,7 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 
 	dc.renderer.mu.Lock()
 	dc.renderer.ensureAliasDepthTextureLocked(device)
-	depthView := dc.renderer.worldDepthTextureView
+	depthView := dc.renderer.resources.WorldDepthTextureView
 	dc.renderer.mu.Unlock()
 	attachment := gogpuSharedDepthStencilClearAttachmentForView(depthView)
 	if attachment == nil {

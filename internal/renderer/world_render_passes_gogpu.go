@@ -16,54 +16,54 @@ func (dc *DrawContext) renderWorldSkyPass(
 	writeWorldUniformWithFog func(float32, float32, float32) bool,
 	writeExternalSkyUniform func(float32) bool,
 ) (skyDrawnIndices uint32, err error) {
-	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.worldSkyExternalPipeline != nil && dc.renderer.worldSkyExternalBindGroup != nil {
-		logExternalSkyDraw := !dc.renderer.worldSkyExternalWorldDrawLogged
+	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.resources.WorldSkyExternalPipeline != nil && dc.renderer.resources.WorldSkyExternalBindGroup != nil {
+		logExternalSkyDraw := !dc.renderer.resources.WorldSkyExternalWorldDrawLogged
 		if logExternalSkyDraw {
-			slog.Info("external sky world draw begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "sky_faces", len(skyFaces))
+			slog.Info("external sky world draw begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "sky_faces", len(skyFaces))
 		}
 		if !writeExternalSkyUniform(skyFogDensity) {
 			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
 			return 0, fmt.Errorf("failed to update sky fog uniform")
 		}
 		if logExternalSkyDraw {
-			slog.Info("external sky world draw uniform written", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "sky_fog_density", skyFogDensity, "wind_loaded", dc.renderer.worldSkyExternalWindLoaded, "wind_dist", dc.renderer.worldSkyExternalWind.Dist, "wind_period", dc.renderer.worldSkyExternalWind.Period)
+			slog.Info("external sky world draw uniform written", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "sky_fog_density", skyFogDensity, "wind_loaded", dc.renderer.resources.WorldSkyExternalWindLoaded, "wind_dist", dc.renderer.worldSkyExternalWind.Dist, "wind_period", dc.renderer.worldSkyExternalWind.Period)
 		}
-		renderPass.SetPipeline(dc.renderer.worldSkyExternalPipeline)
-		renderPass.SetBindGroup(1, dc.renderer.worldSkyExternalBindGroup, nil)
-		renderPass.SetBindGroup(2, dc.renderer.whiteTextureBindGroup, nil)
-		renderPass.SetBindGroup(3, dc.renderer.whiteTextureBindGroup, nil)
+		renderPass.SetPipeline(dc.renderer.resources.WorldSkyExternalPipeline)
+		renderPass.SetBindGroup(1, dc.renderer.resources.WorldSkyExternalBindGroup, nil)
+		renderPass.SetBindGroup(2, dc.renderer.resources.WhiteTextureBindGroup, nil)
+		renderPass.SetBindGroup(3, dc.renderer.resources.WhiteTextureBindGroup, nil)
 		if logExternalSkyDraw {
-			slog.Info("external sky world draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+			slog.Info("external sky world draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 		}
 		for _, face := range skyFaces {
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			skyDrawnIndices += face.NumIndices
 		}
 		if logExternalSkyDraw {
-			slog.Info("external sky world draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "drawn_indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
+			slog.Info("external sky world draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "drawn_indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
 		}
-	} else if dc.renderer.worldSkyPipeline != nil {
+	} else if dc.renderer.resources.WorldSkyPipeline != nil {
 		if !writeWorldUniformWithFog(1, 0, skyFogDensity) {
 			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
 			return 0, fmt.Errorf("failed to update sky fog uniform")
 		}
-		renderPass.SetPipeline(dc.renderer.worldSkyPipeline)
+		renderPass.SetPipeline(dc.renderer.resources.WorldSkyPipeline)
 		var materialBindState gogpuWorldMaterialBindState
 		materialBindState.invalidate()
 		for _, face := range skyFaces {
 			textureIndex := resolveWorldSkyTextureIndex(face, dc.renderer.worldTextureAnimations, 0, timeSeconds)
-			solidBindGroup := dc.renderer.whiteTextureBindGroup
+			solidBindGroup := dc.renderer.resources.WhiteTextureBindGroup
 			if worldTexture := dc.renderer.worldSkySolidTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
 				solidBindGroup = worldTexture.bindGroup
 			}
-			alphaBindGroup := dc.renderer.transparentBindGroup
+			alphaBindGroup := dc.renderer.resources.TransparentBindGroup
 			if alphaBindGroup == nil {
-				alphaBindGroup = dc.renderer.whiteTextureBindGroup
+				alphaBindGroup = dc.renderer.resources.WhiteTextureBindGroup
 			}
 			if worldTexture := dc.renderer.worldSkyAlphaTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
 				alphaBindGroup = worldTexture.bindGroup
 			}
-			setTexture, setLightmap, setFullbright := materialBindState.update(solidBindGroup, alphaBindGroup, dc.renderer.whiteTextureBindGroup)
+			setTexture, setLightmap, setFullbright := materialBindState.update(solidBindGroup, alphaBindGroup, dc.renderer.resources.WhiteTextureBindGroup)
 			if setTexture {
 				renderPass.SetBindGroup(1, solidBindGroup, nil)
 			}
@@ -71,7 +71,7 @@ func (dc *DrawContext) renderWorldSkyPass(
 				renderPass.SetBindGroup(2, alphaBindGroup, nil)
 			}
 			if setFullbright {
-				renderPass.SetBindGroup(3, dc.renderer.whiteTextureBindGroup, nil)
+				renderPass.SetBindGroup(3, dc.renderer.resources.WhiteTextureBindGroup, nil)
 			}
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			skyDrawnIndices += face.NumIndices
@@ -87,7 +87,7 @@ func (dc *DrawContext) renderWorldOpaquePasses(
 	writeWorldUniform func(float32, float32) bool,
 ) (drawnIndices, alphaTestDrawnIndices, liquidDrawnIndices uint32, err error) {
 	var materialBindState gogpuWorldMaterialBindState
-	renderPass.SetPipeline(dc.renderer.worldPipeline)
+	renderPass.SetPipeline(dc.renderer.resources.WorldPipeline)
 	materialBindState.invalidate()
 	if opaqueBatchBuffer != nil {
 		renderPass.SetIndexBuffer(opaqueBatchBuffer, gputypes.IndexFormatUint32, 0)
@@ -109,8 +109,8 @@ func (dc *DrawContext) renderWorldOpaquePasses(
 		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
 		drawnIndices += batch.numIndices
 	}
-	if dc.renderer.worldAlphaTestPipeline != nil {
-		renderPass.SetPipeline(dc.renderer.worldAlphaTestPipeline)
+	if dc.renderer.resources.WorldAlphaTestPipeline != nil {
+		renderPass.SetPipeline(dc.renderer.resources.WorldAlphaTestPipeline)
 		materialBindState.invalidate()
 		for _, batch := range alphaTestBatches {
 			if !writeWorldUniform(1, batch.key.litWater) {
@@ -133,8 +133,8 @@ func (dc *DrawContext) renderWorldOpaquePasses(
 		slog.Warn("renderWorldInternal: alpha-test faces exist but alpha-test pipeline is nil",
 			"alpha_test_batches", len(alphaTestBatches))
 	}
-	if dc.renderer.worldTurbulentPipeline != nil {
-		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
+	if dc.renderer.resources.WorldTurbulentPipeline != nil {
+		renderPass.SetPipeline(dc.renderer.resources.WorldTurbulentPipeline)
 		materialBindState.invalidate()
 		for i, batch := range opaqueLiquidBatches {
 			if rDebugWaterEnabled() {
@@ -181,20 +181,20 @@ func (dc *DrawContext) renderWorldTranslucentPass(
 	worldIndices []uint32,
 	batchedIndices []uint32,
 ) ([]uint32, error) {
-	if dc.renderer.worldTranslucentTurbulentPipeline == nil || len(translucentLiquidFaces) == 0 {
+	if dc.renderer.resources.WorldTranslucentTurbulentPipeline == nil || len(translucentLiquidFaces) == 0 {
 		return batchedIndices, nil
 	}
 	dynUniformStart := dc.renderer.uniformOffset
 	translucentLiquidDraws := dc.renderer.worldLiquidDrawsScratch[:0]
 	for _, face := range translucentLiquidFaces {
-		textureBindGroup := dc.renderer.whiteTextureBindGroup
+		textureBindGroup := dc.renderer.resources.WhiteTextureBindGroup
 		if dc.renderer.worldTextures != nil && dc.renderer.worldTextures.bindGroup != nil {
 			textureBindGroup = dc.renderer.worldTextures.bindGroup
 		}
-		lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, dc.renderer.worldLightmapArray, dc.renderer.whiteLightmapBindGroup, worldHasLitWater)
-		fullbrightBindGroup := dc.renderer.transparentBindGroup
+		lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, dc.renderer.worldLightmapArray, dc.renderer.resources.WhiteLightmapBindGroup, worldHasLitWater)
+		fullbrightBindGroup := dc.renderer.resources.TransparentBindGroup
 		if fullbrightBindGroup == nil {
-			fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+			fullbrightBindGroup = dc.renderer.resources.WhiteTextureBindGroup
 		}
 		if dc.renderer.worldFullbrightTextures != nil && dc.renderer.worldFullbrightTextures.bindGroup != nil {
 			fullbrightBindGroup = dc.renderer.worldFullbrightTextures.bindGroup
@@ -218,10 +218,10 @@ func (dc *DrawContext) renderWorldTranslucentPass(
 	}
 	if dc.renderer.uniformOffset > dynUniformStart {
 		dynData := dc.renderer.uniformDataScratch[dynUniformStart:dc.renderer.uniformOffset]
-		_ = queue.WriteBuffer(dc.renderer.uniformBuffer, uint64(dynUniformStart), dynData)
+		_ = queue.WriteBuffer(dc.renderer.resources.UniformBuffer, uint64(dynUniformStart), dynData)
 	}
 
-	renderPass.SetPipeline(dc.renderer.worldTranslucentTurbulentPipeline)
+	renderPass.SetPipeline(dc.renderer.resources.WorldTranslucentTurbulentPipeline)
 	var materialBindState gogpuWorldMaterialBindState
 	materialBindState.invalidate()
 	tOffset := dynUniformStart
@@ -235,7 +235,7 @@ func (dc *DrawContext) renderWorldTranslucentPass(
 				"uniform_offset", tOffset,
 			)
 		}
-		renderPass.SetBindGroup(0, dc.renderer.uniformBindGroup, []uint32{tOffset})
+		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, []uint32{tOffset})
 		tOffset += worldUniformAlign
 		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
 		if setTexture {

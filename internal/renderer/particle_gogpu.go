@@ -391,7 +391,7 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 	uniformBuffer := r.particleUniformBuffer
 	uniformBindGroup := r.particleUniformBindGroup
 	scratchBuffer := r.particleScratchBuffer
-	depthView := r.worldDepthTextureView
+	depthView := r.resources.WorldDepthTextureView
 	camera := r.cameraState
 	r.mu.Unlock()
 	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {

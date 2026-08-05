@@ -119,89 +119,89 @@ func (r *Renderer) ClearWorld() {
 		if r.worldDynamicIndexBuffer != nil {
 			r.worldDynamicIndexBuffer.Release()
 		}
-		if r.uniformBuffer != nil {
-			r.uniformBuffer.Release()
+		if r.resources.UniformBuffer != nil {
+			r.resources.UniformBuffer.Release()
 		}
-		if r.worldDynamicLightsBuffer != nil {
-			r.worldDynamicLightsBuffer.Release()
+		if r.resources.WorldDynamicLightsBuffer != nil {
+			r.resources.WorldDynamicLightsBuffer.Release()
 		}
-		if r.worldSkyPipeline != nil {
-			r.worldSkyPipeline.Release()
+		if r.resources.WorldSkyPipeline != nil {
+			r.resources.WorldSkyPipeline.Release()
 		}
-		if r.worldSkyExternalPipeline != nil {
-			r.worldSkyExternalPipeline.Release()
+		if r.resources.WorldSkyExternalPipeline != nil {
+			r.resources.WorldSkyExternalPipeline.Release()
 		}
-		if r.worldSkyExternalOverlayPipeline != nil {
-			r.worldSkyExternalOverlayPipeline.Release()
+		if r.resources.WorldSkyExternalOverlayPipeline != nil {
+			r.resources.WorldSkyExternalOverlayPipeline.Release()
 		}
-		if r.worldTurbulentPipeline != nil {
-			r.worldTurbulentPipeline.Release()
+		if r.resources.WorldTurbulentPipeline != nil {
+			r.resources.WorldTurbulentPipeline.Release()
 		}
-		if r.worldTranslucentPipeline != nil {
-			r.worldTranslucentPipeline.Release()
+		if r.resources.WorldTranslucentPipeline != nil {
+			r.resources.WorldTranslucentPipeline.Release()
 		}
-		if r.worldTranslucentTurbulentPipeline != nil {
-			r.worldTranslucentTurbulentPipeline.Release()
+		if r.resources.WorldTranslucentTurbulentPipeline != nil {
+			r.resources.WorldTranslucentTurbulentPipeline.Release()
 		}
-		if r.worldPipeline != nil {
-			r.worldPipeline.Release()
+		if r.resources.WorldPipeline != nil {
+			r.resources.WorldPipeline.Release()
 		}
-		if r.worldAlphaTestPipeline != nil {
-			r.worldAlphaTestPipeline.Release()
+		if r.resources.WorldAlphaTestPipeline != nil {
+			r.resources.WorldAlphaTestPipeline.Release()
 		}
-		if r.worldPipelineLayout != nil {
-			r.worldPipelineLayout.Release()
+		if r.resources.WorldPipelineLayout != nil {
+			r.resources.WorldPipelineLayout.Release()
 		}
-		if r.worldSkyExternalPipelineLayout != nil {
-			r.worldSkyExternalPipelineLayout.Release()
+		if r.resources.WorldSkyExternalPipelineLayout != nil {
+			r.resources.WorldSkyExternalPipelineLayout.Release()
 		}
-		if r.worldShader != nil {
-			r.worldShader.Release()
+		if r.resources.WorldShader != nil {
+			r.resources.WorldShader.Release()
 		}
-		if r.uniformBindGroup != nil {
-			r.uniformBindGroup.Release()
+		if r.resources.UniformBindGroup != nil {
+			r.resources.UniformBindGroup.Release()
 		}
-		if r.worldDynamicLightsBindGroup != nil {
-			r.worldDynamicLightsBindGroup.Release()
+		if r.resources.WorldDynamicLightsBindGroup != nil {
+			r.resources.WorldDynamicLightsBindGroup.Release()
 		}
-		if r.uniformBindGroupLayout != nil {
-			r.uniformBindGroupLayout.Release()
+		if r.resources.UniformBindGroupLayout != nil {
+			r.resources.UniformBindGroupLayout.Release()
 		}
-		if r.worldDynamicLightsBindGroupLayout != nil {
-			r.worldDynamicLightsBindGroupLayout.Release()
+		if r.resources.WorldDynamicLightsBindGroupLayout != nil {
+			r.resources.WorldDynamicLightsBindGroupLayout.Release()
 		}
-		if r.worldClusterComputeUniformBuffer != nil {
-			r.worldClusterComputeUniformBuffer.Release()
+		if r.resources.WorldClusterComputeUniformBuffer != nil {
+			r.resources.WorldClusterComputeUniformBuffer.Release()
 		}
-		if r.worldClusterComputeBindGroup != nil {
-			r.worldClusterComputeBindGroup.Release()
+		if r.resources.WorldClusterComputeBindGroup != nil {
+			r.resources.WorldClusterComputeBindGroup.Release()
 		}
-		if r.worldClusterComputeBindGroupLayout != nil {
-			r.worldClusterComputeBindGroupLayout.Release()
+		if r.resources.WorldClusterComputeBindGroupLayout != nil {
+			r.resources.WorldClusterComputeBindGroupLayout.Release()
 		}
-		if r.textureBindGroupLayout != nil {
-			r.textureBindGroupLayout.Release()
+		if r.resources.TextureBindGroupLayout != nil {
+			r.resources.TextureBindGroupLayout.Release()
 		}
-		if r.worldSkyExternalBindGroupLayout != nil {
-			r.worldSkyExternalBindGroupLayout.Release()
+		if r.resources.WorldSkyExternalBindGroupLayout != nil {
+			r.resources.WorldSkyExternalBindGroupLayout.Release()
 		}
-		if r.whiteTextureBindGroup != nil {
-			r.whiteTextureBindGroup.Release()
+		if r.resources.WhiteTextureBindGroup != nil {
+			r.resources.WhiteTextureBindGroup.Release()
 		}
-		if r.whiteLightmapBindGroup != nil {
-			r.whiteLightmapBindGroup.Release()
+		if r.resources.WhiteLightmapBindGroup != nil {
+			r.resources.WhiteLightmapBindGroup.Release()
 		}
-		if r.blackLightmapView != nil {
-			r.blackLightmapView.Release()
+		if r.resources.BlackLightmapView != nil {
+			r.resources.BlackLightmapView.Release()
 		}
-		if r.blackLightmapTexture != nil {
-			r.blackLightmapTexture.Release()
+		if r.resources.BlackLightmapTexture != nil {
+			r.resources.BlackLightmapTexture.Release()
 		}
-		if r.worldTextureSampler != nil {
-			r.worldTextureSampler.Release()
+		if r.resources.WorldTextureSampler != nil {
+			r.resources.WorldTextureSampler.Release()
 		}
-		if r.worldLightmapSampler != nil {
-			r.worldLightmapSampler.Release()
+		if r.resources.WorldLightmapSampler != nil {
+			r.resources.WorldLightmapSampler.Release()
 		}
 		if r.worldTextures != nil {
 			if r.worldTextures.bindGroup != nil {
@@ -269,35 +269,35 @@ func (r *Renderer) ClearWorld() {
 			}
 			r.worldLightmapArray = nil
 		}
-		if r.whiteTextureView != nil {
-			r.whiteTextureView.Release()
+		if r.resources.WhiteTextureView != nil {
+			r.resources.WhiteTextureView.Release()
 		}
-		if r.whiteTexture != nil {
-			r.whiteTexture.Release()
+		if r.resources.WhiteTexture != nil {
+			r.resources.WhiteTexture.Release()
 		}
-		if r.transparentBindGroup != nil {
-			r.transparentBindGroup.Release()
+		if r.resources.TransparentBindGroup != nil {
+			r.resources.TransparentBindGroup.Release()
 		}
-		if r.transparentTextureView != nil {
-			r.transparentTextureView.Release()
+		if r.resources.TransparentTextureView != nil {
+			r.resources.TransparentTextureView.Release()
 		}
-		if r.transparentTexture != nil {
-			r.transparentTexture.Release()
+		if r.resources.TransparentTexture != nil {
+			r.resources.TransparentTexture.Release()
 		}
-		if r.worldDepthTextureView != nil {
-			r.worldDepthTextureView.Release()
+		if r.resources.WorldDepthTextureView != nil {
+			r.resources.WorldDepthTextureView.Release()
 		}
-		if r.worldDepthTexture != nil {
-			r.worldDepthTexture.Release()
+		if r.resources.WorldDepthTexture != nil {
+			r.resources.WorldDepthTexture.Release()
 		}
-		if r.worldMaterialsBuffer != nil {
-			r.worldMaterialsBuffer.Release()
+		if r.resources.WorldMaterialsBuffer != nil {
+			r.resources.WorldMaterialsBuffer.Release()
 		}
-		if r.worldMaterialsBufferFrame1 != nil {
-			r.worldMaterialsBufferFrame1.Release()
+		if r.resources.WorldMaterialsBufferFrame1 != nil {
+			r.resources.WorldMaterialsBufferFrame1.Release()
 		}
-		if r.worldUniformBindGroupFrame1 != nil {
-			r.worldUniformBindGroupFrame1.Release()
+		if r.resources.WorldUniformBindGroupFrame1 != nil {
+			r.resources.WorldUniformBindGroupFrame1.Release()
 		}
 		for _, buf := range r.externalBrushMaterialsBuffers {
 			if buf != nil {
@@ -368,56 +368,56 @@ func (r *Renderer) ClearWorld() {
 		r.worldIndexBuffer = nil
 		r.worldDynamicIndexBuffer = nil
 		r.worldDynamicIndexBufferSize = 0
-		r.worldPipeline = nil
-		r.worldAlphaTestPipeline = nil
-		r.worldTranslucentPipeline = nil
-		r.worldTurbulentPipeline = nil
-		r.worldTranslucentTurbulentPipeline = nil
-		r.worldSkyPipeline = nil
-		r.worldSkyExternalPipeline = nil
-		r.worldSkyExternalOverlayPipeline = nil
-		r.worldPipelineLayout = nil
-		r.worldSkyExternalPipelineLayout = nil
-		r.worldShader = nil
-		r.uniformBuffer = nil
-		r.worldMaterialsBuffer = nil
-		r.worldMaterialsBufferFrame1 = nil
-		r.worldUniformBindGroupFrame1 = nil
+		r.resources.WorldPipeline = nil
+		r.resources.WorldAlphaTestPipeline = nil
+		r.resources.WorldTranslucentPipeline = nil
+		r.resources.WorldTurbulentPipeline = nil
+		r.resources.WorldTranslucentTurbulentPipeline = nil
+		r.resources.WorldSkyPipeline = nil
+		r.resources.WorldSkyExternalPipeline = nil
+		r.resources.WorldSkyExternalOverlayPipeline = nil
+		r.resources.WorldPipelineLayout = nil
+		r.resources.WorldSkyExternalPipelineLayout = nil
+		r.resources.WorldShader = nil
+		r.resources.UniformBuffer = nil
+		r.resources.WorldMaterialsBuffer = nil
+		r.resources.WorldMaterialsBufferFrame1 = nil
+		r.resources.WorldUniformBindGroupFrame1 = nil
 		r.worldBaseMaterials = nil
-		r.worldDynamicLightsBuffer = nil
-		r.uniformBindGroup = nil
-		r.worldDynamicLightsBindGroup = nil
-		r.uniformBindGroupLayout = nil
-		r.worldDynamicLightsBindGroupLayout = nil
-		r.worldClusterComputeUniformBuffer = nil
-		r.worldClusterComputeBindGroup = nil
-		r.worldClusterComputeBindGroupLayout = nil
-		r.textureBindGroupLayout = nil
-		r.lightmapBindGroupLayout = nil
-		r.worldSkyExternalBindGroupLayout = nil
-		r.worldTextureSampler = nil
+		r.resources.WorldDynamicLightsBuffer = nil
+		r.resources.UniformBindGroup = nil
+		r.resources.WorldDynamicLightsBindGroup = nil
+		r.resources.UniformBindGroupLayout = nil
+		r.resources.WorldDynamicLightsBindGroupLayout = nil
+		r.resources.WorldClusterComputeUniformBuffer = nil
+		r.resources.WorldClusterComputeBindGroup = nil
+		r.resources.WorldClusterComputeBindGroupLayout = nil
+		r.resources.TextureBindGroupLayout = nil
+		r.resources.LightmapBindGroupLayout = nil
+		r.resources.WorldSkyExternalBindGroupLayout = nil
+		r.resources.WorldTextureSampler = nil
 		r.worldTextures = nil
 		r.worldFullbrightTextures = nil
 		r.worldSkySolidTextures = nil
 		r.worldSkyAlphaTextures = nil
 		r.worldTextureAnimations = nil
-		r.whiteTextureBindGroup = nil
-		r.transparentTexture = nil
-		r.transparentTextureView = nil
-		r.transparentBindGroup = nil
-		r.worldLightmapSampler = nil
+		r.resources.WhiteTextureBindGroup = nil
+		r.resources.TransparentTexture = nil
+		r.resources.TransparentTextureView = nil
+		r.resources.TransparentBindGroup = nil
+		r.resources.WorldLightmapSampler = nil
 		r.worldLightmapArray = nil
-		r.whiteLightmapBindGroup = nil
-		r.blackLightmapTexture = nil
-		r.blackLightmapView = nil
-		r.worldBindGroup = nil
-		r.worldSkyExternalBindGroup = nil
-		r.whiteTexture = nil
-		r.whiteTextureView = nil
-		r.worldDepthTexture = nil
-		r.worldDepthTextureView = nil
-		r.worldDepthWidth = 0
-		r.worldDepthHeight = 0
+		r.resources.WhiteLightmapBindGroup = nil
+		r.resources.BlackLightmapTexture = nil
+		r.resources.BlackLightmapView = nil
+		r.resources.WorldBindGroup = nil
+		r.resources.WorldSkyExternalBindGroup = nil
+		r.resources.WhiteTexture = nil
+		r.resources.WhiteTextureView = nil
+		r.resources.WorldDepthTexture = nil
+		r.resources.WorldDepthTextureView = nil
+		r.resources.WorldDepthWidth = 0
+		r.resources.WorldDepthHeight = 0
 		r.worldVisibleFacesScratch = worldVisibilityScratch{}
 		r.worldSkyFacesScratch = nil
 		r.worldTranslucentLiquidScratch = nil

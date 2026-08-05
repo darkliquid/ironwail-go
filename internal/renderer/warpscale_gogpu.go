@@ -90,62 +90,62 @@ func (r *Renderer) sceneSurfaceFormat() gputypes.TextureFormat {
 }
 
 func (r *Renderer) destroySceneCompositeResourcesLocked() {
-	if r.sceneCompositeBindGroup != nil {
-		r.sceneCompositeBindGroup.Release()
-		r.sceneCompositeBindGroup = nil
+	if r.resources.SceneCompositeBindGroup != nil {
+		r.resources.SceneCompositeBindGroup.Release()
+		r.resources.SceneCompositeBindGroup = nil
 	}
-	if r.sceneCompositeUniformBuffer != nil {
-		r.sceneCompositeUniformBuffer.Release()
-		r.sceneCompositeUniformBuffer = nil
+	if r.resources.SceneCompositeUniformBuffer != nil {
+		r.resources.SceneCompositeUniformBuffer.Release()
+		r.resources.SceneCompositeUniformBuffer = nil
 	}
-	if r.sceneCompositeSampler != nil {
-		r.sceneCompositeSampler.Release()
-		r.sceneCompositeSampler = nil
+	if r.resources.SceneCompositeSampler != nil {
+		r.resources.SceneCompositeSampler.Release()
+		r.resources.SceneCompositeSampler = nil
 	}
-	if r.sceneCompositeBindGroupLayout != nil {
-		r.sceneCompositeBindGroupLayout.Release()
-		r.sceneCompositeBindGroupLayout = nil
+	if r.resources.SceneCompositeBindGroupLayout != nil {
+		r.resources.SceneCompositeBindGroupLayout.Release()
+		r.resources.SceneCompositeBindGroupLayout = nil
 	}
-	if r.sceneCompositePipelineLayout != nil {
-		r.sceneCompositePipelineLayout.Release()
-		r.sceneCompositePipelineLayout = nil
+	if r.resources.SceneCompositePipelineLayout != nil {
+		r.resources.SceneCompositePipelineLayout.Release()
+		r.resources.SceneCompositePipelineLayout = nil
 	}
-	if r.sceneCompositePipeline != nil {
-		r.sceneCompositePipeline.Release()
-		r.sceneCompositePipeline = nil
+	if r.resources.SceneCompositePipeline != nil {
+		r.resources.SceneCompositePipeline.Release()
+		r.resources.SceneCompositePipeline = nil
 	}
-	if r.sceneCompositeVertexShader != nil {
-		r.sceneCompositeVertexShader.Release()
-		r.sceneCompositeVertexShader = nil
+	if r.resources.SceneCompositeVertexShader != nil {
+		r.resources.SceneCompositeVertexShader.Release()
+		r.resources.SceneCompositeVertexShader = nil
 	}
-	if r.sceneCompositeFragmentShader != nil {
-		r.sceneCompositeFragmentShader.Release()
-		r.sceneCompositeFragmentShader = nil
+	if r.resources.SceneCompositeFragmentShader != nil {
+		r.resources.SceneCompositeFragmentShader.Release()
+		r.resources.SceneCompositeFragmentShader = nil
 	}
 }
 
 func (r *Renderer) destroyWorldRenderTargetLocked() {
-	if r.sceneCompositeBindGroup != nil {
-		r.sceneCompositeBindGroup.Release()
-		r.sceneCompositeBindGroup = nil
+	if r.resources.SceneCompositeBindGroup != nil {
+		r.resources.SceneCompositeBindGroup.Release()
+		r.resources.SceneCompositeBindGroup = nil
 	}
-	if r.worldRenderTextureView != nil {
-		r.worldRenderTextureView.Release()
-		r.worldRenderTextureView = nil
+	if r.resources.WorldRenderTextureView != nil {
+		r.resources.WorldRenderTextureView.Release()
+		r.resources.WorldRenderTextureView = nil
 	}
-	if r.worldRenderTexture != nil {
-		r.worldRenderTexture.Release()
-		r.worldRenderTexture = nil
+	if r.resources.WorldRenderTexture != nil {
+		r.resources.WorldRenderTexture.Release()
+		r.resources.WorldRenderTexture = nil
 	}
-	r.worldRenderWidth = 0
-	r.worldRenderHeight = 0
+	r.resources.WorldRenderWidth = 0
+	r.resources.WorldRenderHeight = 0
 }
 
 func (r *Renderer) ensureSceneCompositeResourcesLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
-	if r.sceneCompositePipeline != nil && r.sceneCompositeBindGroupLayout != nil && r.sceneCompositeSampler != nil && r.sceneCompositeUniformBuffer != nil {
+	if r.resources.SceneCompositePipeline != nil && r.resources.SceneCompositeBindGroupLayout != nil && r.resources.SceneCompositeSampler != nil && r.resources.SceneCompositeUniformBuffer != nil {
 		return nil
 	}
 
@@ -272,13 +272,13 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device *wgpu.Device) erro
 		return fmt.Errorf("create scene composite pipeline: %w", err)
 	}
 
-	r.sceneCompositeVertexShader = vertexShader
-	r.sceneCompositeFragmentShader = fragmentShader
-	r.sceneCompositeBindGroupLayout = bindGroupLayout
-	r.sceneCompositePipelineLayout = pipelineLayout
-	r.sceneCompositeSampler = sampler
-	r.sceneCompositeUniformBuffer = uniformBuffer
-	r.sceneCompositePipeline = pipeline
+	r.resources.SceneCompositeVertexShader = vertexShader
+	r.resources.SceneCompositeFragmentShader = fragmentShader
+	r.resources.SceneCompositeBindGroupLayout = bindGroupLayout
+	r.resources.SceneCompositePipelineLayout = pipelineLayout
+	r.resources.SceneCompositeSampler = sampler
+	r.resources.SceneCompositeUniformBuffer = uniformBuffer
+	r.resources.SceneCompositePipeline = pipeline
 	return nil
 }
 
@@ -292,9 +292,9 @@ func (r *Renderer) ensureWorldRenderTargetLocked(device *wgpu.Device, width, hei
 	if err := r.ensureSceneCompositeResourcesLocked(device); err != nil {
 		return err
 	}
-	if r.worldRenderTexture != nil && r.worldRenderTextureView != nil &&
-		r.sceneCompositeBindGroup != nil &&
-		r.worldRenderWidth == width && r.worldRenderHeight == height {
+	if r.resources.WorldRenderTexture != nil && r.resources.WorldRenderTextureView != nil &&
+		r.resources.SceneCompositeBindGroup != nil &&
+		r.resources.WorldRenderWidth == width && r.resources.WorldRenderHeight == height {
 		return nil
 	}
 
@@ -334,11 +334,11 @@ func (r *Renderer) ensureWorldRenderTargetLocked(device *wgpu.Device, width, hei
 
 	bindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "World Scene Composite BG",
-		Layout: r.sceneCompositeBindGroupLayout,
+		Layout: r.resources.SceneCompositeBindGroupLayout,
 		Entries: []wgpu.BindGroupEntry{
-			{Binding: 0, Sampler: r.sceneCompositeSampler},
+			{Binding: 0, Sampler: r.resources.SceneCompositeSampler},
 			{Binding: 1, TextureView: view},
-			{Binding: 2, Buffer: r.sceneCompositeUniformBuffer, Offset: 0, Size: sceneCompositeUniformBufferSize},
+			{Binding: 2, Buffer: r.resources.SceneCompositeUniformBuffer, Offset: 0, Size: sceneCompositeUniformBufferSize},
 		},
 	})
 	if err != nil {
@@ -347,11 +347,11 @@ func (r *Renderer) ensureWorldRenderTargetLocked(device *wgpu.Device, width, hei
 		return fmt.Errorf("create world scene composite bind group: %w", err)
 	}
 
-	r.worldRenderTexture = texture
-	r.worldRenderTextureView = view
-	r.sceneCompositeBindGroup = bindGroup
-	r.worldRenderWidth = width
-	r.worldRenderHeight = height
+	r.resources.WorldRenderTexture = texture
+	r.resources.WorldRenderTextureView = view
+	r.resources.SceneCompositeBindGroup = bindGroup
+	r.resources.WorldRenderWidth = width
+	r.resources.WorldRenderHeight = height
 	return nil
 }
 
@@ -451,7 +451,7 @@ func (dc *DrawContext) enableSceneRenderTarget() bool {
 	r.mu.Lock()
 	err := r.ensureWorldRenderTargetLocked(device, width, height)
 	if err == nil {
-		dc.sceneRenderTarget = r.worldRenderTextureView
+		dc.sceneRenderTarget = r.resources.WorldRenderTextureView
 		dc.sceneRenderActive = dc.sceneRenderTarget != nil
 	}
 	r.mu.Unlock()
@@ -485,9 +485,9 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 
 	r := dc.renderer
 	r.mu.RLock()
-	pipeline := r.sceneCompositePipeline
-	bindGroup := r.sceneCompositeBindGroup
-	uniformBuffer := r.sceneCompositeUniformBuffer
+	pipeline := r.resources.SceneCompositePipeline
+	bindGroup := r.resources.SceneCompositeBindGroup
+	uniformBuffer := r.resources.SceneCompositeUniformBuffer
 	r.mu.RUnlock()
 	if pipeline == nil || bindGroup == nil || uniformBuffer == nil {
 		return false

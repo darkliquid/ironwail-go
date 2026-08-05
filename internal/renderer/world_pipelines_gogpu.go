@@ -19,10 +19,10 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 		return nil, nil, err
 	}
 	r.mu.Lock()
-	r.uniformBindGroupLayout = uniformLayout
-	r.textureBindGroupLayout = textureLayout
-	r.lightmapBindGroupLayout = lightmapLayout
-	r.worldDynamicLightsBindGroupLayout = lightsLayout
+	r.resources.UniformBindGroupLayout = uniformLayout
+	r.resources.TextureBindGroupLayout = textureLayout
+	r.resources.LightmapBindGroupLayout = lightmapLayout
+	r.resources.WorldDynamicLightsBindGroupLayout = lightsLayout
 	r.mu.Unlock()
 
 	slog.Debug("World render pipeline created")
@@ -35,10 +35,10 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 func (r *Renderer) worldPipelineParams() pipeline.WorldPipelineParams {
 	return pipeline.WorldPipelineParams{
 		SurfaceFormat: r.surfaceFormat(),
-		UniformBindGroupLayout:     r.uniformBindGroupLayout,
-		TextureBindGroupLayout:     r.textureBindGroupLayout,
-		LightmapBindGroupLayout:    r.lightmapBindGroupLayout,
-		DynamicLightsBindGroupLayout: r.worldDynamicLightsBindGroupLayout,
+		UniformBindGroupLayout:     r.resources.UniformBindGroupLayout,
+		TextureBindGroupLayout:     r.resources.TextureBindGroupLayout,
+		LightmapBindGroupLayout:    r.resources.LightmapBindGroupLayout,
+		DynamicLightsBindGroupLayout: r.resources.WorldDynamicLightsBindGroupLayout,
 	}
 }
 

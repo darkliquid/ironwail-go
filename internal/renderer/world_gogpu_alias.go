@@ -253,34 +253,34 @@ func (r *Renderer) ensureAliasDepthTextureLocked(device *wgpu.Device) {
 		return
 	}
 	// Recreate if nil or dimensions changed (e.g. window resize).
-	if r.worldDepthTextureView != nil && r.worldDepthWidth == width && r.worldDepthHeight == height {
+	if r.resources.WorldDepthTextureView != nil && r.resources.WorldDepthWidth == width && r.resources.WorldDepthHeight == height {
 		return
 	}
-	if r.worldDepthTextureView != nil {
+	if r.resources.WorldDepthTextureView != nil {
 		slog.Debug("recreating world depth texture for new dimensions",
-			"old", fmt.Sprintf("%dx%d", r.worldDepthWidth, r.worldDepthHeight),
+			"old", fmt.Sprintf("%dx%d", r.resources.WorldDepthWidth, r.resources.WorldDepthHeight),
 			"new", fmt.Sprintf("%dx%d", width, height))
 	}
 	// Release old resources.
-	if r.worldDepthTextureView != nil {
-		r.worldDepthTextureView.Release()
+	if r.resources.WorldDepthTextureView != nil {
+		r.resources.WorldDepthTextureView.Release()
 	}
-	if r.worldDepthTexture != nil {
-		r.worldDepthTexture.Release()
+	if r.resources.WorldDepthTexture != nil {
+		r.resources.WorldDepthTexture.Release()
 	}
 	depthTexture, depthView, err := r.createWorldDepthTexture(device, width, height)
 	if err != nil {
 		slog.Warn("failed to create alias depth texture", "error", err)
-		r.worldDepthTexture = nil
-		r.worldDepthTextureView = nil
-		r.worldDepthWidth = 0
-		r.worldDepthHeight = 0
+		r.resources.WorldDepthTexture = nil
+		r.resources.WorldDepthTextureView = nil
+		r.resources.WorldDepthWidth = 0
+		r.resources.WorldDepthHeight = 0
 		return
 	}
-	r.worldDepthTexture = depthTexture
-	r.worldDepthTextureView = depthView
-	r.worldDepthWidth = width
-	r.worldDepthHeight = height
+	r.resources.WorldDepthTexture = depthTexture
+	r.resources.WorldDepthTextureView = depthView
+	r.resources.WorldDepthWidth = width
+	r.resources.WorldDepthHeight = height
 }
 
 func (r *Renderer) ensureAliasModelLocked(device *wgpu.Device, queue *wgpu.Queue, modelID string, mdl *model.Model) *gpuAliasModel {
@@ -727,7 +727,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	uniformBuffer := r.aliasUniformBuffer
 	uniformBindGroup := r.aliasUniformBindGroup
 	scratchBuffer := r.aliasScratchBuffer
-	depthView := r.worldDepthTextureView
+	depthView := r.resources.WorldDepthTextureView
 	r.mu.Unlock()
 	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
 		return

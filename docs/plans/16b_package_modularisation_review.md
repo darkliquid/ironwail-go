@@ -25,7 +25,12 @@
 > `WorldUniformBufferSize`/`WorldVertexBufferLayout`; the parent keeps thin
 > `(*Renderer)` wrappers and stores the 4 created bind group layouts as before.
 > The deep `Renderer.wgpu*` → `pipeline.Resources` ownership transfer (§10.1
-> row 1) remains TODO for 16+2. Pinned descriptor tests live in
+> row 1) is **DONE** (16+2a): 77 pure-wgpu fields moved into
+> `pipeline.Resources` (r.X → r.resources.X across 24 files); 10
+> renderer-root-typed fields (gpuWorldTexture, surface textures, world
+> material data, external-skybox bookkeeping) stay on Renderer because
+> moving them would create an import cycle. A lazy `ensureResources()`
+> covers bare &Renderer{} literals. Pinned descriptor tests live in
 > `pipeline/pipeline_test.go`.
 >
 > **Step 2 (`renderer/lightmap` Uploader) ASSESSED, deferred**: the only

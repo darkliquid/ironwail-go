@@ -331,7 +331,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	var dynamicLightsBindGroup *wgpu.BindGroup
-	if lightsLayout := r.worldDynamicLightsBindGroupLayout; lightsLayout != nil {
+	if lightsLayout := r.resources.WorldDynamicLightsBindGroupLayout; lightsLayout != nil {
 		entries := []wgpu.BindGroupEntry{
 			{Binding: 1, Buffer: dynamicLightsBuffer, Offset: 0, Size: gogpuWorldDynamicLightBufferSize},
 		}
@@ -375,7 +375,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	var transparentTexture *wgpu.Texture
 	var transparentTextureView *wgpu.TextureView
 	var transparentBindGroup *wgpu.BindGroup
-	if r.textureBindGroupLayout != nil {
+	if r.resources.TextureBindGroupLayout != nil {
 		worldTextureSampler, err = r.createWorldTextureSampler(device)
 		if err != nil {
 			slog.Warn("Failed to create world texture sampler", "error", err)
@@ -410,7 +410,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	// Create a dedicated atlas sampler with ClampToEdge for atlas-packed textures.
 	// Sky textures keep using worldTextureSampler (Repeat mode) for scrolling.
 	var atlasSampler *wgpu.Sampler
-	if r.textureBindGroupLayout != nil {
+	if r.resources.TextureBindGroupLayout != nil {
 		atlasSampler, err = r.createWorldAtlasSampler(device)
 		if err != nil {
 			slog.Warn("Failed to create world atlas sampler", "error", err)
@@ -434,14 +434,14 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	// Create bind group for world uniform buffer.
-	uniformLayout := r.uniformBindGroupLayout
+	uniformLayout := r.resources.UniformBindGroupLayout
 	if uniformLayout != nil {
 		uniformBindGroup, err := r.createWorldUniformBindGroup(device, uniformLayout, uniformBuffer, materialsBuffer)
 		if err != nil {
 			return fmt.Errorf("create uniform bind group: %w", err)
 		} else {
-			r.uniformBindGroup = uniformBindGroup
-			r.worldBindGroup = uniformBindGroup
+			r.resources.UniformBindGroup = uniformBindGroup
+			r.resources.WorldBindGroup = uniformBindGroup
 		}
 
 		// Create a second materials buffer + bind group for frame-1 (alternate
@@ -457,10 +457,10 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			MappedAtCreation: false,
 		})
 		if f1err == nil && frame1Buffer != nil {
-			r.worldMaterialsBufferFrame1 = frame1Buffer
+			r.resources.WorldMaterialsBufferFrame1 = frame1Buffer
 			frame1BG, bgErr := r.createWorldUniformBindGroup(device, uniformLayout, uniformBuffer, frame1Buffer)
 			if bgErr == nil && frame1BG != nil {
-				r.worldUniformBindGroupFrame1 = frame1BG
+				r.resources.WorldUniformBindGroupFrame1 = frame1BG
 			}
 		}
 	}
@@ -487,7 +487,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	var whiteLightmapBindGroup *wgpu.BindGroup
 	var blackTexture *wgpu.Texture
 	var blackLightmapView *wgpu.TextureView
-	if r.textureBindGroupLayout != nil {
+	if r.resources.TextureBindGroupLayout != nil {
 		worldLightmapSampler, err = r.createWorldLightmapSampler(device)
 		if err != nil {
 			slog.Warn("Failed to create world lightmap sampler", "error", err)
@@ -542,31 +542,31 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldVertexBuffer = vertexBuffer
 	r.worldIndexBuffer = indexBuffer
 	r.worldIndexCount = indexCount
-	r.worldPipeline = pipeline
-	r.worldAlphaTestPipeline = alphaTestPipeline
-	r.worldTranslucentPipeline = translucentPipeline
-	r.worldTurbulentPipeline = turbulentPipeline
-	r.worldTranslucentTurbulentPipeline = translucentTurbulentPipeline
-	r.worldSkyPipeline = skyPipeline
-	r.worldSkyExternalPipeline = externalSkyPipeline
-	r.worldSkyExternalOverlayPipeline = externalSkyOverlayPipeline
-	r.worldPipelineLayout = pipelineLayout
-	r.worldSkyExternalPipelineLayout = externalSkyPipelineLayout
-	r.worldDynamicLightsBuffer = dynamicLightsBuffer
-	r.worldDynamicLightsBindGroup = dynamicLightsBindGroup
-	r.worldClusterComputePipeline = computePipeline
-	r.worldClusterComputePipelineLayout = computePipelineLayout
-	r.worldClusterComputeBindGroupLayout = computeBindGroupLayout
-	r.worldClusterComputeBindGroup = computeBindGroup
-	r.worldClusterComputeUniformBuffer = computeUniformBuffer
-	r.worldClusterComputeTexture = computeTexture
-	r.worldClusterComputeTextureView = computeTextureView
-	r.worldShader = vertexShader
-	r.uniformBuffer = uniformBuffer
-	r.worldMaterialsBuffer = materialsBuffer
-	r.whiteTexture = whiteTexture
-	r.whiteTextureView = whiteTextureView
-	r.worldTextureSampler = worldTextureSampler
+	r.resources.WorldPipeline = pipeline
+	r.resources.WorldAlphaTestPipeline = alphaTestPipeline
+	r.resources.WorldTranslucentPipeline = translucentPipeline
+	r.resources.WorldTurbulentPipeline = turbulentPipeline
+	r.resources.WorldTranslucentTurbulentPipeline = translucentTurbulentPipeline
+	r.resources.WorldSkyPipeline = skyPipeline
+	r.resources.WorldSkyExternalPipeline = externalSkyPipeline
+	r.resources.WorldSkyExternalOverlayPipeline = externalSkyOverlayPipeline
+	r.resources.WorldPipelineLayout = pipelineLayout
+	r.resources.WorldSkyExternalPipelineLayout = externalSkyPipelineLayout
+	r.resources.WorldDynamicLightsBuffer = dynamicLightsBuffer
+	r.resources.WorldDynamicLightsBindGroup = dynamicLightsBindGroup
+	r.resources.WorldClusterComputePipeline = computePipeline
+	r.resources.WorldClusterComputePipelineLayout = computePipelineLayout
+	r.resources.WorldClusterComputeBindGroupLayout = computeBindGroupLayout
+	r.resources.WorldClusterComputeBindGroup = computeBindGroup
+	r.resources.WorldClusterComputeUniformBuffer = computeUniformBuffer
+	r.resources.WorldClusterComputeTexture = computeTexture
+	r.resources.WorldClusterComputeTextureView = computeTextureView
+	r.resources.WorldShader = vertexShader
+	r.resources.UniformBuffer = uniformBuffer
+	r.resources.WorldMaterialsBuffer = materialsBuffer
+	r.resources.WhiteTexture = whiteTexture
+	r.resources.WhiteTextureView = whiteTextureView
+	r.resources.WorldTextureSampler = worldTextureSampler
 	r.worldTextures = worldTextures
 	r.worldFullbrightTextures = worldFullbrightTextures
 	r.worldSkySolidTextures = worldSkySolidTextures
@@ -584,19 +584,19 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			slog.Warn("Failed to write initial world materials buffer", "error", err)
 		}
 	}
-	r.worldSkyExternalBindGroupLayout = externalSkyBindGroupLayout
-	r.whiteTextureBindGroup = whiteTextureBindGroup
-	r.transparentTexture = transparentTexture
-	r.transparentTextureView = transparentTextureView
-	r.transparentBindGroup = transparentBindGroup
-	r.whiteLightmapBindGroup = whiteLightmapBindGroup
-	r.blackLightmapTexture = blackTexture
-	r.blackLightmapView = blackLightmapView
+	r.resources.WorldSkyExternalBindGroupLayout = externalSkyBindGroupLayout
+	r.resources.WhiteTextureBindGroup = whiteTextureBindGroup
+	r.resources.TransparentTexture = transparentTexture
+	r.resources.TransparentTextureView = transparentTextureView
+	r.resources.TransparentBindGroup = transparentBindGroup
+	r.resources.WhiteLightmapBindGroup = whiteLightmapBindGroup
+	r.resources.BlackLightmapTexture = blackTexture
+	r.resources.BlackLightmapView = blackLightmapView
 	r.worldLightmapArray = worldLightmapArray
-	r.worldLightmapSampler = worldLightmapSampler
-	r.worldLightStyleValues = lightstyleValues
-	r.worldDepthTexture = depthTexture
-	r.worldDepthTextureView = depthTextureView
+	r.resources.WorldLightmapSampler = worldLightmapSampler
+	r.resources.WorldLightStyleValues = lightstyleValues
+	r.resources.WorldDepthTexture = depthTexture
+	r.resources.WorldDepthTextureView = depthTextureView
 
 	// Phase 3 diagnostic: log actual GPU resource dimensions after upload
 	// to verify texture array layer counts and buffer sizes match expectations.
@@ -604,8 +604,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		materialsBuffer, len(worldBaseMaterials), len(worldSkySolidTextures))
 
 	if depthTexture != nil {
-		r.worldDepthWidth = width
-		r.worldDepthHeight = height
+		r.resources.WorldDepthWidth = width
+		r.resources.WorldDepthHeight = height
 	}
 	renderData.VertexBufferUploaded = vertexBuffer != nil
 	renderData.IndexBufferUploaded = indexBuffer != nil

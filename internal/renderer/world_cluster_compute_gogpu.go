@@ -73,13 +73,13 @@ func (r *Renderer) createWorldClusterComputePipeline(device *wgpu.Device, comput
 }
 
 func (r *Renderer) dispatchWorldClusterCompute(device *wgpu.Device, queue *wgpu.Queue, encoder *wgpu.CommandEncoder, activeLights []DynamicLight, viewMatrix, projMatrix types.Mat4) error {
-	if r.worldClusterComputePipeline == nil || r.worldClusterComputeBindGroup == nil {
+	if r.resources.WorldClusterComputePipeline == nil || r.resources.WorldClusterComputeBindGroup == nil {
 		return nil
 	}
 
 	// 1. Upload dynamic lights (if not already done elsewhere, but we can do it here to ensure it's done before compute)
 	ptr, lightData := encodeGoGPUWorldDynamicLights(activeLights)
-	err := queue.WriteBuffer(r.worldDynamicLightsBuffer, 0, lightData)
+	err := queue.WriteBuffer(r.resources.WorldDynamicLightsBuffer, 0, lightData)
 	dynamicLightsBytesPool.Put(ptr)
 	if err != nil {
 		return fmt.Errorf("upload dynamic lights: %w", err)
@@ -121,7 +121,7 @@ func (r *Renderer) dispatchWorldClusterCompute(device *wgpu.Device, queue *wgpu.
 	binary.LittleEndian.PutUint32(uniformBytes[136:140], numLights)
 	// padding 140:144
 
-	if err := queue.WriteBuffer(r.worldClusterComputeUniformBuffer, 0, uniformBytes); err != nil {
+	if err := queue.WriteBuffer(r.resources.WorldClusterComputeUniformBuffer, 0, uniformBytes); err != nil {
 		return fmt.Errorf("upload compute uniforms: %w", err)
 	}
 
@@ -133,8 +133,8 @@ func (r *Renderer) dispatchWorldClusterCompute(device *wgpu.Device, queue *wgpu.
 		return fmt.Errorf("begin compute pass failed: %w", err)
 	}
 
-	computePass.SetPipeline(r.worldClusterComputePipeline)
-	computePass.SetBindGroup(0, r.worldClusterComputeBindGroup, nil)
+	computePass.SetPipeline(r.resources.WorldClusterComputePipeline)
+	computePass.SetBindGroup(0, r.resources.WorldClusterComputeBindGroup, nil)
 	// Dispatch for 32x16x32 Grid with 8x8x1 threads per group
 	// (32+7)/8 = 4, (16+7)/8 = 2, 32/1 = 32
 	computePass.Dispatch(4, 2, 32)

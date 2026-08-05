@@ -262,7 +262,7 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 	uniformBuffer := r.decalUniformBuffer
 	uniformBindGroup := r.decalUniformBindGroup
 	bindGroup := r.decalBindGroup
-	depthView := r.worldDepthTextureView
+	depthView := r.resources.WorldDepthTextureView
 	camera := r.cameraState
 
 	draws := prepareDecalDraws(marks, camera)

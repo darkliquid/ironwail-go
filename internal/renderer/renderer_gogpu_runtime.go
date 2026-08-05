@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/darkliquid/ironwail-go/internal/renderer/pipeline"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/input"
 	"github.com/gogpu/gputypes"
@@ -79,6 +80,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		aliasModels:         make(map[string]*gpuAliasModel),
 		spriteModels:        make(map[string]*gpuSpriteModel),
 		aliasEntityStates:   make(map[int]*AliasEntity),
+		resources:           pipeline.NewResources(),
 	}
 
 	slog.Info("Renderer created",
@@ -90,6 +92,16 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	)
 
 	return r, nil
+}
+
+// ensureResources lazily initializes the wgpu resource container. It lets
+// bare &Renderer{} literals (tests, synthetic renderers) use the resources
+// field without going through NewWithConfig; the real constructor sets it up
+// eagerly.
+func (r *Renderer) ensureResources() {
+	if r.resources == nil {
+		r.resources = pipeline.NewResources()
+	}
 }
 
 func applyGPUPreferenceRuntimeEnv(pref GPUPreference) {
@@ -297,9 +309,9 @@ func (r *Renderer) CaptureScreenshot(filename string) error {
 	r.mu.RLock()
 	device := r.getWGPUDevice()
 	queue := r.getWGPUQueue()
-	texture := r.worldRenderTexture
-	width := r.worldRenderWidth
-	height := r.worldRenderHeight
+	texture := r.resources.WorldRenderTexture
+	width := r.resources.WorldRenderWidth
+	height := r.resources.WorldRenderHeight
 	format := r.sceneSurfaceFormat()
 	r.mu.RUnlock()
 

@@ -136,7 +136,7 @@ func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded *gpuWorldTexture,
 // compositeWorldLightmapSurfaceRGBA per-frame re-compositing.
 func (r *Renderer) setGoGPUWorldLightStyleValues(values [256]float32) {
 	r.mu.Lock()
-	r.worldLightStyleValues = values
+	r.resources.WorldLightStyleValues = values
 	r.mu.Unlock()
 }
 
