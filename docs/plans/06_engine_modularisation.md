@@ -1,8 +1,9 @@
 # Implementation Plan: Engine Modularisation & Go Idiom Adoption
 
 **Priority**: #6 (Item 7 from Roadmap)  
-**Status**: In Progress (Server Subsystem Interfaces & Dependency Injection completed)  
+**Status**: In Progress (Phase 1 Documentation Foundation & Phase 2 Server Subsystem Splits completed)  
 **Target Milestone**: Phase 6  
+
 
 
 ---
