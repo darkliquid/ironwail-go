@@ -446,18 +446,6 @@ func (g *Game) applyDefaultGameplayBindings() {
 	}
 }
 
-func (g *Game) hasAnyGameplayBindings() bool {
-	if g.Input == nil {
-		return false
-	}
-	for key := 0; key < input.NumKeycode; key++ {
-		if strings.TrimSpace(g.Input.Binding(key)) != "" {
-			return true
-		}
-	}
-	return false
-}
-
 func (g *Game) hasBindingForCommand(command string) bool {
 	if g.Input == nil {
 		return false

@@ -335,9 +335,24 @@ Build + all renderer tests green. The remaining 72 root renderer files are
 legitimate facade/GPU-state code coupled to `*Renderer` (like server's
 `server_net_*`), not extractable without circular imports.
 
-### Remaining phases
-- **Phase H** `internal/game`: delegation to `camera`/`commands`/`runtime`/
-  `audio`/`csqc`. Smallest root (49 files); lowest risk. `camera`/`commands`/
-  `ui` subpackages already exist with zero external importers.
-- **Phase H** `internal/game`: delegation to `camera`/`commands`/`runtime`/
-  `audio`/`csqc`.
+### Phase H — `internal/game` (DONE 2026-08-05, dead-stub cleanup)
+- **Deleted** the dead `game/commands` stub (`Dispatcher` was a constructor-only
+  wrapper imported by nobody, with no real logic — it would be a parity trap if
+  ever wired). Its real counterpart is the root `game_commands*.go` `*Game`
+  methods, which are too coupled to `g.Input`/`g.Client`/`g.Host` to extract.
+- **Cleaned `camera.System`**: removed the dead no-op `ComputeView` method
+  (never called; would silently break camera if wired). Kept the live, tested
+  `UpdateZoom` (used by `Game.UpdateZoom` delegation).
+- **Deleted** dead root `Game.hasAnyGameplayBindings` (no callers).
+- Kept `game/ui` (real utility: GUIDimensions/ConsoleDimensions) and the live
+  `camera.System` zoom path.
+- Build + all game subpackage tests green; golangci clean on game.
+
+### Summary
+All eight phases (A–H) complete. The original plan docs assumed files could be
+moved into subpackages; the corrected strategy was to reconcile actual
+duplication — deleting dead/divergent subpackage stubs and dead root helpers
+rather than forcing delegations that would introduce circular imports or
+parity regressions. Net result: `server/physics`, `server/qc`, `server/commands`
+now hold real, tested, wired logic; renderer and game dead code removed; every
+root keeps only facade/state code that legitimately couples to its megastruct.

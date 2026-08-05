@@ -16,11 +16,6 @@ func NewSystem() *System {
 	}
 }
 
-// ComputeView updates camera position and view vectors based on camera origin and orientation.
-func (s *System) ComputeView(cameraOrigin, cameraAngles [3]float32) {
-	// Camera view calculation
-}
-
 // UpdateZoom updates scope zoom level each frame based on zoom direction and delta time.
 func (s *System) UpdateZoom(dt float64) {
 	if s == nil || s.ZoomDir == 0 {
