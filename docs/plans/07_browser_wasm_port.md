@@ -43,11 +43,11 @@ The goal of this project is to create the WebAssembly entry point (`cmd/ironwail
   - Implement surface adapter calling `js.Global().Get("navigator").Get("gpu")` via `syscall/js`.
   - Configure `<canvas>` WebGPU context (`canvas.getContext("webgpu")`).
 
-### Step 7.3: Implement DOM Input Adapter
-- **Files**: `internal/input/wasm_input.go` (new file)
+### Step 7.3: Implement DOM Input Adapter (COMPLETED - commit f3e93a8)
+- **Files**: `internal/input/wasm_input.go`
 - **Actions**:
-  - Add DOM event listeners for `keydown`, `keyup`, `mousemove`, and `pointerlockchange`.
-  - Translate DOM `KeyboardEvent.code` and mouse movement deltas into Quake key codes.
+  - Implemented WASM DOM input listener implementation mapping browser keyboard (keydown/keyup), mouse movement deltas, character composition, and mouse buttons to Quake engine key codes.
+
 
 ### Step 7.4: Implement Web Audio API Adapter
 - **Files**: `internal/audio/wasm_audio.go` (new file)
