@@ -54,10 +54,12 @@ The goal of this project is to create the WebAssembly entry point (`cmd/ironwail
 - **Actions**:
   - Connect Oto audio stream to browser `AudioContext` / `AudioWorklet`.
 
-### Step 7.5: HTTP Asset Loading
-- **Files**: `internal/fs/wasm_fs.go` (new file)
+### Step 7.5: HTTP Asset & Memory PAK VFS (COMPLETED - commit 94c61ad)
+- **Files**: `internal/fs/fs.go`, `internal/fs/fs_search.go`, `internal/fs/fs_test.go`
 - **Actions**:
-  - Implement PAK file loader fetching game data over HTTP `fetch` API.
+  - Abstracted `Pack.Handle` to `ReadSeekerCloserHandle` interface.
+  - Implemented `LoadPackFromBytes` and `MountPack` for loading and mounting in-memory PAK archives downloaded over HTTP in WASM.
+
 
 ---
 
