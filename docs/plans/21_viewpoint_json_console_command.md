@@ -1,7 +1,7 @@
 # Implementation Plan 21: Viewpoint JSON Console Command (`viewpos_json` / `camjson`)
 
 **Priority**: Medium  
-**Status**: Planned  
+**Status**: Completed (2026-08-05)  
 **Target Milestone**: Phase 21  
 
 ---

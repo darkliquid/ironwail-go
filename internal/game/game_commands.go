@@ -37,6 +37,8 @@ func (g *Game) registerGameplayBindCommands() {
 	g.Host.Cmd.AddCommand("sizedown", g.cmdSizeDown, "Decrease screen view size")
 	g.Host.Cmd.AddCommand("entities", g.cmdEntities, "List current client entities")
 	g.Host.Cmd.AddCommand("camdebug", g.cmdCamDebug, "Dump camera vs entity origin and interpolation state")
+	g.Host.Cmd.AddCommand("viewpos_json", g.cmdViewposJSON, "Print current viewpoint formatted as viewpoints.json entry")
+	g.Host.Cmd.AddCommand("camjson", g.cmdViewposJSON, "Alias for viewpos_json")
 	g.Host.Cmd.AddCommand("impulse", g.cmdImpulse, "Trigger an impulse command")
 	g.Host.Cmd.AddCommand("toggleconsole", g.cmdToggleConsole, "Toggle the console")
 	g.Host.Cmd.AddCommand("screenshot", g.cmdScreenshot, "Save a screenshot as PNG")
