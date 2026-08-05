@@ -185,7 +185,6 @@ type Renderer struct {
 	uniformDataScratch            []byte
 	uniformOffset                 uint32
 	particleScratchBuffer         *wgpu.Buffer
-	decalScratchBuffer            *wgpu.Buffer
 	worldVertexBuffer             *wgpu.Buffer
 	worldIndexBuffer              *wgpu.Buffer
 	worldDynamicIndexBuffer       *wgpu.Buffer
@@ -218,8 +217,6 @@ type Renderer struct {
 	externalBrushMaterialsBuffersFrame1  map[string]*wgpu.Buffer
 	externalBrushUniformBindGroups       map[string]*wgpu.BindGroup
 	externalBrushUniformBindGroupsFrame1 map[string]*wgpu.BindGroup
-	externalBrushClusterTexture          map[string]*wgpu.Texture
-	externalBrushClusterView             map[string]*wgpu.TextureView
 	aliasModels                          map[string]*gpuAliasModel
 	spriteModels                         map[string]*gpuSpriteModel
 	aliasEntityStates                    map[int]*AliasEntity

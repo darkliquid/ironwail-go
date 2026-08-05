@@ -50,14 +50,6 @@ func (r *Renderer) createWorldSkyPipeline(device *wgpu.Device, vertexShader, fra
 	return pipeline.CreateWorldSkyPipeline(device, vertexShader, fragmentShader, layout, r.surfaceFormat())
 }
 
-func (r *Renderer) createWorldSkyPipelineWithDepthWrite(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout, depthWrite bool) (*wgpu.RenderPipeline, error) {
-	return pipeline.CreateWorldSkyPipelineWithDepthWrite(device, vertexShader, fragmentShader, layout, depthWrite, r.surfaceFormat())
-}
-
-func (r *Renderer) createWorldSkyPipelineWithDepthState(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout, depthStencil *wgpu.DepthStencilState) (*wgpu.RenderPipeline, error) {
-	return pipeline.CreateWorldSkyPipelineWithDepthState(device, vertexShader, fragmentShader, layout, depthStencil, r.surfaceFormat())
-}
-
 func (r *Renderer) createWorldExternalSkyPipeline(device *wgpu.Device, vertexShader, overlayVertexShader, fragmentShader *wgpu.ShaderModule) (*wgpu.RenderPipeline, *wgpu.RenderPipeline, *wgpu.PipelineLayout, *wgpu.BindGroupLayout, error) {
 	return pipeline.CreateWorldExternalSkyPipeline(device, vertexShader, overlayVertexShader, fragmentShader, r.worldPipelineParams())
 }

@@ -31,11 +31,3 @@ func prepareDecalDraws(marks []DecalMarkEntity, camera CameraState) []decalDraw 
 func buildDecalQuad(mark DecalMarkEntity) ([4][3]float32, bool) {
 	return decal.BuildQuad(mark)
 }
-
-func buildDecalBasis(normal [3]float32, rotation float32) (tangent [3]float32, bitangent [3]float32) {
-	return decal.BuildBasis(normal, rotation)
-}
-
-func decalNormalize3(v [3]float32) ([3]float32, bool) {
-	return decal.Normalize3(v)
-}

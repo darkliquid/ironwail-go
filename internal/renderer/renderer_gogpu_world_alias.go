@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	aliasUniformBufferSize      = 80
 	aliasSceneUniformBufferSize = 96
 	aliasInitialDrawCapacity    = 64 // initial capacity for batched draws
 	aliasVertexStride           = 48 // must match WorldVertex size and every pipeline's ArrayStride — see docs/VERTEX_LAYOUT.md
@@ -817,10 +816,6 @@ func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4
 	putFloat32s(data[80:92], fogColor[:])
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
 	return dst
-}
-
-func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
-	return appendAliasSceneUniformBytes(nil, 0, vp, cameraOrigin, alpha, fogColor, fogDensity)
 }
 
 func aliasVertexBytes(vertices []WorldVertex) []byte {

@@ -9,11 +9,3 @@ import (
 func NewMessageBuffer(size int) *MessageBuffer {
 	return srvtypes.NewMessageBuffer(size)
 }
-
-func coordWireSize(flags uint32) int {
-	return srvtypes.CoordWireSize(flags)
-}
-
-func angleWireSize(flags uint32) int {
-	return srvtypes.AngleWireSize(flags)
-}

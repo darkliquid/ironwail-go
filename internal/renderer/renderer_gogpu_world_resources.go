@@ -424,69 +424,6 @@ func (r *Renderer) createWorldTexture2DFromRGBA(device *wgpu.Device, queue *wgpu
 	}, nil
 }
 
-func (r *Renderer) createWorldTextureArrayFromRGBA(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, label string, images []*stdimage.RGBA, width, height int) (*gpuWorldTexture, error) {
-	if device == nil || queue == nil || sampler == nil {
-		return nil, fmt.Errorf("invalid world texture array upload inputs")
-	}
-	layers := len(images)
-	if width <= 0 || height <= 0 || layers == 0 {
-		return nil, fmt.Errorf("invalid world texture array size %dx%dx%d", width, height, layers)
-	}
-	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
-		Label:         label,
-		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: uint32(layers)},
-		MipLevelCount: 1,
-		SampleCount:   1,
-		Dimension:     gputypes.TextureDimension2D,
-		Format:        gputypes.TextureFormatRGBA8Unorm,
-		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create world texture array: %w", err)
-	}
-
-	for i, img := range images {
-		if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
-			Texture:  texture,
-			MipLevel: 0,
-			Aspect:   gputypes.TextureAspectAll,
-			Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: uint32(i)},
-		}, img.Pix, &wgpu.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
-			texture.Release()
-			return nil, fmt.Errorf("write world texture array layer %d: %w", i, err)
-		}
-	}
-
-	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
-		Label:           label + " View",
-		Format:          gputypes.TextureFormatRGBA8Unorm,
-		Dimension:       gputypes.TextureViewDimension2DArray,
-		Aspect:          gputypes.TextureAspectAll,
-		BaseMipLevel:    0,
-		MipLevelCount:   1,
-		BaseArrayLayer:  0,
-		ArrayLayerCount: uint32(layers),
-	})
-	if err != nil {
-		texture.Release()
-		return nil, fmt.Errorf("create world texture array view: %w", err)
-	}
-	bindGroup, err := r.createWorldTextureBindGroup(device, sampler, view)
-	if err != nil {
-		texture.Release()
-		view.Release()
-		return nil, fmt.Errorf("create world texture array bind group: %w", err)
-	}
-	return &gpuWorldTexture{
-		texture:   texture,
-		view:      view,
-		bindGroup: bindGroup,
-		width:     uint32(width),
-		height:    uint32(height),
-		layers:    uint32(layers),
-	}, nil
-}
-
 func shouldDrawGoGPUOpaqueWorldFace(face WorldFace) bool {
 	if face.NumIndices == 0 {
 		return false

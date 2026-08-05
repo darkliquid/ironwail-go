@@ -86,46 +86,6 @@ func (r *Renderer) uploadWorldLightmapArray(device *wgpu.Device, queue *wgpu.Que
 	}
 }
 
-func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded *gpuWorldTexture, pages []WorldLightmapPage, values [256]float32) {
-	if queue == nil || len(pages) == 0 || uploaded == nil || uploaded.texture == nil {
-		return
-	}
-	// Each page is stacked vertically in the 2D texture with 1px padding
-	// above and below. Page i's content starts at row (i * (pageHeight + 2) + 1).
-	// Dirty region updates write at the page's content Y offset.
-	pageHeight := uint32(pages[0].Height)
-	rowsPerPage := pageHeight + 2
-	count := len(pages)
-	for i := 0; i < count; i++ {
-		if !pages[i].Dirty {
-			continue
-		}
-		rgba := lightmap.CompositePageRGBA(&pages[i], values)
-		if len(rgba) == 0 {
-			continue
-		}
-		x, y, w, h := lightmap.DirtyBounds(pages[i])
-		if w == 0 || h == 0 {
-			continue
-		}
-		region := lightmap.ExtractRegionRGBA(pages[i].CachedRegionRGBA, rgba, pages[i].Width, x, y, w, h)
-		if len(region) == 0 {
-			continue
-		}
-		pages[i].CachedRegionRGBA = region
-		contentY := uint32(i)*rowsPerPage + 1
-		if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
-			Texture:  uploaded.texture,
-			MipLevel: 0,
-			Aspect:   gputypes.TextureAspectAll,
-			Origin:   wgpu.Origin3D{X: uint32(x), Y: contentY + uint32(y), Z: 0},
-		}, region, &wgpu.ImageDataLayout{BytesPerRow: uint32(w * 4), RowsPerImage: uint32(h)}, &wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}); err != nil {
-			slog.Warn("failed to update world lightmap page", "page", i, "error", err)
-		}
-	}
-	lightmap.ClearDirtyFlags(pages)
-}
-
 // setGoGPUWorldLightStyleValues stores the current lightstyle values for
 // potential future use. Unlike the previous implementation, it does NOT
 // re-composite lightmap surfaces on the CPU every frame — lightmap textures

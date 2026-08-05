@@ -293,16 +293,51 @@ imports).
 - `server/qc` is now a real, tested home for VM field-offset data. Build + all
   server tests green.
 
+### Phase F — `server/net` (DONE 2026-08-05, minimal)
+- The `net` subpackage's `NetworkManager` delegator is **wired and live**
+  (server.go constructs it, `interfaces_test.go` asserts it satisfies
+  `NetworkBroadcaster`) — unlike the dead `qc.Binding`/`commands.Handler`
+  stubs. No change needed there.
+- Deleted the dead `coordWireSize`/`angleWireSize` wrappers in root
+  `message.go` (zero callers; `srvtypes.CoordWireSize`/`AngleWireSize` are
+  the live versions).
+- The core network encoding (`server_net_send.go`, `sv_pvs.go`, `sv_stats.go`,
+  `sv_client.go`) is deeply coupled to `*Server`/`*Client` (signon, datagram
+  buffers, PVS, entity delta encoding) and is **not worth extracting** — moving
+  it would require a huge callback interface and high parity risk. Kept in root.
+- Build + all server tests green.
+
+### Phase G — `internal/renderer` (DONE 2026-08-05, dead-code cleanup)
+**The renderer is already healthy** — unlike server, every renderer subpackage
+is substantively implemented AND wired into the root facade. No delegation
+rewrites needed.
+
+**Cleaned 8 genuinely-dead symbols** (no references, no `nolint:unused` intent
+markers):
+- `decal_shared.go`: `buildDecalBasis`, `decalNormalize3`.
+- `renderer_gogpu.go`: fields `decalScratchBuffer`, `externalBrushClusterTexture`,
+  `externalBrushClusterView`.
+- `renderer_gogpu_world_alias.go`: `aliasSceneUniformBytes`,
+  `aliasUniformBufferSize`.
+- `renderer_gogpu_world_lightmap.go`: `updateUploadedLightmapsLocked`.
+- `renderer_gogpu_world_pipelines.go`: `createWorldSkyPipelineWithDepthWrite`,
+  `createWorldSkyPipelineWithDepthState`.
+- `renderer_gogpu_world_resources.go`: `createWorldTextureArrayFromRGBA`.
+- `renderer_gogpu_world_translucent.go`: `gogpuWorldTranslucentLiquidFaceRenders`.
+
+**Intentionally KEPT** (carry `//nolint:unused` "pending wiring"/"retained
+intentionally" markers): `identityModelRotationMatrix`,
+`buildBrushRotationMatrix`, `transformModelSpacePoint`,
+`parseWorldspawnLiquidAlphaOverrides`, `mapVisTransparentWaterSafe`,
+`randomMarkRotation`.
+
+Build + all renderer tests green. The remaining 72 root renderer files are
+legitimate facade/GPU-state code coupled to `*Renderer` (like server's
+`server_net_*`), not extractable without circular imports.
+
 ### Remaining phases
-- **Phase D** `server/commands`: extract pure string-parsing helpers
-  (`clientStringCommandVerb/Args`, `parseClientNameCommand`,
-  `parseClientColorCommand`) into `commands`; keep `SV_ExecuteUserCommand`/
-  `RunClients`/`DropClient` in root.
-- **Phase E** `server/qc`: extract `cacheQCFieldOffsets`/`EdictDefaultOffsets`
-  into `qc`; keep `syncQCVMState`/`syncQCVMGlobals` in root.
-- **Phase F** `server/net`: extract pure serialization; keep signon/client
-  lifecycle in root.
-- **Phase G** `internal/renderer`: delegation to `world`/`alias`/`overlay`/
-  `particle`/`warpscale`; freeze `world` public API.
+- **Phase H** `internal/game`: delegation to `camera`/`commands`/`runtime`/
+  `audio`/`csqc`. Smallest root (49 files); lowest risk. `camera`/`commands`/
+  `ui` subpackages already exist with zero external importers.
 - **Phase H** `internal/game`: delegation to `camera`/`commands`/`runtime`/
   `audio`/`csqc`.

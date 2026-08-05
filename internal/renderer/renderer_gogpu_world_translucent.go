@@ -285,36 +285,6 @@ func gogpuLateTranslucentLightmapBindGroup(res gogpuLateTranslucentFaceResources
 	return lightmapBindGroup, 0
 }
 
-func gogpuWorldTranslucentLiquidFaceRenders(
-	faces []WorldFace,
-	camera CameraState,
-	worldVertexBuffer *wgpu.Buffer,
-	worldIndexBuffer *wgpu.Buffer,
-	worldLightmapArray *gpuWorldTexture,
-	liquidAlpha worldLiquidAlphaSettings,
-	worldHasLitWater bool,
-) []gogpuTranslucentBrushFaceRender {
-	if len(faces) == 0 || worldVertexBuffer == nil || worldIndexBuffer == nil {
-		return nil
-	}
-	renders := make([]gogpuTranslucentBrushFaceRender, 0, len(faces))
-	for _, face := range faces {
-		renders = append(renders, gogpuTranslucentBrushFaceRender{
-			bufferPair: [2]*wgpu.Buffer{worldVertexBuffer, worldIndexBuffer},
-			face: gogpuTranslucentLiquidFaceDraw{
-				face:       face,
-				alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
-				center:     face.Center,
-				distanceSq: worldFaceDistanceSq(face.Center, camera),
-			},
-			liquid:        true,
-			hasLitWater:   worldHasLitWater,
-			lightmapArray: worldLightmapArray,
-		})
-	}
-	return renders
-}
-
 func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTranslucentBrushFaceRender {
 	return nil
 }
