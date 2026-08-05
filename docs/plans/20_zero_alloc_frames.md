@@ -1,7 +1,7 @@
 # Implementation Plan 20: Zero-Allocation Steady-State Frames
 
 **Priority**: Medium
-**Status**: Planned
+**Status**: Completed (2026-08-05) — steps 20.1-20.5 landed
 **Target Milestone**: Phase 20
 
 ---

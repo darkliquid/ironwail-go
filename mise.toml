@@ -251,3 +251,8 @@ fi
 echo ""
 echo "All symlinks OK. QUAKE_DIR can point at ./quake-data"
 """
+
+[tasks.perf-gate]
+description = "Run the steady-state per-frame allocation regression gate (plan 20.5)"
+depends = ["build"]
+run = "bash ./tasks/perf_gate.sh"

@@ -1,0 +1,4 @@
+map,frame_budget avg_alloc avg_objects max_alloc_frame max_objects_frame samples wall_seconds
+qbj2/qbj2_zetabyt,frame_budget 1.319 avg_alloc 10210412 avg_objects 15034 max_alloc_frame 44032320 max_objects_frame 57746 samples 24 wall_seconds 1.319
+qbj3/qbj3_stickflip,frame_budget 1.299 avg_alloc 6916635 avg_objects 11798 max_alloc_frame 34436216 max_objects_frame 54010 samples 22 wall_seconds 1.299
+qbj3/qbj3_softi,frame_budget 1.397 avg_alloc 8898561 avg_objects 17243 max_alloc_frame 41041720 max_objects_frame 75749 samples 23 wall_seconds 1.397

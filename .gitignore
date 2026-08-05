@@ -30,6 +30,7 @@
 
 # Parity tooling files
 !/tasks/*.sh
+tasks/perf_gate_reference.csv
 !/testdata/
 !/testdata/parity/
 !/testdata/parity/*.json
