@@ -20,6 +20,10 @@ type (
 	MovementEngine     = srvtypes.MovementEngine
 	NetworkBroadcaster = srvtypes.NetworkBroadcaster
 	ClientThinker      = srvtypes.ClientThinker
+	FrameDriver        = srvtypes.FrameDriver
+	CVarReader         = srvtypes.CVarReader
+	TelemetrySink      = srvtypes.TelemetrySink
+	CvarHandle         = srvtypes.CvarHandle
 )
 
 func (s *Server) GetGravity() float32     { return s.Gravity }
@@ -34,6 +38,49 @@ func (s *Server) GetVM() *qc.VM {
 		return nil
 	}
 	return s.QCVM
+}
+
+// TelemetrySink implementation: forwards to the DebugTelemetry engine.
+func (s *Server) EventsEnabled() bool {
+	return s != nil && s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
+}
+
+// CVarReader implementation: forwards to the CVar registry.
+func (s *Server) BoolValue(name string) bool {
+	if s == nil || s.CVar == nil {
+		return false
+	}
+	return s.CVar.BoolValue(name)
+}
+
+func (s *Server) Get(name string) CvarHandle {
+	if s == nil || s.CVar == nil {
+		return nil
+	}
+	cv := s.CVar.Get(name)
+	if cv == nil {
+		return nil
+	}
+	return cv
+}
+
+func (s *Server) BeginFrame(serverTime, frameTime float32) {
+	if s != nil && s.DebugTelemetry != nil {
+		s.DebugTelemetry.BeginFrame(serverTime, frameTime)
+	}
+}
+
+func (s *Server) EndFrame() {
+	if s != nil && s.DebugTelemetry != nil {
+		s.DebugTelemetry.EndFrame()
+	}
+}
+
+func (s *Server) LogEventf(kind DebugEventKind, vm *qc.VM, entNum int, ent *Edict, format string, args ...any) bool {
+	if s == nil || s.DebugTelemetry == nil {
+		return false
+	}
+	return s.DebugTelemetry.LogEventf(kind, vm, entNum, ent, format, args...)
 }
 
 func (s *Server) GetFieldAlpha() int {

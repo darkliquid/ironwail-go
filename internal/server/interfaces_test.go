@@ -20,6 +20,7 @@ var (
 	_ MovementEngine     = (*Server)(nil)
 	_ NetworkBroadcaster = (*Server)(nil)
 	_ ClientThinker      = (*Server)(nil)
+	_ FrameDriver        = (*Server)(nil)
 
 	_ MovementEngine     = (*PhysicsSystem)(nil)
 	_ CollisionWorld     = (*CollisionSystem)(nil)

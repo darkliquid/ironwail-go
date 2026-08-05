@@ -385,3 +385,36 @@ extracted into `physics.System.StepFrame` (its remaining deps — `CVarReader`,
 `TelemetrySink` — follow the same pattern). Build + all server tests green;
 only the two pre-existing failures remain (demo parity missing progs.dat,
 quakego line ceiling).
+
+### Frame-Loop Extraction (`Physics()` → `physics.System.StepFrame`, DONE 2026-08-05)
+The biggest single-file payoff: `server_physics_loop.go` shrank from 261 lines
+to a 30-line delegator. The frame loop (QC StartFrame, per-edict movetype
+dispatch, client pre/post think, SendInterval bookkeeping, force_retouch decay,
+dev-stats, time advance) now lives in `physics.System.StepFrame` and is
+unit-testable with mocks.
+
+Seams added in `types/stepframe.go` (all satisfied by `*Server`, compile-time
+asserted):
+- `CVarReader` + `CvarHandle` — the cvar lookups the loop performs.
+- `TelemetrySink` — `EventsEnabled`/`BeginFrame`/`EndFrame`/`LogEventf`.
+- `FrameDriver` — bundles CVarReader + TelemetrySink + ClientThinker +
+  time/static/dev-stats/QC-exec surfaces.
+
+New `*Server` methods in `interfaces.go`: `BoolValue`, `Get`, `EventsEnabled`,
+`BeginFrame`, `EndFrame`, `LogEventf` (thin forwards to `s.CVar`/`s.DebugTelemetry`).
+Also exported `recordDevStatsEdicts` → `RecordDevStatsEdicts` and QC-sync methods
+`syncQCVMGlobals` → `SyncQCVMGlobals`, `setQCTimeGlobal` → `SetQCTimeGlobal`
+(removed a duplicate `SetQCTimeGlobal` wrapper in savegame_server.go).
+
+The movetype leaf dispatchers (`PhysicsPusher`/`PhysicsNone`/...) stay on
+`*Server` and are injected via `physics.MovetypeDispatch` — the frame loop
+doesn't need to own the leaf algorithms to be testable.
+
+Tests: `physics/stepframe_test.go` exercises the loop in isolation with mocks,
+verifying movetype dispatch counts and freeze-non-clients time behavior, using
+a real `qc.VM` as the `ServerHandle` (the accessor trap: `EdictData` needs
+`vm.NumEdicts`/`EdictSize` set, and `Get` must return untyped nil for
+unregistered cvars to avoid the typed-nil interface bug).
+
+Verified: full module builds; all server + physics tests pass; only the two
+pre-existing failures remain.

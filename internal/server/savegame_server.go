@@ -179,10 +179,6 @@ func (s *Server) SyncQCVMState() {
 	s.syncQCVMState()
 }
 
-func (s *Server) SetQCTimeGlobal(t float32) {
-	s.setQCTimeGlobal(t)
-}
-
 func (s *Server) ValidateTextSaveGameDir(gameDir string) error {
 	return s.validateTextSaveGameDir(gameDir)
 }

@@ -465,7 +465,7 @@ func (s *Server) RunClientQCThinkWithMode(client *Client, funcName string, fullS
 	}
 
 	if fullSync {
-		s.syncQCVMGlobals()
+		s.SyncQCVMGlobals()
 	}
 	s.syncEdictToQCVM(entNum, client.Edict)
 	s.QCVM.Time = float64(s.Time)
@@ -808,7 +808,7 @@ func (s *Server) DropClient(client *Client, crash bool) {
 	if !crash && client.Spawned && client.Edict != nil && s.QCVM != nil {
 		funcIdx := s.QCVM.FindFunction("ClientDisconnect")
 		if funcIdx >= 0 {
-			s.setQCTimeGlobal(s.Time)
+			s.SetQCTimeGlobal(s.Time)
 			s.QCVM.SetGlobal("self", s.NumForEdict(client.Edict))
 			_ = s.executeQCFunction(funcIdx)
 		}

@@ -314,7 +314,7 @@ func (s *Server) DevStatsEdictCounters() (active, max int) {
 	return s.devStats.Edicts, s.MaxEdicts
 }
 
-func (s *Server) recordDevStatsEdicts(active int) {
+func (s *Server) RecordDevStatsEdicts(active int) {
 	if active > 600 && s.devPeak.Edicts <= 600 {
 		slog.Warn("edict count exceeds standard limit",
 			"active", active, "limit", 600, "max", s.MaxEdicts)

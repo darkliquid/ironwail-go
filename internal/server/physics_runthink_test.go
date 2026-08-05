@@ -801,7 +801,7 @@ func TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink(t *testing.T) {
 	// path used by RunThink for non-pusher entities).
 	thinkerNum := s.NumForEdict(thinker)
 	s.QCVM.SetGlobal("self", thinkerNum)
-	s.setQCTimeGlobal(1.0)
+	s.SetQCTimeGlobal(1.0)
 	err := s.executeQCFunction(int(thinker.Think(s)))
 	if err != nil {
 		t.Fatalf("executeQCFunction error: %v", err)

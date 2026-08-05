@@ -107,7 +107,7 @@ func (s *Server) RunThink(ent *Edict) bool {
 			"runthink begin think_time=%.3f fn=%d", thinkTime, thinkFn)
 	}
 
-	s.setQCTimeGlobal(thinkTime)
+	s.SetQCTimeGlobal(thinkTime)
 	s.QCVM.SetGlobal("self", entNum)
 	s.QCVM.SetGlobal("other", 0)
 	if thinkFn != 0 {
@@ -135,7 +135,7 @@ func (s *Server) Impact(e1, e2 *Edict) {
 	e2Num := s.NumForEdict(e2)
 	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 
-	s.setQCTimeGlobal(s.Time)
+	s.SetQCTimeGlobal(s.Time)
 
 	e1Touch := e1.Touch(s)
 	e1Solid := e1.Solid(s)
@@ -675,7 +675,7 @@ func (s *Server) PhysicsPusher(ent *Edict) {
 				s.DebugTelemetry.LogEventf(DebugEventThink, s.QCVM, entNum, ent,
 					"physicspusher think begin fn=%d", thinkFn)
 			}
-			s.setQCTimeGlobal(s.Time)
+			s.SetQCTimeGlobal(s.Time)
 			s.QCVM.SetGlobal("self", entNum)
 			s.QCVM.SetGlobal("other", 0)
 			prevNumEdicts := s.NumEdicts

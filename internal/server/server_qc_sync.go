@@ -213,21 +213,21 @@ func (s *Server) syncQCVMState() {
 		return
 	}
 	s.ensureQCVMEdictStorage()
-	s.syncQCVMGlobals()
+	s.SyncQCVMGlobals()
 
 	for entNum := 0; entNum < s.NumEdicts; entNum++ {
 		s.syncEdictToQCVM(entNum, s.EdictNum(entNum))
 	}
 }
 
-// syncQCVMGlobals publishes core server globals (time, world, mapname,
+// SyncQCVMGlobals publishes core server globals (time, world, mapname,
 // serverflags, coop, deathmatch) into the QC VM without touching per-entity
 // storage. This is the per-frame equivalent of C's pr_global_struct->time =
 // sv.time before StartFrame runs. It must NOT sync per-entity fields because
 // that would overwrite QC bytecode mutations (nextthink, think, velocity,
 // etc.) that were written via OP_STORE_* during the previous frame's QC
 // callbacks.
-func (s *Server) syncQCVMGlobals() {
+func (s *Server) SyncQCVMGlobals() {
 	if s.QCVM == nil {
 		return
 	}
@@ -248,7 +248,7 @@ func (s *Server) syncQCVMGlobals() {
 	}
 }
 
-func (s *Server) setQCTimeGlobal(time float32) {
+func (s *Server) SetQCTimeGlobal(time float32) {
 	if s.QCVM == nil {
 		return
 	}

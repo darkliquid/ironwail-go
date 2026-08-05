@@ -233,7 +233,7 @@ func (s *Server) touchLinks(ent *Edict) {
 		ctx := captureQCExecutionContext(s.QCVM)
 		s.QCVM.SetGlobalInt32("self", int32(touchNum))
 		s.QCVM.SetGlobalInt32("other", int32(entNum))
-		s.setQCTimeGlobal(s.Time)
+		s.SetQCTimeGlobal(s.Time)
 		prevNumEdicts := s.NumEdicts
 		if err := s.executeQCFunction(int(touchTouchFn)); err != nil {
 			slog.Warn("touchlinks callback failed", "self", touchNum, "other", entNum, "func", touchTouchFn, "err", err)

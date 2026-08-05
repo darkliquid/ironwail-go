@@ -179,7 +179,7 @@ func TestDevStatsSnapshotTracksCurrentAndPeak(t *testing.T) {
 
 	s.recordDevStatsFrame()
 	s.recordDevStatsFrame()
-	s.recordDevStatsEdicts(4)
+	s.RecordDevStatsEdicts(4)
 	s.recordDevStatsPacketSize(600)
 	curr, peak := s.DevStatsSnapshot()
 	if curr.Frames != 2 || peak.Frames != 2 {
@@ -192,7 +192,7 @@ func TestDevStatsSnapshotTracksCurrentAndPeak(t *testing.T) {
 		t.Fatalf("packet curr/peak = %d/%d, want 600/600", curr.PacketSize, peak.PacketSize)
 	}
 
-	s.recordDevStatsEdicts(3)
+	s.RecordDevStatsEdicts(3)
 	s.recordDevStatsPacketSize(400)
 	curr, peak = s.DevStatsSnapshot()
 	if curr.Frames != 2 || peak.Frames != 2 {
@@ -213,7 +213,7 @@ func TestDevStatsEdictCountersReturnsActiveAndMax(t *testing.T) {
 		t.Fatalf("init: %v", err)
 	}
 
-	s.recordDevStatsEdicts(4)
+	s.RecordDevStatsEdicts(4)
 	active, max := s.DevStatsEdictCounters()
 	if active != 4 {
 		t.Fatalf("active edicts = %d, want 4", active)
@@ -222,7 +222,7 @@ func TestDevStatsEdictCountersReturnsActiveAndMax(t *testing.T) {
 		t.Fatalf("max edicts = %d, want %d", max, s.MaxEdicts)
 	}
 
-	s.recordDevStatsEdicts(3)
+	s.RecordDevStatsEdicts(3)
 	active, max = s.DevStatsEdictCounters()
 	if active != 3 {
 		t.Fatalf("active edicts after decrease = %d, want 3", active)

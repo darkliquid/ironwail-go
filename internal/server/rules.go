@@ -61,7 +61,7 @@ func (s *Server) issueMatchEnd(reason string) {
 	if nextLevel < 0 {
 		return
 	}
-	s.syncQCVMGlobals()
+	s.SyncQCVMGlobals()
 	s.QCVM.Time = float64(s.Time)
 	s.QCVM.SetGlobal("time", s.Time)
 	s.QCVM.SetGlobal("frametime", s.FrameTime)

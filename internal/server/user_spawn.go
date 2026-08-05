@@ -220,7 +220,7 @@ func (s *Server) runClientQCFunction(client *Client, functionName string, includ
 	}
 
 	// Sync QCVM state and prepare for function call
-	s.syncQCVMGlobals()
+	s.SyncQCVMGlobals()
 	s.syncEdictToQCVM(entNum, client.Edict)
 
 	// Set up global variables for PutClientInServer
@@ -304,7 +304,7 @@ func (s *Server) runClientParseClientCommandQC(client *Client, cmd string) error
 		return fmt.Errorf("command %q rejected", cmd)
 	}
 
-	s.syncQCVMGlobals()
+	s.SyncQCVMGlobals()
 	s.syncEdictToQCVM(entNum, client.Edict)
 	s.QCVM.Time = float64(s.Time)
 	s.QCVM.SetGlobal("time", s.Time)
