@@ -86,7 +86,7 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 	if s.DebugTelemetry == nil || !s.DebugTelemetry.QCTraceVerbosityEnabled(1) {
 		err := vm.ExecuteFunction(funcIdx)
 		if err == nil {
-			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
+			s.SyncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		return err
 	}
@@ -104,7 +104,7 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 
 	err := vm.ExecuteFunction(funcIdx)
 	if err == nil {
-		s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
+		s.SyncSpawnedEdictsFromQCVM(prevNumEdicts)
 	}
 	return err
 }
@@ -117,7 +117,7 @@ func (s *Server) executeQCFunctionLeavingGlobals(funcIdx int) error {
 	prevNumEdicts := s.NumEdicts
 	err := vm.ExecuteFunction(funcIdx)
 	if err == nil {
-		s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
+		s.SyncSpawnedEdictsFromQCVM(prevNumEdicts)
 	}
 	return err
 }

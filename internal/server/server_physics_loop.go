@@ -117,9 +117,9 @@ func (s *Server) Physics() {
 		// (player movetype = MOVETYPE_NONE) and attack/enter cannot progress the level.
 		var clientForPostThink *Client
 		if MoveType(ent.MoveType(s)) != MoveTypeWalk {
-			if pc := s.playerClient(ent); pc != nil {
+			if pc := s.PlayerClient(ent); pc != nil {
 				phaseBegin()
-				s.runClientQCThinkWithMode(pc, "PlayerPreThink", false)
+				s.RunClientQCThinkWithMode(pc, "PlayerPreThink", false)
 				phaseEnd(&preThinkMS)
 				if ent.Free {
 					// Entity freed by PreThink (e.g. ClientDisconnect during think).
@@ -179,7 +179,7 @@ func (s *Server) Physics() {
 				phaseEnd(&forceRetouchMS)
 			}
 			phaseBegin()
-			s.runClientQCThinkWithMode(clientForPostThink, "PlayerPostThink", false)
+			s.RunClientQCThinkWithMode(clientForPostThink, "PlayerPostThink", false)
 			phaseEnd(&postThinkMS)
 		}
 

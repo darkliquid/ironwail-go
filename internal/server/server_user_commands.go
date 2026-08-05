@@ -427,7 +427,7 @@ func (s *Server) SV_ClientThink(client *Client) {
 	s.airMove(ctx)
 }
 
-func (s *Server) playerClient(ent *Edict) *Client {
+func (s *Server) PlayerClient(ent *Edict) *Client {
 	if s == nil || s.Static == nil || ent == nil {
 		return nil
 	}
@@ -446,10 +446,10 @@ func (s *Server) playerClient(ent *Edict) *Client {
 }
 
 func (s *Server) runClientQCThink(client *Client, funcName string) {
-	s.runClientQCThinkWithMode(client, funcName, true)
+	s.RunClientQCThinkWithMode(client, funcName, true)
 }
 
-func (s *Server) runClientQCThinkWithMode(client *Client, funcName string, fullSync bool) {
+func (s *Server) RunClientQCThinkWithMode(client *Client, funcName string, fullSync bool) {
 	if s == nil || s.QCVM == nil || client == nil || client.Edict == nil || client.Edict.Free {
 		return
 	}

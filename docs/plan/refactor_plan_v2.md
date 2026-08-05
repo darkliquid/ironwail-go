@@ -356,3 +356,32 @@ rather than forcing delegations that would introduce circular imports or
 parity regressions. Net result: `server/physics`, `server/qc`, `server/commands`
 now hold real, tested, wired logic; renderer and game dead code removed; every
 root keeps only facade/state code that legitimately couples to its megastruct.
+
+### Interface-Seam Enabling Work (`Client` migration, DONE 2026-08-05)
+The blocker to interface-injecting the private server methods was that
+`*server.Client` (and the private methods taking it) lived in `package server`,
+so a `types`-defined interface could not reference them. This change moves the
+enabling seams into `internal/server/types`:
+
+- **Moved `Client` → `internal/server/types/client.go`**. All its field types
+  (`Edict`, `UserCmd`, `MessageBuffer`, `EntityState`, `SignonStage`) were
+  already in `types`; added the `internal/net` import for `Socket` (verified
+  no import cycle: `net` does not import `server/types`). Root keeps
+  `type Client = srvtypes.Client` alias so all existing call sites compile
+  unchanged.
+- **Exported the private client-coupled methods**: `playerClient` →
+  `PlayerClient`, `runClientQCThinkWithMode` → `RunClientQCThinkWithMode`,
+  `syncSpawnedEdictsFromQCVM` → `SyncSpawnedEdictsFromQCVM` (callers updated
+  in the physics/qc/world files).
+- **Added `types.ClientThinker` interface** (`PlayerClient`,
+  `RunClientQCThinkWithMode`, `SyncSpawnedEdictsFromQCVM`), re-exported as
+  `server.ClientThinker`, with a compile-time assert
+  `var _ ClientThinker = (*Server)(nil)` in `interfaces_test.go`.
+
+This is the model for every private method that blocks extraction: move its
+argument types into `types`, export the method, define a narrow interface in
+`types`, assert `*Server` satisfies it. The `Physics()` frame loop can now be
+extracted into `physics.System.StepFrame` (its remaining deps — `CVarReader`,
+`TelemetrySink` — follow the same pattern). Build + all server tests green;
+only the two pre-existing failures remain (demo parity missing progs.dat,
+quakego line ceiling).

@@ -238,7 +238,7 @@ func (s *Server) touchLinks(ent *Edict) {
 		if err := s.executeQCFunction(int(touchTouchFn)); err != nil {
 			slog.Warn("touchlinks callback failed", "self", touchNum, "other", entNum, "func", touchTouchFn, "err", err)
 		} else {
-			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
+			s.SyncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		restoreQCExecutionContext(s.QCVM, ctx)
 

@@ -75,7 +75,7 @@ func (s *Server) ensureDefaultQCVMEdictStorage() {
 	}
 }
 
-func (s *Server) syncSpawnedEdictsFromQCVM(startEntNum int) {
+func (s *Server) SyncSpawnedEdictsFromQCVM(startEntNum int) {
 	if s == nil || s.QCVM == nil {
 		return
 	}

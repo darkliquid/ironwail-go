@@ -113,10 +113,10 @@ func (s *Server) SV_WallFriction(ent *Edict, trace *TraceResult) {
 }
 
 func (s *Server) PhysicsWalk(ent *Edict) {
-	playerClient := s.playerClient(ent)
+	PlayerClient := s.PlayerClient(ent)
 	wasUnderwater := ent.WaterLevel(s) >= 3
-	if playerClient != nil {
-		s.runClientQCThinkWithMode(playerClient, "PlayerPreThink", false)
+	if PlayerClient != nil {
+		s.RunClientQCThinkWithMode(PlayerClient, "PlayerPreThink", false)
 		if ent.Free {
 			return
 		}
@@ -136,8 +136,8 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 	s.SV_WalkMove(ent)
 
 	s.LinkEdict(ent, true)
-	if playerClient != nil {
-		s.runClientQCThinkWithMode(playerClient, "PlayerPostThink", false)
+	if PlayerClient != nil {
+		s.RunClientQCThinkWithMode(PlayerClient, "PlayerPostThink", false)
 		if ent.Free {
 			return
 		}

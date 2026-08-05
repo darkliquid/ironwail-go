@@ -207,41 +207,10 @@ type ServerStatic struct {
 	ChangeLevelIssued bool
 }
 
-// Client represents a connected player.
-type Client struct {
-	Active        bool
-	Spawned       bool
-	DropASAP      bool
-	SendSignon    SignonStage
-	Loopback      bool
-	NetConnection *inet.Socket // Per-client network socket
-
-	LastMessage float64
-
-	Name  string
-	Color int
-
-	Edict *Edict
-
-	PingTimes [16]float32
-	NumPings  int
-
-	SpawnParms [16]float32
-	// Client input state
-	LastCmd            UserCmd
-	LoopbackCmdPending bool
-	Message            *MessageBuffer
-	SignonIdx          int
-	OldFrags           int // Previous frags count for reliable message updates
-	EntityStates       map[int]EntityState
-	RespawnTime        float32
-	FatPVS             []byte
-	Stats              [32]int32
-	OldStats           [32]int32
-}
-
 // Note: AreaNode struct definition has been moved to internal/server/types/area.go.
 // The type alias server.AreaNode is exported in internal/server/types.go.
+// Client struct definition has been moved to internal/server/types/client.go;
+// the type alias server.Client is exported in internal/server/types.go.
 
 // syncEdictToQCVM copies one Go edict's EntVars into the QuakeC VM edict table.
 // This is part of the engine↔QC bridge: before QC runs, the authoritative Go state

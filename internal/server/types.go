@@ -13,6 +13,7 @@ import srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 // domain files (types_entities.go, types_flags.go, types_protocol.go).
 type (
 	Edict          = srvtypes.Edict
+	Client         = srvtypes.Client
 	TraceResult    = srvtypes.TraceResult
 	MoveType       = srvtypes.MoveType
 	SolidType      = srvtypes.SolidType

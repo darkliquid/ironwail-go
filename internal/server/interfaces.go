@@ -19,6 +19,7 @@ type (
 	PhysicsEngine      = srvtypes.PhysicsEngine
 	MovementEngine     = srvtypes.MovementEngine
 	NetworkBroadcaster = srvtypes.NetworkBroadcaster
+	ClientThinker      = srvtypes.ClientThinker
 )
 
 func (s *Server) GetGravity() float32     { return s.Gravity }
