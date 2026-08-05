@@ -3,8 +3,27 @@ package edict
 import (
 	"testing"
 
+	"github.com/darkliquid/ironwail-go/internal/qc"
 	types "github.com/darkliquid/ironwail-go/internal/server/types"
 )
+
+// newTestVM returns a minimal QCVM with known field definitions at fixed
+// offsets: classname (EvString @8), health (EvFloat @24), mins/maxs/size
+// (EvVector @64/68/72). It must have EdictSize large enough to hold them.
+func newTestVM() *qc.VM {
+	vm := qc.NewVM()
+	vm.EdictSize = 128
+	vm.NumEdicts = 4
+	vm.Edicts = make([]byte, vm.EdictSize*4)
+	vm.FieldDefs = []qc.DDef{
+		{Type: uint16(qc.EvString), Ofs: 8, Name: vm.AllocString("classname")},
+		{Type: uint16(qc.EvFloat), Ofs: 24, Name: vm.AllocString("health")},
+		{Type: uint16(qc.EvVector), Ofs: 64, Name: vm.AllocString("mins")},
+		{Type: uint16(qc.EvVector), Ofs: 68, Name: vm.AllocString("maxs")},
+		{Type: uint16(qc.EvVector), Ofs: 72, Name: vm.AllocString("size")},
+	}
+	return vm
+}
 
 func TestEDAllocGrowsPool(t *testing.T) {
 	m := NewEmptyManager(4, 0, nil, nil)
@@ -132,5 +151,64 @@ func TestManagerUsesTypesEdict(t *testing.T) {
 	m := NewManager(pool, nil, 2, 0, 0, make([]float32, 2), nil, nil)
 	if m.NumEdicts() != 0 {
 		t.Fatalf("NumEdicts = %d, want 0", m.NumEdicts())
+	}
+}
+
+func TestFieldDefWithVMDefs(t *testing.T) {
+	vm := newTestVM()
+	em := NewEmptyManager(4, 0, nil, nil)
+	em.vm = vm
+	if em.fieldDefMap != nil {
+		t.Fatal("fieldDefMap should start nil (lazy init)")
+	}
+	ofs, etype, ok := em.fieldDef("classname")
+	if !ok {
+		t.Fatal("fieldDef(classname) = !ok with injected FieldDefs")
+	}
+	if ofs != 8 {
+		t.Fatalf("fieldDef(classname) ofs = %d, want 8", ofs)
+	}
+	if etype != qc.EvString {
+		t.Fatalf("fieldDef(classname) type = %v, want EvString", etype)
+	}
+}
+
+func TestParseEdictWithVMWritesFields(t *testing.T) {
+	vm := newTestVM()
+	em := NewEmptyManager(4, 0, nil, nil)
+	em.vm = vm
+	raw := `{"classname" "monster" "health" "50"}`
+	if _, err := em.ED_ParseEdict(raw, 1); err != nil {
+		t.Fatalf("ED_ParseEdict = %v", err)
+	}
+	// health is EvFloat at 24 via injected defs; classname is a string idx.
+	ofs, etype, _ := em.fieldDef("health")
+	if etype != qc.EvFloat {
+		t.Fatalf("health type = %v, want EvFloat", etype)
+	}
+	if got := vm.EFloat(1, ofs); got != 50 {
+		t.Fatalf("vm.EFloat(health) = %v, want 50", got)
+	}
+	if got := vm.EString(1, 8); vm.String(got) != "monster" {
+		t.Fatalf("vm.String(EString(classname)) = %q, want %q", vm.String(got), "monster")
+	}
+}
+
+func TestParseEdictRecalculatesSize(t *testing.T) {
+	vm := newTestVM()
+	em := NewEmptyManager(4, 0, nil, nil)
+	em.vm = vm
+	raw := `{"mins" "0 0 0" "maxs" "64 32 16"}`
+	if _, err := em.ED_ParseEdict(raw, 1); err != nil {
+		t.Fatalf("ED_ParseEdict = %v", err)
+	}
+	minsOfs, _, _ := em.fieldDef("mins")
+	maxsOfs, _, _ := em.fieldDef("maxs")
+	sizeOfs, _, _ := em.fieldDef("size")
+	mins := vm.EVector(1, minsOfs)
+	maxs := vm.EVector(1, maxsOfs)
+	size := vm.EVector(1, sizeOfs)
+	if size != [3]float32{maxs[0] - mins[0], maxs[1] - mins[1], maxs[2] - mins[2]} {
+		t.Fatalf("size = %v, want (64,32,16)", size)
 	}
 }

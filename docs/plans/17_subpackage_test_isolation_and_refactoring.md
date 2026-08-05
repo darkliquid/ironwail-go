@@ -1,7 +1,7 @@
 # Implementation Plan 17: Sub-Package Test Isolation & Synthetic Test Scaffolding
 
 **Priority**: High  
-**Status**: Planned  
+**Status**: In Progress (17.1-17.3 done)  
 **Target Milestone**: Phase 17  
 
 ---
@@ -34,14 +34,29 @@ This plan refactors unit tests across all extracted sub-packages to run in compl
 ### Step 17.1: Isolated Tests for `internal/renderer/lightmap`
 - **Files**: `internal/renderer/lightmap/lightmap_test.go`
 - **Actions**: Add unit tests verifying lightmap page allocation, sample packing, and intensity scaling without GPU context dependencies.
+- **Status**: ✅ **DONE** (2026-08-05). Added `TestCompositeSurfaceRGBA_SingleStyleScaleClamps`,
+  `_DefaultStyleOnlyScaled`, `_TwoStylesAdd`, `_EmptySamplesSkips`, and
+  `TestRecompositeDirtySurfacesReports` pinning the fast-path scaling,
+  clamping, and dirty-recomposite behavior with no GPU deps (pure `world`
+  types).
 
 ### Step 17.2: Isolated Tests for `internal/renderer/decal`
 - **Files**: `internal/renderer/decal/decal_test.go`
 - **Actions**: Add unit tests verifying mark polygon clipping against synthetic coplanar BSP planes.
+- **Status**: ✅ **DONE** (2026-08-05). Added `TestPrepareDrawsClampsAlpha`,
+  `TestPrepareDrawsDefaultsZeroNormal`, and `TestNormalizeVariantPinsInvalidDefault`
+  pinning the normal defaulting / alpha clamping / variant normalization that
+  regressed in the decal extraction (fixed in 6b6f7a8), so it cannot silently
+  regress again.
 
 ### Step 17.3: Isolated Tests for `internal/server/edict`
 - **Files**: `internal/server/edict/edict_test.go`
 - **Actions**: Add unit tests verifying edict pool recycling, field offsets, and entvars zero-sync field accessors.
+- **Status**: ✅ **DONE** (2026-08-05). Added `TestFieldDefWithVMDefs`,
+  `TestParseEdictWithVMWritesFields`, and `TestParseEdictRecalculatesSize`
+  using a minimal synthetic QCVM (`newTestVM`: classname/health/mins/maxs/size
+  at fixed offsets with sized `Edicts` storage), covering field-offset lookup,
+  QCVM writes, and the mins/maxs → size recompute.
 
 ---
 

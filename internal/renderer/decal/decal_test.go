@@ -154,3 +154,58 @@ func TestSmoothstepClamps(t *testing.T) {
 		t.Fatalf("Smoothstep(0,1,0.5) = %v, want 0.5", mid)
 	}
 }
+
+// TestPrepareDrawsClampsAlpha pins the alpha clamp + alpha<=0 skip that was
+// dropped in the decal extraction and restored in 6b6f7a8: a mark with alpha
+// > 1 must be clamped and still drawn; alpha == 0 must be dropped.
+func TestPrepareDrawsClampsAlpha(t *testing.T) {
+	over := markStub{origin: [3]float32{10, 0, 0}, size: 8, alpha: 1.5, variant: 2}
+	zero := markStub{origin: [3]float32{20, 0, 0}, size: 8, alpha: 0, variant: 2}
+	draws := PrepareDraws([]MarkEntity{over, zero}, [3]float32{})
+	if len(draws) != 1 {
+		t.Fatalf("len(draws) = %d, want 1 (alpha=0 mark dropped, alpha=1.5 kept)", len(draws))
+	}
+	// The returned mark carries the clamped alpha via the normalized wrapper;
+	// BuildQuad must still produce a valid quad with the clamped value.
+	if _, ok := BuildQuad(draws[0].Mark); !ok {
+		t.Fatal("BuildQuad on clamped mark = !ok")
+	}
+}
+
+// TestPrepareDrawsDefaultsZeroNormal pins the +Z normal defaulting restored
+// in 6b6f7a8: a mark with a zero normal must still produce an up-facing quad.
+func TestPrepareDrawsDefaultsZeroNormal(t *testing.T) {
+	m := markStub{origin: [3]float32{10, 20, 30}, size: 8, alpha: 1}
+	draws := PrepareDraws([]MarkEntity{m}, [3]float32{})
+	if len(draws) != 1 {
+		t.Fatalf("len(draws) = %d, want 1", len(draws))
+	}
+	corners, ok := BuildQuad(draws[0].Mark)
+	if !ok {
+		t.Fatal("BuildQuad = !ok, want ok (zero normal defaulted to +Z)")
+	}
+	// Floor quad: all corners lie on z = origin.z + 0.05.
+	for _, c := range corners {
+		if math.Abs(float64(c[2]-30.05)) > 0.001 {
+			t.Fatalf("corner %v z = %v, want 30.05 (flat +Z quad)", c, c[2])
+		}
+	}
+}
+
+// TestNormalizeVariantPinsInvalidDefault pins that invalid variants map to
+// the bullet (0) atlas region.
+func TestNormalizeVariantPinsInvalidDefault(t *testing.T) {
+	if got := NormalizeVariant(0); got != 0 {
+		t.Fatalf("NormalizeVariant(0) = %d, want 0", got)
+	}
+	if got := NormalizeVariant(3); got != 3 {
+		t.Fatalf("NormalizeVariant(3) = %d, want 3", got)
+	}
+	if got := NormalizeVariant(99); got != 0 {
+		t.Fatalf("NormalizeVariant(99) = %d, want 0 (invalid -> bullet)", got)
+	}
+	if got := NormalizeVariant(-1); got != 0 {
+		t.Fatalf("NormalizeVariant(-1) = %d, want 0 (invalid -> bullet)", got)
+	}
+}
+

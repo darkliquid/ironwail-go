@@ -242,3 +242,88 @@ func TestMarkDirtyLightmapPagesFlagsAffectedSurfaces(t *testing.T) {
 		t.Fatal("surface 2 (style 255) should not be dirty")
 	}
 }
+
+func TestCompositeSurfaceRGBA_SingleStyleScaleClamps(t *testing.T) {
+	// Fast path 2: single style with scale != 1.0 clamps to 255.
+	values := DefaultStyleValues()
+	values[0] = 2.0
+	rgba := make([]byte, 4)
+	surface := world.WorldLightmapSurface{
+		X: 0, Y: 0, Width: 1, Height: 1,
+		Styles:  [bsp.MaxLightmaps]uint8{0, 255, 255, 255},
+		Samples: []byte{200, 100, 50}, // * 2.0 -> clamped
+	}
+	CompositeSurfaceRGBA(rgba, 1, surface, values)
+	if rgba[0] != 255 || rgba[1] != 200 || rgba[2] != 100 {
+		t.Fatalf("clamped rgba = %v, want (255,200,100)", rgba[:3])
+	}
+	if rgba[3] != 255 {
+		t.Fatalf("alpha = %d, want 255", rgba[3])
+	}
+}
+
+func TestCompositeSurfaceRGBA_DefaultStyleOnlyScaled(t *testing.T) {
+	// Only styles present in the surface's Styles array scale; an unlisted
+	// style has zero effect. Style 0 defaults to scale 1 (values[0]=1).
+	values := DefaultStyleValues()
+	values[2] = 10 // unused style must not affect output
+	rgba := make([]byte, 8)
+	surface := world.WorldLightmapSurface{
+		X: 0, Y: 0, Width: 2, Height: 1,
+		Styles:  [bsp.MaxLightmaps]uint8{0, 255, 255, 255},
+		Samples: []byte{10, 20, 30, 40, 50, 60},
+	}
+	CompositeSurfaceRGBA(rgba, 2, surface, values)
+	if rgba[0] != 10 || rgba[4] != 40 {
+		t.Fatalf("style-0 scale should be identity, got %v", rgba[:6])
+	}
+}
+
+func TestCompositeSurfaceRGBA_TwoStylesAdd(t *testing.T) {
+	// Fast path 3: two styles sum their scaled samples, clamped at 255.
+	values := DefaultStyleValues()
+	values[1] = 0.5
+	rgba := make([]byte, 4)
+	surface := world.WorldLightmapSurface{
+		X: 0, Y: 0, Width: 1, Height: 1,
+		Styles:  [bsp.MaxLightmaps]uint8{0, 1, 255, 255},
+		Samples: []byte{100, 0, 0, 100, 0, 0}, // style0=100, style1=100
+	}
+	CompositeSurfaceRGBA(rgba, 1, surface, values)
+	// 100*1 + 100*0.5 = 150
+	if rgba[0] != 150 {
+		t.Fatalf("two-style red = %d, want 150", rgba[0])
+	}
+	if rgba[1] != 0 || rgba[2] != 0 {
+		t.Fatalf("green/blue = %d,%d, want 0,0", rgba[1], rgba[2])
+	}
+}
+
+func TestCompositeSurfaceRGBA_EmptySamplesSkips(t *testing.T) {
+	values := DefaultStyleValues()
+	rgba := make([]byte, 4)
+	surface := world.WorldLightmapSurface{
+		X: 0, Y: 0, Width: 2, Height: 2, // needs 12 sample bytes for 1 style
+		Styles:  [bsp.MaxLightmaps]uint8{0, 255, 255, 255},
+		Samples: []byte{1, 2, 3}, // too short
+	}
+	CompositeSurfaceRGBA(rgba, 2, surface, values)
+	if rgba[0] != 0 || rgba[1] != 0 || rgba[2] != 0 {
+		t.Fatalf("short-samples surface should be skipped, got %v", rgba[:3])
+	}
+}
+
+func TestRecompositeDirtySurfacesReports(t *testing.T) {
+	values := DefaultStyleValues()
+	page := world.WorldLightmapPage{Width: 2, Height: 1, Surfaces: []world.WorldLightmapSurface{
+		{X: 0, Y: 0, Width: 1, Height: 1, Dirty: true, Styles: [bsp.MaxLightmaps]uint8{0, 255, 255, 255}, Samples: []byte{1, 2, 3}},
+		{X: 1, Y: 0, Width: 1, Height: 1, Dirty: false, Styles: [bsp.MaxLightmaps]uint8{0, 255, 255, 255}, Samples: []byte{200, 200, 200}},
+	}}
+	rgba := make([]byte, 8)
+	if !RecompositeDirtySurfaces(rgba, page, values) {
+		t.Fatal("expected recomposite to report true (one dirty surface)")
+	}
+	if rgba[0] != 1 || rgba[4] != 0 {
+		t.Fatalf("dirty surface composited but clean untouched: rgba=%v", rgba)
+	}
+}
