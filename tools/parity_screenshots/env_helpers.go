@@ -74,13 +74,14 @@ func parseIntEnv(key string, fallback int) int {
 }
 
 func printUsage() {
-	fmt.Println("Usage: go run ./tools/parity_screenshots {reference|go|compare|both}")
+	fmt.Println("Usage: go run ./tools/parity_screenshots {reference|go|compare|both|report}")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  reference  Capture reference screenshots from C Ironwail")
 	fmt.Println("  go         Capture screenshots from the Go GoGPU parity build")
 	fmt.Println("  compare    Compare reference vs Go screenshots (nonzero on diffs/missing captures)")
 	fmt.Println("  both       Do all three in sequence (nonzero on diffs/missing captures)")
+	fmt.Println("  report     Compare screenshots and emit structured JSON + Markdown summary table")
 	fmt.Println()
 	fmt.Println("Environment:")
 	fmt.Println("  QUAKE_BASEDIR  Path to Quake data")

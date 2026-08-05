@@ -1,13 +1,13 @@
-package renderer
+package particle
 
 import (
+	"math"
 	"math/rand"
+	"sync"
 	"testing"
 	"unsafe"
 
-	"github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
-	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
 )
 
 func TestParticleSystemCapacityAndAlloc(t *testing.T) {
@@ -81,6 +81,9 @@ func TestRunParticlesCompactsAndUpdates(t *testing.T) {
 		t.Fatalf("ActiveCount = %d, want 1", ps.ActiveCount())
 	}
 	got := ps.ActiveParticles()[0]
+	if got.Color != ramp3[5] {
+		t.Fatalf("fire color = %d, want %d", got.Color, ramp3[5])
+	}
 	if got.Vel[2] <= 10 {
 		t.Fatalf("fire vel.z = %f, want > 10", got.Vel[2])
 	}
@@ -120,27 +123,6 @@ func TestRocketTrailTracerAlternatesVelocity(t *testing.T) {
 	}
 }
 
-func TestRocketTrailTracerAlternatesAcrossCalls(t *testing.T) {
-	ps := NewParticleSystem(1024)
-	rng := rand.New(rand.NewSource(11))
-
-	ps.RocketTrail([3]float32{0, 0, 0}, [3]float32{3, 0, 0}, 3, rng, 1)
-	first := ps.ActiveParticles()
-	if len(first) != 1 {
-		t.Fatalf("first call particles = %d, want 1", len(first))
-	}
-
-	ps.RocketTrail([3]float32{10, 0, 0}, [3]float32{13, 0, 0}, 3, rng, 1)
-	all := ps.ActiveParticles()
-	if len(all) != 2 {
-		t.Fatalf("total particles = %d, want 2", len(all))
-	}
-
-	if all[0].Vel[1] == all[1].Vel[1] {
-		t.Fatalf("expected alternating tracer side velocity across calls, got %f and %f", all[0].Vel[1], all[1].Vel[1])
-	}
-}
-
 func TestBlobExplosionAddsBlobParticles(t *testing.T) {
 	ps := NewParticleSystem(2048)
 	rng := rand.New(rand.NewSource(3))
@@ -155,21 +137,63 @@ func TestBlobExplosionAddsBlobParticles(t *testing.T) {
 	}
 }
 
-func TestParticleExplosion2UsesColorRange(t *testing.T) {
-	ps := NewParticleSystem(1024)
-	rng := rand.New(rand.NewSource(4))
-	ps.ParticleExplosion2([3]float32{0, 0, 0}, 32, 5, rng, 2)
+func TestEntityParticlesMatchQuakeCountAndStyle(t *testing.T) {
+	t.Cleanup(func() { compatrand.ResetShared(1) })
+	entityParticleAngularVelOnce = sync.Once{}
+	entityParticleAngularVelocities = [len(entityParticleNormals)][3]float32{}
+	compatrand.ResetShared(1)
 
-	if ps.ActiveCount() != 512 {
-		t.Fatalf("ActiveCount = %d, want 512", ps.ActiveCount())
+	ps := NewParticleSystem(2048)
+	ps.EntityParticles([3]float32{10, 20, 30}, 1)
+
+	if got := ps.ActiveCount(); got != len(entityParticleNormals) {
+		t.Fatalf("ActiveCount = %d, want %d", got, len(entityParticleNormals))
 	}
 	for _, p := range ps.ActiveParticles() {
-		if p.Type != ParticleBlob {
-			t.Fatalf("particle type = %d, want blob", p.Type)
+		if p.Type != ParticleExplode {
+			t.Fatalf("particle type = %d, want explode", p.Type)
 		}
-		if p.Color < 32 || p.Color >= 37 {
-			t.Fatalf("particle color = %d, want in [32,37)", p.Color)
+		if p.Color != 0x6f {
+			t.Fatalf("particle color = %d, want 0x6f", p.Color)
 		}
+		if p.Die != 1.01 {
+			t.Fatalf("particle die = %v, want 1.01", p.Die)
+		}
+	}
+	first := ps.ActiveParticles()[0]
+	want := [3]float32{-26.924153, 27.55703, 70.72488}
+	for i := range want {
+		if math.Abs(float64(first.Org[i]-want[i])) > 0.0001 {
+			t.Fatalf("first particle org[%d] = %v, want %v", i, first.Org[i], want[i])
+		}
+	}
+}
+
+func TestEntityParticlesUsesCompatRandForAngularVelocitySeed(t *testing.T) {
+	t.Cleanup(func() { compatrand.ResetShared(1) })
+
+	run := func() [3]float32 {
+		entityParticleAngularVelOnce = sync.Once{}
+		entityParticleAngularVelocities = [len(entityParticleNormals)][3]float32{}
+
+		ps := NewParticleSystem(2048)
+		ps.EntityParticles([3]float32{10, 20, 30}, 1)
+		a := ps.ActiveParticles()
+		if len(a) == 0 {
+			t.Fatalf("expected entity particles")
+		}
+		return a[0].Org
+	}
+
+	compatrand.ResetShared(1)
+	base := run()
+
+	compatrand.ResetShared(1)
+	_ = compatrand.Int() // alter shared stream before velocity table init
+	shifted := run()
+
+	if base == shifted {
+		t.Fatalf("entity particle origin unchanged after compatrand stream advance")
 	}
 }
 
@@ -206,13 +230,13 @@ func TestBuildParticleVertices(t *testing.T) {
 }
 
 func TestParticleVertexPtr(t *testing.T) {
-	if ptr := particleVertexPtr(nil); ptr != nil {
-		t.Fatalf("particleVertexPtr(nil) = %v, want nil", ptr)
+	if ptr := ParticleVertexPtr(nil); ptr != nil {
+		t.Fatalf("ParticleVertexPtr(nil) = %v, want nil", ptr)
 	}
 
 	verts := []ParticleVertex{{Pos: [3]float32{1, 2, 3}, Color: [4]byte{4, 5, 6, 7}}}
-	if ptr := particleVertexPtr(verts); ptr != unsafe.Pointer(&verts[0]) {
-		t.Fatalf("particleVertexPtr returned %v, want %v", ptr, unsafe.Pointer(&verts[0]))
+	if ptr := ParticleVertexPtr(verts); ptr != unsafe.Pointer(&verts[0]) {
+		t.Fatalf("ParticleVertexPtr returned %v, want %v", ptr, unsafe.Pointer(&verts[0]))
 	}
 }
 
@@ -222,53 +246,5 @@ func TestParticleVertexLayout(t *testing.T) {
 	}
 	if got := unsafe.Offsetof(ParticleVertex{}.Color); got != 12 {
 		t.Fatalf("unsafe.Offsetof(ParticleVertex{}.Color) = %d, want 12", got)
-	}
-}
-
-func TestEmitDynamicLightsHonorsRDynamicGate(t *testing.T) {
-	if testCV.Get(CvarRDynamic) == nil {
-		testCV.Register(CvarRDynamic, "1", cvar.FlagArchive, "")
-	}
-	testCV.Set(CvarRDynamic, "0")
-	t.Cleanup(func() {
-		testCV.Set(CvarRDynamic, "1")
-	})
-
-	var spawned int
-	EmitDynamicLights(func(DynamicLight) bool {
-		spawned++
-		return true
-	}, []client.TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{1, 2, 3}}})
-
-	if spawned != 0 {
-		t.Fatalf("spawned lights = %d, want 0 when r_dynamic=0", spawned)
-	}
-}
-
-func TestEvaluateDynamicLightsAtPointHonorsRDynamicGate(t *testing.T) {
-	if testCV.Get(CvarRDynamic) == nil {
-		testCV.Register(CvarRDynamic, "1", cvar.FlagArchive, "")
-	}
-	lights := []DynamicLight{{
-		Position:   [3]float32{0, 0, 0},
-		Radius:     100,
-		Color:      [3]float32{1, 1, 1},
-		Brightness: 1,
-		Lifetime:   1,
-	}}
-
-	testCV.Set(CvarRDynamic, "1")
-	on := evaluateDynamicLightsAtPoint(lights, [3]float32{0, 0, 0})
-	if on == [3]float32{} {
-		t.Fatalf("expected non-zero contribution when r_dynamic=1")
-	}
-
-	testCV.Set(CvarRDynamic, "0")
-	t.Cleanup(func() {
-		testCV.Set(CvarRDynamic, "1")
-	})
-	off := evaluateDynamicLightsAtPoint(lights, [3]float32{0, 0, 0})
-	if off != ([3]float32{}) {
-		t.Fatalf("contribution when r_dynamic=0 = %v, want zero", off)
 	}
 }

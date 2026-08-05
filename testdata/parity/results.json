@@ -1,0 +1,267 @@
+{
+  "results": [
+    {
+      "id": "id1-start-spawn",
+      "map": "start",
+      "description": "Default id1 start map spawn viewpoint",
+      "status": "diff",
+      "mismatch_percent": 99.49904780020334,
+      "mean_ssim": 0.011026510726269827,
+      "mean_channel_delta": 27.053928786550998,
+      "max_channel_delta": 255,
+      "mean_perceptual_delta": 36.17628402423031,
+      "diff_regions": 1242
+    },
+    {
+      "id": "id1-start-hub",
+      "map": "start",
+      "description": "id1 start map episode portal hub viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e1m1-light-corridor",
+      "map": "e1m1",
+      "description": "e1m1 dynamic-light corridor stress viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e1m1-spawn-cross",
+      "map": "e1m1",
+      "description": "e1m1 spawn-area cross-light viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e1m2-spawn",
+      "map": "e1m2",
+      "description": "e1m2 spawn courtyard viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e1m3-bridge",
+      "map": "e1m3",
+      "description": "e1m3 main hall bridge viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e1m7-lava",
+      "map": "e1m7",
+      "description": "e1m7 lava chamber overview viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e1m8-end",
+      "map": "e1m8",
+      "description": "e1m8 arena entrance viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e2m1-spawn",
+      "map": "e2m1",
+      "description": "e2m1 start spawn viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e2m2-water",
+      "map": "e2m2",
+      "description": "e2m2 water canal viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e2m7-boss",
+      "map": "e2m7",
+      "description": "e2m7 boss arena platform viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e3m1-spawn",
+      "map": "e3m1",
+      "description": "e3m1 start corridor viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e3m2-vault",
+      "map": "e3m2",
+      "description": "e3m2 vault courtyard viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e3m7-teleport",
+      "map": "e3m7",
+      "description": "e3m7 teleport nexus viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e4m1-spawn",
+      "map": "e4m1",
+      "description": "e4m1 start balcony viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e4m2-tower",
+      "map": "e4m2",
+      "description": "e4m2 central tower view",
+      "status": "skip"
+    },
+    {
+      "id": "id1-e4m8-shub",
+      "map": "e4m8",
+      "description": "e4m8 shub-niggurath pit overview",
+      "status": "skip"
+    },
+    {
+      "id": "expansion-hip1m1-spawn",
+      "map": "hip1m1",
+      "description": "Scourge of Armagon hip1m1 spawn viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "expansion-r1m1-spawn",
+      "map": "r1m1",
+      "description": "Dissolution of Eternity r1m1 spawn viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "community-qbj2-zetabyt-spawn",
+      "map": "qbj2_zetabyt",
+      "description": "Quake Brutalist Jam 2 zetabyt stress map spawn",
+      "status": "skip"
+    },
+    {
+      "id": "community-ad-v1-5-spawn",
+      "map": "ad_v1_5",
+      "description": "Arcane Dimensions ad_v1_5 start map spawn",
+      "status": "skip"
+    },
+    {
+      "id": "community-mots2-spawn",
+      "map": "mots2",
+      "description": "March of the Sigils 2 start viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "qbj2-start-spawn",
+      "map": "start",
+      "description": "qbj2 start map spawn viewpoint",
+      "status": "diff",
+      "mismatch_percent": 98.68967797304856,
+      "mean_ssim": 0.7831322743885984,
+      "mean_channel_delta": 4.8400018455239815,
+      "max_channel_delta": 245,
+      "mean_perceptual_delta": 6.564528467821833,
+      "diff_regions": 1259
+    },
+    {
+      "id": "qbj2-water-room",
+      "map": "start",
+      "description": "qbj2 start map water room looking straight down at water",
+      "status": "diff",
+      "mismatch_percent": 99.27141430541496,
+      "mean_ssim": 0.8495064090267195,
+      "mean_channel_delta": 4.469467192697612,
+      "max_channel_delta": 104,
+      "mean_perceptual_delta": 6.029470160739938,
+      "diff_regions": 257
+    },
+    {
+      "id": "qbj2-water-room-side",
+      "map": "start",
+      "description": "qbj2 start map water room side view looking at water pool",
+      "status": "diff",
+      "mismatch_percent": 99.22278531461089,
+      "mean_ssim": 0.4945154629693668,
+      "mean_channel_delta": 13.304435598006382,
+      "max_channel_delta": 136,
+      "mean_perceptual_delta": 18.017057255757916,
+      "diff_regions": 1703
+    },
+    {
+      "id": "qbj3-start-view1",
+      "map": "start",
+      "description": "qbj3 start map viewpos 1",
+      "status": "diff",
+      "mismatch_percent": 99.32287385447307,
+      "mean_ssim": 0.011435328216772745,
+      "mean_channel_delta": 26.259943609618464,
+      "max_channel_delta": 255,
+      "mean_perceptual_delta": 35.12065210619296,
+      "diff_regions": 1189
+    },
+    {
+      "id": "qbj3-start-view2",
+      "map": "start",
+      "description": "qbj3 start map viewpos 2",
+      "status": "diff",
+      "mismatch_percent": 100,
+      "mean_ssim": 0.0047273632726935865,
+      "min_ssim": 0.0047273632726948876,
+      "mean_channel_delta": 27.75,
+      "max_channel_delta": 37,
+      "mean_perceptual_delta": 37,
+      "diff_regions": 1
+    },
+    {
+      "id": "qbj3-start-view3",
+      "map": "start",
+      "description": "qbj3 start map viewpos 3",
+      "status": "diff",
+      "mismatch_percent": 100,
+      "mean_ssim": 0.0047273632726935865,
+      "min_ssim": 0.0047273632726948876,
+      "mean_channel_delta": 27.75,
+      "max_channel_delta": 37,
+      "mean_perceptual_delta": 37,
+      "diff_regions": 1
+    },
+    {
+      "id": "qbj3-start-view4",
+      "map": "start",
+      "description": "qbj3 start map viewpos 4",
+      "status": "diff",
+      "mismatch_percent": 100,
+      "mean_ssim": 0.0047273632726935865,
+      "min_ssim": 0.0047273632726948876,
+      "mean_channel_delta": 27.75,
+      "max_channel_delta": 37,
+      "mean_perceptual_delta": 37,
+      "diff_regions": 1
+    },
+    {
+      "id": "qbj3-start-view5",
+      "map": "start",
+      "description": "qbj3 start map viewpos 5",
+      "status": "diff",
+      "mismatch_percent": 100,
+      "mean_ssim": 0.0059367204662734,
+      "min_ssim": 0.0047273632726948876,
+      "mean_channel_delta": 27.7069902334418,
+      "max_channel_delta": 218,
+      "mean_perceptual_delta": 36.94130442747228,
+      "diff_regions": 1
+    },
+    {
+      "id": "qbj3-stickflip-spawn",
+      "map": "qbj3_stickflip",
+      "description": "qbj3_stickflip spawn viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "qbj3-stickflip-overview",
+      "map": "qbj3_stickflip",
+      "description": "qbj3_stickflip high ceiling overview viewpoint",
+      "status": "skip"
+    },
+    {
+      "id": "community-qbj3-stickflip-hall",
+      "map": "qbj3_stickflip",
+      "description": "qbj3_stickflip main hall viewpos",
+      "status": "skip"
+    }
+  ],
+  "summary": {
+    "ReferenceCount": 9,
+    "GoCount": 9,
+    "MatchCount": 0,
+    "DiffCount": 9,
+    "MissingCount": 24
+  }
+}

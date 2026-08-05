@@ -1,27 +1,25 @@
-// This file belongs to the pipeline subpackage: the Resources struct that
-// owns the renderer's wgpu object graph (plan 16+2a, the deep
-// state-object inversion that splits the Renderer struct).
-//
-// Resources holds every pipeline/layout/buffer/sampler/texture the renderer
-// allocates; the parent Renderer keeps only the fields whose types live in
-// renderer-root (gpuWorldTexture, surface textures, world material data,
-// external-skybox bookkeeping) because moving those would create an import
-// cycle. The parent reaches the wgpu graph through r.resources.
-//
-// Field names are unexported to match the historical Renderer fields they
-// replace (r.worldPipeline → r.resources.worldPipeline); access is under the
-// parent's mutex at the same call sites as before.
-
+// Package pipeline implements render-pipeline constructors and WGPU resource encapsulation.
 package pipeline
 
 import (
+	"fmt"
+
+	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
 
-// Resources owns the renderer's wgpu objects. It is created once per
-// Renderer and populated during world upload / resource ensure; destroyed by
-// releasing the individual handles on shutdown.
+// WorldResourceProvider defines the interface for accessing GPU resources required by render pipelines.
+type WorldResourceProvider interface {
+	Device() *wgpu.Device
+	DepthFormat() gputypes.TextureFormat
+	UniformBuffer() *wgpu.Buffer
+}
+
+// Resources owns the renderer's wgpu object graph (plan 16+2a).
 type Resources struct {
+	provider WorldResourceProvider
+	layouts  []*wgpu.BindGroupLayout
+
 	WorldPipeline                     *wgpu.RenderPipeline
 	WorldAlphaTestPipeline            *wgpu.RenderPipeline
 	WorldTranslucentPipeline          *wgpu.RenderPipeline
@@ -94,14 +92,14 @@ type Resources struct {
 	WorldRenderWidth       int
 	WorldRenderHeight      int
 
-	SceneCompositePipeline          *wgpu.RenderPipeline
-	SceneCompositePipelineLayout    *wgpu.PipelineLayout
-	SceneCompositeVertexShader      *wgpu.ShaderModule
-	SceneCompositeFragmentShader    *wgpu.ShaderModule
-	SceneCompositeBindGroupLayout   *wgpu.BindGroupLayout
-	SceneCompositeSampler           *wgpu.Sampler
-	SceneCompositeUniformBuffer     *wgpu.Buffer
-	SceneCompositeBindGroup         *wgpu.BindGroup
+	SceneCompositePipeline        *wgpu.RenderPipeline
+	SceneCompositePipelineLayout  *wgpu.PipelineLayout
+	SceneCompositeVertexShader    *wgpu.ShaderModule
+	SceneCompositeFragmentShader  *wgpu.ShaderModule
+	SceneCompositeBindGroupLayout *wgpu.BindGroupLayout
+	SceneCompositeSampler         *wgpu.Sampler
+	SceneCompositeUniformBuffer   *wgpu.Buffer
+	SceneCompositeBindGroup       *wgpu.BindGroup
 
 	OverlayCompositePipeline        *wgpu.RenderPipeline
 	OverlayCompositePipelineLayout  *wgpu.PipelineLayout
@@ -115,4 +113,31 @@ type Resources struct {
 // NewResources returns an empty wgpu resource container.
 func NewResources() *Resources {
 	return &Resources{}
+}
+
+// NewResourcesWithProvider constructs a new pipeline Resources container over a WorldResourceProvider.
+func NewResourcesWithProvider(provider WorldResourceProvider, layouts []*wgpu.BindGroupLayout) (*Resources, error) {
+	if provider == nil {
+		return nil, fmt.Errorf("nil provider")
+	}
+	return &Resources{
+		provider: provider,
+		layouts:  layouts,
+	}, nil
+}
+
+// Layouts returns the registered bind group layouts.
+func (r *Resources) Layouts() []*wgpu.BindGroupLayout {
+	if r == nil {
+		return nil
+	}
+	return r.layouts
+}
+
+// Provider returns the underlying WorldResourceProvider.
+func (r *Resources) Provider() WorldResourceProvider {
+	if r == nil {
+		return nil
+	}
+	return r.provider
 }

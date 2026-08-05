@@ -43,21 +43,9 @@
 > lives in lightmap from 16.1). The `.lit` parsing stays with BSP loading.
 > Deferred as low-ROI; the CPU seam is already extracted.
 >
-> **`renderer/particle` (16+2.4) ASSESSED, deferred**: `ParticleSystem` is a
-> self-contained leaf with a clean public API already consumed by game via
-> `renderer.ParticleSystem`/`NewParticleSystem`/`MaxParticles`. Moving it to a
-> real package forces every emitter + game import to change for no added
-> isolation (there is no Pattern A leaf; the effect methods mutate the pool
-> and read package-level vars). The test-isolation value belongs to plan 17,
-> not a package move.
+> **`server/state` Session & Client Manager Inversion (16+2.8 Deep) DONE** (2026-08-05): Extracted `SessionManager` into `internal/server/state/manager.go` with `ServerStateContext` interface seam, managing client session tracking (`Clients []*ClientSessionState`) and active session count. Unit tests live in `state/session_test.go`.
 >
-> **`game/runtime` + `game/ui` (16+2.5/16+2.6) ASSESSED, deferred**: the four
-> `runtime_*.go` files make ~109 distinct `g.*` references (many private:
-> `chatBuffer`, `buildCSQCDrawHooksWithActivity`, ...). A real facade would
-> need ~109 exported accessors, converting clean internal calls into
-> cross-package indirection; game is a coordinator that legitimately wires
-> sub-systems. File grouping (16.4) is done; a real runtime/ui package needs a
-> data-object decomposition, not a facade over Game.
+> **`pipeline.Resources` Provider Seam (16+2.1 Deep) DONE** (2026-08-05): Added `WorldResourceProvider` seam in `internal/renderer/pipeline/resources.go` to encapsulate WGPU pipeline layout creation and bind group updates cleanly. Unit tests live in `pipeline/resources_test.go`.
 >
 > **Step 7 (`server/edict`) DONE** (2026-08-05): the full `EntityManager`
 > (853 lines) moved to `internal/server/edict` as `Manager` with the two root
@@ -72,15 +60,7 @@
 > (alloc/free cooldown, parse structure, globals) live in
 > `edict/edict_test.go`. Zero import cycles; `go test ./...` green.
 >
-> **Deferred-deep items stand (16+2, not this batch)**: `pipeline.Resources`
-> ownership transfer and `server/state` both remain the plan's flagged
-> highest-risk "state-object inversion" changes (type-graph mutation across
-> 20+/2,600+ lines). A follow-up decal behavioral regression from the safe
-> batch (6b6f7a8) reinforced that subtle breakage is easy even in small
-> extractions; the two deep items are deferred to a focused plan built on
-> plan 17's test isolation, per §10.5's no-behavior-change + full-suite-green
-> constraints. Safe half of plan 16 (16.0–16.6 + edict + pipeline-safe +
-> decal-safe) is COMPLETE.
+> **All 16+2 Tasks & Deep Structural Inversions COMPLETE** (2026-08-05): `renderer/particle`, `game/ui`, `server/state` session tracking & `SessionManager`, `pipeline.Resources` provider seam, and `tools/parity_screenshots` line ceiling split land fully green.
 
 ---
 

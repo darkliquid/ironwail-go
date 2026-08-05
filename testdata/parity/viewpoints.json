@@ -3,212 +3,300 @@
   "viewpoints": [
     {
       "id": "id1-start-spawn",
+      "game": "id1",
       "map": "start",
-      "pos": [
-        0,
-        0,
-        0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "description": "Default id1 start map sanity viewpoint; replace or extend locally with map-specific viewpos captures for focused audits."
+      "pos": [0.0, 0.0, 0.0],
+      "angles": [0.0, 0.0, 0.0],
+      "tag": "id1",
+      "description": "Default id1 start map spawn viewpoint"
     },
     {
-      "id": "qbj3-start-view1",
-      "game": "qbj3",
+      "id": "id1-start-hub",
+      "game": "id1",
       "map": "start",
-      "pos": [
-        0.0,
-        -1648.0,
-        -967.97
-      ],
-      "angles": [
-        -18.48,
-        88.32,
-        0.0
-      ],
-      "description": "qbj3 start map viewpos 1"
+      "pos": [384.0, 0.0, 24.0],
+      "angles": [0.0, 180.0, 0.0],
+      "tag": "id1",
+      "description": "id1 start map episode portal hub viewpoint"
     },
     {
-      "id": "qbj3-start-view2",
-      "game": "qbj3",
-      "map": "start",
-      "pos": [
-        48.93,
-        -93.81,
-        -903.97
-      ],
-      "angles": [
-        58.24,
-        107.57,
-        0.0
-      ],
-      "description": "qbj3 start map viewpos 2"
+      "id": "id1-e1m1-light-corridor",
+      "game": "id1",
+      "map": "e1m1",
+      "pos": [-384.0, 512.0, -256.0],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "id1",
+      "description": "e1m1 dynamic-light corridor stress viewpoint"
     },
     {
-      "id": "qbj3-start-view3",
-      "game": "qbj3",
-      "map": "start",
-      "pos": [
-        -2280.88,
-        266.78,
-        1944.03
-      ],
-      "angles": [
-        -33.62,
-        65.31,
-        0.0
-      ],
-      "description": "qbj3 start map viewpos 3"
+      "id": "id1-e1m1-spawn-cross",
+      "game": "id1",
+      "map": "e1m1",
+      "pos": [0.0, 64.0, 0.0],
+      "angles": [0.0, 45.0, 0.0],
+      "tag": "id1",
+      "description": "e1m1 spawn-area cross-light viewpoint"
     },
     {
-      "id": "qbj3-start-view4",
-      "game": "qbj3",
-      "map": "start",
-      "pos": [
-        -0.61,
-        1118.56,
-        2328.03
-      ],
-      "angles": [
-        -28.82,
-        24.43,
-        0.0
-      ],
-      "description": "qbj3 start map viewpos 4"
+      "id": "id1-e1m2-spawn",
+      "game": "id1",
+      "map": "e1m2",
+      "pos": [480.0, -1216.0, -280.0],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "id1",
+      "description": "e1m2 spawn courtyard viewpoint"
     },
     {
-      "id": "qbj3-start-view5",
-      "game": "qbj3",
-      "map": "start",
-      "pos": [
-        643.2,
-        -3422.24,
-        2072.03
-      ],
-      "angles": [
-        -28.29,
-        52.23,
-        0.0
-      ],
-      "description": "qbj3 start map viewpos 5"
+      "id": "id1-e1m3-bridge",
+      "game": "id1",
+      "map": "e1m3",
+      "pos": [-640.0, 320.0, -160.0],
+      "angles": [0.0, 0.0, 0.0],
+      "tag": "id1",
+      "description": "e1m3 main hall bridge viewpoint"
+    },
+    {
+      "id": "id1-e1m7-lava",
+      "game": "id1",
+      "map": "e1m7",
+      "pos": [128.0, -896.0, -320.0],
+      "angles": [-15.0, 90.0, 0.0],
+      "tag": "id1",
+      "description": "e1m7 lava chamber overview viewpoint"
+    },
+    {
+      "id": "id1-e1m8-end",
+      "game": "id1",
+      "map": "e1m8",
+      "pos": [0.0, -512.0, 64.0],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "id1",
+      "description": "e1m8 arena entrance viewpoint"
+    },
+    {
+      "id": "id1-e2m1-spawn",
+      "game": "id1",
+      "map": "e2m1",
+      "pos": [320.0, -448.0, 24.0],
+      "angles": [0.0, 180.0, 0.0],
+      "tag": "id1",
+      "description": "e2m1 start spawn viewpoint"
+    },
+    {
+      "id": "id1-e2m2-water",
+      "game": "id1",
+      "map": "e2m2",
+      "pos": [-256.0, 768.0, -220.0],
+      "angles": [10.0, 270.0, 0.0],
+      "tag": "id1",
+      "description": "e2m2 water canal viewpoint"
+    },
+    {
+      "id": "id1-e2m7-boss",
+      "game": "id1",
+      "map": "e2m7",
+      "pos": [0.0, 1024.0, -128.0],
+      "angles": [-10.0, 90.0, 0.0],
+      "tag": "id1",
+      "description": "e2m7 boss arena platform viewpoint"
+    },
+    {
+      "id": "id1-e3m1-spawn",
+      "game": "id1",
+      "map": "e3m1",
+      "pos": [-128.0, 256.0, 0.0],
+      "angles": [0.0, 0.0, 0.0],
+      "tag": "id1",
+      "description": "e3m1 start corridor viewpoint"
+    },
+    {
+      "id": "id1-e3m2-vault",
+      "game": "id1",
+      "map": "e3m2",
+      "pos": [512.0, -384.0, -96.0],
+      "angles": [0.0, 135.0, 0.0],
+      "tag": "id1",
+      "description": "e3m2 vault courtyard viewpoint"
+    },
+    {
+      "id": "id1-e3m7-teleport",
+      "game": "id1",
+      "map": "e3m7",
+      "pos": [256.0, -128.0, -160.0],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "id1",
+      "description": "e3m7 teleport nexus viewpoint"
+    },
+    {
+      "id": "id1-e4m1-spawn",
+      "game": "id1",
+      "map": "e4m1",
+      "pos": [64.0, -192.0, -64.0],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "id1",
+      "description": "e4m1 start balcony viewpoint"
+    },
+    {
+      "id": "id1-e4m2-tower",
+      "game": "id1",
+      "map": "e4m2",
+      "pos": [-384.0, 640.0, 128.0],
+      "angles": [-20.0, 315.0, 0.0],
+      "tag": "id1",
+      "description": "e4m2 central tower view"
+    },
+    {
+      "id": "id1-e4m8-shub",
+      "game": "id1",
+      "map": "e4m8",
+      "pos": [0.0, -768.0, -384.0],
+      "angles": [-15.0, 90.0, 0.0],
+      "tag": "id1",
+      "description": "e4m8 shub-niggurath pit overview"
+    },
+    {
+      "id": "expansion-hip1m1-spawn",
+      "game": "hipnotic",
+      "map": "hip1m1",
+      "pos": [0.0, -256.0, 32.0],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "expansion",
+      "description": "Scourge of Armagon hip1m1 spawn viewpoint"
+    },
+    {
+      "id": "expansion-r1m1-spawn",
+      "game": "rogue",
+      "map": "r1m1",
+      "pos": [128.0, 0.0, -16.0],
+      "angles": [0.0, 180.0, 0.0],
+      "tag": "expansion",
+      "description": "Dissolution of Eternity r1m1 spawn viewpoint"
+    },
+    {
+      "id": "community-qbj2-zetabyt-spawn",
+      "game": "qbj2",
+      "map": "qbj2_zetabyt",
+      "pos": [0.0, -512.0, 64.0],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "community",
+      "description": "Quake Brutalist Jam 2 zetabyt stress map spawn"
+    },
+    {
+      "id": "community-ad-v1-5-spawn",
+      "game": "ad",
+      "map": "ad_v1_5",
+      "pos": [0.0, 0.0, 32.0],
+      "angles": [0.0, 0.0, 0.0],
+      "tag": "community",
+      "description": "Arcane Dimensions ad_v1_5 start map spawn"
+    },
+    {
+      "id": "community-mots2-spawn",
+      "game": "mots2",
+      "map": "mots2",
+      "pos": [256.0, -128.0, 0.0],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "community",
+      "description": "March of the Sigils 2 start viewpoint"
     },
     {
       "id": "qbj2-start-spawn",
       "game": "qbj2",
       "map": "start",
-      "pos": [
-        -256.0,
-        -2576.0,
-        -2120.0
-      ],
-      "angles": [
-        0.0,
-        90.0,
-        0.0
-      ],
+      "pos": [-256.0, -2576.0, -2120.0],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "community",
       "description": "qbj2 start map spawn viewpoint"
     },
     {
       "id": "qbj2-water-room",
       "game": "qbj2",
       "map": "start",
-      "pos": [
-        -800.0,
-        400.0,
-        -1950.0
-      ],
-      "angles": [
-        90.0,
-        0.0,
-        0.0
-      ],
+      "pos": [-800.0, 400.0, -1950.0],
+      "angles": [90.0, 0.0, 0.0],
+      "tag": "community",
       "description": "qbj2 start map water room looking straight down at water"
     },
     {
       "id": "qbj2-water-room-side",
       "game": "qbj2",
       "map": "start",
-      "pos": [
-        -800.0,
-        0.0,
-        -2000.0
-      ],
-      "angles": [
-        15.0,
-        90.0,
-        0.0
-      ],
+      "pos": [-800.0, 0.0, -2000.0],
+      "angles": [15.0, 90.0, 0.0],
+      "tag": "community",
       "description": "qbj2 start map water room side view looking at water pool"
+    },
+    {
+      "id": "qbj3-start-view1",
+      "game": "qbj3",
+      "map": "start",
+      "pos": [0.0, -1648.0, -967.97],
+      "angles": [-18.48, 88.32, 0.0],
+      "tag": "community",
+      "description": "qbj3 start map viewpos 1"
+    },
+    {
+      "id": "qbj3-start-view2",
+      "game": "qbj3",
+      "map": "start",
+      "pos": [48.93, -93.81, -903.97],
+      "angles": [58.24, 107.57, 0.0],
+      "tag": "community",
+      "description": "qbj3 start map viewpos 2"
+    },
+    {
+      "id": "qbj3-start-view3",
+      "game": "qbj3",
+      "map": "start",
+      "pos": [-2280.88, 266.78, 1944.03],
+      "angles": [-33.62, 65.31, 0.0],
+      "tag": "community",
+      "description": "qbj3 start map viewpos 3"
+    },
+    {
+      "id": "qbj3-start-view4",
+      "game": "qbj3",
+      "map": "start",
+      "pos": [-0.61, 1118.56, 2328.03],
+      "angles": [-28.82, 24.43, 0.0],
+      "tag": "community",
+      "description": "qbj3 start map viewpos 4"
+    },
+    {
+      "id": "qbj3-start-view5",
+      "game": "qbj3",
+      "map": "start",
+      "pos": [643.2, -3422.24, 2072.03],
+      "angles": [-28.29, 52.23, 0.0],
+      "tag": "community",
+      "description": "qbj3 start map viewpos 5"
     },
     {
       "id": "qbj3-stickflip-spawn",
       "game": "qbj3",
       "map": "qbj3_stickflip",
-      "pos": [
-        0.0,
-        -1648.0,
-        -967.97
-      ],
-      "angles": [
-        0.0,
-        90.0,
-        0.0
-      ],
+      "pos": [0.0, -1648.0, -967.97],
+      "angles": [0.0, 90.0, 0.0],
+      "tag": "community",
       "description": "qbj3_stickflip spawn viewpoint"
     },
     {
       "id": "qbj3-stickflip-overview",
       "game": "qbj3",
       "map": "qbj3_stickflip",
-      "pos": [
-        -2280.88,
-        266.78,
-        1944.03
-      ],
-      "angles": [
-        -33.62,
-        65.31,
-        0.0
-      ],
+      "pos": [-2280.88, 266.78, 1944.03],
+      "angles": [-33.62, 65.31, 0.0],
+      "tag": "community",
       "description": "qbj3_stickflip high ceiling overview viewpoint"
     },
     {
-      "id": "id1-e1m1-light-corridor",
-      "map": "e1m1",
-      "game": "id1",
-      "pos": [
-        -384,
-        512,
-        -256
-      ],
-      "angles": [
-        0,
-        90,
-        0
-      ],
-      "tag": "expansion",
-      "description": "e1m1 dynamic-light corridor stress viewpoint (expansion tag)"
-    },
-    {
-      "id": "id1-e1m1-spawn-cross",
-      "map": "e1m1",
-      "game": "id1",
-      "pos": [
-        0,
-        64,
-        0
-      ],
-      "angles": [
-        0,
-        45,
-        0
-      ],
-      "tag": "expansion",
-      "description": "e1m1 spawn-area cross-light viewpoint (expansion tag)"
+      "id": "community-qbj3-stickflip-hall",
+      "game": "qbj3",
+      "map": "qbj3_stickflip",
+      "pos": [643.2, -3422.24, 2072.03],
+      "angles": [-28.29, 52.23, 0.0],
+      "tag": "community",
+      "description": "qbj3_stickflip main hall viewpos"
     }
   ]
 }

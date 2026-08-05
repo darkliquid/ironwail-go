@@ -5,70 +5,28 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/internal/game/ui"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 func (g *Game) runtimeGUIDimensions(framebufferW, framebufferH int) (int, int) {
-	guiW := framebufferW
-	guiH := framebufferH
-	if guiW <= 0 {
-		guiW = g.Host.CVar.IntValue("vid_width")
-	}
-	if guiH <= 0 {
-		guiH = g.Host.CVar.IntValue("vid_height")
-	}
-	pixelAspect := g.currentRuntimePixelAspect()
-	if pixelAspect > 1 {
-		guiW = int(float64(guiW)/pixelAspect + 0.5)
-	} else if pixelAspect > 0 && pixelAspect < 1 {
-		guiH = int(float64(guiH)*pixelAspect + 0.5)
-	}
-	return guiW, guiH
+	return ui.GUIDimensions(framebufferW, framebufferH, g.Host.CVar.IntValue("vid_width"), g.Host.CVar.IntValue("vid_height"), g.currentRuntimePixelAspect())
 }
 
 func (g *Game) runtimeConsoleDimensions(guiW, guiH int) (int, int) {
-	if guiW <= 0 || guiH <= 0 {
-		return 0, 0
-	}
-	conWidth := guiW
-	if override := g.Host.CVar.FloatValue("scr_conwidth"); override > 0 {
-		conWidth = int(override)
-	} else if scale := g.Host.CVar.FloatValue("scr_conscale"); scale > 0 {
-		conWidth = int(float64(guiW) / scale)
-	}
-	if conWidth < 320 {
-		conWidth = 320
-	}
-	if conWidth > guiW {
-		conWidth = guiW
-	}
-	conWidth &^= 7
-	if conWidth <= 0 {
-		conWidth = guiW
-	}
-	conHeight := conWidth * guiH / guiW
-	if conHeight <= 0 {
-		conHeight = guiH
-	}
-	return conWidth, conHeight
+	return ui.ConsoleDimensions(guiW, guiH, g.Host.CVar.FloatValue("scr_conwidth"), g.Host.CVar.FloatValue("scr_conscale"))
 }
 
 func (g *Game) runtimeCanvasParams(framebufferW, framebufferH int, slideFraction float32) renderer.CanvasTransformParams {
-	guiW, guiH := g.runtimeGUIDimensions(framebufferW, framebufferH)
-	conW, conH := g.runtimeConsoleDimensions(guiW, guiH)
-	return renderer.CanvasTransformParams{
-		GUIWidth:         float32(guiW),
-		GUIHeight:        float32(guiH),
-		GLWidth:          float32(framebufferW),
-		GLHeight:         float32(framebufferH),
-		ConWidth:         float32(conW),
-		ConHeight:        float32(conH),
-		MenuScale:        float32(g.Host.CVar.FloatValue("scr_menuscale")),
-		SbarScale:        float32(g.Host.CVar.FloatValue("scr_sbarscale")),
-		CrosshairScale:   float32(g.Host.CVar.FloatValue("scr_crosshairscale")),
-		ConSlideFraction: slideFraction,
-	}
+	return ui.CanvasParams(
+		framebufferW, framebufferH,
+		g.Host.CVar.IntValue("vid_width"), g.Host.CVar.IntValue("vid_height"),
+		g.currentRuntimePixelAspect(),
+		g.Host.CVar.FloatValue("scr_conwidth"), g.Host.CVar.FloatValue("scr_conscale"),
+		g.Host.CVar.FloatValue("scr_menuscale"), g.Host.CVar.FloatValue("scr_sbarscale"), g.Host.CVar.FloatValue("scr_crosshairscale"),
+		slideFraction,
+	)
 }
 
 func (g *Game) runtimeOverlayCanvasParams(framebufferW, framebufferH int) renderer.CanvasTransformParams {
