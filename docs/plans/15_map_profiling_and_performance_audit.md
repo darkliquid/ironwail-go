@@ -10,17 +10,18 @@
 
 With the zero-sync QCVM entity migration (commit `da40ae2`), alias vertex transform optimization (commit `7b4db8e`, 12.41x speedup), and edict field lookup caching (`ac3ea90`), baseline engine performance has improved dramatically.
 
-Empirical `pprof` heap and CPU profiling across `qbj2_zetabyt` (1,127 edicts) and `qbj3_stickflip` (1,430 edicts) led to an **85.6% reduction in total heap allocations** during map loading (from 717,542 alloc objects down to 102,986 objects).
+Empirical `pprof` heap and CPU profiling across `qbj2_zetabyt` (1,127 edicts), `qbj3_stickflip` (1,430 edicts), and `qbj3_softi` (941 edicts) led to an **85.6% reduction in total heap allocations** during map loading (from 717,542 alloc objects down to 102,986 objects).
 
 ---
 
 ## 2. Step-by-Step Implementation Sequence
 
-### Step 15.1: Automated Profile Capture Suite (COMPLETED - commit ac3ea90)
+### Step 15.1: Automated Profile Capture Suite (COMPLETED - commit ac3ea90 & 278fcd2)
 - **Files**: `tasks/profile_maps.sh`, `mise.toml`
 - **Actions**:
-  - Scripted headless map benchmark runs across target maps for 1,000 frames each.
+  - Scripted headless map benchmark runs across target maps (`qbj2_zetabyt`, `qbj3_stickflip`, `qbj3_softi`).
   - Added `mise run profile-maps` task saving CPU and heap profiles to `.tmp/profiles/`.
+
 
 ### Step 15.2: Edict Field Lookup Optimization (COMPLETED - commit ac3ea90)
 - **Files**: `internal/server/edict.go`
