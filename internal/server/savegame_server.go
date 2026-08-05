@@ -142,6 +142,9 @@ func (s *Server) SetEdicts(edicts []*srvtypes.Edict) {
 	if s.MaxEdicts < s.NumEdicts {
 		s.MaxEdicts = s.NumEdicts
 	}
+	if s.EdictManager != nil {
+		s.EdictManager.SetEdicts(edicts)
+	}
 }
 func (s *Server) SetEdict(i int, ent *srvtypes.Edict) {
 	if i < len(s.Edicts) {
