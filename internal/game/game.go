@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -148,8 +147,16 @@ type perfMeasureState struct {
 	phase      perfPhase
 	startFrame int
 	frameCount int
-	startMem   runtime.MemStats
-	startTime  time.Time
+	// startAllocBytes / startAllocObjects are the cumulative runtime/metrics
+	// counters at capture start (/gc/heap/allocs:bytes, :objects), read
+	// without stop-the-world.
+	startAllocBytes   uint64
+	startAllocObjects uint64
+	// startProfile / endProfile record the heap pprof paths dumped on each
+	// side of the capture window for go tool pprof -diff_base attribution.
+	startProfile string
+	endProfile   string
+	startTime    time.Time
 
 	totalAlloc   uint64
 	totalObjects uint64
@@ -166,10 +173,11 @@ const (
 	perfWarmupFrames = 240
 	// perfCaptureFrames is the default steady-state measurement window.
 	perfCaptureFrames = 240
-	// perfSampleInterval throttles how often runtime.ReadMemStats is called
-	// during capture; each call is a full STW mark, so we sample every 15
-	// frames and report the max observed per-frame delta.
-	perfSampleInterval = 15
+	// perfSampleInterval throttles how often the cumulative allocation
+	// counters are read during capture. Unlike runtime.ReadMemStats (a full
+	// STW snapshot), runtime/metrics counters have no stop-the-world cost, so
+	// the window can be sampled densely.
+	perfSampleInterval = 5
 )
 
 // PendingRendererAssets holds queued renderer assets to be applied.

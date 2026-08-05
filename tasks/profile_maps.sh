@@ -79,6 +79,29 @@ run_map_profile() {
   fi
   echo "    ${perf_line}"
   echo "${game}/${map_name},${perf_line#PERF_RESULT }" >>"${RESULTS_CSV}"
+
+  # Steady-state attribution: the engine dumps start/end heap pprofs on each
+  # side of the capture window. Diff them with pprof -diff_base to attribute
+  # the per-frame churn to its allocation sites (plan 20.1).
+  local delta_line start_pprof end_pprof
+  delta_line="$(grep 'PERF_DELTA' "${log}" | tail -1 || true)"
+  if [ -n "${delta_line}" ]; then
+    start_pprof="$(echo "${delta_line}" | sed -n 's/.*start=\([^ ]*\) end=.*/\1/p')"
+    end_pprof="$(echo "${delta_line}" | sed -n 's/.*end=\([^ ]*\) (diff.*/\1/p')"
+    if [ -n "${start_pprof}" ] && [ -n "${end_pprof}" ] \
+       && [ -f "${REPO_ROOT}/${start_pprof}" ] && [ -f "${REPO_ROOT}/${end_pprof}" ]; then
+      local delta_txt="${out_prefix}_steadystate_delta.txt"
+      {
+        echo "=== Steady-state allocation delta for ${game}/${map_name} (start→end capture window) ==="
+        go tool pprof -diff_base="${REPO_ROOT}/${start_pprof}" "${REPO_ROOT}/${end_pprof}" -sample_index=alloc_objects -top 2>/dev/null
+      } >"${delta_txt}" || true
+      echo "    Saved steady-state delta: ${delta_txt}"
+      echo "    Top allocation sites (window delta):"
+      sed -n '6,14p' "${delta_txt}" 2>/dev/null || true
+    else
+      echo "    WARNING: PERF_DELTA profiles not found (start=${start_pprof} end=${end_pprof})" >&2
+    fi
+  fi
 }
 
 # Append CSV header only when the file is new.

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/metrics"
 	runtimepprof "runtime/pprof"
 	"strconv"
 	"strings"
@@ -203,14 +204,56 @@ func (g *Game) cmdPerfCapture(args []string) {
 	g.perfMeas.frameCount = frames
 	g.perfMeas.startFrame = g.Host.FrameCount()
 	runtime.GC()
-	runtime.ReadMemStats(&g.perfMeas.startMem)
+	g.perfMeas.startAllocBytes, g.perfMeas.startAllocObjects = readAllocMetrics()
+	// Dump the start heap profile: `go tool pprof -diff_base` between the
+	// two window endpoints attributes the per-frame churn (plan 20.1).
+	if path, err := g.ensureProfileOutputPath("perf_start_heap.pprof", "heap"); err == nil {
+		g.perfMeas.startProfile = path
+		if err := g.dumpHeapProfileTo(path); err != nil {
+			console.Printf("perf_capture: start heap profile failed: %v\n", err)
+			g.perfMeas.startProfile = ""
+		}
+	}
 	g.perfMeas.startTime = time.Now()
 	g.perfMeas.totalAlloc = 0
 	g.perfMeas.totalObjects = 0
 	g.perfMeas.sumSamples = 0
+	g.perfMeas.lastSampleFrame = 0
 	g.perfMeas.maxAllocPerFrame = 0
 	g.perfMeas.maxObjectsPerFrame = 0
 	console.Printf("perf_capture: sampling %d steady-state frames\n", frames)
+}
+
+// readAllocMetrics returns the cumulative allocation counters from
+// runtime/metrics. Unlike runtime.ReadMemStats — a full stop-the-world
+// snapshot — these counters are read without pausing the world, so capture
+// sampling can be dense without distorting the measurement.
+func readAllocMetrics() (bytes, objects uint64) {
+	samples := make([]metrics.Sample, 2)
+	samples[0].Name = "/gc/heap/allocs:bytes"
+	samples[1].Name = "/gc/heap/allocs:objects"
+	metrics.Read(samples)
+	if samples[0].Value.Kind() == metrics.KindUint64 {
+		bytes = samples[0].Value.Uint64()
+	}
+	if samples[1].Value.Kind() == metrics.KindUint64 {
+		objects = samples[1].Value.Uint64()
+	}
+	return bytes, objects
+}
+
+// dumpHeapProfileTo writes a heap pprof to the given path (used for the
+// capture-window attribution profiles).
+func (g *Game) dumpHeapProfileTo(path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", path, err)
+	}
+	defer func() { _ = f.Close() }()
+	if err := runtimepprof.WriteHeapProfile(f); err != nil {
+		return fmt.Errorf("write heap profile %s: %w", path, err)
+	}
+	return nil
 }
 
 func (g *Game) cmdPerfReset(_ []string) {
@@ -233,7 +276,7 @@ func (g *Game) perfTick(dt float64) {
 	switch m.phase {
 	case perfWarming:
 		if g.Host.FrameCount()-m.startFrame >= m.frameCount {
-			// Discard the warmup window; perf_capture re-reads the MemStats
+			// Discard the warmup window; perf_capture re-reads the metrics
 			// baseline explicitly so stale deltas cannot leak in.
 			finish := m.frameCount
 			g.perfMeas = perfMeasureState{}
@@ -246,11 +289,10 @@ func (g *Game) perfTick(dt float64) {
 			return
 		}
 		if m.sumSamples == 0 || elapsed%perfSampleInterval == 0 {
-			var ms runtime.MemStats
-			runtime.ReadMemStats(&ms)
+			allocsBytes, allocsObjects := readAllocMetrics()
 
-			allocDelta := ms.TotalAlloc - m.startMem.TotalAlloc
-			objDelta := ms.Mallocs - m.startMem.Mallocs
+			allocDelta := allocsBytes - m.startAllocBytes
+			objDelta := allocsObjects - m.startAllocObjects
 			// Normalize cumulative counters to a per-frame rate over the
 			// frames elapsed since the last sample.
 			framesElapsed := elapsed - m.lastSampleFrame
@@ -275,17 +317,29 @@ func (g *Game) perfTick(dt float64) {
 }
 
 // finishPerfCapture finalizes a completed steady-state capture, emits a
-// machine-readable PERF_RESULT line for external harnesses, and returns the
-// session to idle.
+// machine-readable PERF_RESULT line for external harnesses, dumps the end
+// heap profile for -diff_base attribution, and returns the session to idle.
 func (g *Game) finishPerfCapture() {
 	m := &g.perfMeas
 	elapsed := time.Since(m.startTime)
+	// Dump the end heap profile so the harness can diff start→end with
+	// `go tool pprof -diff_base` and attribute the window's allocations.
+	if path, err := g.ensureProfileOutputPath("perf_end_heap.pprof", "heap"); err == nil {
+		m.endProfile = path
+		if err := g.dumpHeapProfileTo(path); err != nil {
+			console.Printf("perf_capture: end heap profile failed: %v\n", err)
+			m.endProfile = ""
+		}
+	}
 	console.Printf("PERF_RESULT frame_budget %.3f avg_alloc %.0f avg_objects %.0f max_alloc_frame %.0f max_objects_frame %.0f samples %d wall_seconds %.3f\n",
 		elapsed.Seconds(), float64(m.totalAlloc)/float64(m.sumSamples),
 		float64(m.totalObjects)/float64(m.sumSamples),
 		float64(m.maxAllocPerFrame), float64(m.maxObjectsPerFrame),
 		m.sumSamples, elapsed.Seconds())
-	_ = m
+	if m.startProfile != "" || m.endProfile != "" {
+		console.Printf("PERF_DELTA start=%s end=%s (diff with: go tool pprof -diff_base=%s %s -sample_index=alloc_objects -top)\n",
+			m.startProfile, m.endProfile, m.startProfile, m.endProfile)
+	}
 	g.perfMeas = perfMeasureState{}
 }
 
