@@ -72,7 +72,7 @@ func TestProjectFilesUnderLineCeiling(t *testing.T) {
 		if isGenerated(path) {
 			return nil
 		}
-		n, err := countLines(path)
+		n, err := countCodeLines(path)
 		if err != nil {
 			return err
 		}
@@ -109,7 +109,12 @@ func TestProjectFilesUnderLineCeiling(t *testing.T) {
 	}
 }
 
-func countLines(path string) (int, error) {
+// countCodeLines returns the number of actual code lines in a Go file:
+// blank lines and comment-only lines (both // and /* */, including
+// multi-line block comments) are excluded. The ceiling is meant to keep
+// navigation and review manageable, so whitespace and prose should not
+// count against it.
+func countCodeLines(path string) (int, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, err
@@ -118,8 +123,56 @@ func countLines(path string) (int, error) {
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	n := 0
+	inBlockComment := false
 	for sc.Scan() {
-		n++
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		if inBlockComment {
+			// Still inside a /* ... */ block; ends when */ appears.
+			if idx := strings.Index(line, "*/"); idx >= 0 {
+				inBlockComment = false
+				rest := strings.TrimSpace(line[idx+2:])
+				if rest == "" {
+					// Only comment content on this line.
+					continue
+				}
+				// Code follows the block comment close; count it.
+				line = rest
+			} else {
+				continue
+			}
+		}
+		// Strip a leading // line comment (everything after it on this
+		// line is prose).
+		if idx := strings.Index(line, "//"); idx >= 0 {
+			line = strings.TrimSpace(line[:idx])
+			if line == "" {
+				continue
+			}
+		}
+		// Handle /* ... */ on a single (or continuing) line.
+		if idx := strings.Index(line, "/*"); idx >= 0 {
+			comment := line[idx:]
+			line = strings.TrimSpace(line[:idx])
+			if strings.Contains(comment, "*/") {
+				// Same-line block comment close; skip it, count code
+				// before the comment.
+				if line != "" {
+					n++
+				}
+				continue
+			}
+			inBlockComment = true
+			if line != "" {
+				n++
+			}
+			continue
+		}
+		if line != "" {
+			n++
+		}
 	}
 	return n, sc.Err()
 }
@@ -157,4 +210,48 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(buf[i:])
+}
+
+func TestCountCodeLinesSkipsBlankAndComments(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.go")
+	content := `package sample
+
+// doc comment
+/*
+block
+comment
+*/
+
+// leading comment then code
+var x = 1
+`
+	// 2 code lines: "package sample" and "var x = 1"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	n, err := countCodeLines(path)
+	if err != nil {
+		t.Fatalf("countCodeLines: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("code lines = %d, want 2", n)
+	}
+}
+
+func TestCountCodeLinesBlockInline(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.go")
+	content := "package x\n\n/* c */ var a = 1\nvar b = 2 // tail\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	n, err := countCodeLines(path)
+	if err != nil {
+		t.Fatalf("countCodeLines: %v", err)
+	}
+	// "/* c */ var a = 1" and "var b = 2" are code lines.
+	if n != 2 {
+		t.Fatalf("code lines = %d, want 2", n)
+	}
 }
