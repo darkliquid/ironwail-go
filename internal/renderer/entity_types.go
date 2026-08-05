@@ -20,6 +20,12 @@ func (m DecalMarkEntity) DecalSize() float32 { return m.Size }
 // DecalRotation implements decal.MarkEntity.
 func (m DecalMarkEntity) DecalRotation() float32 { return m.Rotation }
 
+// DecalAlpha implements decal.MarkEntity.
+func (m DecalMarkEntity) DecalAlpha() float32 { return m.Alpha }
+
+// DecalVariant implements decal.MarkEntity.
+func (m DecalMarkEntity) DecalVariant() int { return int(m.Variant) }
+
 const (
 	DecalVariantBullet DecalVariant = iota
 	DecalVariantChip

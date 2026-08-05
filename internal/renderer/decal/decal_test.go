@@ -11,12 +11,16 @@ type markStub struct {
 	normal   [3]float32
 	size     float32
 	rotation float32
+	alpha    float32
+	variant  int
 }
 
-func (m markStub) DecalOrigin() [3]float32   { return m.origin }
-func (m markStub) DecalNormal() [3]float32   { return m.normal }
-func (m markStub) DecalSize() float32        { return m.size }
-func (m markStub) DecalRotation() float32    { return m.rotation }
+func (m markStub) DecalOrigin() [3]float32    { return m.origin }
+func (m markStub) DecalNormal() [3]float32    { return m.normal }
+func (m markStub) DecalSize() float32         { return m.size }
+func (m markStub) DecalRotation() float32     { return m.rotation }
+func (m markStub) DecalAlpha() float32        { return m.alpha }
+func (m markStub) DecalVariant() int          { return m.variant }
 
 func TestBuildQuadFloorFacingUp(t *testing.T) {
 	got, ok := BuildQuad(markStub{
@@ -54,7 +58,7 @@ func TestBuildQuadDefaultNormalUp(t *testing.T) {
 
 func TestSystemLifetime(t *testing.T) {
 	s := NewSystem()
-	mark := markStub{origin: [3]float32{1, 2, 3}, size: 8}
+	mark := markStub{origin: [3]float32{1, 2, 3}, size: 8, alpha: 1}
 	s.AddMark(mark, 1.0, 0)
 	if s.ActiveCount() != 1 {
 		t.Fatalf("ActiveCount after add = %d, want 1", s.ActiveCount())
@@ -81,9 +85,9 @@ func TestSystemIgnoresZeroSizeAndNonPositiveLifetime(t *testing.T) {
 
 func TestPrepareDrawsSortsFarToNear(t *testing.T) {
 	marks := []MarkEntity{
-		markStub{origin: [3]float32{100, 0, 0}, size: 8},
-		markStub{origin: [3]float32{1, 0, 0}, size: 8},
-		markStub{origin: [3]float32{50, 0, 0}, size: 8},
+		markStub{origin: [3]float32{100, 0, 0}, size: 8, alpha: 1},
+		markStub{origin: [3]float32{1, 0, 0}, size: 8, alpha: 1},
+		markStub{origin: [3]float32{50, 0, 0}, size: 8, alpha: 1},
 	}
 	draws := PrepareDraws(marks, [3]float32{0, 0, 0})
 	if len(draws) != 3 {
@@ -99,8 +103,8 @@ func TestPrepareDrawsSortsFarToNear(t *testing.T) {
 
 func TestPrepareDrawsSkipsZeroSize(t *testing.T) {
 	marks := []MarkEntity{
-		markStub{origin: [3]float32{100, 0, 0}, size: 0},
-		markStub{origin: [3]float32{10, 0, 0}, size: 4},
+		markStub{origin: [3]float32{100, 0, 0}, size: 0, alpha: 1},
+		markStub{origin: [3]float32{10, 0, 0}, size: 4, alpha: 1},
 	}
 	draws := PrepareDraws(marks, [3]float32{0, 0, 0})
 	if len(draws) != 1 {

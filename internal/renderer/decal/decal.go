@@ -16,6 +16,10 @@ type MarkEntity interface {
 	DecalNormal() [3]float32
 	DecalSize() float32
 	DecalRotation() float32
+	// DecalAlpha returns the mark's opacity in [0,1]; PrepareDraws clamps it.
+	DecalAlpha() float32
+	// DecalVariant returns the mark's atlas variant selector.
+	DecalVariant() int
 }
 
 // System keeps projected mark entities alive for a limited lifetime.
@@ -33,12 +37,14 @@ func NewSystem() *System {
 	return &System{marks: make([]timedMark, 0, 256)}
 }
 
-// AddMark appends a mark with lifetime in seconds. Non-positive lifetimes are ignored.
+// AddMark appends a mark with lifetime in seconds. Non-positive lifetimes are
+// ignored; marks with zero size or clamped-zero alpha are dropped, mirroring
+// the original root DecalMarkSystem.AddMark.
 func (s *System) AddMark(mark MarkEntity, lifetimeSeconds, timeNow float32) {
 	if s == nil || lifetimeSeconds <= 0 {
 		return
 	}
-	if mark == nil || mark.DecalSize() <= 0 {
+	if mark == nil || mark.DecalSize() <= 0 || clamp01(mark.DecalAlpha()) <= 0 {
 		return
 	}
 	s.marks = append(s.marks, timedMark{mark: mark, dieAt: timeNow + lifetimeSeconds})
@@ -151,15 +157,25 @@ type Draw struct {
 }
 
 // PrepareDraws filters and sorts marks into far-to-near draw order.
-// Marks with non-positive size or alpha are dropped. Zero normals default to
-// +Z. The SortVariants bool is retained for future use.
+// Behavior mirrors the original root prepareDecalDraws: marks with
+// non-positive size are dropped, zero normals are defaulted to +Z, alpha is
+// clamped to [0,1] (alpha<=0 drops the mark), and the variant is normalized
+// via NormalizeVariant.
 func PrepareDraws(marks []MarkEntity, cameraOrigin [3]float32) []Draw {
 	draws := make([]Draw, 0, len(marks))
 	for _, mark := range marks {
 		if mark.DecalSize() <= 0 {
 			continue
 		}
-		draws = append(draws, Draw{Mark: mark, DistanceSq: DistanceSq(mark.DecalOrigin(), cameraOrigin)})
+		if mark.DecalNormal() == ([3]float32{}) {
+			mark = newNormalMark(mark, [3]float32{0, 0, 1})
+		}
+		alpha := clamp01(mark.DecalAlpha())
+		if alpha <= 0 {
+			continue
+		}
+		variant := NormalizeVariant(mark.DecalVariant())
+		draws = append(draws, Draw{Mark: normalizedMark{mark, alpha, variant}, DistanceSq: DistanceSq(mark.DecalOrigin(), cameraOrigin)})
 	}
 
 	sort.SliceStable(draws, func(i, j int) bool {
@@ -167,6 +183,52 @@ func PrepareDraws(marks []MarkEntity, cameraOrigin [3]float32) []Draw {
 	})
 	return draws
 }
+
+// MarkEntity must also expose alpha and variant for filtering/clamping.
+// The DecalMarkEntity in the parent renderer satisfies this extended
+// interface (via Alpha()/Variant() accessors added by the shim), but to keep
+// this package decoupled we re-type through the narrow accessors below.
+
+type normalizedMark struct {
+	inner   MarkEntity
+	alpha   float32
+	variant int
+}
+
+func (m normalizedMark) DecalOrigin() [3]float32   { return m.inner.DecalOrigin() }
+func (m normalizedMark) DecalNormal() [3]float32   { return m.inner.DecalNormal() }
+func (m normalizedMark) DecalSize() float32        { return m.inner.DecalSize() }
+func (m normalizedMark) DecalRotation() float32    { return m.inner.DecalRotation() }
+func (m normalizedMark) DecalAlpha() float32       { return m.alpha }
+func (m normalizedMark) DecalVariant() int         { return m.variant }
+
+func newNormalMark(m MarkEntity, normal [3]float32) MarkEntity {
+	return normalMark{inner: m, normal: normal}
+}
+
+type normalMark struct {
+	inner  MarkEntity
+	normal [3]float32
+}
+
+func (m normalMark) DecalOrigin() [3]float32   { return m.inner.DecalOrigin() }
+func (m normalMark) DecalNormal() [3]float32   { return m.normal }
+func (m normalMark) DecalSize() float32        { return m.inner.DecalSize() }
+func (m normalMark) DecalRotation() float32    { return m.inner.DecalRotation() }
+func (m normalMark) DecalAlpha() float32       { return m.inner.DecalAlpha() }
+func (m normalMark) DecalVariant() int         { return m.inner.DecalVariant() }
+
+// NormalizeVariant clamps an atlas variant selector to the four known
+// regions (bullet, chip, scorch, magic), defaulting invalid values to bullet.
+func NormalizeVariant(variant int) int {
+	switch variant {
+	case 0, 1, 2, 3:
+		return variant
+	default:
+		return 0
+	}
+}
+
 
 // DistanceSq returns the squared distance between two points.
 func DistanceSq(origin, camera [3]float32) float32 {
