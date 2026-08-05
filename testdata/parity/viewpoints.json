@@ -4,91 +4,211 @@
     {
       "id": "id1-start-spawn",
       "map": "start",
-      "pos": [0, 0, 0],
-      "angles": [0, 0, 0],
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
       "description": "Default id1 start map sanity viewpoint; replace or extend locally with map-specific viewpos captures for focused audits."
     },
     {
       "id": "qbj3-start-view1",
       "game": "qbj3",
       "map": "start",
-      "pos": [0.0, -1648.0, -967.97],
-      "angles": [-18.48, 88.32, 0.0],
+      "pos": [
+        0.0,
+        -1648.0,
+        -967.97
+      ],
+      "angles": [
+        -18.48,
+        88.32,
+        0.0
+      ],
       "description": "qbj3 start map viewpos 1"
     },
     {
       "id": "qbj3-start-view2",
       "game": "qbj3",
       "map": "start",
-      "pos": [48.93, -93.81, -903.97],
-      "angles": [58.24, 107.57, 0.0],
+      "pos": [
+        48.93,
+        -93.81,
+        -903.97
+      ],
+      "angles": [
+        58.24,
+        107.57,
+        0.0
+      ],
       "description": "qbj3 start map viewpos 2"
     },
     {
       "id": "qbj3-start-view3",
       "game": "qbj3",
       "map": "start",
-      "pos": [-2280.88, 266.78, 1944.03],
-      "angles": [-33.62, 65.31, 0.0],
+      "pos": [
+        -2280.88,
+        266.78,
+        1944.03
+      ],
+      "angles": [
+        -33.62,
+        65.31,
+        0.0
+      ],
       "description": "qbj3 start map viewpos 3"
     },
     {
       "id": "qbj3-start-view4",
       "game": "qbj3",
       "map": "start",
-      "pos": [-0.61, 1118.56, 2328.03],
-      "angles": [-28.82, 24.43, 0.0],
+      "pos": [
+        -0.61,
+        1118.56,
+        2328.03
+      ],
+      "angles": [
+        -28.82,
+        24.43,
+        0.0
+      ],
       "description": "qbj3 start map viewpos 4"
     },
     {
       "id": "qbj3-start-view5",
       "game": "qbj3",
       "map": "start",
-      "pos": [643.20, -3422.24, 2072.03],
-      "angles": [-28.29, 52.23, 0.0],
+      "pos": [
+        643.2,
+        -3422.24,
+        2072.03
+      ],
+      "angles": [
+        -28.29,
+        52.23,
+        0.0
+      ],
       "description": "qbj3 start map viewpos 5"
     },
     {
       "id": "qbj2-start-spawn",
       "game": "qbj2",
       "map": "start",
-      "pos": [-256.0, -2576.0, -2120.0],
-      "angles": [0.0, 90.0, 0.0],
+      "pos": [
+        -256.0,
+        -2576.0,
+        -2120.0
+      ],
+      "angles": [
+        0.0,
+        90.0,
+        0.0
+      ],
       "description": "qbj2 start map spawn viewpoint"
     },
     {
       "id": "qbj2-water-room",
       "game": "qbj2",
       "map": "start",
-      "pos": [-800.0, 400.0, -1950.0],
-      "angles": [90.0, 0.0, 0.0],
+      "pos": [
+        -800.0,
+        400.0,
+        -1950.0
+      ],
+      "angles": [
+        90.0,
+        0.0,
+        0.0
+      ],
       "description": "qbj2 start map water room looking straight down at water"
     },
     {
       "id": "qbj2-water-room-side",
       "game": "qbj2",
       "map": "start",
-      "pos": [-800.0, 0.0, -2000.0],
-      "angles": [15.0, 90.0, 0.0],
+      "pos": [
+        -800.0,
+        0.0,
+        -2000.0
+      ],
+      "angles": [
+        15.0,
+        90.0,
+        0.0
+      ],
       "description": "qbj2 start map water room side view looking at water pool"
     },
     {
       "id": "qbj3-stickflip-spawn",
       "game": "qbj3",
       "map": "qbj3_stickflip",
-      "pos": [0.0, -1648.0, -967.97],
-      "angles": [0.0, 90.0, 0.0],
+      "pos": [
+        0.0,
+        -1648.0,
+        -967.97
+      ],
+      "angles": [
+        0.0,
+        90.0,
+        0.0
+      ],
       "description": "qbj3_stickflip spawn viewpoint"
     },
     {
       "id": "qbj3-stickflip-overview",
       "game": "qbj3",
       "map": "qbj3_stickflip",
-      "pos": [-2280.88, 266.78, 1944.03],
-      "angles": [-33.62, 65.31, 0.0],
+      "pos": [
+        -2280.88,
+        266.78,
+        1944.03
+      ],
+      "angles": [
+        -33.62,
+        65.31,
+        0.0
+      ],
       "description": "qbj3_stickflip high ceiling overview viewpoint"
+    },
+    {
+      "id": "id1-e1m1-light-corridor",
+      "map": "e1m1",
+      "game": "id1",
+      "pos": [
+        -384,
+        512,
+        -256
+      ],
+      "angles": [
+        0,
+        90,
+        0
+      ],
+      "tag": "expansion",
+      "description": "e1m1 dynamic-light corridor stress viewpoint (expansion tag)"
+    },
+    {
+      "id": "id1-e1m1-spawn-cross",
+      "map": "e1m1",
+      "game": "id1",
+      "pos": [
+        0,
+        64,
+        0
+      ],
+      "angles": [
+        0,
+        45,
+        0
+      ],
+      "tag": "expansion",
+      "description": "e1m1 spawn-area cross-light viewpoint (expansion tag)"
     }
   ]
 }
-
-

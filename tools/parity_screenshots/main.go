@@ -35,6 +35,7 @@ type viewpoint struct {
 	Map         string     `json:"map"`
 	Pos         [3]float64 `json:"pos"`
 	Angles      [3]float64 `json:"angles"`
+	Tag         string     `json:"tag,omitempty"`
 	Description string     `json:"description"`
 }
 
@@ -53,7 +54,11 @@ type comparisonMetrics struct {
 	MeanPerceptualDelta         float64
 	MeanMismatchPerceptualDelta float64
 	MaxPerceptualDelta          float64
-	Regions                     []diffRegion
+	// SSIM (structural similarity) on luminance, scaled to [0,1] where 1 is
+	// identical. MeanSSIM is the frame average; MinSSIM the worst 8x8 block.
+	MeanSSIM float64
+	MinSSIM  float64
+	Regions  []diffRegion
 }
 
 type diffRegion struct {
@@ -75,6 +80,23 @@ type compareSummary struct {
 	MatchCount     int
 	DiffCount      int
 	MissingCount   int
+}
+
+// viewpointResult is the per-viewpoint comparison outcome, used by the
+// structured JSON report and the markdown table (plan 14.3).
+type viewpointResult struct {
+	ID              string            `json:"id"`
+	Map             string            `json:"map"`
+	Description     string            `json:"description"`
+	Status          string            `json:"status"` // ok | diff | missing | skip
+	MismatchPercent float64           `json:"mismatch_percent,omitempty"`
+	MeanSSIM        float64           `json:"mean_ssim,omitempty"`
+	MinSSIM         float64           `json:"min_ssim,omitempty"`
+	MeanChannel     float64           `json:"mean_channel_delta,omitempty"`
+	MaxChannel      uint8             `json:"max_channel_delta,omitempty"`
+	Perceptual      float64           `json:"mean_perceptual_delta,omitempty"`
+	Regions         int               `json:"diff_regions,omitempty"`
+	Metrics         comparisonMetrics `json:"-"`
 }
 
 func main() {
@@ -99,6 +121,16 @@ func run() int {
 
 	viewpointsPath := filepath.Join(projectDir, "testdata", "parity", "viewpoints.json")
 	cfg := loadViewpoints(viewpointsPath)
+	if tag := os.Getenv("PARITY_TAG"); tag != "" {
+		var filtered []viewpoint
+		for _, vp := range cfg.Viewpoints {
+			if vp.Tag == tag {
+				filtered = append(filtered, vp)
+			}
+		}
+		cfg.Viewpoints = filtered
+		fmt.Printf("PARITY_TAG=%s: %d viewpoints", tag, len(filtered))
+	}
 	quakeBaseDir := envOr("QUAKE_BASEDIR", cfg.BaseDir)
 	ironwailBin := envOr("IRONWAIL_BIN", filepath.Join(quakeBaseDir, "ironwail"))
 	goBin := envOr("GO_BIN", filepath.Join(projectDir, "ironwailgo"))
@@ -115,7 +147,7 @@ func run() int {
 		}
 		checkQuakeData(quakeBaseDir)
 		if _, err := captureReference(quakeBaseDir, ironwailBin, refDir, cfg.Viewpoints, parityWidth, parityHeight); err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			fmt.Fprintf(os.Stderr, "ERROR: %v", err)
 			return 1
 		}
 	case "go":
@@ -128,7 +160,7 @@ func run() int {
 			return 1
 		}
 	case "compare", "cmp":
-		summary, err := compare(refDir, goDir, diffDir, cfg.Viewpoints)
+		summary, _, err := compare(refDir, goDir, diffDir, cfg.Viewpoints)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			return 1
@@ -151,7 +183,7 @@ func run() int {
 			return 1
 		}
 		fmt.Println()
-		summary, err := compare(refDir, goDir, diffDir, cfg.Viewpoints)
+		summary, _, err := compare(refDir, goDir, diffDir, cfg.Viewpoints)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			return 1
@@ -159,6 +191,13 @@ func run() int {
 		if compareFailed(summary) {
 			return 1
 		}
+	case "report":
+		summary, results, err := compare(refDir, goDir, diffDir, cfg.Viewpoints)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v", err)
+			return 1
+		}
+		writeParityReport(projectDir, results, summary)
 	}
 	return 0
 }
@@ -311,7 +350,7 @@ func captureGo(projectDir, quakeBaseDir, goBin, goDir string, viewpoints []viewp
 	return summary, nil
 }
 
-func compare(refDir, goDir, diffDir string, viewpoints []viewpoint) (compareSummary, error) {
+func compare(refDir, goDir, diffDir string, viewpoints []viewpoint) (compareSummary, []viewpointResult, error) {
 	mustMkdir(diffDir)
 	overlayDir := filepath.Join(filepath.Dir(diffDir), "overlay")
 	mustMkdir(overlayDir)
@@ -320,9 +359,11 @@ func compare(refDir, goDir, diffDir string, viewpoints []viewpoint) (compareSumm
 
 	tolerance := clampUint8(parseIntEnv("PARITY_COMPARE_TOLERANCE", 0))
 	maxMismatchPercent := parseFloatEnv("PARITY_MAX_MISMATCH_PERCENT", 0)
+	maxSSIMDiff := clampFloat(parseFloatEnv("PARITY_MAX_SSIM_DIFF", 0.02), 0, 1)
 	onionAlpha := clampFloat(parseFloatEnv("PARITY_ONION_ALPHA", 0.5), 0, 1)
 
 	var summary compareSummary
+	var results []viewpointResult
 	for _, vp := range viewpoints {
 		refImg := filepath.Join(refDir, vp.ID+".png")
 		goImg := filepath.Join(goDir, vp.ID+".png")
@@ -330,6 +371,7 @@ func compare(refDir, goDir, diffDir string, viewpoints []viewpoint) (compareSumm
 		if _, err := os.Stat(refImg); err != nil {
 			fmt.Printf("  SKIP %s: no reference image\n", vp.ID)
 			summary.MissingCount++
+			results = append(results, viewpointResult{ID: vp.ID, Map: vp.Map, Description: vp.Description, Status: "skip"})
 			continue
 		}
 		summary.ReferenceCount++
@@ -337,6 +379,7 @@ func compare(refDir, goDir, diffDir string, viewpoints []viewpoint) (compareSumm
 		if _, err := os.Stat(goImg); err != nil {
 			fmt.Printf("  MISS %s: no Go screenshot\n", vp.ID)
 			summary.MissingCount++
+			results = append(results, viewpointResult{ID: vp.ID, Map: vp.Map, Description: vp.Description, Status: "missing"})
 			continue
 		}
 		summary.GoCount++
@@ -345,6 +388,7 @@ func compare(refDir, goDir, diffDir string, viewpoints []viewpoint) (compareSumm
 		if err != nil {
 			fmt.Printf("  DIFF %s: compare failed: %v (%s)\n", vp.ID, err, vp.Description)
 			summary.DiffCount++
+			results = append(results, viewpointResult{ID: vp.ID, Map: vp.Map, Description: vp.Description, Status: "diff"})
 			continue
 		}
 		diffPath := filepath.Join(diffDir, vp.ID+".png")
@@ -362,22 +406,25 @@ func compare(refDir, goDir, diffDir string, viewpoints []viewpoint) (compareSumm
 			continue
 		}
 
-		if metrics.MismatchPercent <= maxMismatchPercent {
-			fmt.Printf("  OK   %s: %.4f%% pixels differ, mean Δ %.2f, perceptual Δ %.2f, max Δ %d (%s)\n",
-				vp.ID, metrics.MismatchPercent, metrics.MeanChannelDelta, metrics.MeanPerceptualDelta, metrics.MaxChannelDelta, vp.Description)
+		ssimOK := 1.0-metrics.MeanSSIM <= maxSSIMDiff
+		if metrics.MismatchPercent <= maxMismatchPercent && ssimOK {
+			fmt.Printf("  OK   %s: %.4f%% pixels differ, SSIM %.4f, mean Δ %.2f, perceptual Δ %.2f, max Δ %d (%s)\n",
+				vp.ID, metrics.MismatchPercent, metrics.MeanSSIM, metrics.MeanChannelDelta, metrics.MeanPerceptualDelta, metrics.MaxChannelDelta, vp.Description)
 			for _, line := range formatMetricDetails(metrics) {
 				fmt.Printf("       %s\n", line)
 			}
 			fmt.Printf("       onion=%s (alpha %.2f ref / %.2f go)\n", overlayPath, onionAlpha, 1-onionAlpha)
 			summary.MatchCount++
+			results = append(results, resultForViewpoint(vp, "ok", metrics))
 		} else {
-			fmt.Printf("  DIFF %s: %.4f%% pixels differ, mean Δ %.2f, perceptual Δ %.2f, max Δ %d, diff=%s (%s)\n",
-				vp.ID, metrics.MismatchPercent, metrics.MeanChannelDelta, metrics.MeanPerceptualDelta, metrics.MaxChannelDelta, diffPath, vp.Description)
+			fmt.Printf("  DIFF %s: %.4f%% pixels differ, SSIM %.4f, mean Δ %.2f, perceptual Δ %.2f, max Δ %d, diff=%s (%s)\n",
+				vp.ID, metrics.MismatchPercent, metrics.MeanSSIM, metrics.MeanChannelDelta, metrics.MeanPerceptualDelta, metrics.MaxChannelDelta, diffPath, vp.Description)
 			for _, line := range formatMetricDetails(metrics) {
 				fmt.Printf("       %s\n", line)
 			}
 			fmt.Printf("       onion=%s (alpha %.2f ref / %.2f go)\n", overlayPath, onionAlpha, 1-onionAlpha)
 			summary.DiffCount++
+			results = append(results, resultForViewpoint(vp, "diff", metrics))
 		}
 	}
 
@@ -391,11 +438,11 @@ func compare(refDir, goDir, diffDir string, viewpoints []viewpoint) (compareSumm
 	fmt.Printf("Diff images:      %s\n", diffDir)
 	fmt.Printf("Onion overlays:   %s\n", overlayDir)
 	fmt.Println()
-	fmt.Printf("Tolerance:        channel Δ <= %d, mismatch threshold <= %.4f%%, onion alpha %.2f ref / %.2f go\n", tolerance, maxMismatchPercent, onionAlpha, 1-onionAlpha)
+	fmt.Printf("Tolerance:        channel Δ <= %d, mismatch threshold <= %.4f%%, SSIM diff <= %.4f, onion alpha %.2f ref / %.2f go\n", tolerance, maxMismatchPercent, maxSSIMDiff, onionAlpha, 1-onionAlpha)
 	if summary.ReferenceCount == 0 {
-		return summary, errors.New("no reference images found")
+		return summary, results, errors.New("no reference images found")
 	}
-	return summary, nil
+	return summary, results, nil
 }
 
 func loadViewpoints(path string) viewpointsFile {
@@ -722,6 +769,8 @@ func compareImages(refImg, gotImg image.Image, tolerance uint8, onionAlpha float
 		meanMismatchPerceptualDelta = mismatchPerceptualDelta / float64(mismatchPixels)
 	}
 
+	meanSSIM, minSSIM := computeSSIM(refImg, gotImg, refBounds.Min, gotBounds.Min, width, height)
+
 	return comparisonMetrics{
 		Width:                       width,
 		Height:                      height,
@@ -737,8 +786,80 @@ func compareImages(refImg, gotImg image.Image, tolerance uint8, onionAlpha float
 		MeanPerceptualDelta:         totalPerceptualDelta / float64(totalPixels),
 		MeanMismatchPerceptualDelta: meanMismatchPerceptualDelta,
 		MaxPerceptualDelta:          maxPerceptualDelta,
+		MeanSSIM:                    meanSSIM,
+		MinSSIM:                     minSSIM,
 		Regions:                     regions,
 	}, diffImage, overlayImage, nil
+}
+
+// computeSSIM computes the mean and minimum structural-similarity scores
+// over 8x8 non-overlapping blocks on grayscale luminance, following the
+// classic Wang et al. windowed SSIM. Constants are the standard
+// C1=6.5025, C2=58.5225 for 8-bit data (K1=0.01, K2=0.03, L=255).
+func computeSSIM(refImg, gotImg image.Image, refMin, gotMin image.Point, width, height int) (mean, min float64) {
+	const (
+		k1    = 0.01
+		k2    = 0.03
+		l     = 255.0
+		c1    = (k1 * l) * (k1 * l)
+		c2    = (k2 * l) * (k2 * l)
+		block = 8
+	)
+	min = 1.0
+	blocks := 0
+	var sum float64
+	for by := 0; by+block <= height; by += block {
+		for bx := 0; bx+block <= width; bx += block {
+			var sumRef, sumGot float64
+			for y := by; y < by+block; y++ {
+				for x := bx; x < bx+block; x++ {
+					ref := color.NRGBAModel.Convert(refImg.At(refMin.X+x, refMin.Y+y)).(color.NRGBA)
+					got := color.NRGBAModel.Convert(gotImg.At(gotMin.X+x, gotMin.Y+y)).(color.NRGBA)
+					sumRef += luminance(ref)
+					sumGot += luminance(got)
+				}
+			}
+			meanRef := sumRef / (block * block)
+			meanGot := sumGot / (block * block)
+			var varRef, varGot, cov float64
+			for y := by; y < by+block; y++ {
+				for x := bx; x < bx+block; x++ {
+					ref := color.NRGBAModel.Convert(refImg.At(refMin.X+x, refMin.Y+y)).(color.NRGBA)
+					got := color.NRGBAModel.Convert(gotImg.At(gotMin.X+x, gotMin.Y+y)).(color.NRGBA)
+					r := luminance(ref) - meanRef
+					g := luminance(got) - meanGot
+					varRef += r * r
+					varGot += g * g
+					cov += r * g
+				}
+			}
+			n := float64(block * block)
+			varRef /= n
+			varGot /= n
+			cov /= n
+			ssim := ((2*meanRef*meanGot + c1) * (2*cov + c2)) / ((meanRef*meanRef + meanGot*meanGot + c1) * (varRef + varGot + c2))
+			if ssim < 0 {
+				ssim = 0
+			}
+			if ssim > 1 {
+				ssim = 1
+			}
+			if ssim < min {
+				min = ssim
+			}
+			sum += ssim
+			blocks++
+		}
+	}
+	if blocks == 0 {
+		return 0, 0
+	}
+	return sum / float64(blocks), min
+}
+
+// luminance converts an NRGBA pixel to the Rec. 601 luma used by SSIM.
+func luminance(c color.NRGBA) float64 {
+	return 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
 }
 
 func blendNRGBA(refColor, gotColor color.NRGBA, refAlpha float64) color.NRGBA {
@@ -973,4 +1094,65 @@ func die(format string, args ...any) {
 
 func compareFailed(summary compareSummary) bool {
 	return summary.ReferenceCount == 0 || summary.DiffCount > 0 || summary.MissingCount > 0 || summary.GoCount != summary.ReferenceCount
+}
+
+// resultForViewpoint builds a viewpointResult from the comparison metrics.
+func resultForViewpoint(vp viewpoint, status string, m comparisonMetrics) viewpointResult {
+	return viewpointResult{
+		ID:              vp.ID,
+		Map:             vp.Map,
+		Description:     vp.Description,
+		Status:          status,
+		MismatchPercent: m.MismatchPercent,
+		MeanSSIM:        m.MeanSSIM,
+		MinSSIM:         m.MinSSIM,
+		MeanChannel:     m.MeanChannelDelta,
+		MaxChannel:      m.MaxChannelDelta,
+		Perceptual:      m.MeanPerceptualDelta,
+		Regions:         len(m.Regions),
+		Metrics:         m,
+	}
+}
+
+// writeParityReport writes testdata/parity/results.json and prints a
+// markdown summary table of per-viewpoint visual diffs (plan 14.3).
+func writeParityReport(projectDir string, results []viewpointResult, summary compareSummary) {
+	resultsPath := filepath.Join(projectDir, "testdata", "parity", "results.json")
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(map[string]any{
+		"summary": summary,
+		"results": results,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: encode report: %v\n", err)
+		return
+	}
+	if err := os.WriteFile(resultsPath, buf.Bytes(), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: write report %s: %v\n", resultsPath, err)
+		return
+	}
+	fmt.Printf("JSON report: %s\n", resultsPath)
+
+	fmt.Println()
+	fmt.Println("## Parity Report")
+	fmt.Println()
+	fmt.Println("| Viewpoint | Map | Status | Mismatch % | SSIM | Max Δ | Regions |")
+	fmt.Println("|---|---|---|---|---|---|---|")
+	for _, r := range results {
+		ssim := "-"
+		mismatch := "-"
+		maxDelta := "-"
+		regions := "-"
+		if r.Status == "ok" || r.Status == "diff" {
+			mismatch = fmt.Sprintf("%.4f", r.MismatchPercent)
+			ssim = fmt.Sprintf("%.4f", r.MeanSSIM)
+			maxDelta = fmt.Sprintf("%d", r.MaxChannel)
+			regions = fmt.Sprintf("%d", r.Regions)
+		}
+		fmt.Printf("| %s | %s | %s | %s | %s | %s | %s |\n", r.ID, r.Map, r.Status, mismatch, ssim, maxDelta, regions)
+	}
+	fmt.Println()
+	fmt.Printf("Totals: %d reference, %d go, %d match, %d diff, %d missing\n",
+		summary.ReferenceCount, summary.GoCount, summary.MatchCount, summary.DiffCount, summary.MissingCount)
 }

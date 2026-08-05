@@ -517,3 +517,35 @@ func TestCompareFailed(t *testing.T) {
 		t.Fatal("compareFailed returned false for diffs")
 	}
 }
+
+func TestComputeSSIMIdenticalImages(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 16, 16))
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			img.SetNRGBA(x, y, color.NRGBA{R: uint8(x * 16), G: uint8(y * 16), B: 128, A: 255})
+		}
+	}
+	mean, min := computeSSIM(img, img, image.Point{}, image.Point{}, 16, 16)
+	if mean < 0.99 || min < 0.99 {
+		t.Fatalf("identical images SSIM mean=%.4f min=%.4f, want both >= 0.99", mean, min)
+	}
+}
+
+func TestCompareImagesSetsSSIMMetrics(t *testing.T) {
+	ref := image.NewNRGBA(image.Rect(0, 0, 8, 8))
+	got := image.NewNRGBA(image.Rect(0, 0, 8, 8))
+	for i := 0; i < 8*8; i++ {
+		ref.SetNRGBA(i%8, i/8, color.NRGBA{R: 10, G: 10, B: 10, A: 255})
+		got.SetNRGBA(i%8, i/8, color.NRGBA{R: 200, G: 200, B: 200, A: 255})
+	}
+	m, _, _, err := compareImages(ref, got, 0, 0.5)
+	if err != nil {
+		t.Fatalf("compareImages: %v", err)
+	}
+	if m.MeanSSIM > 0.45 {
+		t.Fatalf("very different images should have low SSIM, got %.4f", m.MeanSSIM)
+	}
+	if m.MinSSIM > m.MeanSSIM {
+		t.Fatalf("min SSIM %.4f should be <= mean %.4f", m.MinSSIM, m.MeanSSIM)
+	}
+}

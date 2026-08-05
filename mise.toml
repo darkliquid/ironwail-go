@@ -256,3 +256,8 @@ echo "All symlinks OK. QUAKE_DIR can point at ./quake-data"
 description = "Run the steady-state per-frame allocation regression gate (plan 20.5)"
 depends = ["build"]
 run = "bash ./tasks/perf_gate.sh"
+
+[tasks.parity-report]
+description = "Compare parity screenshots and emit a structured JSON + markdown summary report (plan 14.3)"
+depends = ["build"]
+run = "go run ./tools/parity_screenshots report"
