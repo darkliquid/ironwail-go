@@ -17,6 +17,17 @@
 //
 // ED_Alloc / ED_Free / ED_ClearEdict / ED_ParseEdict / ED_ParseGlobals in
 // C Ironwail's edict.c and world.c.
+//
+// # Role in the engine
+//
+// internal/server constructs a Manager during map load (loadMapEntities)
+// and savegame restore (RestoreTextSaveGameState) and drives ED_ParseEdict
+// over the BSP entity lump; the manager owns the edict pool that Server and
+// physics query by index. Edict itself stays in internal/server/types.
+//
+// # Testing
+//
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/server/edict -count=1
 package edict
 
 import (

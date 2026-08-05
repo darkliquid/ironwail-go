@@ -45,6 +45,9 @@ The project is organized into `internal/` packages, each with a specific respons
 | `internal/renderer` | **The Visuals.** Uses WebGPU to draw the world, models, and UI. | The "painting engine." | [Guide](internal/renderer.md) |
 | `internal/renderer/alias` | **Alias Models.** MDL vertex interpolation and rotation math (CPU path). | Model Animator | — |
 | `internal/renderer/gogpu` | **Input Mapping.** Translates gogpu input events to Quake key codes. | Input Bridge | — |
+| `internal/renderer/lightmap` | **Lightmap Atlas.** CPU compositing, dirty tracking, page stacking. | Lightmap Painter | — |
+| `internal/renderer/decal` | **Decal Marks.** Mark lifetime, quad geometry, atlas seeding. | Decal System | — |
+| `internal/renderer/pipeline` | **Pipeline Constructors.** World render-pipeline + layout builders. | Pipeline Factory | — |
 | `internal/renderer/scrap` | **Scrap Atlas.** Skyline bin-packing for small UI textures. | Texture Packer | — |
 | `internal/renderer/sky` | **External Skybox.** Loads and renders 6-face PNG skyboxes. | Skybox Manager | — |
 | `internal/renderer/surface` | **Lightmap Allocator.** 2D bin-packing for lightmap samples. | Lightmap Packer | — |
@@ -53,6 +56,8 @@ The project is organized into `internal/` packages, each with a specific respons
 | `internal/renderer/oit` | **OIT Transparency.** Order-independent transparency config (currently disabled). | Transparency Config | — |
 | `internal/renderer/warpscale` | **Water Warp.** Scene render target, FOV warp, composite pass. | Post-Process | — |
 | `internal/server` | **The Truth.** Runs physics, collision, and coordinates game logic. | The "simulation engine." | [Guide](internal/server.md) |
+| `internal/server/edict` | **Edict Pool.** Entity allocation, map/savegame parsing, spatial unlink. | Entity Manager | — |
+| `internal/server/types` | **Server Types.** Edict, MessageBuffer, EntityState, protocol stages. | Wire Types | — |
 | `internal/testutil` | **Testing.** Utilities for synthetic assets and integration tests. | Test Harness | [Guide](internal/testutil.md) |
 
 ---
@@ -85,6 +90,9 @@ Ironwail Go uses modern WebGPU primitives (via the `gogpu` library). Unlike olde
   - `renderer/world` — shared world types (WorldVertex, WorldFace, WorldGeometry)
   - `renderer/world/gogpu` — GoGPU brush entity building, sprite uniforms, WGSL shaders
   - `renderer/surface` — lightmap allocator (2D bin-packing, C: gl_rsurf.c)
+  - `renderer/lightmap` — CPU lightmap compositing, dirty tracking, page stacking
+  - `renderer/decal` — decal mark lifetime, quad geometry, atlas seeding
+  - `renderer/pipeline` — world render-pipeline + layout constructors
   - `renderer/scrap` — scrap atlas (skyline bin-packing for UI textures)
   - `renderer/sky` — external skybox loading and rendering (C: gl_sky.c)
   - `renderer/gogpu` — input device mapping (keyboard/mouse to Quake keys)
