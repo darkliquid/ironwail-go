@@ -68,3 +68,15 @@ func TestNonDecalDepthStencilState(t *testing.T) {
 		t.Fatal("NonDecalDepthStencilState(false).DepthWriteEnabled = true, want false")
 	}
 }
+
+// TestWorldDynamicLightBufferSizeParity pins the buffer size that the
+// dynamic-lights bind group layout declares, matching world.go's
+// gogpuWorldDynamicLightBufferSize. A mismatch regressed rendering to a
+// black screen ("bind group ... number of bindings in descriptor (2) does
+// not match the number defined in the layout (1)").
+func TestWorldDynamicLightBufferSizeParity(t *testing.T) {
+	if WorldDynamicLightBufferSize != 16+512*32 {
+		t.Fatalf("WorldDynamicLightBufferSize = %d, want %d", WorldDynamicLightBufferSize, 16+512*32)
+	}
+}
+

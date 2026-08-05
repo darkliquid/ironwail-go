@@ -74,33 +74,6 @@ func CreateWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu
 					Multisampled:  false,
 				},
 			},
-			{
-				Binding:    2,
-				Visibility: gputypes.ShaderStageFragment,
-				Texture: &gputypes.TextureBindingLayout{
-					SampleType:    gputypes.TextureSampleTypeFloat,
-					ViewDimension: gputypes.TextureViewDimension2D,
-					Multisampled:  false,
-				},
-			},
-			{
-				Binding:    3,
-				Visibility: gputypes.ShaderStageFragment,
-				Texture: &gputypes.TextureBindingLayout{
-					SampleType:    gputypes.TextureSampleTypeFloat,
-					ViewDimension: gputypes.TextureViewDimension2D,
-					Multisampled:  false,
-				},
-			},
-			{
-				Binding:    4,
-				Visibility: gputypes.ShaderStageFragment,
-				Texture: &gputypes.TextureBindingLayout{
-					SampleType:    gputypes.TextureSampleTypeFloat,
-					ViewDimension: gputypes.TextureViewDimension2D,
-					Multisampled:  false,
-				},
-			},
 		},
 	})
 	if err != nil {
@@ -110,7 +83,7 @@ func CreateWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu
 
 	// Sky lightmaps bind group layout.
 	lightmapLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
-		Label: "World Lightmap BGL",
+		Label: "World Lightmap Bind Group Layout",
 		Entries: []gputypes.BindGroupLayoutEntry{
 			{
 				Binding:    0,
@@ -128,42 +101,43 @@ func CreateWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu
 					Multisampled:  false,
 				},
 			},
-			{
-				Binding:    2,
-				Visibility: gputypes.ShaderStageFragment,
-				Texture: &gputypes.TextureBindingLayout{
-					SampleType:    gputypes.TextureSampleTypeFloat,
-					ViewDimension: gputypes.TextureViewDimension2D,
-					Multisampled:  false,
-				},
-			},
 		},
 	})
 	if err != nil {
-		uniformLayout.Release()
 		textureLayout.Release()
+		uniformLayout.Release()
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("create lightmap bind group layout: %w", err)
 	}
 
-	// Dynamic lights storage buffer bind group layout.
+	// Dynamic lights bind group layout: 3D uint cluster texture + storage
+	// buffer of dynamic light data. Both bindings are fragment-stage.
 	lightsLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "World Dynamic Lights BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{
 			{
 				Binding:    0,
-				Visibility: gputypes.ShaderStageVertex | gputypes.ShaderStageFragment,
+				Visibility: gputypes.ShaderStageFragment,
+				Texture: &gputypes.TextureBindingLayout{
+					SampleType:    gputypes.TextureSampleTypeUint,
+					ViewDimension: gputypes.TextureViewDimension3D,
+					Multisampled:  false,
+				},
+			},
+			{
+				Binding:    1,
+				Visibility: gputypes.ShaderStageFragment,
 				Buffer: &gputypes.BufferBindingLayout{
 					Type:             gputypes.BufferBindingTypeReadOnlyStorage,
 					HasDynamicOffset: false,
-					MinBindingSize:   32,
+					MinBindingSize:   WorldDynamicLightBufferSize,
 				},
 			},
 		},
 	})
 	if err != nil {
-		uniformLayout.Release()
-		textureLayout.Release()
 		lightmapLayout.Release()
+		textureLayout.Release()
+		uniformLayout.Release()
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("create dynamic lights bind group layout: %w", err)
 	}
 

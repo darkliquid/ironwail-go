@@ -37,6 +37,10 @@ import (
 // renderer (world.go). It sizes the UBO binding for world pipelines.
 const WorldUniformBufferSize = 128
 
+// WorldDynamicLightBufferSize matches gogpuWorldDynamicLightBufferSize in the
+// parent renderer (world.go): 16-byte header + 512 lights * 32-byte stride.
+const WorldDynamicLightBufferSize = 16 + 512*32
+
 // WorldDepthTextureFormat is the depth format used by world pipelines and
 // depth attachments. Depth32FloatStencil8 is used instead of
 // Depth24PlusStencil8 because the wgpu HAL maps Depth24PlusStencil8 to
