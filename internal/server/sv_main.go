@@ -248,8 +248,7 @@ func (s *Server) Shutdown() {
 	s.FileSystem = nil
 	s.StaticEntities = nil
 	s.StaticSounds = nil
-	s.SignonBuffers = nil
-	s.Signon = nil
+	s.signonWriter.Reset()
 	resetLightStyles(&s.LightStyles)
 	if s.Datagram != nil {
 		s.Datagram.Clear()

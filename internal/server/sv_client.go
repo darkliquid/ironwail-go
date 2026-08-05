@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	stategp "github.com/darkliquid/ironwail-go/internal/server/state"
 )
 
 // writeSpawnStaticMessage emits SVCSpawnStatic(_2) for entities baked into signon world state.
@@ -187,109 +188,81 @@ func (s *Server) ClearDatagram() {
 // write target. Signon buffers hold the initial game state (precache lists,
 // static entities, ambient sounds) that is sent to every connecting client.
 // This mirrors SV_AddSignonBuffer in C Ironwail (sv_main.c:1485).
-func (s *Server) AddSignonBuffer() error {
-	if len(s.SignonBuffers) >= MaxSignonBuffers {
-		return fmt.Errorf("SV_AddSignonBuffer: overflow (%d buffers)", MaxSignonBuffers)
+// ensureSignonWriter lazily binds the signon writer to the server's storage
+// so bare &Server{} literals (tests) work without NewServer.
+func (s *Server) ensureSignonWriter() {
+	if s.signonWriter == nil {
+		s.signonWriter = stategp.NewSignonWriter(&s.SignonBuffers, &s.Signon, SignonSize, func() uint32 { return uint32(s.ProtocolFlags()) })
 	}
-	buf := NewMessageBuffer(SignonSize)
-	s.SignonBuffers = append(s.SignonBuffers, buf)
-	s.Signon = buf
-	return nil
+}
+
+func (s *Server) AddSignonBuffer() error {
+	s.ensureSignonWriter()
+	return s.signonWriter.AddBuffer()
 }
 
 // ReserveSignonSpace ensures the current signon buffer has room for size bytes.
 // If the current buffer would overflow, a new buffer is allocated.
 // This mirrors SV_ReserveSignonSpace in C Ironwail (sv_main.c:1503).
 func (s *Server) ReserveSignonSpace(size int) error {
-	if s.Signon == nil {
-		return s.AddSignonBuffer()
-	}
-	if s.Signon.Len()+size > len(s.Signon.Data) {
-		return s.AddSignonBuffer()
-	}
-	return nil
+	s.ensureSignonWriter()
+	return s.signonWriter.ReserveSpace(size)
 }
 
 // WriteSignonByte writes a single byte to the current signon buffer,
 // allocating a new buffer if needed.
 func (s *Server) WriteSignonByte(b byte) error {
-	if err := s.ReserveSignonSpace(1); err != nil {
-		return err
-	}
-	s.Signon.PutByte(b)
-	return nil
+	s.ensureSignonWriter()
+	return s.signonWriter.WriteByte(b)
 }
 
 // WriteSignonShort writes a 16-bit integer to the current signon buffer.
 func (s *Server) WriteSignonShort(v int16) error {
-	if err := s.ReserveSignonSpace(2); err != nil {
-		return err
-	}
-	s.Signon.WriteShort(v)
-	return nil
+	s.ensureSignonWriter()
+	return s.signonWriter.WriteShort(v)
 }
 
 // WriteSignonLong writes a 32-bit integer to the current signon buffer.
 func (s *Server) WriteSignonLong(v int32) error {
-	if err := s.ReserveSignonSpace(4); err != nil {
-		return err
-	}
-	s.Signon.WriteLong(v)
-	return nil
+	s.ensureSignonWriter()
+	return s.signonWriter.WriteLong(v)
 }
 
 // WriteSignonFloat writes a 32-bit float to the current signon buffer.
 func (s *Server) WriteSignonFloat(f float32) error {
-	if err := s.ReserveSignonSpace(4); err != nil {
-		return err
-	}
-	s.Signon.WriteFloat(f)
-	return nil
+	s.ensureSignonWriter()
+	return s.signonWriter.WriteFloat(f)
 }
 
 // WriteSignonString writes a null-terminated string to the current signon buffer.
 func (s *Server) WriteSignonString(str string) error {
-	if err := s.ReserveSignonSpace(len(str) + 1); err != nil {
-		return err
-	}
-	s.Signon.WriteString(str)
-	return nil
+	s.ensureSignonWriter()
+	return s.signonWriter.WriteString(str)
 }
 
 // WriteSignonCoord writes a coordinate to the current signon buffer.
 func (s *Server) WriteSignonCoord(c float32) error {
-	flags := uint32(s.ProtocolFlags())
-	if err := s.ReserveSignonSpace(coordWireSize(flags)); err != nil {
-		return err
-	}
-	s.Signon.WriteCoord(c, flags)
-	return nil
+	s.ensureSignonWriter()
+	return s.signonWriter.WriteCoord(c)
 }
 
 // WriteSignonAngle writes an angle to the current signon buffer.
 func (s *Server) WriteSignonAngle(a float32) error {
-	flags := uint32(s.ProtocolFlags())
-	if err := s.ReserveSignonSpace(angleWireSize(flags)); err != nil {
-		return err
-	}
-	s.Signon.WriteAngle(a, flags)
-	return nil
+	s.ensureSignonWriter()
+	return s.signonWriter.WriteAngle(a)
 }
 
 // WriteSignonData writes raw bytes to the current signon buffer.
 func (s *Server) WriteSignonData(data []byte) error {
-	if err := s.ReserveSignonSpace(len(data)); err != nil {
-		return err
-	}
-	s.Signon.Write(data)
-	return nil
+	s.ensureSignonWriter()
+	return s.signonWriter.WriteData(data)
 }
 
 // SendSignonBuffers copies all signon buffer data to the client's message
 // buffer. This is called during the prespawn phase to send the initial game
 // state (precache lists, static entities, ambient sounds) to a connecting client.
 func (s *Server) SendSignonBuffers(client *Client) {
-	for _, buf := range s.SignonBuffers {
+	for _, buf := range s.signonWriter.Buffers() {
 		if buf.Len() > 0 {
 			client.Message.Write(buf.Data[:buf.Len()])
 		}
@@ -300,8 +273,8 @@ func (s *Server) SendSignonBuffers(client *Client) {
 // and sound data that is shared across all connecting clients. Called once
 // during SpawnServer after map entities have been loaded.
 func (s *Server) buildSignonBuffers() error {
-	s.SignonBuffers = nil
-	s.Signon = nil
+	s.ensureSignonWriter()
+	s.signonWriter.Reset()
 	if err := s.AddSignonBuffer(); err != nil {
 		return err
 	}
@@ -575,8 +548,8 @@ func (s *Server) queuePendingSignon(client *Client) {
 	}
 
 	local := s.SV_IsLocalClient(client)
-	for client.SignonIdx < len(s.SignonBuffers) {
-		buf := s.SignonBuffers[client.SignonIdx]
+	for client.SignonIdx < len(s.signonWriter.Buffers()) {
+		buf := s.signonWriter.Buffers()[client.SignonIdx]
 		if buf == nil || buf.Len() == 0 {
 			client.SignonIdx++
 			continue
@@ -591,7 +564,7 @@ func (s *Server) queuePendingSignon(client *Client) {
 		}
 	}
 
-	if client.SignonIdx == len(s.SignonBuffers) && client.Message.Len()+2 <= len(client.Message.Data) {
+	if client.SignonIdx == len(s.signonWriter.Buffers()) && client.Message.Len()+2 <= len(client.Message.Data) {
 		client.Message.PutByte(byte(inet.SVCSignOnNum))
 		client.Message.PutByte(2)
 		client.SendSignon = SignonSignonBufs

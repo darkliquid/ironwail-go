@@ -37,6 +37,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	stategp "github.com/darkliquid/ironwail-go/internal/server/state"
 )
 
 // Server holds the state for the current running game.
@@ -98,8 +99,13 @@ type Server struct {
 
 	// Signon buffer system - shared initial game state sent to connecting clients.
 	// Populated during SpawnServer with precache lists, static entities, and sounds.
+	// SignonBuffers/Signon are the authoritative signon storage (tests and
+	// the msg_init builtin assign/read them directly); signonWriter operates
+	// on them via binding (server/state).
 	SignonBuffers []*MessageBuffer
-	Signon        *MessageBuffer // Current signon buffer being written to
+	Signon        *MessageBuffer
+	// signonWriter owns the signon segment construction (server/state).
+	signonWriter *stategp.SignonWriter
 
 	// Precached resources
 	SoundPrecache  []string
@@ -268,6 +274,7 @@ func NewServer() *Server {
 		CVar:                 cvar.NewCVarSystem(),
 		Net:                  inet.DefaultNetwork(),
 	}
+	s.signonWriter = stategp.NewSignonWriter(&s.SignonBuffers, &s.Signon, SignonSize, func() uint32 { return uint32(s.ProtocolFlags()) })
 	s.acceptConnection = s.Net.CheckNewConnections
 	s.CollisionSys = NewCollisionSystem(s)
 	s.NetManager = NewNetworkManager(s)
@@ -321,8 +328,8 @@ func NewServer() *Server {
 				return []*MessageBuffer{s.ReliableDatagram}
 			}
 		case 3:
-			if s.Signon != nil {
-				return []*MessageBuffer{s.Signon}
+			if cur := s.signonWriter.Current(); cur != nil {
+				return []*MessageBuffer{cur}
 			}
 		}
 		return nil

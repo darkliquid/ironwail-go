@@ -457,6 +457,11 @@ from the existing tests so the move is behavior-preserving):
   `Game` facade + exported accessors).
 - `internal/server/edict` and `internal/server/state` (needs
   `types`/protocol snap first + `Client` decoupling).
+  **16+2b DONE (2026-08-05)**: `edict` fully extracted (16+2.7); `state`
+  landed its first module, `state.SignonWriter` (signon segment construction
+  bound to the Server's authoritative SignonBuffers/Signon storage). The
+  full Client→state.Manager inversion (datagram/runclients owners) remains
+  deferred; SignonWriter proves the pattern on the signon domain.
 
 ## 11. How this plan composes with plans 16/17
 
