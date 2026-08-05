@@ -71,7 +71,24 @@
       "pos": [-800.0, 0.0, -2000.0],
       "angles": [15.0, 90.0, 0.0],
       "description": "qbj2 start map water room side view looking at water pool"
+    },
+    {
+      "id": "qbj3-stickflip-spawn",
+      "game": "qbj3",
+      "map": "qbj3_stickflip",
+      "pos": [0.0, -1648.0, -967.97],
+      "angles": [0.0, 90.0, 0.0],
+      "description": "qbj3_stickflip spawn viewpoint"
+    },
+    {
+      "id": "qbj3-stickflip-overview",
+      "game": "qbj3",
+      "map": "qbj3_stickflip",
+      "pos": [-2280.88, 266.78, 1944.03],
+      "angles": [-33.62, 65.31, 0.0],
+      "description": "qbj3_stickflip high ceiling overview viewpoint"
     }
   ]
 }
+
 
