@@ -30,11 +30,12 @@ The goal of this project is to create the WebAssembly entry point (`cmd/ironwail
 
 ## 3. Step-by-Step Implementation Sequence
 
-### Step 7.1: Create WASM Entry Point
-- **Files**: `cmd/ironwailgo/main_wasm.go`
+### Step 7.1: Create WASM Entry Point (COMPLETED - commit f326a7d)
+- **Files**: `cmd/ironwailgo/main_wasm.go`, `cmd/ironwailgo/main.go`, `mise.toml`
 - **Actions**:
-  - Add `//go:build js && wasm` build tag.
-  - Implement `main()` for browser execution, initializing game loop via `requestAnimationFrame`.
+  - Add `//go:build js && wasm` build tag and `//go:build !js || !wasm` guard to `main.go`.
+  - Implemented WASM main entry point and added `mise run build-wasm` task (produces `bin/ironwail.wasm` at 21 MB).
+
 
 ### Step 7.2: Implement HTML5 WebGPU Surface Adapter
 - **Files**: `internal/renderer/gogpu/wasm_surface.go` (new file)
