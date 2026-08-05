@@ -35,10 +35,11 @@
 // the loose-file directory itself is added on top, so loose files always win
 // over PAK contents.
 //
-// The lookupPaths slice is searched front-to-back. Because each
-// AddGameDirectory call *prepends* its entries, the most-recently-added
-// game directory is consulted first — this is the core of the override
-// mechanism that lets mods and patches replace base-game content.
+// The mounts stack is searched front-to-back (index 0 = highest priority).
+// Because each AddGameDirectory call *prepends* its entries, the
+// most-recently-added game directory is consulted first — this is the core
+// of the override mechanism that lets mods and patches replace base-game
+// content.
 package fs
 
 import (
@@ -136,55 +137,43 @@ type SearchPathEntry struct {
 	FileCount int
 }
 
-// searchPath is a single entry in the VFS search stack.
-//
-// Exactly one of (fs, pack) is non-nil for any given entry:
-//   - If pack is non-nil this entry represents a PAK archive.
-//   - Otherwise root + fs represent a loose-file directory on disk.
-//
-// The lookupPaths slice is ordered so that the *most recently added* entries
-// come first (prepend semantics), giving "last-added-wins" override behaviour.
-type searchPath struct {
-	root string
-	fs   iofs.FS
-	pack *Pack
-}
-
 // FileSystem is the central Quake VFS manager.
 //
-// searchPaths holds loose-file directories only and is used by ListFiles for
-// glob-based enumeration. lookupPaths is the unified lookup stack containing
-// both PAK entries and loose-file entries in priority order — this is what
-// FindFile walks. packs tracks every open PAK so that Close can release their
-// file handles. gameDir is the currently active mod directory name (e.g.
-// "hipnotic"), and baseDir is the root installation path containing id1/ and
-// other game directories.
+// mounts is the unified override stack walked by FindFile; packs tracks
+// every open PAK so that Close can release their file handles. gameDir is
+// the currently active mod directory name (e.g. "hipnotic"), and baseDir is
+// the root installation path containing id1/ and other game directories.
 type FileSystem struct {
-	searchPaths []searchPath
-	lookupPaths []searchPath
+	// mounts is the unified override stack (high→low priority, index 0 =
+	// highest). Loose directories are rootFS mounts; PAK archives are PakFS
+	// mounts. This single stack replaced the old searchPaths/lookupPaths
+	// dual-slice design (plan 19b).
+	mounts      []mount
 	packs       []*Pack
 	gameDir     string
 	baseDir     string
 	initialized bool
 }
 
-// SearchPathEntries returns the current lookup stack in the same front-to-back
+// SearchPathEntries returns the current mount stack in the same front-to-back
 // order used by file resolution. Pack entries include their file counts so
 // console/debug callers can mirror Quake's `path` command output.
 func (fs *FileSystem) SearchPathEntries() []SearchPathEntry {
-	entries := make([]SearchPathEntry, 0, len(fs.lookupPaths))
-	for _, searchPath := range fs.lookupPaths {
-		if searchPath.pack != nil {
+	entries := make([]SearchPathEntry, 0, len(fs.mounts))
+	for _, m := range fs.mounts {
+		if m.kind == mountPack && m.pak != nil && m.pak.pack != nil {
 			entries = append(entries, SearchPathEntry{
-				Path:      searchPath.pack.Filename,
+				Path:      m.pak.pack.Filename,
 				IsPack:    true,
-				FileCount: len(searchPath.pack.Files),
+				FileCount: len(m.pak.pack.Files),
 			})
 			continue
 		}
-		entries = append(entries, SearchPathEntry{
-			Path: searchPath.root,
-		})
+		if m.loose != nil {
+			entries = append(entries, SearchPathEntry{
+				Path: m.loose.root,
+			})
+		}
 	}
 	return entries
 }
@@ -193,9 +182,8 @@ func (fs *FileSystem) SearchPathEntries() []SearchPathEntry {
 // search paths with the base game directory and any selected mod.
 func NewFileSystem() *FileSystem {
 	return &FileSystem{
-		searchPaths: make([]searchPath, 0),
-		lookupPaths: make([]searchPath, 0),
-		packs:       make([]*Pack, 0),
+		mounts: make([]mount, 0),
+		packs:  make([]*Pack, 0),
 	}
 }
 
@@ -207,8 +195,8 @@ func NewFileSystem() *FileSystem {
 //     executable or in basedir).
 //  3. If a mod gamedir is specified (and is not "id1"), add that directory.
 //
-// Because AddGameDirectory prepends its entries into lookupPaths, the mod
-// directory ends up being searched first, then ironwail.pak, then id1/ —
+// Because AddGameDirectory prepends its entries into the mounts stack, the
+// mod directory ends up being searched first, then ironwail.pak, then id1/ —
 // exactly the override order a player would expect.
 //
 // Init is idempotent; calling it a second time is a no-op.
@@ -242,39 +230,14 @@ func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
 		return nil, err
 	}
 
-	lookupName := canonicalPackLookup(sanitizedName)
-	for priority, searchPath := range fs.lookupPaths {
-		if searchPath.pack == nil {
-			fullPath := filepath.Join(searchPath.root, filepath.FromSlash(sanitizedName))
-
-			if !isWithinRoot(searchPath.root, fullPath) {
-				return nil, fmt.Errorf("invalid path traversal attempt: %s", filename)
-			}
-
-			if stat, err := iofs.Stat(searchPath.fs, sanitizedName); err == nil && !stat.IsDir() {
-				return &SearchResult{
-					Path:     fullPath,
-					Name:     sanitizedName,
-					SourceFS: searchPath.fs,
-					IsPack:   false,
-					Priority: priority,
-				}, nil
-			}
-			continue
-		}
-
-		for _, pf := range searchPath.pack.Files {
-			if pf.Lookup == lookupName {
-				return &SearchResult{
-					Path:     searchPath.pack.Filename,
-					Name:     sanitizedName,
-					IsPack:   true,
-					Pack:     searchPath.pack,
-					FilePos:  pf.FilePos,
-					FileLen:  pf.FileLen,
-					Priority: priority,
-				}, nil
-			}
+	// Walk the unified mount stack (high→low). Each mount knows how to
+	// resolve the name within itself (rootFS.Resolve or PakFS.Resolve);
+	// Priority is the mount index, preserving the historical ordering that
+	// LoadMapBSPAndLit relies on for lower-priority-lit rejection.
+	for priority := range fs.mounts {
+		if result := fs.mounts[priority].Resolve(sanitizedName); result != nil {
+			result.Priority = priority
+			return result, nil
 		}
 	}
 	return nil, fmt.Errorf("file not found: %s", sanitizedName)
@@ -337,39 +300,14 @@ func (fs *FileSystem) FindFirstAvailable(filenames []string) (*SearchResult, err
 		})
 	}
 
-	for priority, searchPath := range fs.lookupPaths {
-		if searchPath.pack == nil {
-			for _, candidate := range candidates {
-				fullPath := filepath.Join(searchPath.root, filepath.FromSlash(candidate.name))
-				if !isWithinRoot(searchPath.root, fullPath) {
-					return nil, fmt.Errorf("invalid path traversal attempt: %s", candidate.name)
-				}
-				if stat, err := iofs.Stat(searchPath.fs, candidate.name); err == nil && !stat.IsDir() {
-					return &SearchResult{
-						Path:     fullPath,
-						Name:     candidate.name,
-						SourceFS: searchPath.fs,
-						IsPack:   false,
-						Priority: priority,
-					}, nil
-				}
-			}
-			continue
-		}
-
+	// Walk the mount stack high→low; within each mount test all candidates
+	// in list order (candidate preference only matters within a priority
+	// level, matching the historical semantics).
+	for priority := range fs.mounts {
 		for _, candidate := range candidates {
-			for _, pf := range searchPath.pack.Files {
-				if pf.Lookup == candidate.lookup {
-					return &SearchResult{
-						Path:     searchPath.pack.Filename,
-						Name:     candidate.name,
-						IsPack:   true,
-						Pack:     searchPath.pack,
-						FilePos:  pf.FilePos,
-						FileLen:  pf.FileLen,
-						Priority: priority,
-					}, nil
-				}
+			if result := fs.mounts[priority].Resolve(candidate.name); result != nil {
+				result.Priority = priority
+				return result, nil
 			}
 		}
 	}
@@ -418,23 +356,16 @@ func (fs *FileSystem) LoadMapBSPAndLit(worldModel string) ([]byte, []byte, error
 	return bspData, litData, nil
 }
 
-// loadFromPack reads a file's raw bytes from an open PAK archive. It seeks to
-// the byte offset recorded in the SearchResult and reads exactly FileLen bytes
-// using io.ReadFull, which guarantees we get the complete file or an error.
+// loadFromPack reads a file's raw bytes from an open PAK archive. It
+// delegates to PakFS.readAt, the single home of pack byte-window reads
+// (plan 19b); loadFromPack is retained as a thin wrapper for paths that
+// still carry a *SearchResult.
 func (fs *FileSystem) loadFromPack(result *SearchResult) ([]byte, error) {
-	result.Pack.mu.Lock()
-	defer result.Pack.mu.Unlock()
-
-	if _, err := result.Pack.Handle.Seek(int64(result.FilePos), io.SeekStart); err != nil {
-		return nil, fmt.Errorf("seek in pack %q for %q: %w", result.Pack.Filename, result.Name, err)
+	if result.Pack == nil {
+		return nil, fmt.Errorf("loadFromPack: nil pack for %q", result.Name)
 	}
-
-	data := make([]byte, result.FileLen)
-	if _, err := io.ReadFull(result.Pack.Handle, data); err != nil {
-		return nil, fmt.Errorf("read %q from pack %q: %w", result.Name, result.Pack.Filename, err)
-	}
-
-	return data, nil
+	fi := &PackFile{Name: result.Name, FilePos: result.FilePos, FileLen: result.FileLen}
+	return NewPakFS(result.Pack).readAt(fi)
 }
 
 func (fs *FileSystem) loadSearchResult(result *SearchResult) ([]byte, error) {

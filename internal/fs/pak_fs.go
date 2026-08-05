@@ -178,3 +178,24 @@ func (d dirEntryFromName) Name() string               { return d.name }
 func (d dirEntryFromName) IsDir() bool                { return d.isDir }
 func (d dirEntryFromName) Type() fs.FileMode          { return 0 }
 func (d dirEntryFromName) Info() (fs.FileInfo, error) { return nil, fs.ErrNotExist }
+
+// Resolve returns a SearchResult for the named archive entry, or nil if the
+// pack does not contain it. It is the single home of pack-entry lookup,
+// used by both the OverlayFS and (during migration) the legacy loops.
+func (p *PakFS) Resolve(name string) *SearchResult {
+	if p == nil || p.pack == nil {
+		return nil
+	}
+	fi, err := p.find(name)
+	if err != nil {
+		return nil
+	}
+	return &SearchResult{
+		Path:    p.pack.Filename,
+		Name:    name,
+		IsPack:  true,
+		Pack:    p.pack,
+		FilePos: fi.FilePos,
+		FileLen: fi.FileLen,
+	}
+}

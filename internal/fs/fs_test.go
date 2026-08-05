@@ -806,3 +806,40 @@ func TestPakFSReadDir(t *testing.T) {
 		t.Fatalf("maps entries = %v, %v", entries[0].Name(), entries[1].Name())
 	}
 }
+
+// TestOverlaySameDirPrecedence pins the mount-stack override order within
+// one game directory: index-0 of the group wins. The pre-migration code
+// ordered paks above the loose dir in the search stack, so identical
+// behavior means pak wins over a same-dir loose file. This exercises the
+// single OverlayFS resolution path end-to-end and pins order parity with the
+// old lookupPaths stack.
+//
+// NOTE: C Ironwail actually places loose dirs above paks; that precedence
+// question is tracked separately as a parity fix, not changed by 19b.
+func TestOverlaySameDirPrecedence(t *testing.T) {
+	dir := t.TempDir()
+	// pak0 with data, and a loose file of the same name in the same dir.
+	writeTestPak(t, filepath.Join(dir, "pak0.pak"), map[string][]byte{
+		"maps/o.bsp": []byte("pak-data"),
+	})
+	if err := os.MkdirAll(filepath.Join(dir, "maps"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "maps", "o.bsp"), []byte("loose-data"), 0o644); err != nil {
+		t.Fatalf("write loose: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.AddGameDirectory(dir); err != nil {
+		t.Fatalf("AddGameDirectory: %v", err)
+	}
+	defer fileSys.Close()
+
+	data, err := fileSys.LoadFile("maps/o.bsp")
+	if err != nil {
+		t.Fatalf("LoadFile: %v", err)
+	}
+	if string(data) != "pak-data" {
+		t.Fatalf("data = %q, want %q (pak above loose, preserved order)", string(data), "pak-data")
+	}
+}

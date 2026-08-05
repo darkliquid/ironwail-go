@@ -1,7 +1,7 @@
 # Implementation Plan 19b: Replace the `lookupPaths` Stack with a Unified Overlay FS
 
 **Priority**: Medium-High
-**Status**: Draft (planning only — no implementation yet)
+**Status**: DONE (2026-08-05) — implemented in `dee46b1`'s successor commits.
 **Target Milestone**: 19+ (follows 19.1 PakFS)
 
 ---

@@ -41,16 +41,15 @@ This plan explores an experimental refactoring to modernize `internal/fs` by wra
 ### Step 19.2: Overlay VFS Stack Refactoring
 - **Files**: `internal/fs/overlay_fs.go` (new file), `internal/fs/fs.go`
 - **Actions**: Replace custom `lookupPaths` iteration with a clean composable overlay stack walking `io/fs.FS` sources.
-- **Status**: ⏸ **SCOPED AS ADDITIVE — deferred full replacement (2026-08-05)**.
-  The existing `lookupPaths` stack already implements exact Quake override
-  precedence and is thoroughly pinned by `TestFilesystemSearchPathMatchesQuakePrecedence`,
-  `TestPakOverrideOrderIsNumeric`, `TestLoadFirstAvailablePrefersSearchPathOverExtensionOrder`,
-  etc. (all green). Replacing it with a full overlay FS is a large risky rewrite of
-  working, test-pinned behaviour for marginal gain, and the plan marks the afero
-  direction as experimental. The valuable, low-risk seam is delivered: packs are now
-  reachable as standard `io/fs.FS` via `PakFS` (both loose dirs and packs present the
-  same `io/fs.FS` surface), so any future overlay/`fs.FS`-native caller can compose
-  them without touching the proven lookup.
+- **Status**: ✅ **DONE (2026-08-05) — implemented as plan 19b
+  (`docs/plans/19b_overlay_fs_replacement.md`)**. The old `lookupPaths`/
+  `searchPaths` dual-slice design is deleted; `internal/fs` now resolves through a
+  single ordered `mount` stack (loose `rootFS` + `PakFS`, both `io/fs.FS`), walked by
+  an `OverlayFS`. Public API, `SearchResult`, `Priority`, case-folding, and traversal
+  protection are unchanged; all 20 existing fs tests plus a new same-dir precedence
+  test pass. NOTE: the migration preserved the pre-existing paks-above-loose ordering
+  within a game dir (C Ironwail places loose above paks); that parity question is
+  tracked as a separate follow-up, not changed by 19b.
 
 ### Step 19.3: Verification & Parity Sign-off
 - **Files**: `internal/fs/fs_test.go`

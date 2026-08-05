@@ -8,13 +8,15 @@
 //
 // # High-level design
 //
-// FileSystem models search paths and loaded pack directories explicitly. File
-// resolution walks a single Quake-style search stack: later game directories
-// override earlier ones, and within each game directory higher-numbered paks
-// override lower-numbered paks, which in turn override loose files. Pack
-// discovery follows deterministic numeric `pakN.pak` ordering, and pack-entry
-// lookup is case-insensitive to match Quake data behavior on case-sensitive
-// hosts.
+// FileSystem models search paths and loaded pack directories as a single
+// ordered `mount` stack (loose directory or PAK archive). File resolution
+// walks the stack via the OverlayFS (an io/fs.FS composition): later game
+// directories override earlier ones, and within each game directory
+// higher-numbered paks override lower-numbered paks, which in turn override
+// loose files. Loose directories are exposed as os.DirFS (rootFS) and PAK
+// archives as PakFS, both implementing io/fs.FS. Pack discovery follows
+// deterministic numeric `pakN.pak` ordering, and pack-entry lookup is
+// case-insensitive to match Quake data behavior on case-sensitive hosts.
 //
 // # Role in the engine
 //

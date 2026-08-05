@@ -22,8 +22,8 @@ import (
 // addEnginePak locates and loads the engine-provided PAK archive
 // (ironwail.pak). It checks up to two candidate directories — the directory
 // containing the executable and the basedir — deduplicating them if they
-// overlap. The engine PAK is prepended into lookupPaths so that its assets
-// sit *above* id1/ but *below* any subsequently-added mod directory.
+// overlap. The engine PAK is prepended into the mount stack so that its
+// assets sit *above* id1/ but *below* any subsequently-added mod directory.
 func (fs *FileSystem) addEnginePak() {
 	candidates := make([]string, 0, 2)
 	seen := make(map[string]struct{}, 2)
@@ -57,7 +57,7 @@ func (fs *FileSystem) addEnginePak() {
 		}
 
 		fs.packs = append(fs.packs, pack)
-		fs.lookupPaths = append([]searchPath{{pack: pack}}, fs.lookupPaths...)
+		fs.mounts = append([]mount{{kind: mountPack, pak: NewPakFS(pack)}}, fs.mounts...)
 		fmt.Printf("Added engine pak: %s (%d files)\n", EnginePakName, len(pack.Files))
 		return
 	}
@@ -66,31 +66,25 @@ func (fs *FileSystem) addEnginePak() {
 // AddGameDirectory registers a game directory (e.g. "id1/" or "hipnotic/")
 // with the VFS. The process mirrors the original Quake engine:
 //
-//  1. The directory itself is added to searchPaths as a loose-file source.
-//  2. Any numbered PAK files (pak0.pak, pak1.pak, …) found in the directory
-//     are opened and their entries added to the lookup stack. PAK files are
-//     loaded in ascending numeric order so that higher-numbered paks override
-//     lower ones (pak1.pak beats pak0.pak).
-//  3. The loose-file directory is placed at the *top* of the lookup group so
-//     that individual files on disk override anything in a PAK — this is how
+//  1. Any numbered PAK files (pak0.pak, pak1.pak, …) found in the directory
+//     are opened and added to the mount stack. PAK files are loaded in
+//     ascending numeric order so that higher-numbered paks override lower
+//     ones (pak1.pak beats pak0.pak).
+//  2. The loose-file directory mount is placed above the PAKs so that
+//     individual files on disk override anything in a PAK — this is how
 //     development overrides and runtime downloads work.
 //
-// The entire group (loose + PAKs) is prepended to lookupPaths, ensuring that
-// a game directory added later overrides all earlier ones.
+// The entire group (loose + PAKs) is prepended to mounts, ensuring that a
+// game directory added later overrides all earlier ones.
 func (fs *FileSystem) AddGameDirectory(dir string) error {
 	cleanDir := filepath.Clean(dir)
-	loosePath := searchPath{
-		root: cleanDir,
-		fs:   os.DirFS(cleanDir),
-	}
-	fs.searchPaths = append(fs.searchPaths, loosePath)
 
 	pakFiles, err := discoverPakFiles(cleanDir)
 	if err != nil {
 		return fmt.Errorf("discover pak files in %q: %w", cleanDir, err)
 	}
 
-	lookupGroup := make([]searchPath, 0, len(pakFiles)+1)
+	group := make([]mount, 0, len(pakFiles)+1)
 	for _, pakFile := range pakFiles {
 		pack, err := fs.loadPack(pakFile)
 		if err != nil {
@@ -98,21 +92,24 @@ func (fs *FileSystem) AddGameDirectory(dir string) error {
 			continue
 		}
 		fs.packs = append(fs.packs, pack)
-		lookupGroup = append([]searchPath{{pack: pack}}, lookupGroup...)
+		group = append([]mount{{kind: mountPack, pak: NewPakFS(pack)}}, group...)
 	}
-	lookupGroup = append(lookupGroup, loosePath)
-	fs.lookupPaths = append(lookupGroup, fs.lookupPaths...)
+	group = append(group, mount{kind: mountLoose, loose: newRootFS(cleanDir)})
+	// group records each pak (highest first) then the loose dir, and is
+	// prepended to fs.mounts so a later-added game directory overrides all
+	// earlier ones.
+	fs.mounts = append(group, fs.mounts...)
 
 	return nil
 }
 
-// MountPack mounts a Pack directly into the lookup stack (highest priority).
+// MountPack mounts a Pack directly into the mount stack (highest priority).
 func (fs *FileSystem) MountPack(pack *Pack) {
 	if pack == nil {
 		return
 	}
 	fs.packs = append(fs.packs, pack)
-	fs.lookupPaths = append([]searchPath{{pack: pack}}, fs.lookupPaths...)
+	fs.mounts = append([]mount{{kind: mountPack, pak: NewPakFS(pack)}}, fs.mounts...)
 }
 
 
@@ -210,7 +207,7 @@ func loadPackFromHandle(filename string, handle ReadSeekerCloserHandle) (*Pack, 
 // FindFile searches the VFS for the given filename and returns a SearchResult
 // describing where the file was found.
 //
-// The search walks lookupPaths front-to-back (most-recently-added first).
+// The search walks the mount stack front-to-back (most-recently-added first).
 // For each entry:
 //   - Loose-file entries: stat the file on disk, guarding against directory
 //     traversal (the path must stay within the search root).
@@ -280,13 +277,15 @@ func isValidModDir(dir string) bool {
 func (fs *FileSystem) ListFiles(pattern string) []string {
 	var results []string
 
-	for _, searchPath := range fs.searchPaths {
-		matches, err := iofs.Glob(searchPath.fs, pattern)
-		if err != nil {
-			continue
-		}
-		for _, match := range matches {
-			results = append(results, filepath.ToSlash(match))
+	for _, m := range fs.mounts {
+		if m.kind == mountLoose && m.loose != nil {
+			matches, err := iofs.Glob(m.loose.fs, pattern)
+			if err != nil {
+				continue
+			}
+			for _, match := range matches {
+				results = append(results, filepath.ToSlash(match))
+			}
 		}
 	}
 
