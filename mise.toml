@@ -107,7 +107,13 @@ run = "go build -o ironwailgo ./cmd/ironwailgo"
 [tasks.build-wasm]
 depends = ["go-generate"]
 description = "Build WebAssembly binary (ironwail.wasm)"
-run = "GOOS=js GOARCH=wasm go build -o bin/ironwail.wasm ./cmd/ironwailgo"
+run = "mkdir -p web/bin && GOOS=js GOARCH=wasm go build -o web/bin/ironwail.wasm ./cmd/ironwailgo"
+
+[tasks.serve-wasm]
+depends = ["build-wasm"]
+description = "Serve WebAssembly deployment harness at http://localhost:8080"
+run = "cd web && go run server.go"
+
 
 
 [tasks.run]
