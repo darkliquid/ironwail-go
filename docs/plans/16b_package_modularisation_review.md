@@ -66,6 +66,16 @@
 > growth is handled by `SetEdicts`/`SetNumEdicts`. Pinned tests
 > (alloc/free cooldown, parse structure, globals) live in
 > `edict/edict_test.go`. Zero import cycles; `go test ./...` green.
+>
+> **Deferred-deep items stand (16+2, not this batch)**: `pipeline.Resources`
+> ownership transfer and `server/state` both remain the plan's flagged
+> highest-risk "state-object inversion" changes (type-graph mutation across
+> 20+/2,600+ lines). A follow-up decal behavioral regression from the safe
+> batch (6b6f7a8) reinforced that subtle breakage is easy even in small
+> extractions; the two deep items are deferred to a focused plan built on
+> plan 17's test isolation, per §10.5's no-behavior-change + full-suite-green
+> constraints. Safe half of plan 16 (16.0–16.6 + edict + pipeline-safe +
+> decal-safe) is COMPLETE.
 
 ---
 
