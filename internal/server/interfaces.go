@@ -96,7 +96,9 @@ func (s *Server) GetFieldMap() int {
 	return s.QCFieldMap
 }
 
-// ExecuteQCFunction calls a QuakeC bytecode function index in the VM.
 func (s *Server) ExecuteQCFunction(funcIdx int) error {
+	if s == nil {
+		return nil
+	}
 	return s.executeQCFunction(funcIdx)
 }

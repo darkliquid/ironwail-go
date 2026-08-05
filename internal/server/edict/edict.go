@@ -130,6 +130,47 @@ func NewEmptyManager(maxEdicts, maxClients int, clearFunc ClearQCVMFunc, default
 	}
 }
 
+// Static assertion that *Manager satisfies EntityStore interface.
+var _ types.EntityStore = (*Manager)(nil)
+
+func (em *Manager) EdictNum(num int) *types.Edict {
+	if em == nil || num < 0 || num >= len(em.edicts) {
+		return nil
+	}
+	return em.edicts[num]
+}
+
+func (em *Manager) AllocEdict() *types.Edict {
+	if em == nil {
+		return nil
+	}
+	idx, err := em.ED_Alloc()
+	if err != nil {
+		return nil
+	}
+	return em.edicts[idx]
+}
+
+func (em *Manager) FreeEdict(ed *types.Edict) {
+	if em != nil && ed != nil {
+		_ = em.ED_Free(ed.Num)
+	}
+}
+
+func (em *Manager) GetNumEdicts() int {
+	if em == nil {
+		return 0
+	}
+	return em.numEdicts
+}
+
+func (em *Manager) GetMaxEdicts() int {
+	if em == nil {
+		return 0
+	}
+	return em.maxEdicts
+}
+
 // ED_Alloc allocates a new entity, reusing freed ones when possible.
 //
 // It tries to avoid reusing entities that were recently freed (< 500ms ago)

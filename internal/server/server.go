@@ -37,6 +37,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/server/edict"
 	stategp "github.com/darkliquid/ironwail-go/internal/server/state"
 )
 
@@ -71,8 +72,9 @@ type Server struct {
 	FrameTime float32
 
 	// Entity management
-	Edicts     []*Edict
-	NumEdicts  int
+	EdictManager *edict.Manager
+	Edicts       []*Edict
+	NumEdicts    int
 	MaxEdicts  int
 	peakEdicts int // Dev stats: peak active edict count
 	devStats   DevStats
@@ -288,6 +290,7 @@ func NewServer() *Server {
 	world := &Edict{Num: 0}
 	s.Edicts = append(s.Edicts, world)
 	s.NumEdicts = 1
+	s.EdictManager = edict.NewManager(s.Edicts, vm, MaxEdicts, 1, 16, nil, clearQCVMEdictData, defaultEntFieldOffsets)
 
 	// Register a minimal set of builtin hooks so QuakeC code that calls
 	// simple entity APIs (spawn/remove/nextent) will be routed to the
