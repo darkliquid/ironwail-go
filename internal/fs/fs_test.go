@@ -656,3 +656,34 @@ func TestDefaultExtension(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadPackFromBytesAndMount(t *testing.T) {
+	pakPath := filepath.Join(t.TempDir(), "wasm_pak0.pak")
+	writeTestPak(t, pakPath, map[string][]byte{
+		"maps/wasm_test.bsp": []byte("bsp-header-data"),
+	})
+
+	pakData, err := os.ReadFile(pakPath)
+	if err != nil {
+		t.Fatalf("ReadFile pakPath failed: %v", err)
+	}
+
+	pack, err := fs.LoadPackFromBytes("wasm_pak0.pak", pakData)
+	if err != nil {
+		t.Fatalf("LoadPackFromBytes failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	fileSys.MountPack(pack)
+	defer fileSys.Close()
+
+	data, err := fileSys.LoadFile("maps/wasm_test.bsp")
+	if err != nil {
+		t.Fatalf("LoadFile from mounted WASM pack failed: %v", err)
+	}
+	if string(data) != "bsp-header-data" {
+		t.Fatalf("data = %q, want %q", string(data), "bsp-header-data")
+	}
+}
+
+

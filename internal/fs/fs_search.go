@@ -4,7 +4,9 @@
 package fs
 
 import (
+	"bytes"
 	"encoding/binary"
+
 	"fmt"
 	"io"
 	iofs "io/fs"
@@ -104,6 +106,16 @@ func (fs *FileSystem) AddGameDirectory(dir string) error {
 	return nil
 }
 
+// MountPack mounts a Pack directly into the lookup stack (highest priority).
+func (fs *FileSystem) MountPack(pack *Pack) {
+	if pack == nil {
+		return
+	}
+	fs.packs = append(fs.packs, pack)
+	fs.lookupPaths = append([]searchPath{{pack: pack}}, fs.lookupPaths...)
+}
+
+
 // loadPack opens a PAK file, validates its 12-byte header, and reads the
 // central directory into memory.
 //
@@ -120,32 +132,47 @@ func (fs *FileSystem) AddGameDirectory(dir string) error {
 //
 // The underlying os.File is intentionally kept open (stored in Pack.Handle)
 // so that file data can be read on demand later without reopening the archive.
+type byteReaderHandle struct {
+	*bytes.Reader
+}
+
+func (b byteReaderHandle) Close() error { return nil }
+
+// LoadPackFromBytes parses a PAK archive from an in-memory byte slice.
+func LoadPackFromBytes(filename string, data []byte) (*Pack, error) {
+	reader := &byteReaderHandle{Reader: bytes.NewReader(data)}
+	return loadPackFromHandle(filename, reader)
+}
+
 func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("open pack %q: %w", filename, err)
 	}
+	return loadPackFromHandle(filename, file)
+}
 
+func loadPackFromHandle(filename string, handle ReadSeekerCloserHandle) (*Pack, error) {
 	var header struct {
 		ID     [4]byte
 		DirOfs int32
 		DirLen int32
 	}
 
-	if err := binary.Read(file, binary.LittleEndian, &header); err != nil {
-		if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
+	if err := binary.Read(handle, binary.LittleEndian, &header); err != nil {
+		if closeErr := handle.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
 		return nil, fmt.Errorf("read pack %q header: %w", filename, err)
 	}
 
 	if string(header.ID[:]) != "PACK" {
-		if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
+		if closeErr := handle.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
 		return nil, fmt.Errorf("pack %q is not a valid pack file", filename)
 	}
 
 	numFiles := int(header.DirLen / 64)
 
-	if _, err := file.Seek(int64(header.DirOfs), io.SeekStart); err != nil {
-		if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
+	if _, err := handle.Seek(int64(header.DirOfs), io.SeekStart); err != nil {
+		if closeErr := handle.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
 		return nil, fmt.Errorf("seek pack %q directory: %w", filename, err)
 	}
 
@@ -156,8 +183,8 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 			FilePos int32
 			FileLen int32
 		}
-		if err := binary.Read(file, binary.LittleEndian, &entry); err != nil {
-			if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
+		if err := binary.Read(handle, binary.LittleEndian, &entry); err != nil {
+			if closeErr := handle.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
 			return nil, fmt.Errorf("read pack %q directory entry %d: %w", filename, i, err)
 		}
 		idx := 0
@@ -174,10 +201,11 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 
 	return &Pack{
 		Filename: filename,
-		Handle:   file,
+		Handle:   handle,
 		Files:    files,
 	}, nil
 }
+
 
 // FindFile searches the VFS for the given filename and returns a SearchResult
 // describing where the file was found.

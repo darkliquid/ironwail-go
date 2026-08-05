@@ -85,20 +85,23 @@ type PackFile struct {
 	FileLen int32
 }
 
+// ReadSeekerCloserHandle represents an open byte source for PAK files.
+// Both *os.File and in-memory byte readers satisfy this interface.
+type ReadSeekerCloserHandle interface {
+	io.Reader
+	io.Seeker
+	io.ReaderAt
+	io.Closer
+}
+
 // Pack represents an open PAK archive.
-//
-// The Handle is kept open for the lifetime of the filesystem so that
-// individual files can be read on demand without re-opening the archive.
-// Filename is the on-disk path to the PAK; Files is the parsed central
-// directory — a flat list of PackFile entries that is scanned linearly
-// during file lookup (acceptable because PAK files rarely exceed a few
-// hundred entries).
 type Pack struct {
 	Filename string
-	Handle   *os.File
+	Handle   ReadSeekerCloserHandle
 	Files    []PackFile
 	mu       sync.Mutex
 }
+
 
 // SearchResult describes where a requested file was found within the VFS.
 //
