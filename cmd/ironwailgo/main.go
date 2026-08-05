@@ -1,7 +1,10 @@
+//go:build !js || !wasm
+
 // Command ironwailgo is the Ironwail-Go Quake engine executable. It wires
 // together the client, server, renderer, and host subsystems and serves as
 // the main entry point for launching the game.
 package main
+
 
 import (
 	"flag"

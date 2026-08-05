@@ -104,6 +104,12 @@ depends = ["go-generate"]
 description = "Build game binary"
 run = "go build -o ironwailgo ./cmd/ironwailgo"
 
+[tasks.build-wasm]
+depends = ["go-generate"]
+description = "Build WebAssembly binary (ironwail.wasm)"
+run = "GOOS=js GOARCH=wasm go build -o bin/ironwail.wasm ./cmd/ironwailgo"
+
+
 [tasks.run]
 depends = ["build"]
 description = "Run game"
