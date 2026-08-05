@@ -8,6 +8,18 @@ import (
 // DecalVariant identifies the visual style used by a projected decal mark.
 type DecalVariant int
 
+// DecalOrigin implements decal.MarkEntity.
+func (m DecalMarkEntity) DecalOrigin() [3]float32 { return m.Origin }
+
+// DecalNormal implements decal.MarkEntity.
+func (m DecalMarkEntity) DecalNormal() [3]float32 { return m.Normal }
+
+// DecalSize implements decal.MarkEntity.
+func (m DecalMarkEntity) DecalSize() float32 { return m.Size }
+
+// DecalRotation implements decal.MarkEntity.
+func (m DecalMarkEntity) DecalRotation() float32 { return m.Rotation }
+
 const (
 	DecalVariantBullet DecalVariant = iota
 	DecalVariantChip

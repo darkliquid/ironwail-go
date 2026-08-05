@@ -8,10 +8,19 @@
 //
 // # High-level design
 //
-// Build tags select the concrete GoGPU renderer or a stub backend, while the
-// package exposes common renderer and render-context types.
-// It coordinates backend initialization, frame callbacks, surface helpers, and
-// screen updates behind a unified package surface.
+// The package exposes the renderer and render-context types; the canonical
+// backend is GoGPU/WebGPU (no build tags select backends — the stubbed path
+// is selected at the cmd level). It coordinates backend initialization, frame
+// callbacks, surface helpers, and screen updates behind a unified package
+// surface.
+//
+// # Sub-packages
+//
+// Mesh/lump-heavy world rendering lives in sub-packages:
+// internal/renderer/lightmap (CPU lightmap atlas compositing and page
+// stacking), internal/renderer/decal (mark lifetime, quad geometry, atlas
+// seeding), internal/renderer/world (+ world/gogpu), alias, sky, surface,
+// scrap, oit, and warpscale.
 //
 // # Role in the engine
 //
@@ -37,5 +46,5 @@
 //
 // # Testing
 //
-//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/renderer -count=1
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/renderer/... -count=1
 package renderer

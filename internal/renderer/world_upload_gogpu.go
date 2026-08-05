@@ -6,6 +6,7 @@ import (
 	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/renderer/lightmap"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -481,7 +482,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	diagMaterialIDHistogramDump(geom, fmt.Sprintf("bsp_v%d", tree.Version))
 
 	worldSkySolidTextures, worldSkyAlphaTextures := r.uploadWorldEmbeddedSkyTextures(device, queue, worldTextureSampler, tree)
-	lightstyleValues := defaultWorldLightStyleValues()
+	lightstyleValues := lightmap.DefaultStyleValues()
 	var worldLightmapSampler *wgpu.Sampler
 	var whiteLightmapBindGroup *wgpu.BindGroup
 	var blackTexture *wgpu.Texture

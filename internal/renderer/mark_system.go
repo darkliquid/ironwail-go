@@ -1,55 +1,46 @@
 package renderer
 
-// DecalMarkSystem keeps projected mark entities alive for a limited lifetime.
-type DecalMarkSystem struct {
-	marks []timedDecalMark
-}
+import (
+	"github.com/darkliquid/ironwail-go/internal/renderer/decal"
+)
 
-type timedDecalMark struct {
-	mark  DecalMarkEntity
-	dieAt float32
+// DecalMarkSystem keeps projected mark entities alive for a limited lifetime.
+// It delegates to the decal subpackage's mark system; DecalMarkEntity
+// satisfies decal.MarkEntity.
+type DecalMarkSystem struct {
+	system *decal.System
 }
 
 // NewDecalMarkSystem creates an empty decal mark system.
 func NewDecalMarkSystem() *DecalMarkSystem {
-	return &DecalMarkSystem{marks: make([]timedDecalMark, 0, 256)}
+	return &DecalMarkSystem{system: decal.NewSystem()}
 }
 
 // AddMark appends a mark with lifetime in seconds. Non-positive lifetimes are ignored.
 func (s *DecalMarkSystem) AddMark(mark DecalMarkEntity, lifetimeSeconds, timeNow float32) {
-	if s == nil || lifetimeSeconds <= 0 {
+	if s == nil {
 		return
 	}
-	if mark.Size <= 0 || clamp01(mark.Alpha) <= 0 {
-		return
-	}
-	mark.Alpha = clamp01(mark.Alpha)
-	s.marks = append(s.marks, timedDecalMark{mark: mark, dieAt: timeNow + lifetimeSeconds})
+	s.system.AddMark(mark, lifetimeSeconds, timeNow)
 }
 
 // Run advances mark expiration.
 func (s *DecalMarkSystem) Run(timeNow float32) {
-	if s == nil || len(s.marks) == 0 {
+	if s == nil {
 		return
 	}
-	alive := 0
-	for i := range s.marks {
-		if s.marks[i].dieAt > timeNow {
-			s.marks[alive] = s.marks[i]
-			alive++
-		}
-	}
-	s.marks = s.marks[:alive]
+	s.system.Run(timeNow)
 }
 
 // ActiveMarks returns a copy of currently visible marks.
 func (s *DecalMarkSystem) ActiveMarks() []DecalMarkEntity {
-	if s == nil || len(s.marks) == 0 {
+	if s == nil {
 		return nil
 	}
-	out := make([]DecalMarkEntity, 0, len(s.marks))
-	for i := range s.marks {
-		out = append(out, s.marks[i].mark)
+	entities := s.system.ActiveMarkEntities()
+	out := make([]DecalMarkEntity, 0, len(entities))
+	for _, e := range entities {
+		out = append(out, e.(DecalMarkEntity))
 	}
 	return out
 }
@@ -59,5 +50,5 @@ func (s *DecalMarkSystem) ActiveCount() int {
 	if s == nil {
 		return 0
 	}
-	return len(s.marks)
+	return s.system.ActiveCount()
 }

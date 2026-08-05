@@ -8,6 +8,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/renderer/lightmap"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/gogpu/wgpu"
 )
@@ -208,8 +209,8 @@ func TestAppendGoGPUOpaqueWorldFaceBatches(t *testing.T) {
 }
 
 func TestBuildWorldLightmapPageRGBA_DefaultsUntouchedTexelsToBlack(t *testing.T) {
-	page := &WorldLightmapPage{Width: 2, Height: 1}
-	got := buildWorldLightmapPageRGBA(page, defaultWorldLightStyleValues())
+	page := &worldimpl.WorldLightmapPage{Width: 2, Height: 1}
+	got := lightmap.CompositePageRGBA(page, lightmap.DefaultStyleValues())
 	want := []byte{
 		0, 0, 0, 255,
 		0, 0, 0, 255,
@@ -225,10 +226,10 @@ func TestBuildWorldLightmapPageRGBA_DefaultsUntouchedTexelsToBlack(t *testing.T)
 }
 
 func TestBuildWorldLightmapPageRGBA_CompositesSurfaceIntoBlackPage(t *testing.T) {
-	page := &WorldLightmapPage{
+	page := &worldimpl.WorldLightmapPage{
 		Width:  2,
 		Height: 1,
-		Surfaces: []WorldLightmapSurface{{
+		Surfaces: []worldimpl.WorldLightmapSurface{{
 			X:       0,
 			Y:       0,
 			Width:   1,
@@ -237,7 +238,7 @@ func TestBuildWorldLightmapPageRGBA_CompositesSurfaceIntoBlackPage(t *testing.T)
 			Samples: []byte{128, 64, 32},
 		}},
 	}
-	got := buildWorldLightmapPageRGBA(page, defaultWorldLightStyleValues())
+	got := lightmap.CompositePageRGBA(page, lightmap.DefaultStyleValues())
 	want := []byte{
 		128, 64, 32, 255,
 		0, 0, 0, 255,
@@ -275,9 +276,9 @@ func TestBuildWorldLightmapPageRGBA_ReusesCachedBufferForDirtySurfaces(t *testin
 			},
 		},
 	}
-	values := defaultWorldLightStyleValues()
+	values := lightmap.DefaultStyleValues()
 	values[1] = 1
-	first := buildWorldLightmapPageRGBA(page, values)
+	first := lightmap.CompositePageRGBA(page, values)
 	if len(first) == 0 {
 		t.Fatal("expected initial lightmap RGBA")
 	}
@@ -288,7 +289,7 @@ func TestBuildWorldLightmapPageRGBA_ReusesCachedBufferForDirtySurfaces(t *testin
 	values[0] = 0.5
 	page.Dirty = true
 	page.Surfaces[0].Dirty = true
-	second := buildWorldLightmapPageRGBA(page, values)
+	second := lightmap.CompositePageRGBA(page, values)
 	if len(second) == 0 {
 		t.Fatal("expected recomposited lightmap RGBA")
 	}
@@ -310,7 +311,7 @@ func TestExtractLightmapRegionRGBAReusesScratchBuffer(t *testing.T) {
 		1, 2, 3, 4, 5, 6, 7, 8,
 		9, 10, 11, 12, 13, 14, 15, 16,
 	}
-	first := extractLightmapRegionRGBA(nil, rgba, 2, 1, 0, 1, 2)
+	first := lightmap.ExtractRegionRGBA(nil, rgba, 2, 1, 0, 1, 2)
 	if len(first) != 8 {
 		t.Fatalf("len(first) = %d, want 8", len(first))
 	}
@@ -318,7 +319,7 @@ func TestExtractLightmapRegionRGBAReusesScratchBuffer(t *testing.T) {
 		t.Fatalf("unexpected region bytes: %v", first)
 	}
 	ptr := &first[0]
-	second := extractLightmapRegionRGBA(first, rgba, 2, 1, 0, 1, 2)
+	second := lightmap.ExtractRegionRGBA(first, rgba, 2, 1, 0, 1, 2)
 	if len(second) != 8 {
 		t.Fatalf("len(second) = %d, want 8", len(second))
 	}
