@@ -1,8 +1,9 @@
 # Implementation Plan: Parity Closure & Sign-off on `qbj3_stickflip`
 
 **Priority**: #5 (Item 6 from Roadmap)  
-**Status**: Planned  
+**Status**: In Progress (GPU texture allocation leak & Audio shutdown deadlock fixed)  
 **Target Milestone**: Phase 5  
+
 
 ---
 
