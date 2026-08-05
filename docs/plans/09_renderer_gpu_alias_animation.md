@@ -1,8 +1,9 @@
 # Implementation Plan: GPU Alias Model Animation & Renderer Performance
 
 **Priority**: #1 (Post Zero-Sync Rendering Bottleneck)  
-**Status**: Wave 1 completed (`24a34f3`, deferred-release queue from `59b14be`). Wave 2 reverted — GPU shader attempt caused model cycling/flickering that resisted 11 fixes; reverted to CPU vertex path. Wave 3 completed — eliminated per-frame lightmap re-compositing (matches C Ironwail behavior). Sprite bind group separation retained. See Section 5 and `09_wave2_regression_diagnostic.md` for regression findings.
+**Status**: Wave 1 completed (`24a34f3`), Wave 2 CPU loop optimization completed (`7b4db8e`, 12.41x speedup from 211,110 ns/op down to 17,012 ns/op), Wave 3 completed (eliminated per-frame lightmap re-compositing).
 **Target Milestone**: Phase 1.5  
+
 
 ---
 
