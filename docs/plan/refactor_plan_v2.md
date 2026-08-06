@@ -538,3 +538,22 @@ Tests: `net/encode_test.go` adds delta (only-changed-field) and force
 Verified: full module builds; all server + net tests pass; only the two
 pre-existing failures remain. Server root now down ~2,500 lines
 cumulatively.
+
+### Static Signon Writers (`sv_client.go` → `net`, DONE 2026-08-05)
+Extracted the two static signon writers out of `sv_client.go` into
+`net/encode.go`:
+
+- `WriteSpawnStaticMessage` — SVCSpawnStatic(_2) with extended fallback for
+  large model/frame/alpha/scale. Nearly pure (delegates to the already-moved
+  `WriteEntityState`, needs only `ProtocolFlags`).
+- `WriteSpawnStaticSoundMessage` — ambient sound signon with large-index
+  fallback. Needs only `ProtocolFlags`.
+
+Root keeps one-line delegators passing `s.ProtocolFlags()`.
+
+Tests: `net/encode_test.go` adds extended-fallback and large-sound-index
+coverage (consuming the three leading coord floats).
+
+Verified: full module builds; all server + net tests pass; only the two
+pre-existing failures remain. Server root now down ~2,550 lines
+cumulatively.

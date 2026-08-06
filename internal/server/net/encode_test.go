@@ -5,6 +5,7 @@ package net
 import (
 	"testing"
 
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 )
 
@@ -136,5 +137,44 @@ func TestWriteEntityUpdateForceSendsAll(t *testing.T) {
 	}
 	if first&0x80 == 0 {
 		t.Error("first byte missing continuation bit 0x80")
+	}
+}
+
+func TestWriteSpawnStaticMessageExtendedFallback(t *testing.T) {
+	flags := uint32(srvtypes.ProtocolFlagFloatCoord)
+
+	// Small state: basic variant (SVCSpawnStatic = 17?).
+	small := srvtypes.EntityState{ModelIndex: 5, Frame: 3}
+	msg := srvtypes.NewMessageBuffer(64)
+	WriteSpawnStaticMessage(msg, small, flags)
+	// First byte: SVCSpawnStatic opcode.
+	if msg.Len() == 0 {
+		t.Fatal("basic spawn static produced empty message")
+	}
+
+	// Large model: extended variant carries a short model index.
+	large := srvtypes.EntityState{ModelIndex: 300, Frame: 3}
+	msg2 := srvtypes.NewMessageBuffer(64)
+	WriteSpawnStaticMessage(msg2, large, flags)
+	if msg2.Byte() != byte(inet.SVCSpawnStatic2) {
+		t.Errorf("extended spawn opcode = %#x, want SVCSpawnStatic2", msg2.Byte())
+	}
+}
+
+func TestWriteSpawnStaticSoundMessageLargeIndex(t *testing.T) {
+	flags := uint32(srvtypes.ProtocolFlagFloatCoord)
+
+	snd := srvtypes.StaticSound{SoundIndex: 400, Volume: 255, Attenuation: 0.5}
+	msg := srvtypes.NewMessageBuffer(64)
+	WriteSpawnStaticSoundMessage(msg, snd, flags)
+	if msg.Byte() != byte(inet.SVCSpawnStaticSound2) {
+		t.Errorf("large sound opcode = %#x, want SVCSpawnStaticSound2", msg.Byte())
+	}
+	// Three float coords precede the short sound index.
+	for i := 0; i < 3; i++ {
+		msg.ReadFloat()
+	}
+	if got := msg.ReadShort(); got != 400 {
+		t.Errorf("sound index = %d, want 400", got)
 	}
 }

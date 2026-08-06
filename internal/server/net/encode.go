@@ -287,3 +287,37 @@ func WriteEntityUpdate(msg *srvtypes.MessageBuffer, entNum int, state, baseline 
 
 	return true
 }
+// WriteSpawnStaticMessage emits a static entity signon message, using the
+// extended variant when the model/frame/alpha/scale do not fit in a byte.
+func WriteSpawnStaticMessage(msg *srvtypes.MessageBuffer, ent srvtypes.EntityState, flags uint32) {
+	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16)
+	if extended {
+		msg.PutByte(byte(inet.SVCSpawnStatic2))
+		WriteEntityState(msg, ent, true, false, 0, flags)
+		return
+	}
+	msg.PutByte(byte(inet.SVCSpawnStatic))
+	WriteEntityState(msg, ent, false, false, 0, flags)
+}
+
+// WriteSpawnStaticSoundMessage emits ambient/static sound signon messages with
+// large-index fallback.
+func WriteSpawnStaticSoundMessage(msg *srvtypes.MessageBuffer, snd srvtypes.StaticSound, flags uint32) {
+	if snd.SoundIndex > 255 {
+		msg.PutByte(byte(inet.SVCSpawnStaticSound2))
+		for i := 0; i < 3; i++ {
+			msg.WriteCoord(snd.Origin[i], flags)
+		}
+		msg.WriteShort(int16(snd.SoundIndex))
+		msg.PutByte(byte(snd.Volume))
+		msg.PutByte(byte(snd.Attenuation * 64))
+		return
+	}
+	msg.PutByte(byte(inet.SVCSpawnStaticSound))
+	for i := 0; i < 3; i++ {
+		msg.WriteCoord(snd.Origin[i], flags)
+	}
+	msg.PutByte(byte(snd.SoundIndex))
+	msg.PutByte(byte(snd.Volume))
+	msg.PutByte(byte(snd.Attenuation * 64))
+}

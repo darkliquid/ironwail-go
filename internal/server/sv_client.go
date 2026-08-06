@@ -7,41 +7,18 @@ import (
 	"log/slog"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	srvnet "github.com/darkliquid/ironwail-go/internal/server/net"
 	stategp "github.com/darkliquid/ironwail-go/internal/server/state"
 )
 
 // writeSpawnStaticMessage emits SVCSpawnStatic(_2) for entities baked into signon world state.
 func (s *Server) writeSpawnStaticMessage(msg *MessageBuffer, ent EntityState) {
-	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16)
-	if extended {
-		msg.PutByte(byte(inet.SVCSpawnStatic2))
-		s.writeEntityState(msg, ent, true, false, 0)
-		return
-	}
-	msg.PutByte(byte(inet.SVCSpawnStatic))
-	s.writeEntityState(msg, ent, false, false, 0)
+	srvnet.WriteSpawnStaticMessage(msg, ent, uint32(s.ProtocolFlags()))
 }
 
 // writeSpawnStaticSoundMessage emits ambient/static sound signon messages with large-index fallback.
 func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSound) {
-	flags := uint32(s.ProtocolFlags())
-	if snd.SoundIndex > 255 {
-		msg.PutByte(byte(inet.SVCSpawnStaticSound2))
-		for i := 0; i < 3; i++ {
-			msg.WriteCoord(snd.Origin[i], flags)
-		}
-		msg.WriteShort(int16(snd.SoundIndex))
-		msg.PutByte(byte(snd.Volume))
-		msg.PutByte(byte(snd.Attenuation * 64))
-		return
-	}
-	msg.PutByte(byte(inet.SVCSpawnStaticSound))
-	for i := 0; i < 3; i++ {
-		msg.WriteCoord(snd.Origin[i], flags)
-	}
-	msg.PutByte(byte(snd.SoundIndex))
-	msg.PutByte(byte(snd.Volume))
-	msg.PutByte(byte(snd.Attenuation * 64))
+	srvnet.WriteSpawnStaticSoundMessage(msg, snd, uint32(s.ProtocolFlags()))
 }
 
 // SendServerInfo writes the initial serverinfo handshake block for a connecting client.
