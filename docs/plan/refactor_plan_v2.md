@@ -575,3 +575,20 @@ setangle-opcode coverage.
 Verified: full module builds; all server + net tests pass; only the two
 pre-existing failures remain. Server root now down ~2,640 lines
 cumulatively.
+
+### Game Audio Pure Helpers (`game_audio.go` → `game/audio`, DONE 2026-08-05)
+Created the `internal/game/audio` subpackage with the two fully-pure helpers
+from `game_audio.go`, delegating in root:
+
+- `UnderwaterIntensity` — contents → underwater intensity (water/slime/lava=1).
+- `PointInTreeLeaf` — BSP leaf lookup by point (node walk with bounds checks).
+
+Both are zero-`g.`-dependency functions; the root keeps same-named delegators
+(aliased import `sgaudio` to avoid colliding with the `internal/audio` adapter
+already imported there).
+
+Tests: `game/audio/audio_test.go` covers contents mapping, plane-side leaf
+resolution (single-node tree), and invalid-tree handling.
+
+Verified: full module builds; new subpackage tests + all game tests pass
+(only the pre-existing progs.dat parity failure remains).

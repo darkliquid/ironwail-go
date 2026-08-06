@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/audio"
+	sgaudio "github.com/darkliquid/ironwail-go/internal/game/audio"
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
@@ -105,12 +106,7 @@ func (g *Game) ensureRuntimeAmbientSFX() {
 }
 
 func (g *Game) runtimeUnderwaterIntensity(contents int32) float32 {
-	switch contents {
-	case bsp.ContentsWater, bsp.ContentsSlime, bsp.ContentsLava:
-		return 1
-	default:
-		return 0
-	}
+	return sgaudio.UnderwaterIntensity(contents)
 }
 
 // runtimeWaterwarpState returns the current underwater visual warp state
@@ -153,35 +149,7 @@ func (g *Game) runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime f
 }
 
 func (g *Game) pointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
-	if tree == nil || len(tree.Nodes) == 0 || len(tree.Planes) == 0 || len(tree.Leafs) == 0 {
-		return bsp.TreeLeaf{}, false
-	}
-
-	nodeIndex := 0
-	for {
-		if nodeIndex < 0 || nodeIndex >= len(tree.Nodes) {
-			return bsp.TreeLeaf{}, false
-		}
-		node := tree.Nodes[nodeIndex]
-		if int(node.PlaneNum) < 0 || int(node.PlaneNum) >= len(tree.Planes) {
-			return bsp.TreeLeaf{}, false
-		}
-		plane := tree.Planes[node.PlaneNum]
-		dist := point[0]*plane.Normal[0] + point[1]*plane.Normal[1] + point[2]*plane.Normal[2] - plane.Dist
-		side := 0
-		if dist < 0 {
-			side = 1
-		}
-
-		child := node.Children[side]
-		if child.IsLeaf {
-			if child.Index < 0 || child.Index >= len(tree.Leafs) {
-				return bsp.TreeLeaf{}, false
-			}
-			return tree.Leafs[child.Index], true
-		}
-		nodeIndex = child.Index
-	}
+	return sgaudio.PointInTreeLeaf(tree, point)
 }
 
 func (g *Game) syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
