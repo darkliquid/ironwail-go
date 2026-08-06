@@ -351,14 +351,16 @@ func TestWorldLiquidAlphaSettingsForGeometryUsesCachedWorldFacts(t *testing.T) {
 
 func TestRendererHasTranslucentWorldLiquidFacesGoGPUUsesCachedGeometryFacts(t *testing.T) {
 	r := &Renderer{
-		worldData: &WorldRenderData{
-			Geometry: &WorldGeometry{
-				LiquidFaceTypes: model.SurfDrawWater,
-				LiquidAlphaOverrides: worldimpl.LiquidAlphaOverrides{
-					HasWater: true,
-					Water:    0.25,
+		worldRendererState: worldRendererState{
+			worldData: &WorldRenderData{
+				Geometry: &WorldGeometry{
+					LiquidFaceTypes: model.SurfDrawWater,
+					LiquidAlphaOverrides: worldimpl.LiquidAlphaOverrides{
+						HasWater: true,
+						Water:    0.25,
+					},
+					TransparentWaterSafe: true,
 				},
-				TransparentWaterSafe: true,
 			},
 		},
 	}

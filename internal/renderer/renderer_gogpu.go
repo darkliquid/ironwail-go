@@ -159,6 +159,26 @@ type Renderer struct {
 	// viewMatrices caches computed view and projection matrices.
 	viewMatrices ViewMatrixData
 
+	// Domain state grouped into anonymous embedded value structs so component
+	// code can be passed a slice of the state it owns rather than the whole
+	// Renderer; field promotion keeps existing r.<field> accesses unchanged.
+	worldRendererState
+	aliasRendererState
+	spriteRendererState
+	particleRendererState
+	decalRendererState
+	polyBlendRendererState
+	overlayRendererState
+
+	// pendingReleases holds GPU resources that were replaced mid-frame
+	// and need to be released after the GPU finishes processing prior
+	// command buffers. Entries are drained after a 2-frame delay.
+	pendingReleases []pendingRelease
+	frameCounter    uint64
+}
+
+// worldRendererState groups the BSP world rendering state living on Renderer.
+type worldRendererState struct {
 	// worldData holds GPU-side resources for BSP world rendering.
 	// Set via UploadWorld() when a map is loaded.
 	worldData *WorldRenderData
@@ -179,7 +199,6 @@ type Renderer struct {
 	worldBatchCacheNext           int
 
 	// Scratch buffers for render state
-	// (removed scratch maps for textures)
 	brushTextureAnimationsScratch []*surfacepkg.SurfaceTexture
 	activeDynamicLightsScratch    []DynamicLight
 	uniformDataScratch            []byte
@@ -204,7 +223,10 @@ type Renderer struct {
 	worldSkyExternalWind    externalSkyboxWind
 	worldSkyExternalMode    externalSkyboxRenderMode
 	worldLightmapArray      *gpuWorldTexture
-	// Alias-model resources for the gogpu backend.
+}
+
+// aliasRendererState groups the alias-model and brush-entity GPU state.
+type aliasRendererState struct {
 	lightPool                            *glLightPool
 	brushModelGeometry                   map[int]*WorldGeometry
 	brushModelLightmaps                  map[int]*gpuWorldTexture
@@ -236,40 +258,59 @@ type Renderer struct {
 	aliasUniformBindGroupLayout          *wgpu.BindGroupLayout
 	aliasTextureBindGroupLayout          *wgpu.BindGroupLayout
 	aliasSampler                         *wgpu.Sampler
-	spriteUniformBuffer                  *wgpu.Buffer
-	spriteUniformBindGroup               *wgpu.BindGroup
-	spriteUniformBindGroupLayout         *wgpu.BindGroupLayout
-	spritePipelineLayout                 *wgpu.PipelineLayout
-	spritePipeline                       *wgpu.RenderPipeline
-	spriteDepthOffsetPipeline            *wgpu.RenderPipeline
-	spriteVertexShader                   *wgpu.ShaderModule
-	spriteFragmentShader                 *wgpu.ShaderModule
-	particleOpaquePipeline               *wgpu.RenderPipeline
-	particleTranslucentPipeline          *wgpu.RenderPipeline
-	particlePipelineLayout               *wgpu.PipelineLayout
-	particleVertexShader                 *wgpu.ShaderModule
-	particleFragmentShader               *wgpu.ShaderModule
-	particleUniformBuffer                *wgpu.Buffer
-	particleUniformBindGroup             *wgpu.BindGroup
-	particleUniformBindGroupLayout       *wgpu.BindGroupLayout
-	decalPipeline                        *wgpu.RenderPipeline
-	decalPipelineLayout                  *wgpu.PipelineLayout
-	decalVertexShader                    *wgpu.ShaderModule
-	decalFragmentShader                  *wgpu.ShaderModule
-	decalUniformBuffer                   *wgpu.Buffer
-	decalUniformBindGroup                *wgpu.BindGroup
-	decalUniformLayout                   *wgpu.BindGroupLayout
-	decalAtlasTextureHAL                 *wgpu.Texture
-	decalAtlasView                       *wgpu.TextureView
-	decalBindGroup                       *wgpu.BindGroup
-	polyBlendPipeline                    *wgpu.RenderPipeline
-	polyBlendPipelineLayout              *wgpu.PipelineLayout
-	polyBlendVertexShader                *wgpu.ShaderModule
-	polyBlendFragmentShader              *wgpu.ShaderModule
-	polyBlendUniformBuffer               *wgpu.Buffer
-	polyBlendBindGroupLayout             *wgpu.BindGroupLayout
-	polyBlendBindGroup                   *wgpu.BindGroup
+}
 
+// spriteRendererState groups the sprite-model GPU pipeline state.
+type spriteRendererState struct {
+	spriteUniformBuffer          *wgpu.Buffer
+	spriteUniformBindGroup       *wgpu.BindGroup
+	spriteUniformBindGroupLayout *wgpu.BindGroupLayout
+	spritePipelineLayout         *wgpu.PipelineLayout
+	spritePipeline               *wgpu.RenderPipeline
+	spriteDepthOffsetPipeline    *wgpu.RenderPipeline
+	spriteVertexShader           *wgpu.ShaderModule
+	spriteFragmentShader         *wgpu.ShaderModule
+}
+
+// particleRendererState groups the particle-model GPU pipeline state.
+type particleRendererState struct {
+	particleOpaquePipeline      *wgpu.RenderPipeline
+	particleTranslucentPipeline *wgpu.RenderPipeline
+	particlePipelineLayout      *wgpu.PipelineLayout
+	particleVertexShader        *wgpu.ShaderModule
+	particleFragmentShader      *wgpu.ShaderModule
+	particleUniformBuffer       *wgpu.Buffer
+	particleUniformBindGroup    *wgpu.BindGroup
+	particleUniformBindGroupLayout *wgpu.BindGroupLayout
+}
+
+// decalRendererState groups the decal-model GPU pipeline state.
+type decalRendererState struct {
+	decalPipeline       *wgpu.RenderPipeline
+	decalPipelineLayout *wgpu.PipelineLayout
+	decalVertexShader   *wgpu.ShaderModule
+	decalFragmentShader *wgpu.ShaderModule
+	decalUniformBuffer  *wgpu.Buffer
+	decalUniformBindGroup *wgpu.BindGroup
+	decalUniformLayout  *wgpu.BindGroupLayout
+	decalAtlasTextureHAL *wgpu.Texture
+	decalAtlasView      *wgpu.TextureView
+	decalBindGroup      *wgpu.BindGroup
+}
+
+// polyBlendRendererState groups the screen-tint (polyblend) GPU pipeline state.
+type polyBlendRendererState struct {
+	polyBlendPipeline       *wgpu.RenderPipeline
+	polyBlendPipelineLayout *wgpu.PipelineLayout
+	polyBlendVertexShader   *wgpu.ShaderModule
+	polyBlendFragmentShader *wgpu.ShaderModule
+	polyBlendUniformBuffer  *wgpu.Buffer
+	polyBlendBindGroupLayout *wgpu.BindGroupLayout
+	polyBlendBindGroup      *wgpu.BindGroup
+}
+
+// overlayRendererState groups the CPU-side 2D overlay compositing state.
+type overlayRendererState struct {
 	// Cached overlay texture for 2D compositing — avoids creating a new
 	// GPU texture every frame. Recreated only when screen dimensions change.
 	overlayTexture       *gogpu.Texture
@@ -283,12 +324,6 @@ type Renderer struct {
 	overlayTextureDirtyW     int
 	overlayTextureDirtyH     int
 	overlayTextureDirtyValid bool
-
-	// pendingReleases holds GPU resources that were replaced mid-frame
-	// and need to be released after the GPU finishes processing prior
-	// command buffers. Entries are drained after a 2-frame delay.
-	pendingReleases []pendingRelease
-	frameCounter    uint64
 }
 
 type pendingRelease struct {

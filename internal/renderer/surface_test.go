@@ -357,11 +357,13 @@ func TestRendererAliasStateInterpolatesFrameAndTransformAcrossUpdates(t *testing
 
 func TestRendererPruneAliasStatesDropsRetiredWorldEntities(t *testing.T) {
 	r := &Renderer{
-		aliasEntityStates: map[int]*AliasEntity{
-			1: {ModelID: "progs/ogre.mdl"},
-			2: {ModelID: "progs/knight.mdl"},
+		aliasRendererState: aliasRendererState{
+			aliasEntityStates: map[int]*AliasEntity{
+				1: {ModelID: "progs/ogre.mdl"},
+				2: {ModelID: "progs/knight.mdl"},
+			},
+			viewModelAliasState: &AliasEntity{ModelID: "progs/v_axe.mdl"},
 		},
-		viewModelAliasState: &AliasEntity{ModelID: "progs/v_axe.mdl"},
 	}
 
 	r.pruneAliasStatesLocked([]AliasModelEntity{{EntityKey: 2}})

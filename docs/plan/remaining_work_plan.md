@@ -281,5 +281,13 @@ Follow-up sweep (2026-08-06, continuation):
   are thin `*Server` glue with no clean seam, and the frame pass encoders are `DrawContext`/
   HAL orchestration.
 
-Remaining (value-ordered): Renderer 5.5 struct-field grouping, then optional 9 (QC-helper
-sweeps). Leave-in-root items (3.2, 4.4/4.5, 5.4) stand as recommended.
+- Renderer 5.5 struct-field grouping (2026-08-06): the flat 126-field `Renderer` struct in
+  `renderer_gogpu.go` is now composed of seven anonymous embedded value structs
+  (`worldRendererState`, `aliasRendererState`, `spriteRendererState`, `particleRendererState`,
+  `decalRendererState`, `polyBlendRendererState`, `overlayRendererState`). Field promotion keeps
+  every `r.<field>` access unchanged; only composite literals were updated (producer in
+  `renderer_gogpu_runtime.go` plus three tests). Component pass-by-value seams (passing these
+  structs into subpackage functions) are now available for future leaf work without a Renderer.
+
+Remaining: optional 9 (QC-helper sweeps) only. Leave-in-root items (3.2, 4.4/4.5, 5.4) stand as
+recommended. Stop rule reached: root files are facade/service wiring.

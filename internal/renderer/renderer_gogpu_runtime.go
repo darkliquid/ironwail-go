@@ -71,16 +71,20 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	app := gogpu.NewApp(gpuCfg)
 
 	r := &Renderer{
-		app:                 app,
-		config:              cfg,
-		textureCache:        make(map[cacheKey]*cachedTexture),
-		lightPool:           NewGLLightPool(512),
-		brushModelGeometry:  make(map[int]*WorldGeometry),
-		brushModelLightmaps: make(map[int]*gpuWorldTexture),
-		aliasModels:         make(map[string]*gpuAliasModel),
-		spriteModels:        make(map[string]*gpuSpriteModel),
-		aliasEntityStates:   make(map[int]*AliasEntity),
-		resources:           pipeline.NewResources(),
+		app:          app,
+		config:       cfg,
+		textureCache: make(map[cacheKey]*cachedTexture),
+		worldRendererState: worldRendererState{
+			resources: pipeline.NewResources(),
+		},
+		aliasRendererState: aliasRendererState{
+			lightPool:           NewGLLightPool(512),
+			brushModelGeometry:  make(map[int]*WorldGeometry),
+			brushModelLightmaps: make(map[int]*gpuWorldTexture),
+			aliasModels:         make(map[string]*gpuAliasModel),
+			spriteModels:        make(map[string]*gpuSpriteModel),
+			aliasEntityStates:   make(map[int]*AliasEntity),
+		},
 	}
 
 	slog.Info("Renderer created",
