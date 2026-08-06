@@ -1,10 +1,16 @@
 # Refactor Plan v2 — Subpackage Extraction (Corrected)
 
+> **Status: superseded as an action plan.** All phases A–H (sections 3-4) are
+> complete; this document now serves as the *history* of the corrected
+> strategy and its execution log. The forward-looking checklist for the
+> remaining files lives in [`remaining_work_plan.md`](remaining_work_plan.md).
+
 This plan supersedes the earlier `subpackage_*`, `deep_*`, `architectural_*`, and
-`aggressive_*` plan docs. Those docs describe an ideal end state but their
-"move these files" steps are **not directly executable** against the current
-code. This document records the real state, the actual coupling obstacles, and
-a corrected, parity-preserving migration strategy.
+`aggressive_*` plan docs (now archived as `docs/plan/archival_*`). Those docs
+describe an ideal end state but their "move these files" steps are **not
+directly executable** against the current code. This document records the real
+state, the actual coupling obstacles, and a corrected, parity-preserving
+migration strategy.
 
 ---
 
