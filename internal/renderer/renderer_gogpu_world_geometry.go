@@ -1,13 +1,11 @@
 package renderer
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 
@@ -427,30 +425,16 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *surfacep
 	return vertices, lightmapSurface, nil
 }
 
-// worldFaceTexInfo resolves the texture-info record for a BSP face, which maps geometric vertices into texture/lightmap UV space.
+// worldFaceTexInfo resolves the texture-info record for a BSP face, which maps
+// geometric vertices into texture/lightmap UV space. Lives in world/texture.go.
 func worldFaceTexInfo(tree *bsp.Tree, face *bsp.TreeFace) *bsp.Texinfo {
-	if tree == nil || face == nil {
-		return nil
-	}
-	if int(face.Texinfo) < 0 || int(face.Texinfo) >= len(tree.Texinfo) {
-		return nil
-	}
-	return &tree.Texinfo[face.Texinfo]
+	return worldimpl.FaceTexInfo(tree, face)
 }
 
-// worldFaceTextureIndex resolves the diffuse texture atlas slot for a face so world pass shaders can sample the correct base map.
+// worldFaceTextureIndex resolves the diffuse texture atlas slot for a face.
+// Lives in world/texture.go.
 func worldFaceTextureIndex(tree *bsp.Tree, face *bsp.TreeFace) int32 {
-	texInfo := worldFaceTexInfo(tree, face)
-	if texInfo == nil {
-		return -1
-	}
-	if remapped, ok := worldMissingTextureFallbackIndex(tree, texInfo); ok {
-		return remapped
-	}
-	if texInfo.Miptex < 0 {
-		return -1
-	}
-	return texInfo.Miptex
+	return worldimpl.FaceTextureIndex(tree, face)
 }
 
 // Debug function to check the range of texture indices we're seeing
@@ -494,107 +478,23 @@ func debugTextureIndexRange(tree *bsp.Tree, faces []bsp.TreeFace) {
 	}
 }
 
-func worldMissingTextureFallbackIndex(tree *bsp.Tree, texInfo *bsp.Texinfo) (int32, bool) {
-	textureCount, ok := worldTextureCount(tree)
-	if !ok {
-		return 0, false
-	}
-	// C Ironwail appends two dummy texture slots and remaps missing texinfos to
-	// them so faces with offset -1 still draw instead of sampling no material.
-	missing := texInfo.Flags&bsp.TexMissing != 0
-	miptexIndex := int(texInfo.Miptex)
-	if miptexIndex < 0 || miptexIndex >= int(textureCount) || !worldTextureEntryLoaded(tree, miptexIndex) {
-		missing = true
-	}
-	if !missing {
-		return 0, false
-	}
-	if texInfo.Flags&bsp.TexSpecial != 0 {
-		return textureCount + 1, true
-	}
-	return textureCount, true
-}
-
-func worldTextureCount(tree *bsp.Tree) (int32, bool) {
-	if tree == nil || len(tree.TextureData) < 4 {
-		return 0, false
-	}
-	count := int32(binary.LittleEndian.Uint32(tree.TextureData[:4]))
-	if count < 0 || len(tree.TextureData) < 4+int(count)*4 {
-		return 0, false
-	}
-	return count, true
-}
-
-func worldTextureEntryLoaded(tree *bsp.Tree, textureIndex int) bool {
-	if tree == nil || textureIndex < 0 || len(tree.TextureData) < 4 {
-		return false
-	}
-	textureCount := int(int32(binary.LittleEndian.Uint32(tree.TextureData[:4])))
-	if textureIndex >= textureCount || len(tree.TextureData) < 4+textureCount*4 {
-		return false
-	}
-	offsetPos := 4 + textureIndex*4
-	offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[offsetPos : offsetPos+4])))
-	if offset <= 0 || offset >= len(tree.TextureData) {
-		return false
-	}
-	miptex, err := image.ParseMipTex(tree.TextureData[offset:])
-	return err == nil && miptex.Width > 0 && miptex.Height > 0
-}
-
-// worldFaceFlags exposes per-face material/render flags (sky, liquid, turbulent, etc.) that drive pass routing and shader behavior.
+// worldFaceFlags exposes per-face material/render flags (sky, liquid, turbulent,
+// etc.) that drive pass routing and shader behavior. Lives in world/texture.go.
 func worldFaceFlags(textureMeta []worldTextureMeta, tree *bsp.Tree, face *bsp.TreeFace) int32 {
-	texInfo := worldFaceTexInfo(tree, face)
-	if texInfo == nil {
-		return 0
+	if len(textureMeta) == 0 {
+		return worldimpl.FaceFlags(nil, tree, face)
 	}
-	textureType := classifyWorldTextureName("")
-	texinfoFlags := texInfo.Flags
-	if _, missing := worldMissingTextureFallbackIndex(tree, texInfo); missing {
-		texinfoFlags |= bsp.TexMissing
-	} else if int(texInfo.Miptex) >= 0 && int(texInfo.Miptex) < len(textureMeta) {
-		textureType = textureMeta[texInfo.Miptex].Type
+	meta := make([]worldimpl.TextureMeta, len(textureMeta))
+	for i, m := range textureMeta {
+		meta[i] = worldimpl.TextureMeta{Width: m.Width, Height: m.Height, Name: m.Name, Type: m.Type}
 	}
-	return deriveWorldFaceFlags(textureType, texinfoFlags)
+	return worldimpl.FaceFlags(meta, tree, face)
 }
 
-// worldTextureDimensions fetches source texture dimensions for texel-density and UV conversion computations.
+// worldTextureDimensions fetches source texture dimensions for texel-density
+// and UV conversion computations. Lives in world/texture.go.
 func worldTextureDimensions(tree *bsp.Tree, texInfo *bsp.Texinfo) (float32, float32) {
-	textureWidth := float32(1)
-	textureHeight := float32(1)
-	if tree == nil || texInfo == nil || texInfo.Miptex < 0 || len(tree.TextureData) < 4 {
-		return textureWidth, textureHeight
-	}
-
-	textureCount := int(int32(binary.LittleEndian.Uint32(tree.TextureData[:4])))
-	miptexIndex := int(texInfo.Miptex)
-	if miptexIndex < 0 || miptexIndex >= textureCount {
-		return textureWidth, textureHeight
-	}
-	offsetTableEnd := 4 + textureCount*4
-	if len(tree.TextureData) < offsetTableEnd {
-		return textureWidth, textureHeight
-	}
-
-	offsetPos := 4 + miptexIndex*4
-	offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[offsetPos : offsetPos+4])))
-	if offset <= 0 || offset >= len(tree.TextureData) {
-		return textureWidth, textureHeight
-	}
-
-	miptex, err := image.ParseMipTex(tree.TextureData[offset:])
-	if err != nil {
-		return textureWidth, textureHeight
-	}
-
-	if miptex.Width > 0 {
-		textureWidth = float32(miptex.Width)
-	}
-	if miptex.Height > 0 {
-		textureHeight = float32(miptex.Height)
-	}
-	return textureWidth, textureHeight
+	return worldimpl.TextureDimensions(tree, texInfo)
 }
 
 func worldFaceCenter(vertices []WorldVertex) [3]float32 {
@@ -752,8 +652,6 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bs
 }
 
 func worldTexCoordDouble(position [3]float32, vec [4]float32) float64 {
-	return float64(position[0])*float64(vec[0]) +
-		float64(position[1])*float64(vec[1]) +
-		float64(position[2])*float64(vec[2]) +
-		float64(vec[3])
+	return worldimpl.TexCoordDouble(position, vec)
 }
+

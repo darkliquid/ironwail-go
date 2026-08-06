@@ -5,9 +5,13 @@ subpackage_migration_plan, deep_subpackage_decomposition_plan,
 architectural_decomposition_plan, aggressive_subpackage_plan) and consolidates
 `refactor_plan_v2.md`'s completed work into a single forward-looking plan.
 
-**Status: 2026-08-05.** The server's largest coupling points are extracted; the
-game and renderer roots retain their facade/orchestration layers. This document
-is the checklist for finishing the job.
+**Status: 2026-08-06.** Execution-order items 2-6 and 9 are complete (see §9):
+renderer resource creation / frame-pass leaf sweeps, game CSQC image helpers,
+game camera viewcalc, the server clientdata encoder, and the overlay-math
+sweep are extracted behind seams. server_qc_sync no-op pruning remains
+deferred as optional polish. The game and renderer roots retain their
+facade/orchestration layers. This document is the checklist for finishing the
+job.
 
 ---
 
@@ -242,3 +246,40 @@ package plus subpackages, not zero.
 5. **Parity regression** — every deleted root method needs a live delegator
    producing identical behavior. The integration tests are the oracle; never
    delete a root copy before the delegator is wired and green.
+
+## 9. Completed (2026-08-06)
+
+| Item | Work | Result |
+| :--- | :--- | :--- |
+| 1 | Server 3.5 no-op pruning | **Deferred** — `syncEdictToQCVM`/`syncEdictFromQCVM` no-ops have ~70 call sites (most in tests documenting intent) for ~40-line gain. Not worth the churn. |
+| 2 | Renderer 5.2 | Pure buffer/texture/sampler creation moved to `world/gogpu/resources.go` (`CreateWorldVertexBuffer`, `CreateWorldIndexBuffer`, `CreateWorldSolidTexture[Array]`, `CreateWorldWhiteTexture`, three sampler creators, `WriteTextureChunked`, `WorldLightmapFallbackView`). Root keeps 1:1 delegators; added `resources_test.go`. Root reduction: ~930 → 596 lines. |
+| 3 | Game 4.1 | Pure CSQC image/rect helpers moved to new `game/csqc` package (`NearestPaletteIndex`, `ClipDrawRect`, `SubPicFromNormalizedRect`, `ScaleQPic`, `PreparePic`). Root keeps delegators for the ones with live call sites; dead ones deleted. Added `csqc_test.go`. Root reduction: 515 → 365 lines. |
+| 4 | Game 4.3 | Cvar-only viewcalc moved to `game/camera` (`CalcBob`, `CalcRoll`, `AddIdle`, `ApplyViewmodelQuakeFudge`) behind a new local `CVarReader` seam (implemented by `*cvar.CVarSystem`). Stateful `viewCalcGunAngle`/`viewApplyDamageKick`/`viewStairSmoothOffset` stay in root (reference `viewCalcState` with `*cl.Client` latch). Added `viewcalc_test.go`. Root reduction: 396 → 258 lines. |
+| 5 | Server 3.1 | `WriteClientDataToMessage` bit-packing moved to `net.WriteClientData` (`net/clientdata.go`) behind `ClientDataDeps{Handle, Precacher, Logger, SetIdealPitch, EdictNum, NumForEdict, Protocol, StandardQuakeWeaponEncoding, Flags}` seams. Added `clientdata_test.go` with a mock `ServerHandle`. Root reduction: 704 → 482 lines. |
+
+Net effect: ~626 root lines relocated into subpackages; all parity/integration
+tests run through the delegators unchanged; `go build ./...` + `go test ./...`
+green except the two pre-existing failures (`TestDemoStateParity` missing
+`progs.dat`, `TestProjectFilesUnderLineCeiling` quakego module).
+
+Follow-up sweep (2026-08-06, continuation):
+- Renderer 5.3 alias packing: `AppendAliasSceneUniformBytes`, `AliasVertexBytes[Into]`,
+  `AppendAliasVertexBytes` → `world/gogpu/aliasbytes.go` (+ `PutFloat32s`, stride/align
+  consts). Root `renderer_gogpu_world_alias.go` keeps delegators; dropped the duplicate
+  48-byte packer const/comment from `world_pipeline.go`.
+- Renderer 5.3 vertex packing: `AppendVertexBytes`/`AppendIndexBytes` → `world/gogpu/buffer.go`;
+  root `appendGoGPUWorld[Vertex|Index]Bytes` delegate; removed root-only `putGoGPUFloat32Slice`
+  and `goGPUWorldVertexStrideBytes`.
+- Renderer 5.3 BSP texture-table helpers: `FaceTexInfo`, `TextureCount`, `TextureEntryLoaded`,
+  `MissingTextureFallbackIndex`, `TextureDimensions`, `FaceTextureIndex`, `FaceFlags`,
+  `TexCoordDouble` → `world/texture.go`. Root `world_geometry.go` delegates (unused delegators
+  dropped). Added `texture_helpers_test.go`.
+- Game 4.2 overlay math: `ClampF64`, `DemoName`, `FormatDemoBaseSpeed` → `game/ui` (+ tests);
+  root `game_runtime_overlay.go` delegates.
+- Server 3.4 (runClient\*QC helpers) and Renderer 5.1 (frame pass *encoders*, beyond the
+  already-extracted `render_pass_parity.go` decision layer) remain deferred: the QC helpers
+  are thin `*Server` glue with no clean seam, and the frame pass encoders are `DrawContext`/
+  HAL orchestration.
+
+Remaining (value-ordered): Renderer 5.5 struct-field grouping, then optional 9 (QC-helper
+sweeps). Leave-in-root items (3.2, 4.4/4.5, 5.4) stand as recommended.

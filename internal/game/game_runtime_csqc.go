@@ -2,11 +2,12 @@ package game
 
 import (
 	"log/slog"
-	"math"
 
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+
+	csqcimpl "github.com/darkliquid/ironwail-go/internal/game/csqc"
 )
 
 type csqcClipRect struct {
@@ -51,129 +52,17 @@ func (g *Game) cacheCSQCPic(name string, flags uint32) *qimage.QPic {
 }
 
 func (g *Game) nearestPaletteIndex(r, G, b float32, palette []byte) byte {
-	if len(palette) < 3 {
-		return 0
-	}
-
-	targetR := int(g.clampUnitFloat32(r)*255 + 0.5)
-	targetG := int(g.clampUnitFloat32(G)*255 + 0.5)
-	targetB := int(g.clampUnitFloat32(b)*255 + 0.5)
-
-	bestIdx := 0
-	bestDist := math.MaxInt
-	for i := 0; i+2 < len(palette); i += 3 {
-		dr := targetR - int(palette[i])
-		dg := targetG - int(palette[i+1])
-		db := targetB - int(palette[i+2])
-		dist := dr*dr + dg*dg + db*db
-		if dist < bestDist {
-			bestDist = dist
-			bestIdx = i / 3
-		}
-	}
-
-	return byte(bestIdx)
+	return csqcimpl.NearestPaletteIndex(r, G, b, palette)
 }
 
 func (g *Game) clipCSQCDrawRect(clip csqcClipRect, x, y, width, height float32) (drawX, drawY, drawW, drawH, srcX, srcY, srcW, srcH float32, ok bool) {
-	if width <= 0 || height <= 0 {
-		return 0, 0, 0, 0, 0, 0, 0, 0, false
-	}
-
-	drawX, drawY, drawW, drawH = x, y, width, height
-	srcX, srcY, srcW, srcH = 0, 0, 1, 1
-	if !clip.enabled {
-		return drawX, drawY, drawW, drawH, srcX, srcY, srcW, srcH, true
-	}
-
-	left := max(x, clip.x)
-	top := max(y, clip.y)
-	right := min(x+width, clip.x+clip.width)
-	bottom := min(y+height, clip.y+clip.height)
-	if right <= left || bottom <= top {
-		return 0, 0, 0, 0, 0, 0, 0, 0, false
-	}
-
-	drawX = left
-	drawY = top
-	drawW = right - left
-	drawH = bottom - top
-	srcX = (left - x) / width
-	srcY = (top - y) / height
-	srcW = drawW / width
-	srcH = drawH / height
-	return drawX, drawY, drawW, drawH, srcX, srcY, srcW, srcH, true
+	return csqcimpl.ClipDrawRect(csqcimpl.ClipRect{Enabled: clip.enabled, X: clip.x, Y: clip.y, Width: clip.width, Height: clip.height}, x, y, width, height)
 }
 
-func (g *Game) subPicFromNormalizedRect(pic *qimage.QPic, srcX, srcY, srcW, srcH float32) *qimage.QPic {
-	if pic == nil || pic.Width == 0 || pic.Height == 0 {
-		return nil
-	}
 
-	startX := g.clampUnitFloat32(srcX)
-	startY := g.clampUnitFloat32(srcY)
-	endX := g.clampUnitFloat32(srcX + srcW)
-	endY := g.clampUnitFloat32(srcY + srcH)
-	if endX <= startX || endY <= startY {
-		return &qimage.QPic{}
-	}
-
-	picWidth := float64(pic.Width)
-	picHeight := float64(pic.Height)
-	x1 := int(math.Floor(float64(startX) * picWidth))
-	y1 := int(math.Floor(float64(startY) * picHeight))
-	x2 := int(math.Ceil(float64(endX) * picWidth))
-	y2 := int(math.Ceil(float64(endY) * picHeight))
-	return pic.SubPic(x1, y1, x2-x1, y2-y1)
-}
-
-func (g *Game) scaleQPic(pic *qimage.QPic, width, height int) *qimage.QPic {
-	if pic == nil || width <= 0 || height <= 0 || pic.Width == 0 || pic.Height == 0 {
-		return nil
-	}
-	if int(pic.Width) == width && int(pic.Height) == height {
-		return pic
-	}
-
-	srcW := int(pic.Width)
-	srcH := int(pic.Height)
-	scaled := &qimage.QPic{
-		Width:  uint32(width),
-		Height: uint32(height),
-		Pixels: make([]byte, width*height),
-	}
-	for y := range height {
-		srcY := y * srcH / height
-		for x := range width {
-			srcX := x * srcW / width
-			scaled.Pixels[y*width+x] = pic.Pixels[srcY*srcW+srcX]
-		}
-	}
-	return scaled
-}
 
 func (g *Game) prepareCSQCPic(pic *qimage.QPic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH float32, clip csqcClipRect) (int, int, *qimage.QPic, bool) {
-	drawX, drawY, drawW, drawH, clipSrcX, clipSrcY, clipSrcW, clipSrcH, ok := g.clipCSQCDrawRect(clip, posX, posY, sizeX, sizeY)
-	if !ok {
-		return 0, 0, nil, false
-	}
-
-	srcX += srcW * clipSrcX
-	srcY += srcH * clipSrcY
-	srcW *= clipSrcW
-	srcH *= clipSrcH
-
-	subPic := g.subPicFromNormalizedRect(pic, srcX, srcY, srcW, srcH)
-	if subPic == nil || subPic.Width == 0 || subPic.Height == 0 {
-		return 0, 0, nil, false
-	}
-
-	drawPic := g.scaleQPic(subPic, int(drawW), int(drawH))
-	if drawPic == nil || drawPic.Width == 0 || drawPic.Height == 0 {
-		return 0, 0, nil, false
-	}
-
-	return int(drawX), int(drawY), drawPic, true
+	return csqcimpl.PreparePic(pic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH, csqcimpl.ClipRect{Enabled: clip.enabled, X: clip.x, Y: clip.y, Width: clip.width, Height: clip.height})
 }
 
 func (g *Game) getCSQCCharPic(char int) *qimage.QPic {

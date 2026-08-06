@@ -46,6 +46,44 @@ func IndexBytes(indices []uint32) []byte {
 	return data
 }
 
+// AppendVertexBytes appends brush-entity vertices onto dst in the shared
+// 48-byte vertex layout, growing dst as needed. This is one of four
+// vertex-packing functions that must all agree on the byte layout — see
+// docs/VERTEX_LAYOUT.md.
+func AppendVertexBytes(dst []byte, vertices []worldimpl.WorldVertex) []byte {
+	if len(vertices) == 0 {
+		return dst
+	}
+	start := len(dst)
+	dst = append(dst, make([]byte, len(vertices)*worldVertexStrideBytes)...)
+	write := start
+	for _, vertex := range vertices {
+		putFloat32Slice(dst[write:write+12], vertex.Position[:])
+		putFloat32Slice(dst[write+12:write+20], vertex.TexCoord[:])
+		putFloat32Slice(dst[write+20:write+28], vertex.LightmapCoord[:])
+		putFloat32Slice(dst[write+28:write+40], vertex.Normal[:])
+		putFloat32Slice(dst[write+40:write+44], []float32{vertex.LightmapLayer})
+		binary.LittleEndian.PutUint32(dst[write+44:write+48], vertex.MaterialID)
+		write += worldVertexStrideBytes
+	}
+	return dst
+}
+
+// AppendIndexBytes appends brush indices onto dst as little-endian uint32s.
+func AppendIndexBytes(dst []byte, indices []uint32) []byte {
+	if len(indices) == 0 {
+		return dst
+	}
+	start := len(dst)
+	dst = append(dst, make([]byte, len(indices)*4)...)
+	write := start
+	for _, index := range indices {
+		binary.LittleEndian.PutUint32(dst[write:write+4], index)
+		write += 4
+	}
+	return dst
+}
+
 // CreateBrushBuffer allocates a GoGPU buffer suitable for queued brush uploads.
 func CreateBrushBuffer(device *wgpu.Device, label string, usage gputypes.BufferUsage, data []byte) (*wgpu.Buffer, error) {
 	if device == nil || len(data) == 0 {

@@ -1,8 +1,6 @@
 package renderer
 
 import (
-	"encoding/binary"
-	"math"
 	"sync"
 
 	"github.com/darkliquid/ironwail-go/internal/model"
@@ -82,18 +80,6 @@ var gogpuBrushPrepScratchPool = sync.Pool{
 	},
 }
 
-// goGPUWorldVertexStrideBytes is the number of bytes between the start of one
-// vertex and the start of the next in the flat byte buffer uploaded to the GPU.
-//
-// This MUST match:
-//   - unsafe.Sizeof(WorldVertex{}) in world/types.go (currently 48)
-//   - ArrayStride in every pipeline's VertexBufferLayout (currently 48)
-//
-// If this is too small, the GPU reads past the end of each vertex into the
-// next vertex's data, causing materialID and lightmapLayer to contain garbage
-// — which produces scrambled textures and "shadow geometry" around moving
-// brushes (doors, platforms, triggers). See docs/VERTEX_LAYOUT.md.
-const goGPUWorldVertexStrideBytes = 12 * 4 // 12 float32-sized slots = 48 bytes
 
 func shouldDrawGoGPUOpaqueBrushFace(face WorldFace, entityAlpha float32) bool {
 	return isFullyOpaqueAlpha(clamp01(entityAlpha)) && shouldDrawGoGPUOpaqueWorldFace(face)
@@ -138,52 +124,14 @@ func classifyGoGPUBrushEntityFace(face WorldFace, entityAlpha float32) worldgogp
 }
 
 // appendGoGPUWorldVertexBytes packs brush-entity vertices into a flat byte
-// array for GPU upload. This is one of four vertex-packing functions that must
-// all agree on the byte layout — see docs/VERTEX_LAYOUT.md.
-//
-// Every field must be written at the correct offset within each 48-byte vertex.
-// Missing fields cause the GPU to read uninitialized (zero) bytes, which makes
-// materialID default to 0 (wrong texture) and lightmapLayer default to 0
-// (wrong lightmap page). A stride that's too small causes the GPU to read into
-// the next vertex's data, producing the classic "shadow geometry" symptom
-// around moving brushes.
+// array for GPU upload — see docs/VERTEX_LAYOUT.md. The packing lives in
+// world/gogpu (AppendVertexBytes); this delegator preserves call sites.
 func appendGoGPUWorldVertexBytes(dst []byte, vertices []WorldVertex) []byte {
-	if len(vertices) == 0 {
-		return dst
-	}
-	start := len(dst)
-	dst = append(dst, make([]byte, len(vertices)*goGPUWorldVertexStrideBytes)...)
-	write := start
-	for _, vertex := range vertices {
-		putGoGPUFloat32Slice(dst[write:write+12], vertex.Position[:])
-		putGoGPUFloat32Slice(dst[write+12:write+20], vertex.TexCoord[:])
-		putGoGPUFloat32Slice(dst[write+20:write+28], vertex.LightmapCoord[:])
-		putGoGPUFloat32Slice(dst[write+28:write+40], vertex.Normal[:])
-		putGoGPUFloat32Slice(dst[write+40:write+44], []float32{vertex.LightmapLayer})
-		binary.LittleEndian.PutUint32(dst[write+44:write+48], vertex.MaterialID)
-		write += goGPUWorldVertexStrideBytes
-	}
-	return dst
+	return worldgogpu.AppendVertexBytes(dst, vertices)
 }
 
 func appendGoGPUWorldIndexBytes(dst []byte, indices []uint32) []byte {
-	if len(indices) == 0 {
-		return dst
-	}
-	start := len(dst)
-	dst = append(dst, make([]byte, len(indices)*4)...)
-	write := start
-	for _, index := range indices {
-		binary.LittleEndian.PutUint32(dst[write:write+4], index)
-		write += 4
-	}
-	return dst
-}
-
-func putGoGPUFloat32Slice(dst []byte, values []float32) {
-	for i, value := range values {
-		binary.LittleEndian.PutUint32(dst[i*4:(i+1)*4], math.Float32bits(value))
-	}
+	return worldgogpu.AppendIndexBytes(dst, indices)
 }
 
 func buildGoGPUBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, includeFace func(WorldFace, float32) bool) *gogpuOpaqueBrushEntityDraw {

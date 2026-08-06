@@ -1,6 +1,11 @@
 package ui
 
 import (
+	"fmt"
+	"math"
+	"path/filepath"
+	"strings"
+
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
@@ -100,4 +105,38 @@ func StepConsoleSlide(currentFraction float32, speed float32, frameTime float64,
 		currentFraction = 1
 	}
 	return currentFraction, animating
+}
+
+// ClampF64 clamps v into [min, max].
+func ClampF64(v, min, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
+// DemoName strips the directory and extension from a demo path, truncating
+// the base name to 30 characters for display.
+func DemoName(name string) string {
+	base := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
+	if len(base) > 30 {
+		base = base[:30]
+	}
+	return base
+}
+
+// FormatDemoBaseSpeed renders a demo playback speed multiplier for display:
+// "2x" for >=1x, "1/2x" for fractions, "" for zero.
+func FormatDemoBaseSpeed(speed float32) string {
+	if speed == 0 {
+		return ""
+	}
+	absSpeed := math.Abs(float64(speed))
+	if absSpeed >= 1 {
+		return fmt.Sprintf("%gx", absSpeed)
+	}
+	return fmt.Sprintf("1/%gx", 1/absSpeed)
 }

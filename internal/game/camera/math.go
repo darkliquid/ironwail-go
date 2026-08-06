@@ -6,8 +6,162 @@ package camera
 import (
 	"math"
 
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
+
+// CVarReader abstracts the cvar lookups the view-calc helpers perform.
+// Implemented by *cvar.CVarSystem; defined here so camera stays decoupled.
+type CVarReader interface {
+	// Get returns the cvar, or nil if unregistered.
+	Get(name string) *cvar.CVar
+}
+
+// CalcBob returns the view bob offset for the current frame, matching
+// C Ironwail V_CalcBob.  The result is in world units and is clamped to
+// [-7, 4].
+//
+// Parameters:
+//   - cv:       cvar reader (cl_bobcycle, cl_bobup, cl_bob)
+//   - clientTime: cl.time (seconds)
+//   - velocity:   XY components of the player's velocity
+func CalcBob(cv CVarReader, clientTime float64, velocity [3]float32) float32 {
+	bobcycleCv := cv.Get("cl_bobcycle")
+	if bobcycleCv == nil {
+		return 0
+	}
+	bobcycle := float32(bobcycleCv.Float)
+	if bobcycle == 0 {
+		return 0
+	}
+
+	bobupCv := cv.Get("cl_bobup")
+	bobCv := cv.Get("cl_bob")
+	if bobupCv == nil || bobCv == nil {
+		return 0
+	}
+
+	// Compute where we are inside the current bob cycle [0, 1).
+	cycle := float32(clientTime) - float32(int(clientTime/float64(bobcycle)))*bobcycle
+	cycle /= bobcycle
+
+	bobup := float32(bobupCv.Float)
+	var radians float32
+	if cycle < bobup {
+		radians = math.Pi * cycle / bobup
+	} else {
+		radians = math.Pi + math.Pi*(cycle-bobup)/(1.0-bobup)
+	}
+
+	// Horizontal speed scaled by cl_bob.
+	speed := math.Sqrt(float64(velocity[0]*velocity[0] + velocity[1]*velocity[1]))
+	bob := float32(speed) * float32(bobCv.Float)
+	bob = bob*0.3 + bob*0.7*float32(math.Sin(float64(radians)))
+
+	if bob > 4 {
+		bob = 4
+	} else if bob < -7 {
+		bob = -7
+	}
+	return bob
+}
+
+// CalcRoll returns the camera roll angle (in degrees) caused by lateral
+// strafing velocity, matching C Ironwail V_CalcRoll / CalcRoll.
+//
+// Parameters:
+//   - cv:       cvar reader (cl_rollangle, cl_rollspeed)
+//   - angles:   player/camera Euler angles (pitch, yaw, roll)
+//   - velocity: player velocity
+func CalcRoll(cv CVarReader, angles, velocity [3]float32) float32 {
+	rollAngleCv := cv.Get("cl_rollangle")
+	rollSpeedCv := cv.Get("cl_rollspeed")
+	if rollAngleCv == nil || rollSpeedCv == nil {
+		return 0
+	}
+
+	_, right, _ := AngleVectors(angles)
+	side := velocity[0]*right[0] + velocity[1]*right[1] + velocity[2]*right[2]
+
+	sign := float32(1)
+	if side < 0 {
+		sign = -1
+		side = -side
+	}
+
+	rollAngle := float32(rollAngleCv.Float)
+	rollSpeed := float32(rollSpeedCv.Float)
+
+	if rollSpeed == 0 {
+		return 0
+	}
+	if side < rollSpeed {
+		side = side * rollAngle / rollSpeed
+	} else {
+		side = rollAngle
+	}
+	return side * sign
+}
+
+// AddIdle adds idle sway to camera angles, matching C Ironwail V_AddIdle.
+func AddIdle(cv CVarReader, angles [3]float32, clientTime float64) [3]float32 {
+	cvarV := cv.Get("v_idlescale")
+	if cvarV == nil {
+		return angles
+	}
+	idleScale := float32(cvarV.Float)
+	if idleScale == 0 {
+		return angles
+	}
+
+	irollCycle := cv.Get("v_iroll_cycle")
+	irollLevel := cv.Get("v_iroll_level")
+	ipitchCycle := cv.Get("v_ipitch_cycle")
+	ipitchLevel := cv.Get("v_ipitch_level")
+	iyawCycle := cv.Get("v_iyaw_cycle")
+	iyawLevel := cv.Get("v_iyaw_level")
+	if irollCycle == nil || irollLevel == nil || ipitchCycle == nil ||
+		ipitchLevel == nil || iyawCycle == nil || iyawLevel == nil {
+		return angles
+	}
+
+	t := clientTime
+	const (
+		rollIdx  = 2
+		pitchIdx = 0
+		yawIdx   = 1
+	)
+	angles[rollIdx] += idleScale *
+		float32(math.Sin(t*irollCycle.Float)) *
+		float32(irollLevel.Float)
+	angles[pitchIdx] += idleScale *
+		float32(math.Sin(t*ipitchCycle.Float)) *
+		float32(ipitchLevel.Float)
+	angles[yawIdx] += idleScale *
+		float32(math.Sin(t*iyawCycle.Float)) *
+		float32(iyawLevel.Float)
+	return angles
+}
+
+// ApplyViewmodelQuakeFudge applies the r_viewmodel_quake origin fudge
+// that nudges the weapon origin based on scr_viewsize, matching C Ironwail.
+func ApplyViewmodelQuakeFudge(cv CVarReader, origin [3]float32, scrViewSize float64) [3]float32 {
+	cvarV := cv.Get("r_viewmodel_quake")
+	if cvarV == nil || cvarV.Int == 0 {
+		return origin
+	}
+	switch int(scrViewSize) {
+	case 110:
+		origin[2] += 1
+	case 100:
+		origin[2] += 2
+	case 90:
+		origin[2] += 1
+	case 80:
+		origin[2] += 0.5
+	}
+	return origin
+}
 
 // ChaseTraceFunc traces a segment and returns the clipped end point, used by
 // chase-camera placement against world geometry.

@@ -171,3 +171,154 @@ func BuildMaterialTextureRGBA(pixels, palette []byte, textureType model.TextureT
 		HasFullbright:  hasSeparateFullbright,
 	}
 }
+
+// TexCoordDouble projects a world position onto one texinfo axis vector
+// (position·vec[0..2] + vec[3]) in float64 precision, mirroring C Ironwail's
+// double-precision texture coordinate math.
+func TexCoordDouble(position [3]float32, vec [4]float32) float64 {
+	return float64(position[0])*float64(vec[0]) +
+		float64(position[1])*float64(vec[1]) +
+		float64(position[2])*float64(vec[2]) +
+		float64(vec[3])
+}
+
+// FaceTexInfo resolves the texture-info record for a BSP face, which maps
+// geometric vertices into texture/lightmap UV space.
+func FaceTexInfo(tree *bsp.Tree, face *bsp.TreeFace) *bsp.Texinfo {
+	if tree == nil || face == nil {
+		return nil
+	}
+	if int(face.Texinfo) < 0 || int(face.Texinfo) >= len(tree.Texinfo) {
+		return nil
+	}
+	return &tree.Texinfo[face.Texinfo]
+}
+
+// TextureCount reads the miptex lump's texture count (0, false if malformed).
+func TextureCount(tree *bsp.Tree) (int32, bool) {
+	if tree == nil || len(tree.TextureData) < 4 {
+		return 0, false
+	}
+	count := int32(binary.LittleEndian.Uint32(tree.TextureData[:4]))
+	if count < 0 || len(tree.TextureData) < 4+int(count)*4 {
+		return 0, false
+	}
+	return count, true
+}
+
+// TextureEntryLoaded reports whether the miptex entry at textureIndex has a
+// valid parsed miptex with positive dimensions.
+func TextureEntryLoaded(tree *bsp.Tree, textureIndex int) bool {
+	if tree == nil || textureIndex < 0 || len(tree.TextureData) < 4 {
+		return false
+	}
+	textureCount := int(int32(binary.LittleEndian.Uint32(tree.TextureData[:4])))
+	if textureIndex >= textureCount || len(tree.TextureData) < 4+textureCount*4 {
+		return false
+	}
+	offsetPos := 4 + textureIndex*4
+	offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[offsetPos : offsetPos+4])))
+	if offset <= 0 || offset >= len(tree.TextureData) {
+		return false
+	}
+	miptex, err := image.ParseMipTex(tree.TextureData[offset:])
+	return err == nil && miptex.Width > 0 && miptex.Height > 0
+}
+
+// MissingTextureFallbackIndex returns the fallback atlas slot for a texinfo
+// whose texture is missing (the two dummy slots appended by C Ironwail), plus
+// whether a fallback is needed.
+func MissingTextureFallbackIndex(tree *bsp.Tree, texInfo *bsp.Texinfo) (int32, bool) {
+	textureCount, ok := TextureCount(tree)
+	if !ok {
+		return 0, false
+	}
+	// C Ironwail appends two dummy texture slots and remaps missing texinfos to
+	// them so faces with offset -1 still draw instead of sampling no material.
+	missing := texInfo.Flags&bsp.TexMissing != 0
+	miptexIndex := int(texInfo.Miptex)
+	if miptexIndex < 0 || miptexIndex >= int(textureCount) || !TextureEntryLoaded(tree, miptexIndex) {
+		missing = true
+	}
+	if !missing {
+		return 0, false
+	}
+	if texInfo.Flags&bsp.TexSpecial != 0 {
+		return textureCount + 1, true
+	}
+	return textureCount, true
+}
+
+// TextureDimensions fetches source texture dimensions for texel-density and
+// UV conversion computations (1x1 defaults when unavailable).
+func TextureDimensions(tree *bsp.Tree, texInfo *bsp.Texinfo) (float32, float32) {
+	textureWidth := float32(1)
+	textureHeight := float32(1)
+	if tree == nil || texInfo == nil || texInfo.Miptex < 0 || len(tree.TextureData) < 4 {
+		return textureWidth, textureHeight
+	}
+
+	textureCount := int(int32(binary.LittleEndian.Uint32(tree.TextureData[:4])))
+	miptexIndex := int(texInfo.Miptex)
+	if miptexIndex < 0 || miptexIndex >= textureCount {
+		return textureWidth, textureHeight
+	}
+	offsetTableEnd := 4 + textureCount*4
+	if len(tree.TextureData) < offsetTableEnd {
+		return textureWidth, textureHeight
+	}
+
+	offsetPos := 4 + miptexIndex*4
+	offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[offsetPos : offsetPos+4])))
+	if offset <= 0 || offset >= len(tree.TextureData) {
+		return textureWidth, textureHeight
+	}
+
+	miptex, err := image.ParseMipTex(tree.TextureData[offset:])
+	if err != nil {
+		return textureWidth, textureHeight
+	}
+
+	if miptex.Width > 0 {
+		textureWidth = float32(miptex.Width)
+	}
+	if miptex.Height > 0 {
+		textureHeight = float32(miptex.Height)
+	}
+	return textureWidth, textureHeight
+}
+
+// FaceTextureIndex resolves the diffuse texture atlas slot for a face so
+// world pass shaders can sample the correct base map.
+func FaceTextureIndex(tree *bsp.Tree, face *bsp.TreeFace) int32 {
+	texInfo := FaceTexInfo(tree, face)
+	if texInfo == nil {
+		return -1
+	}
+	if remapped, ok := MissingTextureFallbackIndex(tree, texInfo); ok {
+		return remapped
+	}
+	if texInfo.Miptex < 0 {
+		return -1
+	}
+	return texInfo.Miptex
+}
+
+// FaceFlags exposes per-face material/render flags (sky, liquid, turbulent,
+// etc.) that drive pass routing and shader behavior. textureMeta may be nil
+// or shorter than the texture table; missing entries fall back to the
+// classification of the name "" (unknown).
+func FaceFlags(textureMeta []TextureMeta, tree *bsp.Tree, face *bsp.TreeFace) int32 {
+	texInfo := FaceTexInfo(tree, face)
+	if texInfo == nil {
+		return 0
+	}
+	textureType := ClassifyTextureName("")
+	texinfoFlags := texInfo.Flags
+	if _, missing := MissingTextureFallbackIndex(tree, texInfo); missing {
+		texinfoFlags |= bsp.TexMissing
+	} else if int(texInfo.Miptex) >= 0 && int(texInfo.Miptex) < len(textureMeta) {
+		textureType = textureMeta[texInfo.Miptex].Type
+	}
+	return DeriveFaceFlags(textureType, texinfoFlags)
+}

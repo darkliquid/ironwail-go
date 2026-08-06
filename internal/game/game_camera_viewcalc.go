@@ -5,7 +5,6 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	cameralib "github.com/darkliquid/ironwail-go/internal/game/camera"
-	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // viewCalcState holds persistent (frame-to-frame) state for view calculations.
@@ -49,44 +48,7 @@ type runtimeOriginSelectLatch struct {
 //   - clientTime: cl.time (seconds)
 //   - velocity:   XY components of the player's velocity
 func (g *Game) viewCalcBob(clientTime float64, velocity [3]float32) float32 {
-	bobcycleCv := g.Host.CVar.Get("cl_bobcycle")
-	if bobcycleCv == nil {
-		return 0
-	}
-	bobcycle := float32(bobcycleCv.Float)
-	if bobcycle == 0 {
-		return 0
-	}
-
-	bobupCv := g.Host.CVar.Get("cl_bobup")
-	bobCv := g.Host.CVar.Get("cl_bob")
-	if bobupCv == nil || bobCv == nil {
-		return 0
-	}
-
-	// Compute where we are inside the current bob cycle [0, 1).
-	cycle := float32(clientTime) - float32(int(clientTime/float64(bobcycle)))*bobcycle
-	cycle /= bobcycle
-
-	bobup := float32(bobupCv.Float)
-	var radians float32
-	if cycle < bobup {
-		radians = math.Pi * cycle / bobup
-	} else {
-		radians = math.Pi + math.Pi*(cycle-bobup)/(1.0-bobup)
-	}
-
-	// Horizontal speed scaled by cl_bob.
-	speed := math.Sqrt(float64(velocity[0]*velocity[0] + velocity[1]*velocity[1]))
-	bob := float32(speed) * float32(bobCv.Float)
-	bob = bob*0.3 + bob*0.7*float32(math.Sin(float64(radians)))
-
-	if bob > 4 {
-		bob = 4
-	} else if bob < -7 {
-		bob = -7
-	}
-	return bob
+	return cameralib.CalcBob(g.Host.CVar, clientTime, velocity)
 }
 
 // viewCalcRoll returns the camera roll angle (in degrees) caused by lateral
@@ -96,33 +58,7 @@ func (g *Game) viewCalcBob(clientTime float64, velocity [3]float32) float32 {
 //   - angles:   player/camera Euler angles (pitch, yaw, roll)
 //   - velocity: player velocity
 func (g *Game) viewCalcRoll(angles, velocity [3]float32) float32 {
-	rollAngleCv := g.Host.CVar.Get("cl_rollangle")
-	rollSpeedCv := g.Host.CVar.Get("cl_rollspeed")
-	if rollAngleCv == nil || rollSpeedCv == nil {
-		return 0
-	}
-
-	_, right, _ := qtypes.AngleVectors(qtypes.Vec3{X: angles[0], Y: angles[1], Z: angles[2]})
-	side := velocity[0]*right.X + velocity[1]*right.Y + velocity[2]*right.Z
-
-	sign := float32(1)
-	if side < 0 {
-		sign = -1
-		side = -side
-	}
-
-	rollAngle := float32(rollAngleCv.Float)
-	rollSpeed := float32(rollSpeedCv.Float)
-
-	if rollSpeed == 0 {
-		return 0
-	}
-	if side < rollSpeed {
-		side = side * rollAngle / rollSpeed
-	} else {
-		side = rollAngle
-	}
-	return side * sign
+	return cameralib.CalcRoll(g.Host.CVar, angles, velocity)
 }
 
 // viewCalcGunAngle updates the weapon-model Euler angles to smoothly follow
@@ -209,42 +145,7 @@ func (g *Game) viewCalcGunAngle(state *viewCalcState, viewAngles [3]float32, cli
 
 // viewAddIdle adds idle sway to camera angles, matching C Ironwail V_AddIdle.
 func (g *Game) viewAddIdle(angles [3]float32, clientTime float64) [3]float32 {
-	cv := g.Host.CVar.Get("v_idlescale")
-	if cv == nil {
-		return angles
-	}
-	idleScale := float32(cv.Float)
-	if idleScale == 0 {
-		return angles
-	}
-
-	irollCycle := g.Host.CVar.Get("v_iroll_cycle")
-	irollLevel := g.Host.CVar.Get("v_iroll_level")
-	ipitchCycle := g.Host.CVar.Get("v_ipitch_cycle")
-	ipitchLevel := g.Host.CVar.Get("v_ipitch_level")
-	iyawCycle := g.Host.CVar.Get("v_iyaw_cycle")
-	iyawLevel := g.Host.CVar.Get("v_iyaw_level")
-	if irollCycle == nil || irollLevel == nil || ipitchCycle == nil ||
-		ipitchLevel == nil || iyawCycle == nil || iyawLevel == nil {
-		return angles
-	}
-
-	t := clientTime
-	const (
-		rollIdx  = 2
-		pitchIdx = 0
-		yawIdx   = 1
-	)
-	angles[rollIdx] += idleScale *
-		float32(math.Sin(t*irollCycle.Float)) *
-		float32(irollLevel.Float)
-	angles[pitchIdx] += idleScale *
-		float32(math.Sin(t*ipitchCycle.Float)) *
-		float32(ipitchLevel.Float)
-	angles[yawIdx] += idleScale *
-		float32(math.Sin(t*iyawCycle.Float)) *
-		float32(iyawLevel.Float)
-	return angles
+	return cameralib.AddIdle(g.Host.CVar, angles, clientTime)
 }
 
 // viewApplyBobToOrigin applies the view-bob offset to a weapon/view origin,
@@ -269,21 +170,7 @@ func (g *Game) viewNodeLineOffset(origin [3]float32) [3]float32 {
 // viewApplyViewmodelQuakeFudge applies the r_viewmodel_quake origin fudge
 // that nudges the weapon origin based on scr_viewsize, matching C Ironwail.
 func (g *Game) viewApplyViewmodelQuakeFudge(origin [3]float32, scrViewSize float64) [3]float32 {
-	cv := g.Host.CVar.Get("r_viewmodel_quake")
-	if cv == nil || cv.Int == 0 {
-		return origin
-	}
-	switch int(scrViewSize) {
-	case 110:
-		origin[2] += 1
-	case 100:
-		origin[2] += 2
-	case 90:
-		origin[2] += 1
-	case 80:
-		origin[2] += 0.5
-	}
-	return origin
+	return cameralib.ApplyViewmodelQuakeFudge(g.Host.CVar, origin, scrViewSize)
 }
 
 // viewApplyDamageKick applies damage-induced camera roll/pitch and decays the

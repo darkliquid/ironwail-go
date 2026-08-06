@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/game/ui"
+
 )
 
 func TestGUIDimensions(t *testing.T) {
@@ -42,5 +43,47 @@ func TestStepConsoleSlide(t *testing.T) {
 	frac, anim = ui.StepConsoleSlide(0.9, 2.0, 0.1, 1.0)
 	if frac != 1.0 || anim {
 		t.Fatalf("StepConsoleSlide finish = (%f, %v), want (1.0, false)", frac, anim)
+	}
+}
+
+func TestClampF64(t *testing.T) {
+	if got := ui.ClampF64(5, 0, 10); got != 5 {
+		t.Fatalf("ClampF64 mid = %v, want 5", got)
+	}
+	if got := ui.ClampF64(-1, 0, 10); got != 0 {
+		t.Fatalf("ClampF64 low = %v, want 0", got)
+	}
+	if got := ui.ClampF64(11, 0, 10); got != 10 {
+		t.Fatalf("ClampF64 high = %v, want 10", got)
+	}
+}
+
+func TestDemoName(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"demos/demo1", "demo1"},
+		{"demo1.dem", "demo1"},
+		{"demos/t1x", "t1x"},
+		{"demos/", "demos"},
+	}
+	for _, tc := range tests {
+		if got := ui.DemoName(tc.in); got != tc.want {
+			t.Errorf("DemoName(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+	long := ui.DemoName("demos/" + string(make([]byte, 40)))
+	if len(long) != 30 {
+		t.Fatalf("DemoName long = %d chars, want 30", len(long))
+	}
+}
+
+func TestFormatDemoBaseSpeed(t *testing.T) {
+	if got := ui.FormatDemoBaseSpeed(0); got != "" {
+		t.Fatalf("speed 0 = %q, want empty", got)
+	}
+	if got := ui.FormatDemoBaseSpeed(2); got != "2x" {
+		t.Fatalf("speed 2 = %q, want 2x", got)
+	}
+	if got := ui.FormatDemoBaseSpeed(0.5); got != "1/2x" {
+		t.Fatalf("speed 0.5 = %q, want 1/2x", got)
 	}
 }

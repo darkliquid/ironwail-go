@@ -3,12 +3,12 @@ package game
 import (
 	"fmt"
 	"math"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/game/ui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
@@ -124,13 +124,7 @@ func (g *Game) currentRuntimePixelAspect() float64 {
 }
 
 func (g *Game) clampf64(v, min, max float64) float64 {
-	if v < min {
-		return min
-	}
-	if v > max {
-		return max
-	}
-	return v
+	return ui.ClampF64(v, min, max)
 }
 
 func (g *Game) currentRuntimeViewSize() float64 {
@@ -342,22 +336,11 @@ func (g *Game) drawRuntimeTextBoxAlpha(rc renderer.RenderContext, pics picProvid
 }
 
 func (g *Game) runtimeDemoName(name string) string {
-	base := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
-	if len(base) > 30 {
-		base = base[:30]
-	}
-	return base
+	return ui.DemoName(name)
 }
 
 func (g *Game) formatRuntimeDemoBaseSpeed(speed float32) string {
-	if speed == 0 {
-		return ""
-	}
-	absSpeed := math.Abs(float64(speed))
-	if absSpeed >= 1 {
-		return fmt.Sprintf("%gx", absSpeed)
-	}
-	return fmt.Sprintf("1/%gx", 1/absSpeed)
+	return ui.FormatDemoBaseSpeed(speed)
 }
 
 func (g *Game) drawRuntimeDemoControls(rc renderer.RenderContext, pics picProvider, state TelemetryState, overlay *DemoOverlay) {
