@@ -409,7 +409,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 				totalIndices += face.NumIndices
 			}
 		}
-		slog.Info("external sky brush draw begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "draws", len(draws), "faces", totalFaces, "indices", totalIndices)
+		slog.Debug("external sky brush draw begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "draws", len(draws), "faces", totalFaces, "indices", totalIndices)
 	}
 	if useExternalSky {
 		renderPass.SetPipeline(externalSkyOverlayPipeline)
@@ -419,7 +419,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		renderPass.SetBindGroup(2, whiteTextureBindGroup, nil)
 		renderPass.SetBindGroup(3, whiteTextureBindGroup, nil)
 		if logExternalSkyDraw {
-			slog.Info("external sky brush draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+			slog.Debug("external sky brush draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 		}
 	} else {
 		renderPass.SetPipeline(skyPipeline)
@@ -500,15 +500,15 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		}
 	}
 	if logExternalSkyDraw {
-		slog.Info("external sky brush draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
-		slog.Info("external sky brush render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Debug("external sky brush draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Debug("external sky brush render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 	}
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderSkyBrushEntitiesHAL: render pass end error", "error", err)
 	}
 	if logExternalSkyDraw {
-		slog.Info("external sky brush render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
-		slog.Info("external sky brush encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Debug("external sky brush render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Debug("external sky brush encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
@@ -519,8 +519,8 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		return
 	}
 	if logExternalSkyDraw {
-		slog.Info("external sky brush encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
-		slog.Info("external sky brush queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Debug("external sky brush encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Debug("external sky brush queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 	}
 	if r.uniformOffset > passStartUniformOffset {
 		_ = queue.WriteBuffer(uniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
@@ -529,7 +529,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		slog.Warn("failed to submit brush sky commands", "error", err)
 	}
 	if logExternalSkyDraw {
-		slog.Info("external sky brush queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+		slog.Debug("external sky brush queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 		r.resources.WorldSkyExternalBrushDrawLogged = true
 	}
 	for _, buffer := range buffers {

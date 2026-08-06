@@ -19,28 +19,28 @@ func (dc *DrawContext) renderWorldSkyPass(
 	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.resources.WorldSkyExternalPipeline != nil && dc.renderer.resources.WorldSkyExternalBindGroup != nil {
 		logExternalSkyDraw := !dc.renderer.resources.WorldSkyExternalWorldDrawLogged
 		if logExternalSkyDraw {
-			slog.Info("external sky world draw begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "sky_faces", len(skyFaces))
+			slog.Debug("external sky world draw begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "sky_faces", len(skyFaces))
 		}
 		if !writeExternalSkyUniform(skyFogDensity) {
 			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
 			return 0, fmt.Errorf("failed to update sky fog uniform")
 		}
 		if logExternalSkyDraw {
-			slog.Info("external sky world draw uniform written", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "sky_fog_density", skyFogDensity, "wind_loaded", dc.renderer.resources.WorldSkyExternalWindLoaded, "wind_dist", dc.renderer.worldSkyExternalWind.Dist, "wind_period", dc.renderer.worldSkyExternalWind.Period)
+			slog.Debug("external sky world draw uniform written", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "sky_fog_density", skyFogDensity, "wind_loaded", dc.renderer.resources.WorldSkyExternalWindLoaded, "wind_dist", dc.renderer.worldSkyExternalWind.Dist, "wind_period", dc.renderer.worldSkyExternalWind.Period)
 		}
 		renderPass.SetPipeline(dc.renderer.resources.WorldSkyExternalPipeline)
 		renderPass.SetBindGroup(1, dc.renderer.resources.WorldSkyExternalBindGroup, nil)
 		renderPass.SetBindGroup(2, dc.renderer.resources.WhiteTextureBindGroup, nil)
 		renderPass.SetBindGroup(3, dc.renderer.resources.WhiteTextureBindGroup, nil)
 		if logExternalSkyDraw {
-			slog.Info("external sky world draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
+			slog.Debug("external sky world draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 		}
 		for _, face := range skyFaces {
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			skyDrawnIndices += face.NumIndices
 		}
 		if logExternalSkyDraw {
-			slog.Info("external sky world draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "drawn_indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
+			slog.Debug("external sky world draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "drawn_indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
 		}
 	} else if dc.renderer.resources.WorldSkyPipeline != nil {
 		if !writeWorldUniformWithFog(1, 0, skyFogDensity) {

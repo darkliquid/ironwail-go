@@ -19,7 +19,7 @@ func (r *Renderer) createWorldExternalSkyBindGroup(device *wgpu.Device, sampler 
 		}
 	}
 	start := time.Now()
-	slog.Info("external skybox bind group create begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
+	slog.Debug("external skybox bind group create begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 	bindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "World External Sky BG",
 		Layout: r.resources.WorldSkyExternalBindGroupLayout,
@@ -37,7 +37,7 @@ func (r *Renderer) createWorldExternalSkyBindGroup(device *wgpu.Device, sampler 
 		slog.Warn("external skybox bind group create failed", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "error", err, "elapsed_ms", elapsedMilliseconds(start))
 		return nil, err
 	}
-	slog.Info("external skybox bind group create complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "elapsed_ms", elapsedMilliseconds(start))
+	slog.Debug("external skybox bind group create complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "elapsed_ms", elapsedMilliseconds(start))
 	return bindGroup, nil
 }
 
@@ -49,7 +49,7 @@ func (r *Renderer) createWorldExternalSkyFaceTexture(device *wgpu.Device, queue 
 		return nil, nil, fmt.Errorf("invalid external sky texture size/data %dx%d (%d bytes)", width, height, len(rgba))
 	}
 	start := time.Now()
-	slog.Info("external sky texture create begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "width", width, "height", height, "rgba_bytes", len(rgba), "bytes_per_row", width*4)
+	slog.Debug("external sky texture create begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "width", width, "height", height, "rgba_bytes", len(rgba), "bytes_per_row", width*4)
 	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         label,
 		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
@@ -63,10 +63,10 @@ func (r *Renderer) createWorldExternalSkyFaceTexture(device *wgpu.Device, queue 
 		slog.Warn("external sky texture create failed", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "width", width, "height", height, "rgba_bytes", len(rgba), "error", err, "elapsed_ms", elapsedMilliseconds(start))
 		return nil, nil, fmt.Errorf("create external sky texture: %w", err)
 	}
-	slog.Info("external sky texture create complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "elapsed_ms", elapsedMilliseconds(start))
+	slog.Debug("external sky texture create complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "elapsed_ms", elapsedMilliseconds(start))
 
 	writeStart := time.Now()
-	slog.Info("external sky texture write begin via queue.WriteTexture", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "width", width, "height", height, "rgba_bytes", len(rgba))
+	slog.Debug("external sky texture write begin via queue.WriteTexture", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "width", width, "height", height, "rgba_bytes", len(rgba))
 	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 		Texture:  texture,
 		MipLevel: 0,
@@ -84,10 +84,10 @@ func (r *Renderer) createWorldExternalSkyFaceTexture(device *wgpu.Device, queue 
 		texture.Release()
 		return nil, nil, fmt.Errorf("write external sky texture: %w", err)
 	}
-	slog.Info("external sky texture write complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "elapsed_ms", elapsedMilliseconds(writeStart))
+	slog.Debug("external sky texture write complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "elapsed_ms", elapsedMilliseconds(writeStart))
 
 	viewStart := time.Now()
-	slog.Info("external sky texture view create begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label)
+	slog.Debug("external sky texture view create begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label)
 	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
 		Label:           label + " View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
@@ -103,7 +103,7 @@ func (r *Renderer) createWorldExternalSkyFaceTexture(device *wgpu.Device, queue 
 		slog.Warn("external sky texture view create failed", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "error", err, "elapsed_ms", elapsedMilliseconds(viewStart))
 		return nil, nil, fmt.Errorf("create external sky texture view: %w", err)
 	}
-	slog.Info("external sky texture view create complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "elapsed_ms", elapsedMilliseconds(viewStart))
+	slog.Debug("external sky texture view create complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName, "label", label, "elapsed_ms", elapsedMilliseconds(viewStart))
 	return texture, view, nil
 }
 

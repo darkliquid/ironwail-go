@@ -134,10 +134,10 @@ func LoadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, err
 		return faces, 0
 	}
 	start := time.Now()
-	slog.Info("external skybox load begin", "subsystem", skyboxLogSubsystem, "name", baseName)
+	slog.Debug("external skybox load begin", "subsystem", skyboxLogSubsystem, "name", baseName)
 	for i, suffix := range SkyboxFaceSuffixes {
 		paths := SkyboxFaceSearchPaths(baseName, suffix)
-		slog.Info("external skybox face search begin", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidates", strings.Join(paths, ","))
+		slog.Debug("external skybox face search begin", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidates", strings.Join(paths, ","))
 		for _, candidate := range paths {
 			candidateStart := time.Now()
 			result := loadSkyboxFileCandidateDetailed(candidate, loadFile)
@@ -146,13 +146,13 @@ func LoadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, err
 				if result.err != nil {
 					errText = result.err.Error()
 				}
-				slog.Info("external skybox candidate unavailable", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidate", candidate, "resolved_path", result.path, "bytes", len(result.data), "error", errText, "elapsed_ms", elapsedMilliseconds(candidateStart))
+				slog.Debug("external skybox candidate unavailable", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidate", candidate, "resolved_path", result.path, "bytes", len(result.data), "error", errText, "elapsed_ms", elapsedMilliseconds(candidateStart))
 				continue
 			}
-			slog.Info("external skybox candidate loaded", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidate", candidate, "resolved_path", result.path, "lowercase_fallback", result.lowercaseFallback, "bytes", len(result.data), "elapsed_ms", elapsedMilliseconds(candidateStart))
+			slog.Debug("external skybox candidate loaded", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidate", candidate, "resolved_path", result.path, "lowercase_fallback", result.lowercaseFallback, "bytes", len(result.data), "elapsed_ms", elapsedMilliseconds(candidateStart))
 
 			decodeStart := time.Now()
-			slog.Info("external skybox decode begin", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "path", result.path, "bytes", len(result.data))
+			slog.Debug("external skybox decode begin", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "path", result.path, "bytes", len(result.data))
 			rgba, width, height, err := decodeSkyboxImage(result.path, result.data)
 			if err != nil {
 				slog.Warn("external skybox decode failed", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "path", result.path, "bytes", len(result.data), "error", err, "elapsed_ms", elapsedMilliseconds(decodeStart))
@@ -166,14 +166,14 @@ func LoadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, err
 				RGBA:   rgba,
 			}
 			loaded++
-			slog.Info("external skybox face decoded", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "path", result.path, "width", width, "height", height, "rgba_bytes", len(rgba), "elapsed_ms", elapsedMilliseconds(decodeStart))
+			slog.Debug("external skybox face decoded", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "path", result.path, "width", width, "height", height, "rgba_bytes", len(rgba), "elapsed_ms", elapsedMilliseconds(decodeStart))
 			break
 		}
 		if faces[i].Path == "" {
 			slog.Warn("external skybox face missing", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidates", strings.Join(paths, ","))
 		}
 	}
-	slog.Info("external skybox load complete", "subsystem", skyboxLogSubsystem, "name", baseName, "loaded_faces", loaded, "elapsed_ms", elapsedMilliseconds(start))
+	slog.Debug("external skybox load complete", "subsystem", skyboxLogSubsystem, "name", baseName, "loaded_faces", loaded, "elapsed_ms", elapsedMilliseconds(start))
 	return faces, loaded
 }
 
@@ -188,7 +188,7 @@ func LoadExternalSkyboxWind(baseName string, loadFile func(string) ([]byte, erro
 	start := time.Now()
 	result := loadSkyboxFileCandidateDetailed(candidate, loadFile)
 	if result.err != nil || len(result.data) == 0 {
-		slog.Info("external skybox wind config unavailable", "subsystem", skyboxLogSubsystem, "name", baseName, "candidate", candidate, "resolved_path", result.path, "error", errorString(result.err), "elapsed_ms", elapsedMilliseconds(start))
+		slog.Debug("external skybox wind config unavailable", "subsystem", skyboxLogSubsystem, "name", baseName, "candidate", candidate, "resolved_path", result.path, "error", errorString(result.err), "elapsed_ms", elapsedMilliseconds(start))
 		return ExternalSkyboxWind{}, false
 	}
 	wind, ok := ParseExternalSkyboxWind(result.data)
@@ -196,7 +196,7 @@ func LoadExternalSkyboxWind(baseName string, loadFile func(string) ([]byte, erro
 		slog.Warn("external skybox wind config invalid", "subsystem", skyboxLogSubsystem, "name", baseName, "candidate", candidate, "resolved_path", result.path, "elapsed_ms", elapsedMilliseconds(start))
 		return ExternalSkyboxWind{}, false
 	}
-	slog.Info("external skybox wind config loaded", "subsystem", skyboxLogSubsystem, "name", baseName, "candidate", candidate, "resolved_path", result.path, "dist", wind.Dist, "yaw", wind.Yaw, "period", wind.Period, "pitch", wind.Pitch, "elapsed_ms", elapsedMilliseconds(start))
+	slog.Debug("external skybox wind config loaded", "subsystem", skyboxLogSubsystem, "name", baseName, "candidate", candidate, "resolved_path", result.path, "dist", wind.Dist, "yaw", wind.Yaw, "period", wind.Period, "pitch", wind.Pitch, "elapsed_ms", elapsedMilliseconds(start))
 	return wind, true
 }
 

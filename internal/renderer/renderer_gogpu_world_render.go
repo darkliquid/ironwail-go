@@ -428,18 +428,18 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		dc.renderer.resources.WorldSkyExternalBindGroup != nil &&
 		!dc.renderer.resources.WorldSkyExternalWorldDrawLogged
 	if logExternalSkySubmit {
-		slog.Info("external sky world render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
+		slog.Debug("external sky world render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderWorldInternal: render pass end error", "error", err)
 	}
 	if logExternalSkySubmit {
-		slog.Info("external sky world render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
+		slog.Debug("external sky world render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 
 	// Finish encoding and get command buffer
 	if logExternalSkySubmit {
-		slog.Info("external sky world encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
+		slog.Debug("external sky world encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
@@ -447,13 +447,13 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 	if logExternalSkySubmit {
-		slog.Info("external sky world encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
+		slog.Debug("external sky world encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 
 	// Submit to queue
 	slog.Debug("renderWorldInternal: submitting to queue")
 	if logExternalSkySubmit {
-		slog.Info("external sky world queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
+		slog.Debug("external sky world queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 	submitStart := time.Now()
 	_, err = queue.Submit(cmdBuffer)
@@ -463,7 +463,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 	if logExternalSkySubmit {
-		slog.Info("external sky world queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "submit_ms", submitMS)
+		slog.Debug("external sky world queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "submit_ms", submitMS)
 		dc.renderer.resources.WorldSkyExternalWorldDrawLogged = true
 	}
 
