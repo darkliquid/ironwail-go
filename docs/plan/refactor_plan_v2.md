@@ -592,3 +592,22 @@ resolution (single-node tree), and invalid-tree handling.
 
 Verified: full module builds; new subpackage tests + all game tests pass
 (only the pre-existing progs.dat parity failure remains).
+
+### Camera Vector Math (`game_camera*.go` → `game/camera`, DONE 2026-08-05)
+Extracted the six pure camera math helpers out of the game root into
+`game/camera/math.go`:
+
+- `AngleVectors`, `VectorAngles` (Euler conversions)
+- `ApplyBobToOrigin`, `NodeLineOffset`, `BoundOffsets` (view transforms)
+- `ChaseUpdate` + `ChaseTraceFunc` type + `ChaseCrosshairTraceDistance` const
+  (chase-camera placement)
+
+All were zero-`g.`-dependency; root keeps same-named delegators with an
+aliased `cameralib` import. The root `chaseTraceFunc` became a type alias to
+the subpackage's.
+
+Tests: `game/camera/math_test.go` covers forward/up vector angles, angle-vector
+orthonormality, bound clamping, node-line bias, and chase placement.
+
+Verified: full module builds; camera + game tests pass (only the pre-existing
+progs.dat parity failure remains).

@@ -4,6 +4,7 @@ import (
 	"math"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
+	cameralib "github.com/darkliquid/ironwail-go/internal/game/camera"
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
@@ -252,11 +253,7 @@ func (g *Game) viewAddIdle(angles [3]float32, clientTime float64) [3]float32 {
 //	view->origin[i] += forward[i]*bob*0.4
 //	view->origin[2] += bob
 func (g *Game) viewApplyBobToOrigin(origin [3]float32, forward [3]float32, bob float32) [3]float32 {
-	origin[0] += forward[0] * bob * 0.4
-	origin[1] += forward[1] * bob * 0.4
-	origin[2] += forward[2] * bob * 0.4
-	origin[2] += bob
-	return origin
+	return cameralib.ApplyBobToOrigin(origin, forward, bob)
 }
 
 // viewNodeLineOffset applies the small node-line bias added to vieworg in C
@@ -266,11 +263,7 @@ func (g *Game) viewApplyBobToOrigin(origin [3]float32, forward [3]float32, bob f
 //	r_refdef.vieworg[1] += 1.0/32
 //	r_refdef.vieworg[2] += 1.0/32
 func (g *Game) viewNodeLineOffset(origin [3]float32) [3]float32 {
-	const bias = 1.0 / 32.0
-	origin[0] += bias
-	origin[1] += bias
-	origin[2] += bias
-	return origin
+	return cameralib.NodeLineOffset(origin)
 }
 
 // viewApplyViewmodelQuakeFudge applies the r_viewmodel_quake origin fudge
@@ -325,25 +318,7 @@ func (g *Game) viewApplyDamageKick(state *viewCalcState, angles [3]float32, delt
 // -22/+30 units in Z relative to the entity origin.  Mirrors C Ironwail
 // V_BoundOffsets (view.c:665-686).
 func (g *Game) viewBoundOffsets(vieworg, entityOrigin [3]float32) [3]float32 {
-	if vieworg[0] < entityOrigin[0]-14 {
-		vieworg[0] = entityOrigin[0] - 14
-	}
-	if vieworg[0] > entityOrigin[0]+14 {
-		vieworg[0] = entityOrigin[0] + 14
-	}
-	if vieworg[1] < entityOrigin[1]-14 {
-		vieworg[1] = entityOrigin[1] - 14
-	}
-	if vieworg[1] > entityOrigin[1]+14 {
-		vieworg[1] = entityOrigin[1] + 14
-	}
-	if vieworg[2] < entityOrigin[2]-22 {
-		vieworg[2] = entityOrigin[2] - 22
-	}
-	if vieworg[2] > entityOrigin[2]+30 {
-		vieworg[2] = entityOrigin[2] + 30
-	}
-	return vieworg
+	return cameralib.BoundOffsets(vieworg, entityOrigin)
 }
 
 // viewStairSmooth computes and applies stair step smoothing offset.

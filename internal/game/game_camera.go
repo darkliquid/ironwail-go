@@ -1,9 +1,9 @@
 package game
 
 import (
+	cameralib "github.com/darkliquid/ironwail-go/internal/game/camera"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
-	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func (g *Game) runtimeViewDeltaTime() float64 {
@@ -486,14 +486,7 @@ func (g *Game) runtimeInterpolatedPunchAngles() [3]float32 {
 }
 
 func (g *Game) runtimeAngleVectors(angles [3]float32) (forward, right, up [3]float32) {
-	forwardVec, rightVec, upVec := qtypes.AngleVectors(qtypes.Vec3{
-		X: angles[0],
-		Y: angles[1],
-		Z: angles[2],
-	})
-	return [3]float32{forwardVec.X, forwardVec.Y, forwardVec.Z},
-		[3]float32{rightVec.X, rightVec.Y, rightVec.Z},
-		[3]float32{upVec.X, upVec.Y, upVec.Z}
+	return cameralib.AngleVectors(angles)
 }
 
 func (g *Game) UpdateZoom(dt float64) {
