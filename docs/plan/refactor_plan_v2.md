@@ -557,3 +557,21 @@ coverage (consuming the three leading coord floats).
 Verified: full module builds; all server + net tests pass; only the two
 pre-existing failures remain. Server root now down ~2,550 lines
 cumulatively.
+
+### Spawn Signon Writers (`user_spawn.go` → `net`, DONE 2026-08-05)
+Extracted three spawn signon message builders out of `user_spawn.go` into
+`net/encode.go`:
+
+- `WriteSpawnLightStyles` — pure (takes `[256]string`).
+- `WriteSpawnClientRoster` — takes `[]*Client` + `ServerHandle` for roster frags.
+- `WriteSpawnSetAngle` — takes `ProtocolFlags` + `ServerHandle` + a
+  `useVAngle` flag (replacing direct `LoadGame` read).
+
+Root `writeSpawnSnapshot` keeps composing them, now via one-line delegators.
+
+Tests: `net/encode_test.go` adds lightstyle-emission, roster-with-nil, and
+setangle-opcode coverage.
+
+Verified: full module builds; all server + net tests pass; only the two
+pre-existing failures remain. Server root now down ~2,640 lines
+cumulatively.

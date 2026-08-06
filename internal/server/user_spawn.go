@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	srvnet "github.com/darkliquid/ironwail-go/internal/server/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
@@ -33,41 +34,14 @@ func (s *Server) writeSpawnSnapshot(client *Client) {
 }
 
 func (s *Server) writeSpawnClientRoster(_ *Client, msg *MessageBuffer) {
-	if s.Static == nil || msg == nil {
+	if s.Static == nil {
 		return
 	}
-	for playerNum, rosterClient := range s.Static.Clients {
-		name := ""
-		frags := 0
-		color := 0
-		if rosterClient != nil {
-			name = rosterClient.Name
-			if rosterClient.Edict != nil {
-				frags = int(rosterClient.Edict.Frags(s))
-			}
-			color = rosterClient.Color
-		}
-		msg.PutByte(byte(inet.SVCUpdateName))
-		msg.PutByte(byte(playerNum))
-		msg.WriteString(name)
-		msg.PutByte(byte(inet.SVCUpdateFrags))
-		msg.PutByte(byte(playerNum))
-		msg.WriteShort(int16(frags))
-		msg.PutByte(byte(inet.SVCUpdateColors))
-		msg.PutByte(byte(playerNum))
-		msg.PutByte(byte(color))
-	}
+	srvnet.WriteSpawnClientRoster(msg, s.Static.Clients, s)
 }
 
 func (s *Server) writeSpawnLightStyles(msg *MessageBuffer) {
-	if msg == nil {
-		return
-	}
-	for style, value := range s.LightStyles {
-		msg.PutByte(byte(inet.SVCLightStyle))
-		msg.PutByte(byte(style))
-		msg.WriteString(value)
-	}
+	srvnet.WriteSpawnLightStyles(msg, s.LightStyles)
 }
 
 func (s *Server) writeSpawnGlobalStats(client *Client, msg *MessageBuffer) {
@@ -94,18 +68,7 @@ func (s *Server) writeSpawnGlobalStats(client *Client, msg *MessageBuffer) {
 }
 
 func (s *Server) writeSpawnSetAngle(client *Client, msg *MessageBuffer) {
-	if client == nil || client.Edict == nil || msg == nil {
-		return
-	}
-	msg.PutByte(byte(inet.SVCSetAngle))
-	flags := uint32(s.ProtocolFlags())
-	angles := client.Edict.Angles(s)
-	if s.LoadGame {
-		angles = client.Edict.VAngle(s)
-	}
-	msg.WriteAngle(angles[0], flags)
-	msg.WriteAngle(angles[1], flags)
-	msg.WriteAngle(0, flags)
+	srvnet.WriteSpawnSetAngle(msg, client, uint32(s.ProtocolFlags()), s, s.LoadGame)
 }
 
 func (s *Server) findLocalSpawnPoint() *Edict {

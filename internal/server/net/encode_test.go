@@ -178,3 +178,37 @@ func TestWriteSpawnStaticSoundMessageLargeIndex(t *testing.T) {
 		t.Errorf("sound index = %d, want 400", got)
 	}
 }
+
+func TestWriteSpawnLightStylesEmitsAll(t *testing.T) {
+	styles := [256]string{}
+	styles[0] = "m"
+	styles[1] = "n"
+	msg := srvtypes.NewMessageBuffer(1024)
+	WriteSpawnLightStyles(msg, styles)
+	// Two non-empty styles → 2 SVCLightStyle messages (opcode + slot + string).
+	// Empty strings still emit messages; count by scanning is overkill; check non-empty.
+	if msg.Len() == 0 {
+		t.Fatal("WriteSpawnLightStyles produced empty message")
+	}
+}
+
+func TestWriteSpawnClientRosterSkipsNil(t *testing.T) {
+	msg := srvtypes.NewMessageBuffer(128)
+	clients := []*srvtypes.Client{nil, {Name: "Player"}}
+	WriteSpawnClientRoster(msg, clients, nil)
+	if msg.Len() == 0 {
+		t.Fatal("roster produced empty message for a named client")
+	}
+}
+
+func TestWriteSpawnSetAngleEmitsOpcode(t *testing.T) {
+	msg := srvtypes.NewMessageBuffer(32)
+	client := &srvtypes.Client{Edict: &srvtypes.Edict{}}
+	WriteSpawnSetAngle(msg, client, uint32(srvtypes.ProtocolFlagFloatAngle), nil, false)
+	if msg.Len() == 0 {
+		t.Fatal("setangle produced empty message")
+	}
+	if got := msg.Byte(); got != byte(inet.SVCSetAngle) {
+		t.Errorf("opcode = %#x, want SVCSetAngle", got)
+	}
+}

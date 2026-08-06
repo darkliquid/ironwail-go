@@ -321,3 +321,60 @@ func WriteSpawnStaticSoundMessage(msg *srvtypes.MessageBuffer, snd srvtypes.Stat
 	msg.PutByte(byte(snd.Volume))
 	msg.PutByte(byte(snd.Attenuation * 64))
 }
+// WriteSpawnLightStyles emits SVCLightStyle messages for every lightstyle
+// slot (matching the C spawn signon block).
+func WriteSpawnLightStyles(msg *srvtypes.MessageBuffer, styles [256]string) {
+	if msg == nil {
+		return
+	}
+	for style, value := range styles {
+		msg.PutByte(byte(inet.SVCLightStyle))
+		msg.PutByte(byte(style))
+		msg.WriteString(value)
+	}
+}
+
+// WriteSpawnClientRoster emits SVCUpdateName/Frags/Colors for every client
+// slot so the connecting client sees the current roster.
+func WriteSpawnClientRoster(msg *srvtypes.MessageBuffer, clients []*srvtypes.Client, sh srvtypes.ServerHandle) {
+	if msg == nil {
+		return
+	}
+	for playerNum, rosterClient := range clients {
+		name := ""
+		frags := 0
+		color := 0
+		if rosterClient != nil {
+			name = rosterClient.Name
+			if rosterClient.Edict != nil {
+				frags = int(rosterClient.Edict.Frags(sh))
+			}
+			color = rosterClient.Color
+		}
+		msg.PutByte(byte(inet.SVCUpdateName))
+		msg.PutByte(byte(playerNum))
+		msg.WriteString(name)
+		msg.PutByte(byte(inet.SVCUpdateFrags))
+		msg.PutByte(byte(playerNum))
+		msg.WriteShort(int16(frags))
+		msg.PutByte(byte(inet.SVCUpdateColors))
+		msg.PutByte(byte(playerNum))
+		msg.PutByte(byte(color))
+	}
+}
+
+// WriteSpawnSetAngle emits SVCSetAngle with the client's spawn angles
+// (vangles on load-game, angles otherwise), matching the C signon block.
+func WriteSpawnSetAngle(msg *srvtypes.MessageBuffer, client *srvtypes.Client, flags uint32, sh srvtypes.ServerHandle, useVAngle bool) {
+	if client == nil || client.Edict == nil || msg == nil {
+		return
+	}
+	msg.PutByte(byte(inet.SVCSetAngle))
+	angles := client.Edict.Angles(sh)
+	if useVAngle {
+		angles = client.Edict.VAngle(sh)
+	}
+	msg.WriteAngle(angles[0], flags)
+	msg.WriteAngle(angles[1], flags)
+	msg.WriteAngle(0, flags)
+}
