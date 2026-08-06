@@ -71,18 +71,6 @@ type cvarTrue struct{}
 func (cvarTrue) Bool() bool      { return true }
 func (cvarTrue) Float32() float32 { return 0 }
 
-// mockDispatch counts movetype dispatch calls.
-type mockDispatch struct {
-	walk, toss, none, step, push, noclip int
-}
-
-func (d *mockDispatch) PhysicsPusher(ent *srvtypes.Edict) { d.push++ }
-func (d *mockDispatch) PhysicsNone(ent *srvtypes.Edict)   { d.none++ }
-func (d *mockDispatch) PhysicsNoClip(ent *srvtypes.Edict) { d.noclip++ }
-func (d *mockDispatch) PhysicsStep(ent *srvtypes.Edict)   { d.step++ }
-func (d *mockDispatch) PhysicsToss(ent *srvtypes.Edict)   { d.toss++ }
-func (d *mockDispatch) PhysicsWalk(ent *srvtypes.Edict)   { d.walk++ }
-
 func TestStepFrameDispatchesMovetypes(t *testing.T) {
 	vm := qc.NewVM()
 	vm.EdictSize = 512
@@ -92,11 +80,23 @@ func TestStepFrameDispatchesMovetypes(t *testing.T) {
 
 	walkEnt := &srvtypes.Edict{Num: 1}
 	tossEnt := &srvtypes.Edict{Num: 2}
+	noneEnt := &srvtypes.Edict{Num: 3}
 	walkEnt.SetMoveType(h, float32(srvtypes.MoveTypeWalk))
+	walkEnt.SetOrigin(h, [3]float32{0, 0, 0})
+	walkEnt.SetVelocity(h, [3]float32{0, 0, -100})
+	walkEnt.SetMins(h, [3]float32{-16, -16, -24})
+	walkEnt.SetMaxs(h, [3]float32{16, 16, 32})
 	tossEnt.SetMoveType(h, float32(srvtypes.MoveTypeToss))
+	tossEnt.SetOrigin(h, [3]float32{0, 0, 32})
+	tossEnt.SetVelocity(h, [3]float32{0, 0, 0})
+	tossEnt.SetMins(h, [3]float32{-16, -16, -24})
+	tossEnt.SetMaxs(h, [3]float32{16, 16, 32})
+	noneEnt.SetMoveType(h, float32(srvtypes.MoveTypeNone))
+	noneEnt.SetOrigin(h, [3]float32{5, 5, 5})
 
 	col := &mockCollisionWorld{}
-	store := &mockEntityStore{edicts: []*srvtypes.Edict{walkEnt, tossEnt}}
+	store := &mockEntityStore{edicts: []*srvtypes.Edict{walkEnt, tossEnt, noneEnt}}
+	facade := &mockFacade{frameTime: 0.1, gravity: 800, vm: vm, store: store, maxClients: 2}
 
 	driver := &mockFrameDriver{
 		cvars:      map[string]bool{"sv_freezenonclients": false},
@@ -104,35 +104,47 @@ func TestStepFrameDispatchesMovetypes(t *testing.T) {
 		vm:         vm,
 	}
 
-	sys := NewSystem(col, store, h)
-	dispatch := &mockDispatch{}
+	sys := NewSystemWithFacade(col, store, h, facade)
 
-	newTime := sys.StepFrame(driver, dispatch, 1.0, 0.1)
+	newTime := sys.StepFrame(driver, 1.0, 0.1)
 
 	if newTime != 1.1 {
 		t.Errorf("StepFrame time = %v, want 1.1", newTime)
 	}
-	if dispatch.walk != 1 {
-		t.Errorf("walk dispatch = %d, want 1", dispatch.walk)
+
+	// MoveTypeWalk: velocity integrated -> descending origin.
+	if got := walkEnt.Origin(h)[2]; got >= 0 {
+		t.Errorf("walk origin z = %v, want < 0 after gravity frame", got)
 	}
-	if dispatch.toss != 1 {
-		t.Errorf("toss dispatch = %d, want 1", dispatch.toss)
+	// MoveTypeToss: gravity applied -> velocity z decreased below 0.
+	if got := tossEnt.Velocity(h)[2]; got >= 0 {
+		t.Errorf("toss velocity z = %v, want < 0 after gravity frame", got)
 	}
-	if dispatch.none != 0 || dispatch.push != 0 || dispatch.step != 0 || dispatch.noclip != 0 {
-		t.Errorf("unexpected dispatches: none=%d push=%d step=%d noclip=%d",
-			dispatch.none, dispatch.push, dispatch.step, dispatch.noclip)
+	// MoveTypeNone: no movement.
+	if got := noneEnt.Origin(h); got != [3]float32{5, 5, 5} {
+		t.Errorf("none origin = %v, want [5 5 5]", got)
 	}
 }
 
 func TestStepFrameFreezeNonClientsSkipsEdictsAndTime(t *testing.T) {
 	vm := qc.NewVM()
+	vm.EdictSize = 512
+	vm.NumEdicts = 4
+	vm.Edicts = make([]byte, vm.EdictSize*vm.NumEdicts)
 	h := &handle{vm: vm}
 
 	walkEnt := &srvtypes.Edict{Num: 1}
 	walkEnt.SetMoveType(h, float32(srvtypes.MoveTypeWalk))
+	walkEnt.SetOrigin(h, [3]float32{0, 0, 0})
+	walkEnt.SetVelocity(h, [3]float32{0, 0, -100})
+	walkEnt.SetMins(h, [3]float32{-16, -16, -24})
+	walkEnt.SetMaxs(h, [3]float32{16, 16, 32})
 
+	// Index 0 is the world edict (nil here); walkEnt is a non-client edict
+	// beyond the freeze cap, so it must be skipped.
 	col := &mockCollisionWorld{}
-	store := &mockEntityStore{edicts: []*srvtypes.Edict{walkEnt}}
+	store := &mockEntityStore{edicts: []*srvtypes.Edict{nil, walkEnt}}
+	facade := &mockFacade{frameTime: 0.1, gravity: 800, vm: vm, store: store, maxClients: 0}
 
 	driver := &mockFrameDriver{
 		cvars:      map[string]bool{"sv_freezenonclients": true},
@@ -140,15 +152,14 @@ func TestStepFrameFreezeNonClientsSkipsEdictsAndTime(t *testing.T) {
 		vm:         vm,
 	}
 
-	sys := NewSystem(col, store, h)
-	dispatch := &mockDispatch{}
+	sys := NewSystemWithFacade(col, store, h, facade)
 
-	newTime := sys.StepFrame(driver, dispatch, 1.0, 0.1)
+	newTime := sys.StepFrame(driver, 1.0, 0.1)
 
 	if newTime != 1.0 {
 		t.Errorf("StepFrame freeze time = %v, want 1.0 (time frozen)", newTime)
 	}
-	if dispatch.walk != 0 {
-		t.Errorf("walk dispatch = %d, want 0 (edict beyond client cap skipped)", dispatch.walk)
+	if got := walkEnt.Origin(h); got != [3]float32{0, 0, 0} {
+		t.Errorf("walk origin = %v, want [0 0 0] (edict beyond client cap skipped)", got)
 	}
 }

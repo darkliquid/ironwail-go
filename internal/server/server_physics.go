@@ -6,8 +6,6 @@
 // thin *Server delegators so existing call sites compile unchanged.
 package server
 
-import "github.com/darkliquid/ironwail-go/internal/server/physics"
-
 // CheckVelocity clamps an entity's velocity components to MaxVelocity bounds.
 func (s *Server) CheckVelocity(ent *Edict) {
 	s.ensurePhysicsSys()
@@ -25,11 +23,6 @@ func (s *Server) RunThink(ent *Edict) bool {
 func (s *Server) Impact(e1, e2 *Edict) {
 	s.ensurePhysicsSys()
 	s.PhysicsSys.Impact(e1, e2)
-}
-
-// ClipVelocity slides off an impacting surface.
-func ClipVelocity(in, normal [3]float32, overbounce float32) [3]float32 {
-	return physics.ClipVelocity(in, normal, overbounce)
 }
 
 // AddGravity applies frame gravity acceleration to an entity's Z velocity.
@@ -69,17 +62,10 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 	s.PhysicsSys.PushMove(pusher, movetime)
 }
 
-// PhysicsNone handles static entities (only runs think functions).
-func (s *Server) PhysicsNone(ent *Edict) {
-	s.ensurePhysicsSys()
-	s.PhysicsSys.PhysicsNone(ent)
-}
-
-// PhysicsNoClip handles noclip movement.
-func (s *Server) PhysicsNoClip(ent *Edict) {
-	s.ensurePhysicsSys()
-	s.PhysicsSys.PhysicsNoClip(ent)
-}
+// PhysicsNone, PhysicsNoClip, and PhysicsToss delegators were removed: the
+// per-entity movetype dispatch now lives entirely inside physics.System
+// (StepFrame calls its own leafs directly), so the Server-level wrappers had
+// no remaining callers.
 
 // PhysicsPusher moves a pusher by its velocity and runs its think when due.
 func (s *Server) PhysicsPusher(ent *Edict) {

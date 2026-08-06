@@ -12,6 +12,10 @@ import (
 type mockCollisionWorld struct {
 	moveTrace srvtypes.TraceResult
 	contents  int
+	// testPosOverride, when non-nil, is returned by SV_TestEntityPosition,
+	// letting tests simulate a stuck entity (e.g. a rider wedged into a
+	// pusher) without a real BSP.
+	testPosOverride *srvtypes.Edict
 }
 
 func (m *mockCollisionWorld) SV_Move(start, mins, maxs, end [3]float32, moveType srvtypes.MoveType, passedict *srvtypes.Edict) srvtypes.TraceResult {
@@ -25,7 +29,9 @@ func (m *mockCollisionWorld) SV_Move(start, mins, maxs, end [3]float32, moveType
 	return srvtypes.TraceResult{Fraction: 0.5, EndPos: end}
 }
 
-func (m *mockCollisionWorld) SV_TestEntityPosition(ent *srvtypes.Edict) *srvtypes.Edict { return nil }
+func (m *mockCollisionWorld) SV_TestEntityPosition(ent *srvtypes.Edict) *srvtypes.Edict {
+	return m.testPosOverride
+}
 
 func (m *mockCollisionWorld) SV_HullForEntity(ent *srvtypes.Edict, mins, maxs [3]float32) (*model.Hull, [3]float32) {
 	return nil, [3]float32{}

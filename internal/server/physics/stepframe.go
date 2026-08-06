@@ -12,24 +12,15 @@ import (
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 )
 
-// MovetypeDispatch abstracts the per-movetype physics leaf dispatchers. The
-// leaf algorithms (PhysicsWalk, PhysicsToss, ...) remain on *server.Server;
-// this narrow interface lets the frame loop live here.
-type MovetypeDispatch interface {
-	PhysicsPusher(ent *srvtypes.Edict)
-	PhysicsNone(ent *srvtypes.Edict)
-	PhysicsNoClip(ent *srvtypes.Edict)
-	PhysicsStep(ent *srvtypes.Edict)
-	PhysicsToss(ent *srvtypes.Edict)
-	PhysicsWalk(ent *srvtypes.Edict)
-}
-
 // StepFrame runs one server physics frame: QC StartFrame, per-edict movetype
 // dispatch with client pre/post think, SendInterval bookkeeping, force_retouch
 // decay, and srvTime advance. It returns the advanced server time.
+//
+// The per-movetype leaf algorithms live on the same System (PhysicsPusher,
+// PhysicsWalk, ...), so dispatch is direct; there is no need to route through
+// an external caller (which previously caused Server -> PhysicsSys bounce).
 func (s *System) StepFrame(
 	driver srvtypes.FrameDriver,
-	dispatch MovetypeDispatch,
 	srvTime float32,
 	frameTime float32,
 ) float32 {
@@ -142,33 +133,33 @@ func (s *System) StepFrame(
 		case srvtypes.MoveTypePush:
 			physicsPushCount++
 			phaseBegin()
-			dispatch.PhysicsPusher(ent)
+			s.PhysicsPusher(ent)
 			phaseEnd(&physicsPushMS)
 		case srvtypes.MoveTypeNone:
 			physicsNoneCount++
 			phaseBegin()
-			dispatch.PhysicsNone(ent)
+			s.PhysicsNone(ent)
 			phaseEnd(&physicsNoneMS)
 		case srvtypes.MoveTypeNoClip:
 			physicsNoClipCount++
 			phaseBegin()
-			dispatch.PhysicsNoClip(ent)
+			s.PhysicsNoClip(ent)
 			phaseEnd(&physicsNoClipMS)
 		case srvtypes.MoveTypeStep:
 			physicsStepCount++
 			phaseBegin()
-			dispatch.PhysicsStep(ent)
+			s.PhysicsStep(ent)
 			phaseEnd(&physicsStepMS)
 		case srvtypes.MoveTypeToss, srvtypes.MoveTypeGib, srvtypes.MoveTypeBounce,
 			srvtypes.MoveTypeFly, srvtypes.MoveTypeFlyMissile:
 			physicsTossCount++
 			phaseBegin()
-			dispatch.PhysicsToss(ent)
+			s.PhysicsToss(ent)
 			phaseEnd(&physicsTossMS)
 		case srvtypes.MoveTypeWalk:
 			physicsWalkCount++
 			phaseBegin()
-			dispatch.PhysicsWalk(ent)
+			s.PhysicsWalk(ent)
 			phaseEnd(&physicsWalkMS)
 		default:
 			slog.Warn("server physics: bad movetype; skipping entity", "movetype", int(ent.MoveType(sh)), "edict", i)

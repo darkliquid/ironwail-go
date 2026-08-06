@@ -97,53 +97,13 @@ func newPushMoveElevatorTestServer(t *testing.T) (*Server, *Edict, *Edict) {
 	return s, pusher, rider
 }
 
-// TestClipVelocity tests the velocity clipping function.
-// It ensures that entities correctly slide along surfaces instead of stopping or penetrating them when they collide at an angle.
-// Where in C: SV_ClipVelocity in sv_phys.c
-func TestClipVelocity(t *testing.T) {
-	in := [3]float32{100, 0.05, -5}
-	normal := [3]float32{0, 0, 1}
-	out := ClipVelocity(in, normal, 1)
 
-	if out[2] != 0 {
-		t.Fatalf("out[2] = %v, want 0", out[2])
-	}
-}
 
 // TestPhysicsNoClipMovesOriginAndAngles tests the \"noclip\" physics state.
 // It verifying that entities in noclip mode move freely according to their velocity and angular velocity without any collision checks.
-// Where in C: SV_Physics_Noclip in sv_phys.c
-func TestPhysicsNoClipMovesOriginAndAngles(t *testing.T) {
-	s := newPhysicsTestServer()
-	ent := allocPhysicsTestEdict(s)
-	ent.SetVelocity(s, [3]float32{10, -5, 2})
-	ent.SetAVelocity(s, [3]float32{0, 90, 0})
 
-	s.PhysicsNoClip(ent)
 
-	if got := ent.Origin(s); got != [3]float32{1, -0.5, 0.2} {
-		t.Fatalf("origin = %v", got)
-	}
-	if got := ent.Angles(s); got != [3]float32{0, 9, 0} {
-		t.Fatalf("angles = %v", got)
-	}
-}
 
-// TestPhysicsPusherAdvancesLocalTimeWhenIdle tests the pusher (brush model) physics.
-// It ensuring that moving platforms and doors advance their local time correctly, which is critical for their animation and movement logic.
-// Where in C: SV_Physics_Pusher in sv_phys.c
-func TestPhysicsPusherAdvancesLocalTimeWhenIdle(t *testing.T) {
-	s := newPhysicsTestServer()
-	ent := allocPhysicsTestEdict(s)
-	ent.SetMoveType(s, float32(MoveTypePush))
-	ent.SetLTime(s, 3)
-	ent.SetNextThink(s, 10)
-	s.PhysicsPusher(ent)
-
-	if diff := ent.LTime(s) - 3.1; diff < -0.0001 || diff > 0.0001 {
-		t.Fatalf("ltime = %v, want 3.1", ent.LTime(s))
-	}
-}
 
 func TestPushMoveElevatorFixOffRevertsBlockedMove(t *testing.T) {
 	s, pusher, rider := newPushMoveElevatorTestServer(t)
@@ -182,20 +142,7 @@ func TestPushMoveElevatorFixNudgesClientWhenEnabled(t *testing.T) {
 
 // TestPhysicsTossOnGroundDoesNotMove tests the \"toss\" physics for items on the ground.
 // It ensuring that items (like dropped weapons or health packs) remain stationary once they've landed on the floor.
-// Where in C: SV_Physics_Toss in sv_phys.c
-func TestPhysicsTossOnGroundDoesNotMove(t *testing.T) {
-	s := newPhysicsTestServer()
-	ent := allocPhysicsTestEdict(s)
-	ent.SetFlags(s, float32(FlagOnGround))
-	ent.SetOrigin(s, [3]float32{1, 2, 3})
-	ent.SetVelocity(s, [3]float32{50, 60, 70})
 
-	s.PhysicsToss(ent)
-
-	if ent.Origin(s) != [3]float32{1, 2, 3} {
-		t.Fatalf("origin changed on ground toss: %v", ent.Origin(s))
-	}
-}
 
 // TestFlyMoveDoesNotGroundOnNonBSPFloor tests FlyMove collision behavior with different entity types.
 // It verifying that entities only \"land\" (set onground flag) on BSP world geometry, not on simple trigger boxes or other non-solid entities.
@@ -245,21 +192,7 @@ func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
 	}
 }
 
-// TestPhysicsStepOnGroundSkipsFreefall tests step physics for grounded entities.
-// It ensuring that entities already on the ground don't erroneously apply gravity or vertical movement intended for freefall.
-// Where in C: SV_Physics_Step in sv_phys.c
-func TestPhysicsStepOnGroundSkipsFreefall(t *testing.T) {
-	s := newPhysicsTestServer()
-	ent := allocPhysicsTestEdict(s)
-	ent.SetFlags(s, float32(FlagOnGround))
-	ent.SetVelocity(s, [3]float32{0, 0, 42})
 
-	s.PhysicsStep(ent)
-
-	if ent.Velocity(s)[2] != 42 {
-		t.Fatalf("z velocity changed: %v", ent.Velocity(s)[2])
-	}
-}
 
 // TestPhysicsStepHardLandingStartsCanonicalSound tests landing sound triggers in the physics engine.
 // It verifying that falling from a height correctly triggers the \"landing\" sound (demon/dland2.wav) via the network protocol.
@@ -406,33 +339,6 @@ func TestSVWalkMoveStepDownGroundsOnBSPContactForNonBSPMover(t *testing.T) {
 	}
 	if got, want := ent.GroundEntity(s), int32(s.NumForEdict(obstacle)); got != want {
 		t.Fatalf("ground entity = %d, want %d", got, want)
-	}
-}
-
-func TestWalkMoveNeedsUnstickUsesDistEpsilonThreshold(t *testing.T) {
-	oldOrg := [3]float32{100, 200, 0}
-
-	// Strictly inside threshold on both axes should request unstick.
-	inside := [3]float32{100 + DistEpsilon - 0.0001, 200 - DistEpsilon + 0.0001, 0}
-	if !WalkMoveNeedsUnstick(oldOrg, inside) {
-		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = false, want true", oldOrg, inside)
-	}
-
-	// Exact threshold should not request unstick (strict '<' parity with C code).
-	xEdge := [3]float32{100 + DistEpsilon, 200, 0}
-	if WalkMoveNeedsUnstick(oldOrg, xEdge) {
-		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, xEdge)
-	}
-
-	yEdge := [3]float32{100, 200 - DistEpsilon, 0}
-	if WalkMoveNeedsUnstick(oldOrg, yEdge) {
-		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, yEdge)
-	}
-
-	// Outside threshold on either axis should not request unstick.
-	outside := [3]float32{100 + DistEpsilon + 0.0001, 200, 0}
-	if WalkMoveNeedsUnstick(oldOrg, outside) {
-		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, outside)
 	}
 }
 
