@@ -501,3 +501,25 @@ packing round-trip.
 Verified: full module builds; all server + net tests pass; only the two
 pre-existing failures remain. Server root is now down ~2,200 lines
 cumulatively; `server_net_send.go` is at 848 lines.
+
+### BSP Model Builders Migration (`server_net_main.go` → `collision`, DONE 2026-08-05)
+Extracted the four pure BSP→model converters out of `server_net_main.go`
+(932 → 773 lines) into `collision/modelbuild.go`:
+
+- `WorldModelFromBSPTree` — adapts parsed BSP into the runtime `model.Model`.
+- `PopulateWorldModelCollision` — builds movement hulls/clipnodes for SV_Move.
+- `BuildNodeHull` — BSP nodes/leaves → hull clipnode graph.
+- `BSPClipNodesToModel` — normalizes clipnode lump variants.
+- `brushHullClipBounds` (the standard movement hull sizes).
+
+All were pure (zero `s.` deps) — the cleanest possible extraction, needing no
+new seams. The `collision` subpackage already imported both `bsp` and `model`.
+Root keeps one-line delegators.
+
+Tests: `collision/modelbuild_test.go` builds a minimal synthetic BSP tree and
+verifies node/plane wiring, leaf-content clipnode mapping, and hull-0 head
+node placement.
+
+Verified: full module builds; all server + collision tests pass; only the two
+pre-existing failures remain. Server root is now down ~2,360 lines
+cumulatively.
