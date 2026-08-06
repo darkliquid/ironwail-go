@@ -67,3 +67,22 @@ func (s *System) MoveToGoal(ent *srvtypes.Edict, dist float32) bool {
 func (s *System) NewChaseDir(actor, enemy *srvtypes.Edict, dist float32) {
 	NewChaseDir(s.col, s.store, actor, enemy, dist, s.sh)
 }
+
+// SV_ClientThink applies the client's movement commands for one frame using
+// the injected physics facade (nil-safe: no-op when the facade is absent, so
+// movement-only systems and tests still work).
+func (s *System) SV_ClientThink(client *srvtypes.Client) {
+	if s.facade == nil {
+		return
+	}
+	NewClientMover(s.facade, s.col, s.sh).SV_ClientThink(client)
+}
+
+// CalcRoll computes the view roll from lateral velocity, matching C Ironwail
+// V_CalcRoll (cl_rollangle / cl_rollspeed).
+func (s *System) CalcRoll(angles, velocity [3]float32) float32 {
+	if s.facade == nil {
+		return 0
+	}
+	return CalcRoll(s.facade, angles, velocity)
+}

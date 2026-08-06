@@ -20,6 +20,7 @@ type CVarReader interface {
 // CvarHandle is the minimal cvar handle the loop reads.
 type CvarHandle interface {
 	Bool() bool
+	Float32() float32
 }
 
 // TelemetrySink abstracts the debug telemetry hooks the frame loop emits.

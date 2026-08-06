@@ -452,3 +452,30 @@ advance. Removed dead mocks in `system_test.go`.
 Verified: full module builds; all server + physics tests pass; only the two
 pre-existing failures remain. The server root package is down ~1,770 lines
 cumulatively (frame loop + leafs).
+
+### Client Move Simulation Migration (`SV_ClientThink` → `physics.ClientMover`, DONE 2026-08-05)
+Moved the per-client movement simulation out of the server root into
+`physics.ClientMover`, reducing `server_user_commands.go` from 884 to 543
+lines:
+
+- `SV_ClientThink` (view roll/pitch, punch decay, water/noclip/air move paths)
+- `userFriction`, `accelerate`, `airAccelerate`, `dropPunchAngle`, `waterMove`,
+  `waterJump`, `noclipMove`, `airMove`, `CalcRoll`, `clientMoveContext`.
+
+New narrow seam: `physics.MoveConfig` (`PhysicsConfig` + `FrameTiming` +
+`CVarReader`) — the mover needs only tuning constants, frame timing, and cvar
+reads, not the full `PhysicsFacade`. `ClientMover` takes
+`(MoveConfig, CollisionWorld, ServerHandle)`. `System` exposes
+`SV_ClientThink(client)` and `CalcRoll` delegating to it (nil-facade-safe for
+movement-only tests).
+
+Also: root `AngleVectors` reduced to a one-line delegator to
+`types.AngleVectors` (unifying the copy that had drifted into the root file).
+
+Tests: `physics/clientmove_test.go` proves isolated testability — walk input
+produces horizontal velocity, `CalcRoll` with no lateral velocity returns 0.
+The root `TestSVClientThink*` parity tests (real server) still pass through
+the delegation, confirming behavioral parity.
+
+Verified: full module builds; all server + physics tests pass; only the two
+pre-existing failures remain. Server root is now down ~2,100 lines cumulatively.

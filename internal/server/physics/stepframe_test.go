@@ -68,7 +68,8 @@ func (m *mockFrameDriver) SyncSpawnedEdictsFromQCVM(start int) {}
 
 type cvarTrue struct{}
 
-func (cvarTrue) Bool() bool { return true }
+func (cvarTrue) Bool() bool      { return true }
+func (cvarTrue) Float32() float32 { return 0 }
 
 // mockDispatch counts movetype dispatch calls.
 type mockDispatch struct {
