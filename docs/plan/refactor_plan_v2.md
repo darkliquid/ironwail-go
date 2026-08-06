@@ -523,3 +523,18 @@ node placement.
 Verified: full module builds; all server + collision tests pass; only the two
 pre-existing failures remain. Server root is now down ~2,360 lines
 cumulatively.
+
+### Entity Delta Encoding (`writeEntityUpdate` → `net.WriteEntityUpdate`, DONE 2026-08-05)
+Extracted the entity delta encoder out of `server_net_send.go` (848 → 704
+lines) into `net.WriteEntityUpdate`. Nearly pure: only needs `ProtocolFlags`
+and `Protocol` (both passed as params). The full delta bit-packing (U_ORIGIN*,
+U_ANGLE*, U_MODEL/FRAME/COLORMAP/SKIN/EFFECTS, Fitz extensions ALPHA/SCALE/
+FRAME2/MODEL2/LERPFINISH, MOREBITS/EXTEND1/2) and the C field write order
+(sv_main.c:920-954) now live in the subpackage, unit-testable with no server.
+
+Tests: `net/encode_test.go` adds delta (only-changed-field) and force
+(send-all) cases with float coord/angle protocols.
+
+Verified: full module builds; all server + net tests pass; only the two
+pre-existing failures remain. Server root now down ~2,500 lines
+cumulatively.

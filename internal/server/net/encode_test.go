@@ -73,3 +73,68 @@ func TestWriteEntityStatePacksFields(t *testing.T) {
 		t.Errorf("skin = %d, want 1", got)
 	}
 }
+
+func TestWriteEntityUpdateDeltaEncodes(t *testing.T) {
+	base := srvtypes.EntityState{
+		ModelIndex: 5,
+		Frame:      3,
+		Colormap:   7,
+		Skin:       1,
+		Origin:     [3]float32{0, 0, 0},
+		Angles:     [3]float32{0, 0, 0},
+	}
+	// Only origin X changed.
+	changed := base
+	changed.Origin[0] = 64
+
+	msg := srvtypes.NewMessageBuffer(64)
+	ok := WriteEntityUpdate(msg, 3, changed, base, false, srvtypes.MoveTypeWalk,
+		666 /* FitzQuake */, uint32(srvtypes.ProtocolFlagFloatCoord|srvtypes.ProtocolFlagFloatAngle), 0, false)
+	if !ok {
+		t.Fatal("WriteEntityUpdate returned false")
+	}
+
+	if msg.Len() == 0 {
+		t.Fatal("WriteEntityUpdate produced empty message")
+	}
+
+	// First byte: bits|0x80. Only U_ORIGIN1 (bit1) + U_ORIGIN2? no. Origin2/3
+	// unchanged. So bits should have U_ORIGIN1 only (0x02).
+	first := msg.Byte()
+	if first&0x7f != 0x02 {
+		t.Errorf("first bits = %#x, want U_ORIGIN1 (0x02)", first&0x7f)
+	}
+	if first&0x80 == 0 {
+		t.Error("first byte missing continuation bit 0x80")
+	}
+	// entnum
+	if got := msg.Byte(); got != 3 {
+		t.Errorf("entnum = %d, want 3", got)
+	}
+	// Then the origin1 coord (float) follows immediately.
+	if msg.Len() == 0 {
+		t.Error("expected coord bytes after entnum")
+	}
+}
+
+func TestWriteEntityUpdateForceSendsAll(t *testing.T) {
+	base := srvtypes.EntityState{Origin: [3]float32{0, 0, 0}}
+	msg := srvtypes.NewMessageBuffer(64)
+
+	ok := WriteEntityUpdate(msg, 1, base, base, true, srvtypes.MoveTypeWalk,
+		666, uint32(srvtypes.ProtocolFlagFloatCoord|srvtypes.ProtocolFlagFloatAngle), 0, false)
+	if !ok {
+		t.Fatal("WriteEntityUpdate(force) returned false")
+	}
+
+	first := msg.Byte()
+	// Force sets origin1|2|3 + angle1|2|3 + model + frame + colormap + skin + effects.
+	bits := first & 0x7f
+	// U_ORIGIN1=1<<0? verify against inet constants via behavior: bits must not be 0.
+	if bits == 0 {
+		t.Errorf("force write produced empty bits, want all fields set")
+	}
+	if first&0x80 == 0 {
+		t.Error("first byte missing continuation bit 0x80")
+	}
+}

@@ -7,7 +7,13 @@ package net
 import (
 	"math"
 
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+)
+
+// Protocol identifiers (mirrored from server root for pure function params).
+const (
+	ProtocolNetQuake = 15
 )
 
 // EncodeScale packs a 0..15.9375 scale into a 4-bit byte.
@@ -123,4 +129,161 @@ func EntitySendSortKey(ent *srvtypes.Edict, origin, forward [3]float32, sh srvty
 		dist |= 128
 	}
 	return dist
+}
+
+// WriteEntityUpdate delta-encodes one entity state against its baseline into
+// the message buffer, matching the C sv_main.c field write order (MODEL,
+// FRAME, COLORMAP, SKIN, EFFECTS, then interleaved ORIGIN/ANGLE, then Fitz
+// extensions ALPHA, SCALE, FRAME2, MODEL2, LERPFINISH). protocol is the
+// negotiated protocol number (15 = NetQuake); bits beyond NetQuake's set are
+// only emitted for non-NetQuake protocols.
+func WriteEntityUpdate(msg *srvtypes.MessageBuffer, entNum int, state, baseline srvtypes.EntityState, force bool, moveType srvtypes.MoveType, protocol int, flags uint32, lerpFinish byte, hasLerpFinish bool) bool {
+	bits := uint32(0)
+
+	if entNum > 255 {
+		bits |= inet.U_LONGENTITY
+	}
+	if force || math.Abs(float64(state.Origin[0]-baseline.Origin[0])) > 0.1 {
+		bits |= inet.U_ORIGIN1
+	}
+	if force || math.Abs(float64(state.Origin[1]-baseline.Origin[1])) > 0.1 {
+		bits |= inet.U_ORIGIN2
+	}
+	if force || math.Abs(float64(state.Origin[2]-baseline.Origin[2])) > 0.1 {
+		bits |= inet.U_ORIGIN3
+	}
+	if force || state.Angles[0] != baseline.Angles[0] {
+		bits |= inet.U_ANGLE1
+	}
+	if force || state.Angles[1] != baseline.Angles[1] {
+		bits |= inet.U_ANGLE2
+	}
+	if force || state.Angles[2] != baseline.Angles[2] {
+		bits |= inet.U_ANGLE3
+	}
+	if force || state.ModelIndex != baseline.ModelIndex {
+		bits |= inet.U_MODEL
+	}
+	if force || state.Frame != baseline.Frame {
+		bits |= inet.U_FRAME
+	}
+	if force || state.Colormap != baseline.Colormap {
+		bits |= inet.U_COLORMAP
+	}
+	if force || state.Skin != baseline.Skin {
+		bits |= inet.U_SKIN
+	}
+	if force || state.Effects != baseline.Effects {
+		bits |= inet.U_EFFECTS
+	}
+	if moveType == srvtypes.MoveTypeStep {
+		bits |= inet.U_STEP
+	}
+
+	// FitzQuake/RMQ extension bits — only for non-NetQuake protocols
+	if protocol != ProtocolNetQuake {
+		if state.Alpha != baseline.Alpha {
+			if state.Alpha != 0 || baseline.Alpha != 0 || force {
+				bits |= inet.U_ALPHA
+			}
+		}
+		if state.Scale != baseline.Scale {
+			if state.Scale != 16 || baseline.Scale != 16 || force {
+				bits |= inet.U_SCALE
+			}
+		}
+		if bits&inet.U_FRAME != 0 && state.Frame > 255 {
+			bits |= inet.U_FRAME2
+		}
+		if bits&inet.U_MODEL != 0 && state.ModelIndex > 255 {
+			bits |= inet.U_MODEL2
+		}
+		if hasLerpFinish {
+			bits |= inet.U_LERPFINISH
+		}
+		if bits >= 65536 {
+			bits |= inet.U_EXTEND1
+		}
+		if bits >= 16777216 {
+			bits |= inet.U_EXTEND2
+		}
+	}
+
+	if bits&0x0000ff00 != 0 {
+		bits |= inet.U_MOREBITS
+	}
+
+	first := byte(bits&0x7f) | 0x80
+	msg.PutByte(first)
+	if bits&inet.U_MOREBITS != 0 {
+		msg.PutByte(byte(bits >> 8))
+	}
+	if bits&inet.U_EXTEND1 != 0 {
+		msg.PutByte(byte(bits >> 16))
+	}
+	if bits&inet.U_EXTEND2 != 0 {
+		msg.PutByte(byte(bits >> 24))
+	}
+
+	if bits&inet.U_LONGENTITY != 0 {
+		msg.WriteShort(int16(entNum))
+	} else {
+		msg.PutByte(byte(entNum))
+	}
+	// Field write order must match C exactly (sv_main.c:920-954):
+	// MODEL, FRAME, COLORMAP, SKIN, EFFECTS,
+	// ORIGIN1, ANGLE1, ORIGIN2, ANGLE2, ORIGIN3, ANGLE3,
+	// ALPHA, SCALE, FRAME2, MODEL2, LERPFINISH
+	if bits&inet.U_MODEL != 0 {
+		msg.PutByte(byte(state.ModelIndex))
+	}
+	if bits&inet.U_FRAME != 0 {
+		msg.PutByte(byte(state.Frame))
+	}
+	if bits&inet.U_COLORMAP != 0 {
+		msg.PutByte(byte(state.Colormap))
+	}
+	if bits&inet.U_SKIN != 0 {
+		msg.PutByte(byte(state.Skin))
+	}
+	if bits&inet.U_EFFECTS != 0 {
+		msg.PutByte(byte(state.Effects))
+	}
+	// Origins and angles are INTERLEAVED: O1, A1, O2, A2, O3, A3
+	if bits&inet.U_ORIGIN1 != 0 {
+		msg.WriteCoord(state.Origin[0], flags)
+	}
+	if bits&inet.U_ANGLE1 != 0 {
+		msg.WriteAngle(state.Angles[0], flags)
+	}
+	if bits&inet.U_ORIGIN2 != 0 {
+		msg.WriteCoord(state.Origin[1], flags)
+	}
+	if bits&inet.U_ANGLE2 != 0 {
+		msg.WriteAngle(state.Angles[1], flags)
+	}
+	if bits&inet.U_ORIGIN3 != 0 {
+		msg.WriteCoord(state.Origin[2], flags)
+	}
+	if bits&inet.U_ANGLE3 != 0 {
+		msg.WriteAngle(state.Angles[2], flags)
+	}
+	// FitzQuake extensions come AFTER origins/angles
+	if bits&inet.U_ALPHA != 0 {
+		msg.PutByte(state.Alpha)
+	}
+	if bits&inet.U_SCALE != 0 {
+		msg.PutByte(state.Scale)
+	}
+	if bits&inet.U_FRAME2 != 0 {
+		msg.PutByte(byte(state.Frame >> 8))
+	}
+	if bits&inet.U_MODEL2 != 0 {
+		msg.PutByte(byte(state.ModelIndex >> 8))
+	}
+	if bits&inet.U_LERPFINISH != 0 {
+		msg.PutByte(lerpFinish)
+	}
+
+	return true
 }
