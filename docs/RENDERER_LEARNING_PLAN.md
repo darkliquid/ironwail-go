@@ -124,8 +124,8 @@ shader.
 
 For a real vertex-buffer example, study the **particle** pipeline:
 - Shader: `particleVertexShaderWGSL` / `particleFragmentShaderWGSL` at
-  `internal/renderer/particle_gogpu.go:20` and `:75`.
-- Pipeline: `ensureParticleResourcesLocked()` at `particle_gogpu.go:148`.
+  `internal/renderer/renderer_gogpu_particle.go:20` and `:75`.
+- Pipeline: `ensureParticleResourcesLocked()` at `renderer_gogpu_particle.go:148`.
 
 ### Milestone
 
@@ -162,11 +162,11 @@ color, and you can explain what a `bind group` and `pipeline` are.
 
 - Camera state and VP computation: `internal/renderer/camera.go`.
 - The VP matrix is packed into the world uniform buffer:
-  `worldUniformsWGSL` at `internal/renderer/world_shaders_gogpu.go:10` defines
+  `worldUniformsWGSL` at `internal/renderer/renderer_gogpu_world_shaders.go:10` defines
   the WGSL `struct Uniforms` that holds `viewProjection: mat4x4<f32>`.
 - Uniform buffer packing: `internal/renderer/renderer_gogpu_uniforms.go`.
 - The world vertex shader multiplies `position` by this matrix:
-  `worldVertexShaderWGSL` at `world_shaders_gogpu.go:27`.
+  `worldVertexShaderWGSL` at `renderer_gogpu_world_shaders.go:27`.
 
 ### Milestone
 
@@ -204,21 +204,21 @@ transforms `position` by a `mat4x4<f32>` uniform.
 This is the largest stage. The world pipeline is the heart of the renderer.
 
 - **BSP → GPU vertex upload**: `UploadWorld()` at
-  `internal/renderer/world_upload_gogpu.go:18` orchestrates everything.
+  `internal/renderer/renderer_gogpu_world_upload.go:18` orchestrates everything.
 - **Vertex construction** (the bridge between BSP data and the GPU vertex
-  format): `WorldGeometry` in `internal/renderer/world_geometry_gogpu.go`.
+  format): `WorldGeometry` in `internal/renderer/renderer_gogpu_world_geometry.go`.
 - **The vertex layout contract**: read `docs/VERTEX_LAYOUT.md`. It documents
   the 48-byte `WorldVertex` — the single struct that flows from Go → byte
   packer → WGSL `@vertex` input. This is the most important document in the
   renderer for a learner.
 - **Byte packing** (how Go structs become GPU bytes):
-  `appendGoGPUWorldVertexBytes` in `internal/renderer/world_gogpu.go:150`.
+  `appendGoGPUWorldVertexBytes` in `internal/renderer/renderer_gogpu_world_pipeline.go:129`.
 - **Pipeline creation**: `createWorldPipeline()` and friends at
-  `internal/renderer/world_pipelines_gogpu.go:13`.
+  `internal/renderer/renderer_gogpu_world_pipelines.go:13`.
 - **The render pass itself**: `renderWorldInternal()` at
-  `internal/renderer/world_render_gogpu.go:16`.
+  `internal/renderer/renderer_gogpu_world_render.go:16`.
 - **Shaders**: `worldVertexShaderWGSL` and `buildWorldFragmentShaderWGSL()` at
-  `internal/renderer/world_shaders_gogpu.go:27` and `:83`.
+  `internal/renderer/renderer_gogpu_world_shaders.go:27` and `:83`.
 
 ### Milestone
 
@@ -256,7 +256,7 @@ stride matters, and what an index buffer does. You can read
 - **Atlas packer**: the binary-tree packer in
   `internal/renderer/world_atlas_gogpu.go` (`TextureAtlasNode`,
   `AtlasLayer`).
-- **Atlas upload + GPU texture array**: `world_resources_gogpu.go` (search for
+- **Atlas upload + GPU texture array**: `renderer_gogpu_world_resources.go` (search for
   atlas creation).
 - **Per-face texture index**: each `WorldVertex` carries a `texture_index`
   field (see `docs/VERTEX_LAYOUT.md`); the fragment shader uses it to sample
@@ -268,7 +268,7 @@ stride matters, and what an index buffer does. You can read
   (`animateWorldMaterials` at line 24, `updateWorldMaterialsBuffer` at line
   61).
 - **Fragment shader sampling**: `buildWorldFragmentShaderWGSL()` in
-  `world_shaders_gogpu.go:83` — read how it samples `material_texture` using
+  `renderer_gogpu_world_shaders.go:83` — read how it samples `material_texture` using
   the per-vertex UV and a `texture_index`.
 
 ### Milestone
@@ -343,13 +343,13 @@ lighting, and what a "lightstyle" is.
 - **BSP leaf lookup + PVS**: `WorldRenderData` in
   `internal/renderer/world.go:57` is a passive data holder; actual visible
   face selection is done by `selectVisibleWorldFaces` in
-  `internal/renderer/world_shared.go:172` (and called from
-  `world_render_gogpu.go:333`).
+  `internal/renderer/renderer_gogpu_world_shared.go:172` (and called from
+  `renderer_gogpu_world_render.go:333`).
 - **Face classification** (opaque, alpha-test, translucent, turbulent/sky):
-  helpers in `internal/renderer/world_shared.go`.
+  helpers in `internal/renderer/renderer_gogpu_world_shared.go`.
 - **The visibility scratch buffer**: same file.
 - **What gets drawn**: `renderWorldInternal()` at
-  `internal/renderer/world_render_gogpu.go:16` only draws the faces that passed
+  `internal/renderer/renderer_gogpu_world_render.go:16` only draws the faces that passed
   visibility — this is why Quake can render huge maps at 60fps.
 
 ### Milestone
@@ -385,11 +385,11 @@ renderer.
 ### Ironwail-Go reality
 
 - **Depth texture**: `createWorldDepthTexture()` at
-  `internal/renderer/world_depth_gogpu.go:21`.
-- **Multiple pipelines for blend/depth state**: `world_pipelines_gogpu.go`
+  `internal/renderer/renderer_gogpu_world_depth.go:21`.
+- **Multiple pipelines for blend/depth state**: `renderer_gogpu_world_pipelines.go`
   has separate opaque, alpha-test, translucent, turbulent, sky pipelines — each
   with different blend state and depth-write settings.
-- **Translucent face collection + sorting**: `world_gogpu_translucent.go`
+- **Translucent face collection + sorting**: `renderer_gogpu_world_translucent.go`
   (`renderGoGPUSortedTranslucentFaceRendersHAL`).
 - **The render order** in `RenderFrame()`: opaque world → opaque entities →
   translucent water → translucent entities. See
@@ -431,7 +431,7 @@ articulate the exact render order in `RenderFrame()`.
 ### Ironwail-Go reality
 
 - **Turbulent (water/lava/sky) pipeline**: the `turbulent` and
-  `translucent-turbulent` pipelines in `world_pipelines_gogpu.go`. The
+  `translucent-turbulent` pipelines in `renderer_gogpu_world_pipelines.go`. The
   fragment shader warps UVs over time — see `buildWorldFragmentShaderWGSL()`
   for the warp math and the `time` uniform.
 - **Sky faces**: Quake sky is drawn as a special surface that ignores depth
@@ -440,11 +440,11 @@ articulate the exact render order in `RenderFrame()`.
 - **External skybox** (custom PNG/TGA/JPG cubemaps): `skybox_external.go`
   for loading, `world_external_sky_gogpu.go` for the GPU bind group/pipeline.
 - **Fog**: the `fog_color` / `fog_density` uniforms in `worldUniformsWGSL`
-  (`world_shaders_gogpu.go:10`); the fragment shader applies exponential fog
+  (`renderer_gogpu_world_shaders.go:10`); the fragment shader applies exponential fog
   based on view distance.
-- **Water warp (screen-space)**: `warpscale_gogpu.go` — when underwater, the
+- **Water warp (screen-space)**: `renderer_gogpu_warpscale.go` — when underwater, the
   final composited scene is distorted by a sinusoidal screen-space warp. See
-  `sceneCompositeFragmentShaderWGSL` at `warpscale_gogpu.go:45`.
+  `sceneCompositeFragmentShaderWGSL` at `renderer_gogpu_warpscale.go:45`.
 
 ### Milestone
 
@@ -478,12 +478,12 @@ and you can point to both in the codebase.
 ### Ironwail-Go reality
 
 - **Cluster compute pipeline**: `createWorldClusterComputePipeline()` at
-  `internal/renderer/world_cluster_compute_gogpu.go:13`.
+  `internal/renderer/renderer_gogpu_world_cluster_compute.go:13`.
 - **Compute shader**: `worldClusterComputeShaderWGSL` at
-  `internal/renderer/world_compute_shaders_gogpu.go:5`.
+  `internal/renderer/renderer_gogpu_world_compute_shaders.go:5`.
 - **Dispatch + light upload**: `dispatchWorldClusterCompute()` at
-  `world_cluster_compute_gogpu.go:75`, called from `renderWorldInternal` at
-  `world_render_gogpu.go:99`.
+  `renderer_gogpu_world_cluster_compute.go:75`, called from `renderWorldInternal` at
+  `renderer_gogpu_world_render.go:99`.
 - **Dynamic light gathering**: `internal/renderer/dynamic_light.go` and
   `dynamic_light_pool.go`.
 - **Log-depth setup**: `Core.SetupFrameData()` at `core_gogpu.go:158`
@@ -530,13 +530,13 @@ pipeline:
 
 | Entity type | Pipeline setup | Render fn | Shader |
 | --- | --- | --- | --- |
-| Brush entity | `world_gogpu_brush_render.go` | `renderOpaqueBrushEntitiesHAL` (:11) | reuses world shaders |
-| Alias (MDL) | `world_gogpu_alias.go` `ensureAliasResourcesLocked` (:24) | `renderAliasEntitiesHAL` (:582) | `AliasVertexShaderWGSL` at `world/gogpu/shaders.go:3` |
-| Sprite | `world_gogpu_sprite.go` `ensureSpriteResourcesLocked` (:13) | `renderSpriteEntitiesHAL` (:336) | `SpriteVertexShaderWGSL` at `world/gogpu/shaders.go:82` |
-| Decal | `world_gogpu_decal.go` `ensureDecalResourcesLocked` (:12) | `renderDecalMarksHAL` (:240) | `DecalVertexShaderWGSL` at `world/gogpu/shaders.go:157` |
+| Brush entity | `renderer_gogpu_world_brush_render.go` | `renderOpaqueBrushEntitiesHAL` (:11) | reuses world shaders |
+| Alias (MDL) | `renderer_gogpu_world_alias.go` `ensureAliasResourcesLocked` (:24) | `renderAliasEntitiesHAL` (:582) | `AliasVertexShaderWGSL` at `world/gogpu/shaders.go:3` |
+| Sprite | `renderer_gogpu_world_sprite.go` `ensureSpriteResourcesLocked` (:13) | `renderSpriteEntitiesHAL` (:336) | `SpriteVertexShaderWGSL` at `world/gogpu/shaders.go:82` |
+| Decal | `renderer_gogpu_world_decal.go` `ensureDecalResourcesLocked` (:12) | `renderDecalMarksHAL` (:240) | `DecalVertexShaderWGSL` at `world/gogpu/shaders.go:157` |
 
 The **viewmodel** (first-person weapon) is a special alias-model render with
-its own depth handling: `renderViewModelHAL()` at `world_gogpu_alias.go:593`.
+its own depth handling: `renderViewModelHAL()` at `renderer_gogpu_world_alias.go:593`.
 
 All of these are orchestrated in `renderEntities()` at
 `renderer_gogpu_frame.go:586`, which orders them into opaque → sky →
@@ -570,7 +570,7 @@ the viewmodel needs special depth handling.
 
 - CPU-side simulation + vertex generation:
   `internal/renderer/particle.go`.
-- GPU pipeline + shaders: `particle_gogpu.go`
+- GPU pipeline + shaders: `renderer_gogpu_particle.go`
   (`particleVertexShaderWGSL` at :20, `particleFragmentShaderWGSL` at :75,
   `ensureParticleResourcesLocked` at :148, `renderParticlesHAL` at :354).
 - The fragment shader draws a soft circle (radial alpha falloff) — read it to
@@ -605,7 +605,7 @@ This is where the frame's 3D work becomes the final image. Three post passes,
 in order:
 
 1. **Scene composite** (`compositeSceneRenderTarget()` at
-   `warpscale_gogpu.go:472`): blits the offscreen scene render target to the
+   `renderer_gogpu_warpscale.go:472`): blits the offscreen scene render target to the
    swapchain surface, applying the underwater warp if the camera is in water.
    Shaders: `sceneCompositeVertexShaderWGSL` (:16),
    `sceneCompositeFragmentShaderWGSL` (:45).
@@ -651,12 +651,12 @@ end. You should now be able to map every call to a stage above:
 | Frame phase | Code | Stage in this plan |
 | --- | --- | --- |
 | Clear | `renderer_gogpu_frame.go:113-129` | Stage 0/1 |
-| Cluster compute dispatch | `world_render_gogpu.go:99` | Stage 9 |
-| World BSP render | `renderWorldInternal` `world_render_gogpu.go:16` | Stages 3,4,5,6,7,8 |
+| Cluster compute dispatch | `renderer_gogpu_world_render.go:99` | Stage 9 |
+| World BSP render | `renderWorldInternal` `renderer_gogpu_world_render.go:16` | Stages 3,4,5,6,7,8 |
 | Opaque brush/alias/sprite/particle entities | `renderEntities` `renderer_gogpu_frame.go:586` | Stage 10, 11 |
 | Translucent water + entities (sorted) | `renderGoGPUSortedTranslucentFaceRendersHAL` | Stage 7 |
-| Viewmodel | `renderViewModelHAL` `world_gogpu_alias.go:593` | Stage 10 |
-| Scene composite (warp) | `compositeSceneRenderTarget` `warpscale_gogpu.go:472` | Stage 12 |
+| Viewmodel | `renderViewModelHAL` `renderer_gogpu_world_alias.go:593` | Stage 10 |
+| Scene composite (warp) | `compositeSceneRenderTarget` `renderer_gogpu_warpscale.go:472` | Stage 12 |
 | PolyBlend | `renderPolyBlendHAL` `polyblend_gogpu.go:224` | Stage 12 |
 | 2D overlay (HUD/menu/console) | `flush2DOverlay` `renderer_gogpu_overlay.go:32` | Stage 12 |
 
@@ -712,13 +712,13 @@ When you get stuck on a stage, read these in this order:
 3. `docs/LEARNING_GUIDE.md` — engine-wide architecture.
 4. The WGSL shader files — they are the most readable part of the renderer
    because they are self-contained programs:
-   - `internal/renderer/world_shaders_gogpu.go`
-   - `internal/renderer/world_compute_shaders_gogpu.go`
+   - `internal/renderer/renderer_gogpu_world_shaders.go`
+   - `internal/renderer/renderer_gogpu_world_compute_shaders.go`
    - `internal/renderer/world/gogpu/shaders.go`
    - `internal/renderer/polyblend_gogpu.go`
-   - `internal/renderer/warpscale_gogpu.go`
+   - `internal/renderer/renderer_gogpu_warpscale.go`
    - `internal/renderer/overlay_composite_gogpu.go`
-   - `internal/renderer/particle_gogpu.go`
+   - `internal/renderer/renderer_gogpu_particle.go`
 5. The `docs/diagnoses/` folder — consolidated bug investigation records:
    - `qbj2_water.md` — water translucency (resolved, exercises Stage 7)
    - `qbj2_materials.md` — texture atlas and materials buffer issues

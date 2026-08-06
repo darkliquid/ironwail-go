@@ -24,6 +24,28 @@
 // entire engine lifecycle: startup, frame loop, shutdown. All other
 // packages are either owned by Game or are leaf utility packages.
 //
+// # Sub-packages
+//
+// Portable leaf logic has been extracted into focused sub-packages, each
+// testing its own math/helpers in isolation; the root `game` package keeps
+// the frame orchestration and the delegators those helpers feed:
+//
+//	┌──────────┬───────────────────────────────────────────────────────────┐
+//	│ camera   │ Cvar-only view computation: view bob/roll, idle sway,      │
+//	│          │ viewmodel fudge, view angle math, chase camera helpers.   │
+//	├──────────┼───────────────────────────────────────────────────────────┤
+//	│ csqc     │ Pure CSQC image/rect helpers (nearest palette index,       │
+//	│          │ clip draw rect, sub-pic from normalized rect, pic scale). │
+//	├──────────┼───────────────────────────────────────────────────────────┤
+//	│ audio    │ Pure audio helpers (sound name/volume formatting).        │
+//	├──────────┼───────────────────────────────────────────────────────────┤
+//	│ ui       │ Pure overlay/UI math (clamp, demo name, format helpers).  │
+//	└──────────┴───────────────────────────────────────────────────────────┘
+//
+// Stateful view calculations that latch on the client (viewCalcGunAngle,
+// viewApplyDamageKick, viewStairSmoothOffset) stay on the root because they
+// reference `cl.Client` directly.
+//
 // # Key types
 //
 //   - [Game] — the top-level coordinator struct owning all subsystems

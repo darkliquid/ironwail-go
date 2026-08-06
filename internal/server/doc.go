@@ -13,41 +13,57 @@
 // At runtime the server loads world data, exposes builtin hooks to the QuakeC
 // VM, advances physics, and emits messages that clients later parse.
 //
-// # Domain structure
+// # Sub-packages
 //
-// Although currently a single package, the server code is organised into
-// logical domains. Each file carries a "// This file belongs to the <domain>
-// subsystem" header identifying its domain.
+// The formerly flat package has been decomposed into focused sub-packages
+// over successive refactor passes. Each owns a portable leaf of server
+// logic; the root `server` package keeps the orchestration/facade (session
+// glue, QC hooks, and delegation seams):
 //
 //	┌──────────────────────┬───────────────────────────────────────────────┐
-//	│ Domain               │ Files                                          │
+//	│ Subpackage           │ Owns                                           │
 //	├──────────────────────┼───────────────────────────────────────────────┤
-//	│ Physics/Collision    │ physics.go, physics_loop.go, movement.go,       │
-//	│                      │ world.go, world_math.go, world_model.go,       │
-//	│                      │ synthetic_bsp_helper.go                        │
+//	│ types                │ Edict, Client, MessageBuffer, EntityState,     │
+//	│                      │ protocol constants, and the narrow interfaces  │
+//	│                      │ (PhysicsFacade, FrameDriver, ClientThinker,    │
+//	│                      │ CollisionWorld, EntityStore, CVarReader) that  │
+//	│                      │ sub-packages consume instead of the root.      │
 //	├──────────────────────┼───────────────────────────────────────────────┤
-//	│ Network/Protocol     │ sv_send.go, sv_client.go, message.go,          │
-//	│                      │ sv_stats.go, types_protocol.go                 │
+//	│ physics              │ physics.System: per-entity leaf algorithms      │
+//	│                      │ (FlyMove, PushMove, PhysicsWalk/Toss/Step,      │
+//	│                      │ Impact, RunThink) plus the frame loop           │
+//	│                      │ (StepFrame) dispatching directly to those       │
+//	│                      │ leafs. Also ClientMover (per-client move        │
+//	│                      │ sim).                                           │
 //	├──────────────────────┼───────────────────────────────────────────────┤
-//	│ Entity/QC            │ edict.go, entity_accessors.go,                 │
-//	│                      │ entity_accessors_vec.go, qc_fields.go,         │
-//	│                      │ qc_trace.go, server_qc_sync.go,                 │
-//	│                      │ types_entities.go, types_flags.go              │
+//	│ collision            │ CollisionSystem: BSP model builders, hulls,     │
+//	│                      │ areanodes, trace queries.                      │
 //	├──────────────────────┼───────────────────────────────────────────────┤
-//	│ Server Lifecycle     │ server.go, sv_main.go, frame.go, sv_pvs.go,    │
-//	│                      │ user.go, user_spawn.go, rules.go, skill.go,    │
-//	│                      │ spawn_parms.go, types.go, sv_main_skybox.go,   │
-//	│                      │ server_runtime.go                              │
+//	│ net                  │ Wire encoding: entity delta encoding,           │
+//	│                      │ WriteClientData, spawn signon writers.          │
 //	├──────────────────────┼───────────────────────────────────────────────┤
-//	│ Savegame             │ savegame.go, savegame_text.go                  │
+//	│ edict                │ Edict allocation, map/savegame parsing, field   │
+//	│                      │ accessors.                                     │
 //	├──────────────────────┼───────────────────────────────────────────────┤
-//	│ Debug                │ debug_telemetry.go, debug_trigger.go, svdbg.go│
+//	│ state                │ Session/signon state manager.                   │
 //	├──────────────────────┼───────────────────────────────────────────────┤
-//	│ Tests                │ *_test.go                                      │
+//	│ commands             │ Server console command parse/dispatch.          │
+//	├──────────────────────┼───────────────────────────────────────────────┤
+//	│ debug                │ Telemetry + svdbg logging.                      │
+//	├──────────────────────┼───────────────────────────────────────────────┤
+//	│ qc                   │ Server-side QuakeC hook helpers.                │
+//	├──────────────────────┼───────────────────────────────────────────────┤
+//	│ savegame             │ Save/load serialization.                        │
 //	└──────────────────────┴───────────────────────────────────────────────┘
 //
-// Phase 2 of the modularisation plan (docs/plans/06_phase2_server_split.md)
-// will progressively extract these domains into sub-packages.
+// The root package now retains the facade responsibilities: `Server` owns
+// the client/session loops (RunClients, DropClient), message buffers, QCVM
+// lifecycle, and the delegators that route the remaining per-entity queries
+// to `PhysicsSys`. Root physics files such as server_physics.go and
+// server_physics_walk.go hold only the thin *Server delegators whose call
+// sites (tests, QC builtins) still reference the root surface; the
+// per-movetype frame dispatch no longer bounces through them (StepFrame
+// calls System leafs directly).
 //
 // # Role in the engine
 //
@@ -65,7 +81,10 @@
 // messaging, and shared world data explicit instead of relying on implicit
 // global cross-calls. Typed structs, slices and maps, and ordinary errors
 // replace much of the original pointer-heavy plumbing while keeping the
-// server-authoritative Quake model intact.
+// server-authoritative Quake model intact. Portability of the physics and
+// net leaves is improved by the extracted sub-packages: the leaf algorithms
+// run against narrow interfaces (types.PhysicsFacade etc.) injected by the
+// root, so they can be unit-tested in isolation with mocks.
 //
 // Recent additions include per-frame physics counters for profiling entity
 // simulation work, edict count warnings when approaching MAX_EDICTS, autosave
@@ -73,5 +92,5 @@
 //
 // # Testing
 //
-//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/server -count=1
+//	TMPDIR=./.tmp CGO_ENABLED=0 go test ./internal/server/... -count=1
 package server

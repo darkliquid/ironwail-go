@@ -32,7 +32,7 @@ This document records the investigative steps, hypotheses, implementations, and 
 * **Hypothesis**: Large BSP maps (`qbj2_zetabyt`) overflowed the WebGPU 2D texture height limit (2048/4096px) when stacking atlas layers vertically (`FlattenVertical`). In addition, uploading 162 individual lightmap arrays for inline brush models was exhausting Vulkan memory.
 * **Changes Made**:
   - Implemented `FlattenGrid()` in `internal/renderer/world_atlas_gogpu.go` to pack texture layers into a square 2D grid (`cols x rows`).
-  - Rescaled material `AtlasBounds` in `internal/renderer/world_resources_gogpu.go`.
+  - Rescaled material `AtlasBounds` in `internal/renderer/renderer_gogpu_world_resources.go`.
   - Changed `brushEntityLightmaps` in `internal/renderer/renderer_gogpu_worldstate.go` to unconditionally return `nil` for inline brush models.
 * **Result / Fallout (Severe Visual Regressions)**:
   - **Spiderweb & Distortion Artifacts**: Lightmap V-offset rescaling was applied by walking `geom.Indices`. Fan-triangulated faces had duplicate vertex index references, causing shared vertices to have their `LightmapCoord[1]` multiplied by `vScale` multiple times (2x to 6x), creating distorted "spiderweb" black-and-white patterns across surfaces.
@@ -145,7 +145,7 @@ This document records the investigative steps, hypotheses, implementations, and 
     submodels (index 1..N), calling `ensureBrushModelGeometry` and
     `ensureBrushModelLightmaps` for each.
   - Called `preloadBrushModelResources(tree)` at the end of `UploadWorld`
-    in `world_upload_gogpu.go`.
+    in `renderer_gogpu_world_upload.go`.
 * **Result**:
   - **Hang Fixed**: `qbj2_zetabyt` now loads and renders without freezing.
     Multiple `OnDraw` callbacks complete successfully. The external skybox

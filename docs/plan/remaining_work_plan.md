@@ -5,13 +5,23 @@ subpackage_migration_plan, deep_subpackage_decomposition_plan,
 architectural_decomposition_plan, aggressive_subpackage_plan) and consolidates
 `refactor_plan_v2.md`'s completed work into a single forward-looking plan.
 
-**Status: 2026-08-06.** Execution-order items 2-6 and 9 are complete (see §9):
+**Status: 2026-08-06 (updated).** Execution-order items 2-6 and 9 are complete (see §9):
 renderer resource creation / frame-pass leaf sweeps, game CSQC image helpers,
 game camera viewcalc, the server clientdata encoder, and the overlay-math
-sweep are extracted behind seams. server_qc_sync no-op pruning remains
-deferred as optional polish. The game and renderer roots retain their
-facade/orchestration layers. This document is the checklist for finishing the
-job.
+sweep are extracted behind seams. Follow-up work has additionally:
+
+- **Removed the `Server → PhysicsSys` frame-dispatch bounce.** `StepFrame`
+  now dispatches per-movetype straight to the System's own leaf methods.
+  The `MovetypeDispatch` interface and the `Server.PhysicsNone/NoClip/Toss`
+  delegators are deleted; the pure-function re-exports `ClipVelocity` and
+  `WalkMoveNeedsUnstick` were dropped as dead.
+- **Moved the pure physics tests into `internal/server/physics`**, rewritten
+  to drive `NewSystemWithFacade` against mocks; the root retained the
+  QCVM-integration and real-BSP tests that exercise the facade seam.
+
+`server_qc_sync` no-op pruning remains deferred as optional polish. The game
+and renderer roots retain their facade/orchestration layers. This document is
+the checklist for finishing the job.
 
 ---
 

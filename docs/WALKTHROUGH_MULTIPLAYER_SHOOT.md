@@ -320,7 +320,7 @@ The most relevant files for this walkthrough are:
 - `internal/host/remote_client.go`
 - `internal/server/user.go`
 - `internal/server/sv_client.go`
-- `internal/server/sv_send.go`
+- `internal/server/server_net_send.go` (server→client message encoding; wire leafs in `internal/server/net`)
 - `internal/server/server.go`
 - `internal/qc/builtins_world.go`
 - `internal/client/parse.go`

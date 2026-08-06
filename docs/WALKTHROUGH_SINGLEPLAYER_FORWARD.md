@@ -320,5 +320,5 @@ The best companion files for this walkthrough are:
 - `internal/host/init.go`
 - `internal/server/user.go`
 - `internal/server/frame.go`
-- `internal/server/physics.go`
+- `internal/server/physics/stepframe.go` (frame loop) and `internal/server/physics/leafs.go` (per-movetype leaf algorithms)
 

@@ -16,11 +16,16 @@
 //
 // # Sub-packages
 //
-// Mesh/lump-heavy world rendering lives in sub-packages:
-// internal/renderer/lightmap (CPU lightmap atlas compositing and page
-// stacking), internal/renderer/decal (mark lifetime, quad geometry, atlas
-// seeding), internal/renderer/world (+ world/gogpu), alias, sky, surface,
-// scrap, oit, and warpscale.
+// Portable leaf logic lives in sub-packages, each testable in isolation; the
+// root `renderer` package keeps the GPU state (the flat Renderer struct is
+// grouped into embedded domain value structs in renderer_gogpu.go) and the
+// frame orchestration. The world sub-package (+ world/gogpu) owns the
+// pure-Go geometry/vertex/texture helpers and the WGSL shaders; alias owns
+// MDL interpolation; lightmap owns CPU lightmap compositing; decal owns mark
+// lifetime/geometry; particle, sky, surface, scrap, oit, pipeline, and
+// warpscale round out the remaining leafs. Buffer/texture creation helpers
+// live in world/gogpu/resources.go as plain functions taking a wgpu device,
+// with root delegators kept for external consumers.
 //
 // # Role in the engine
 //

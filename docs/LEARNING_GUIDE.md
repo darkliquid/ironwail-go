@@ -33,6 +33,10 @@ The project is organized into `internal/` packages, each with a specific respons
 | `internal/engine` | **Lifecycle.** Core data structures (Cache, Registry, Set, Queue, EventBus). | Engine Heart | [Guide](internal/engine.md) |
 | `internal/fs` | **The Filesystem.** Handles `.pak` files and virtual paths (`id1/`, etc). | The "data loader." | [Guide](internal/fs.md) |
 | `internal/game` | **Coordinator.** Central game state and loop management. | The Director | [Guide](internal/game.md) |
+| `internal/game/camera` | **View Calculation.** Cvar-only view bob/roll, idle sway, viewmodel fudge, chase-camera math. | Camera Math | — |
+| `internal/game/csqc` | **CSQC Helpers.** Pure image/rect helpers for client-side QuakeC drawing. | CSQC Brush | — |
+| `internal/game/audio` | **Audio Helpers.** Pure sound name/volume formatting. | Audio Format | — |
+| `internal/game/ui` | **UI Math.** Pure overlay/UI clamp + format helpers. | UI Brush | — |
 | `internal/host` | **The Scheduler.** Manages the main loop, timing, and session lifecycle. | The "orchestra conductor." | [Guide](internal/host.md) |
 | `internal/hud` | **The HUD.** In-game overlays, status bars, and centerprints. | Heads-up Display | [Guide](internal/hud.md) |
 | `internal/image` | **Graphics Processing.** Image parsing and palette handling. | Image Processor | [Guide](internal/image.md) |
@@ -47,17 +51,26 @@ The project is organized into `internal/` packages, each with a specific respons
 | `internal/renderer/gogpu` | **Input Mapping.** Translates gogpu input events to Quake key codes. | Input Bridge | — |
 | `internal/renderer/lightmap` | **Lightmap Atlas.** CPU compositing, dirty tracking, page stacking. | Lightmap Painter | — |
 | `internal/renderer/decal` | **Decal Marks.** Mark lifetime, quad geometry, atlas seeding. | Decal System | — |
+| `internal/renderer/particle` | **Particle Math.** Shared particle state/geometry helpers. | Particle Helpers | — |
 | `internal/renderer/pipeline` | **Pipeline Constructors.** World render-pipeline + layout builders. | Pipeline Factory | — |
 | `internal/renderer/scrap` | **Scrap Atlas.** Skyline bin-packing for small UI textures. | Texture Packer | — |
 | `internal/renderer/sky` | **External Skybox.** Loads and renders 6-face PNG skyboxes. | Skybox Manager | — |
 | `internal/renderer/surface` | **Lightmap Allocator.** 2D bin-packing for lightmap samples. | Lightmap Packer | — |
-| `internal/renderer/world` | **Shared World Types.** WorldVertex, WorldFace, WorldGeometry, fog math. | World Data Layer | — |
-| `internal/renderer/world/gogpu` | **GoGPU World Helpers.** Brush entity building, sprite uniforms, WGSL shaders. | Shader Source | — |
+| `internal/renderer/world` | **Shared World Types.** WorldVertex, WorldFace, WorldGeometry, fog math, BSP texture helpers. | World Data Layer | — |
+| `internal/renderer/world/gogpu` | **GoGPU World Helpers.** Brush entity building, vertex/alias byte packing, resource creation, WGSL shaders. | Shader Source | — |
 | `internal/renderer/oit` | **OIT Transparency.** Order-independent transparency config (currently disabled). | Transparency Config | — |
 | `internal/renderer/warpscale` | **Water Warp.** Scene render target, FOV warp, composite pass. | Post-Process | — |
-| `internal/server` | **The Truth.** Runs physics, collision, and coordinates game logic. | The "simulation engine." | [Guide](internal/server.md) |
+| `internal/server` | **The Truth.** Facade/orchestrator: runs the session, QC hooks, and delegates to sub-packages for physics, collision, and wire encoding. | The "simulation engine." | [Guide](internal/server.md) |
+| `internal/server/physics` | **Physics Engine.** `physics.System` leaf algorithms + frame loop (`StepFrame`), client move simulation. | Physics Simulator | — |
+| `internal/server/collision` | **Collision System.** BSP model builders, hulls, areanodes, trace queries. | Collision Detect | — |
+| `internal/server/net` | **Wire Encoding.** Entity delta encoding, client-data bit packing, signon writers. | Protocol Encoder | — |
 | `internal/server/edict` | **Edict Pool.** Entity allocation, map/savegame parsing, spatial unlink. | Entity Manager | — |
-| `internal/server/types` | **Server Types.** Edict, MessageBuffer, EntityState, protocol stages. | Wire Types | — |
+| `internal/server/state` | **Session/Signon.** Server session + signon stage manager. | Session Manager | — |
+| `internal/server/commands` | **Command Dispatch.** Server console command parse/dispatch. | Command Parser | — |
+| `internal/server/debug` | **Server Debug.** Telemetry + svdbg logging. | Debug Logger | — |
+| `internal/server/qc` | **QC Hooks.** Server-side QuakeC hook helpers. | QC Bridge | — |
+| `internal/server/savegame` | **Save/Load.** Save-game serialization. | Save Manager | — |
+| `internal/server/types` | **Server Types + Seams.** Edict, Client, MessageBuffer, EntityState, protocol stages, and the narrow interfaces (PhysicsFacade, FrameDriver, CollisionWorld) sub-packages depend on. | Wire Types | — |
 | `internal/testutil` | **Testing.** Utilities for synthetic assets and integration tests. | Test Harness | [Guide](internal/testutil.md) |
 
 ---
@@ -84,7 +97,7 @@ Many people are surprised to find that "how the shotgun works" isn't in the Go c
 Ironwail Go uses modern WebGPU primitives (via the `gogpu` library). Unlike older engines that might draw things one-by-one, modern renderers try to "batch" work to the GPU.
 
 - **Key concept: The BSP.** Quake uses Binary Space Partitioning to quickly figure out which parts of a map are visible so it doesn't waste time drawing what you can't see.
-- **Where to look:** `internal/renderer/renderer_gogpu_frame.go` for the frame orchestrator (`RenderFrame`), `internal/renderer/world_render_gogpu.go` for the world BSP render pass, and `internal/bsp` for map loading logic.
+- **Where to look:** `internal/renderer/renderer_gogpu_frame.go` for the frame orchestrator (`RenderFrame`), `internal/renderer/renderer_gogpu_world_render.go` for the world BSP render pass, and `internal/bsp` for map loading logic.
 - **Renderer sub-packages:** The renderer is split into focused sub-packages:
   - `renderer/alias` — MDL vertex interpolation (CPU path, C: r_alias.c)
   - `renderer/world` — shared world types (WorldVertex, WorldFace, WorldGeometry)

@@ -29,10 +29,10 @@ GPU texture readback (previously produced a placeholder clear-color image).
 
 | Area | Status | Primary Go surfaces | C reference surfaces | Evidence needed |
 | --- | --- | --- | --- | --- |
-| Performance | Reported poor | `internal/renderer/world_render_gogpu.go`, `internal/renderer/render_pass_parity.go`, `internal/game/runtime_frame.go` | `Quake/gl_rmain.c`, `Quake/r_world.c`, `Quake/host.c` | C vs Go frame timings, visible face counts, batch counts, entity counts, GPU upload counters |
-| Texture/decal z-fighting | Reported | `internal/renderer/world_gogpu_decal.go`, `internal/renderer/world_gogpu_brush_render.go`, `internal/renderer/world_depth_gogpu.go` | `Quake/gl_rmain.c`, `Quake/r_world.c` | Matched screenshots, onion overlays, depth/stencil state notes, decal count/location notes |
-| Trigger reliability | Reported | `internal/server/world.go`, `internal/server/physics.go`, `internal/server/debug_telemetry.go` | `Quake/world.c`, `Quake/sv_phys.c`, `Quake/pr_cmds.c` | `sv_debug_telemetry` logs, trigger classname/targetname list, C-vs-Go touch/use sequence comparison |
-| External skybox and map data | Suspected relevant | `internal/renderer/sky/external.go`, `internal/server/sv_main.go`, `internal/bsp` | `Quake/gl_sky.c`, `Quake/gl_model.c` | Entity lump notes, skybox config lookup, BSP variant/texture flag summary |
+| Performance | Reported poor | `internal/renderer/renderer_gogpu_world_render.go`, `internal/renderer/render_pass_parity.go`, `internal/game/runtime_frame.go` | `Quake/gl_rmain.c`, `Quake/r_world.c`, `Quake/host.c` | C vs Go frame timings, visible face counts, batch counts, entity counts, GPU upload counters |
+| Texture/decal z-fighting | Reported | `internal/renderer/renderer_gogpu_world_decal.go`, `internal/renderer/renderer_gogpu_world_brush_render.go`, `internal/renderer/renderer_gogpu_world_depth.go` | `Quake/gl_rmain.c`, `Quake/r_world.c` | Matched screenshots, onion overlays, depth/stencil state notes, decal count/location notes |
+| Trigger reliability | Reported | `internal/server/world.go`, `internal/server/physics/leafs.go`, `internal/server/debug_telemetry.go` | `Quake/world.c`, `Quake/sv_phys.c`, `Quake/pr_cmds.c` | `sv_debug_telemetry` logs, trigger classname/targetname list, C-vs-Go touch/use sequence comparison |
+| External skybox and map data | Suspected relevant | `internal/renderer/sky/external.go`, `internal/server/sv_main_skybox.go`, `internal/bsp` | `Quake/gl_sky.c`, `Quake/gl_model.c` | Entity lump notes, skybox config lookup, BSP variant/texture flag summary |
 
 ### Latest local qbj3_stickflip sweep findings
 
@@ -225,11 +225,11 @@ Classify evidence into:
 
 | Class | Symptoms | Likely owner |
 | --- | --- | --- |
-| World visibility/batching | High visible face count, repeated batch rebuilds, cache misses | `internal/renderer/world_render_gogpu.go` |
-| Brush/entity rendering | Many brush models, translucent pass inflation, repeated scratch uploads | `internal/renderer/world_gogpu_brush_render.go`, `internal/renderer/render_pass_parity.go` |
-| Decals/particles | High late-translucency cost, many per-mark uploads, overdraw | `internal/renderer/world_gogpu_decal.go`, `internal/renderer/particle_gogpu.go` |
-| Server/QC | High `Physics`, `StartFrame`, touch, think, or QC profile counts | `internal/server/physics_loop.go`, `internal/server/world.go`, `internal/qc` |
-| Asset/loading | Spikes on map start, texture upload, skybox probes, BSP data conversion | `internal/fs`, `internal/bsp`, `internal/renderer/world_upload_gogpu.go` |
+| World visibility/batching | High visible face count, repeated batch rebuilds, cache misses | `internal/renderer/renderer_gogpu_world_render.go` |
+| Brush/entity rendering | Many brush models, translucent pass inflation, repeated scratch uploads | `internal/renderer/renderer_gogpu_world_brush_render.go`, `internal/renderer/render_pass_parity.go` |
+| Decals/particles | High late-translucency cost, many per-mark uploads, overdraw | `internal/renderer/renderer_gogpu_world_decal.go`, `internal/renderer/renderer_gogpu_particle.go` |
+| Server/QC | High `Physics`, `StartFrame`, touch, think, or QC profile counts | `internal/server/physics/stepframe.go`, `internal/server/world.go`, `internal/qc` |
+| Asset/loading | Spikes on map start, texture upload, skybox probes, BSP data conversion | `internal/fs`, `internal/bsp`, `internal/renderer/renderer_gogpu_world_upload.go` |
 
 ## Visual parity workflow
 

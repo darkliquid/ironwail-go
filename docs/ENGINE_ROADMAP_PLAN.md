@@ -22,17 +22,17 @@ This document defines the step-by-step implementation strategy for the major eng
 Complete the migration of server entity state from dual-storage (`EntVars` struct + `QCVM.Edicts []byte`) to direct-VM accessor methods, and delete the reflection-based synchronization layer.
 
 ### Target Files
-- `internal/server/entity_accessors.go` (157 existing typed accessors)
-- `internal/server/physics.go`, `physics_loop.go`, `physics_push.go`, `physics_step.go`, `physics_toss.go`, `world.go`
+- `internal/server/types/entity_accessors.go`, `types/entity_accessors_vec.go` (typed accessors)
+- `internal/server/physics/leafs.go` (leaf algorithms), `internal/server/physics/stepframe.go` (frame loop), `internal/server/physics/clientmove.go` (client movement), `internal/server/world.go`
 - `internal/server/server_qc_sync.go` (to be deleted)
 - `internal/server/qc_trace.go` (`executeQCFunction`)
-- `internal/server/savegame.go`
+- `internal/server/savegame/` (portable save types) and the root save/load serialization
 
 ### Step-by-Step Execution
 1. **Migrate Hot-Path Reads/Writes to Accessors (Step 2 completion)**:
    - Replace direct struct access (`ent.Vars.Origin`, `ent.Vars.Velocity`, `ent.Vars.Flags`, `ent.Vars.Solid`, `ent.Vars.Movetype`) across `physics*.go` and `world.go` with accessor calls (`ent.Origin()`, `ent.SetOrigin()`, `ent.Velocity()`, `ent.SetVelocity()`, etc.).
 2. **Update Save/Load Logic (Step 4 prerequisite)**:
-   - Rewrite `savegame.go` to serialize/deserialize `QCVM.Edicts` byte array slice directly rather than saving `EntVars` struct fields.
+   - Rewrite `savegame_server.go` to serialize/deserialize `QCVM.Edicts` byte array slice directly rather than saving `EntVars` struct fields.
 3. **Delete Reflection Sync Layer (Step 3)**:
    - Delete `internal/server/server_qc_sync.go` (`syncAllToQCVM`, `syncAllFromQCVM`, `syncEdictToQCVM`, `syncEdictFromQCVM`).
    - Remove sync calls from `executeQCFunction` in `qc_trace.go`.
@@ -53,10 +53,10 @@ Complete the migration of server entity state from dual-storage (`EntVars` struc
 Replace the hardcoded 256-entry uniform buffer for texture materials with a WebGPU storage buffer, allowing maps with >254 textures (e.g. `qbj2_start`) to render without buffer overflow.
 
 ### Target Files
-- `internal/renderer/world_shaders_gogpu.go`
+- `internal/renderer/renderer_gogpu_world_shaders.go`
 - `internal/renderer/world_material_gogpu.go`
-- `internal/renderer/world_resources_gogpu.go`
-- `internal/renderer/world_pipelines_gogpu.go`
+- `internal/renderer/renderer_gogpu_world_resources.go`
+- `internal/renderer/renderer_gogpu_world_pipelines.go`
 
 ### Step-by-Step Execution
 1. **WGSL Shader Declaration**:
@@ -86,7 +86,7 @@ Eliminate garbage collection pressure during level changes and gameplay by intro
 - `internal/engine/arena/` (new package)
 - `internal/bsp/`
 - `internal/model/`
-- `internal/renderer/world_upload_gogpu.go`
+- `internal/renderer/renderer_gogpu_world_upload.go`
 - `internal/host/session.go`
 
 ### Step-by-Step Execution
@@ -134,9 +134,9 @@ Complete the host and client runtime execution wiring for Client-Side QuakeC (`c
 Achieve official visual and behavioral parity sign-off on the `qbj3_stickflip` community map pack.
 
 ### Target Files
-- `internal/renderer/world_render_gogpu.go`
-- `internal/renderer/world_gogpu_decal.go`
-- `internal/renderer/world_gogpu_brush_render.go`
+- `internal/renderer/renderer_gogpu_world_render.go`
+- `internal/renderer/renderer_gogpu_world_decal.go`
+- `internal/renderer/renderer_gogpu_world_brush_render.go`
 - `testdata/parity/viewpoints.json`
 - `docs/PARITY.md`
 
@@ -144,7 +144,7 @@ Achieve official visual and behavioral parity sign-off on the `qbj3_stickflip` c
 1. **Lighting & Contrast Parity**:
    - Compare GoGPU fragment shader overbright multiplier (`lightmap * 2.0`) and lightmap page math against C `gl_rmain.c` to fix the upper-ceiling contrast delta.
 2. **Decal Depth & Z-Fighting**:
-   - Adjust depth bias settings in `world_gogpu_decal.go` for coplanar brush/decal surfaces.
+   - Adjust depth bias settings in `renderer_gogpu_world_decal.go` for coplanar brush/decal surfaces.
 3. **Expand Parity Viewpoints**:
    - Extract `viewpos` coordinates from C Ironwail for dense outdoor and trigger-heavy scenes in `qbj3_stickflip` and save into `testdata/parity/viewpoints.json`.
 

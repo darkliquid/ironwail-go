@@ -62,9 +62,9 @@ Callers just set `self`/`other`/`time` globals and call it.
 | Dispatch point | File:line | Notes |
 | --- | --- | --- |
 | `touchLinks` (trigger area touch) | `internal/server/world.go:649` | Sets globals, calls `executeQCFunction` |
-| `Impact` (direct collision touch) | `internal/server/physics.go:68` | Sets globals, calls `executeQCFunction` |
-| `PhysicsPusher` think | `internal/server/physics.go:498` | Sets globals, calls `executeQCFunction` |
-| `executeQCFunction` (generic wrapper) | `internal/server/qc_trace.go:69` | Single sync point — `syncAllToQCVM`/`syncAllFromQCVM` |
+| `Impact` (direct collision touch) | `internal/server/physics/leafs.go:373` | Sets globals, calls `executeQCFunction` |
+| `PhysicsPusher` think | `internal/server/physics/leafs.go:666` | Sets globals, calls `executeQCFunction` |
+| `executeQCFunction` (generic wrapper) | `internal/server/qc_trace.go:71` | Single sync point — `syncAllToQCVM`/`syncAllFromQCVM` |
 | `executeQCFunctionLeavingGlobals` | `internal/server/qc_trace.go` | Same sync, doesn't save/restore globals (StartFrame) |
 
 ## Bugs Found and Fixed
@@ -96,7 +96,7 @@ and `syncMutatedPushersFromQCVM` after, to both `executeQCFunction` and
 
 ### Bug 2: `Impact` missing pusher sync — FIXED
 
-**The bug:** `Impact` (`physics.go:68`) synced only the two colliding entities,
+**The bug:** `Impact` (`physics/leafs.go:373`) synced only the two colliding entities,
 not pushers. If a touch callback (e.g., `button_touch`) called `SUB_UseTargets`
 targeting a pusher, the pusher's mutations were lost.
 
@@ -107,7 +107,7 @@ Test: `TestImpactSyncsPusherMutationsFromQCVM`.
 
 **The bug:** C's `SV_Physics_Client` always calls `SV_LinkEdict(ent, true)` after
 the movetype switch. Go's `PhysicsWalk` does this internally, but the non-WALK
-path (`MOVETYPE_NONE` during intermission) in `physics_loop.go` did not.
+path (`MOVETYPE_NONE` during intermission) in `physics/stepframe.go` did not.
 Trigger touches wouldn't fire for stationary non-walking clients.
 
 **Fix:** Added `s.LinkEdict(ent, true)` for non-WALK client entities before
@@ -135,7 +135,7 @@ gone (~170 lines of dead code removed). The double-sync redundancy in
   target, touch/use/think fn, `th_checkattack`, `customflags`, `state`, `wait`,
   `nextthink`. Also logs `find(targetname=...)` and `pusher synced` lines.
   Files: `internal/server/debug_trigger.go`, with calls in `world.go`,
-  `physics.go`, `server.go`, `debug_telemetry.go`.
+  `physics/leafs.go`, `server.go`, `debug_telemetry.go`.
 - **`sv_debug_telemetry` cvar:** Broader server-side telemetry for
   trigger/physics/QC activity. See `internal/server/debug_telemetry.go`.
 
@@ -146,11 +146,11 @@ gone (~170 lines of dead code removed). The double-sync redundancy in
 | `SV_TouchLinks` | `world.c:336-380` | `touchLinks` (`world.go:649`) |
 | `SV_AreaTriggerEdicts` | `world.c:286-324` | `areaTriggerEdicts` |
 | `SV_LinkEdict` | `world.c:467-538` | `LinkEdict` |
-| `SV_Physics` | `sv_phys.c:1226-1298` | `Physics` (`physics_loop.go:9`) |
-| `SV_Physics_Pusher` | `sv_phys.c:618-652` | `PhysicsPusher` (`physics.go:498`) |
-| `SV_PushMove` | `sv_phys.c:434-607` | `PushMove` (`physics.go:328`) |
-| `SV_Impact` | `sv_phys.c:155-179` | `Impact` (`physics.go:68`) |
-| `SV_RunThink` | `sv_phys.c` | `RunThink` (`physics.go:28`) |
+| `SV_Physics` | `sv_phys.c:1226-1298` | `Physics` (`physics/stepframe.go:22`) |
+| `SV_Physics_Pusher` | `sv_phys.c:618-652` | `PhysicsPusher` (`physics/leafs.go:666`) |
+| `SV_PushMove` | `sv_phys.c:434-607` | `PushMove` (`physics/leafs.go:433`) |
+| `SV_Impact` | `sv_phys.c:155-179` | `Impact` (`physics/leafs.go:373`) |
+| `SV_RunThink` | `sv_phys.c` | `RunThink` (`physics/leafs.go:329`) |
 
 ## Unified Storage: Implementation Status
 
@@ -190,7 +190,7 @@ gone (~170 lines of dead code removed). The double-sync redundancy in
   entities are synced unconditionally, the "forgot to sync this dispatch path"
   class of bug is eliminated.
 - **Steps 3-5 of the original migration plan not done:** Remove `EntVars`,
-  simplify `savegame.go` for QCVM bytes, and simplify callback dispatch to
+  simplify `savegame_server.go` for QCVM bytes, and simplify callback dispatch to
   match C exactly (no sync at all — just set globals and execute).
 
 ### Original Proposal (for reference)
@@ -202,7 +202,7 @@ The original 5-step plan was:
 | 1 | Add accessor methods to `Edict`, cache extension field offsets | **Done** (157 accessors) |
 | 2 | Migrate hot-path code to accessors | **Partial** — accessors exist, `server.go` has ~27 direct-VM sites, but physics/movement still use `EntVars` |
 | 3 | Remove sync functions (delete `server_qc_sync.go`, simplify `qc_trace.go`) | **Partially done** — old selective sync removed, sync-all replaces it |
-| 4 | Remove `EntVars` struct (rewrite `savegame.go` for QCVM bytes) | **Not done** |
+| 4 | Remove `EntVars` struct (rewrite `savegame_server.go` for QCVM bytes) | **Not done** |
 | 5 | Simplify callback dispatch (match C exactly — no sync, just set globals and execute) | **Not done** — sync-all still runs at every callback |
 
 ### Rejected Alternatives (for reference)
@@ -227,9 +227,9 @@ The original 5-step plan was:
 | `internal/server/edict.go` | `Edict` struct, `ED_ParseEdict` |
 | `internal/server/server_qc_sync.go` | All sync functions (to be removed) |
 | `internal/server/qc_trace.go:69` | `executeQCFunction` |
-| `internal/server/physics.go:68` | `Impact` |
-| `internal/server/physics.go:498` | `PhysicsPusher` |
-| `internal/server/physics_loop.go:9` | `Physics` main loop |
+| `internal/server/physics/leafs.go:373` | `Impact` |
+| `internal/server/physics/leafs.go:666` | `PhysicsPusher` |
+| `internal/server/physics/stepframe.go:22` | `Physics` main loop |
 | `internal/server/world.go:649` | `touchLinks` |
 | `internal/server/debug_trigger.go` | `sv_debug_trigger` logging |
 | `internal/server/debug_telemetry.go` | `sv_debug_telemetry` logging |

@@ -63,15 +63,15 @@ arrays for GPU upload. They must each write every field at the correct offset:
 
 | Function | File | Used for |
 |----------|------|----------|
-| `createWorldVertexBuffer` | `world_resources_gogpu.go` | Static world geometry (BSP world) |
-| `appendGoGPUWorldVertexBytes` | `world_gogpu.go` | Brush entities (doors, platforms, triggers) |
+| `CreateWorldVertexBuffer` | `world/gogpu/resources.go` | Static world geometry (BSP world) |
+| `appendGoGPUWorldVertexBytes` | `renderer_gogpu_world_pipeline.go` | Brush entities (doors, platforms, triggers) |
 | `VertexBytes` | `world/gogpu/buffer.go` | Sky brush entities |
-| `aliasVertexBytesInto` | `world_gogpu_alias.go` | Alias models (enemies, items, weapons) |
+| `AliasVertexBytesInto` | `world/gogpu/aliasbytes.go` | Alias models (enemies, items, weapons) |
 
 ### 3. The WebGPU pipeline vertex layout
 
-Defined in `world_pipelines_gogpu.go` (and similar blocks in
-`world_gogpu_alias.go` and `world_gogpu_sprite.go`). This tells the GPU how
+Defined in `renderer_gogpu_world_pipelines.go` (and similar blocks in
+`renderer_gogpu_world_alias.go` and `renderer_gogpu_world_sprite.go`). This tells the GPU how
 to read the byte buffer:
 
 ```go
@@ -158,12 +158,12 @@ When adding a new field to `WorldVertex`:
 
 - [ ] Add the field to the `WorldVertex` struct in `world/types.go`
 - [ ] Add the field to the `VertexInput` struct in **every** WGSL shader
-      (`world_shaders_gogpu.go`, `world/gogpu/shaders.go`)
+      (`renderer_gogpu_world_shaders.go`, `world/gogpu/shaders.go`)
 - [ ] Update the `VertexOutput` struct and vertex shader's `vs_main` to pass
       the new field through to the fragment shader
 - [ ] Update `ArrayStride` in **every** pipeline's `VertexBufferLayout`
-      (`world_pipelines_gogpu.go`, `world_gogpu_alias.go`,
-      `world_gogpu_sprite.go`)
+      (`renderer_gogpu_world_pipelines.go`, `renderer_gogpu_world_alias.go`,
+      `renderer_gogpu_world_sprite.go`)
 - [ ] Update **all four** vertex-packing functions listed above
 - [ ] Update the stride constant (`goGPUWorldVertexStrideBytes`,
       `worldVertexStrideBytes`, `aliasVertexStride`) in each file
