@@ -479,3 +479,25 @@ the delegation, confirming behavioral parity.
 
 Verified: full module builds; all server + physics tests pass; only the two
 pre-existing failures remain. Server root is now down ~2,100 lines cumulatively.
+
+### Net Wire Encoding Extraction (`server_net_send.go` → `server/net`, DONE 2026-08-05)
+Extracted the pure wire-format serialization helpers from the 944-line
+`server_net_send.go` into `net/encode.go` (exported, unit-testable):
+
+- `EncodeScale` (4-bit scale packing)
+- `EncodeLerpFinish` (next-think interval byte)
+- `WriteEntityState` (entity bit-packing + coord/angle interleave; takes
+  `ProtocolFlags` as a param instead of reading the server)
+- `EntitySendSortKey` (distance-based PVS send ordering; takes a `ServerHandle`
+  for edict bounds)
+
+Root keeps one-line delegators. New seam: none required beyond passing
+`ProtocolFlags`/`ServerHandle` as params — these were already portable.
+
+Tests: `net/encode_test.go` verifies clamping, lerp rounding (0.1s → byte 26,
+matching the frame loop's 25/26 redundancy skip), and entity-state field
+packing round-trip.
+
+Verified: full module builds; all server + net tests pass; only the two
+pre-existing failures remain. Server root is now down ~2,200 lines
+cumulatively; `server_net_send.go` is at 848 lines.

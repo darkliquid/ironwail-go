@@ -50,6 +50,7 @@ import (
 	"sort"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	srvnet "github.com/darkliquid/ironwail-go/internal/server/net"
 )
 
 func (s *Server) StartParticle(org, dir [3]float32, color, count int) {
@@ -196,50 +197,7 @@ func (s *Server) LocalSound(client *Client, sample string) {
 
 // writeEntityState encodes baseline/static entity payloads, including optional extended fields.
 func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended bool, includeEntNum bool, entNum int) {
-	flags := uint32(s.ProtocolFlags())
-	var bits byte
-	if ent.ModelIndex > 255 {
-		bits |= 1
-	}
-	if ent.Frame > 255 {
-		bits |= 1 << 1
-	}
-	if ent.Alpha != 0 {
-		bits |= 1 << 2
-	}
-	if ent.Scale != 0 && ent.Scale != 16 {
-		bits |= 1 << 3
-	}
-
-	if extended {
-		msg.PutByte(bits)
-	}
-	if includeEntNum {
-		msg.WriteShort(int16(entNum))
-	}
-	if extended && bits&(1<<0) != 0 {
-		msg.WriteShort(int16(ent.ModelIndex))
-	} else {
-		msg.PutByte(byte(ent.ModelIndex))
-	}
-	if extended && bits&(1<<1) != 0 {
-		msg.WriteShort(int16(ent.Frame))
-	} else {
-		msg.PutByte(byte(ent.Frame))
-	}
-	msg.PutByte(byte(ent.Colormap))
-	msg.PutByte(byte(ent.Skin))
-	// Origins and angles must be interleaved: O1, A1, O2, A2, O3, A3
-	for i := 0; i < 3; i++ {
-		msg.WriteCoord(ent.Origin[i], flags)
-		msg.WriteAngle(ent.Angles[i], flags)
-	}
-	if extended && bits&(1<<2) != 0 {
-		msg.PutByte(ent.Alpha)
-	}
-	if extended && bits&(1<<3) != 0 {
-		msg.PutByte(ent.Scale)
-	}
+	srvnet.WriteEntityState(msg, ent, extended, includeEntNum, entNum, uint32(s.ProtocolFlags()))
 }
 
 // WriteClientDataToMessage serializes player-centric data (damage, view, ammo, items) for one frame.
@@ -497,13 +455,7 @@ func (s *Server) FindModel(name string) int {
 // encodeScale converts a QC scale float to byte encoding.
 // Matches C's ENTSCALE_ENCODE: (byte)(CLAMP(0, s, 15.9375) * 16).
 func encodeScale(a float32) byte {
-	if a < 0 {
-		a = 0
-	}
-	if a > 15.9375 {
-		a = 15.9375
-	}
-	return byte(a * 16)
+	return srvnet.EncodeScale(a)
 }
 
 // entityStateForClient builds render/network state for an edict as seen by a specific client.
@@ -555,14 +507,7 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 }
 
 func encodeLerpFinish(nextThink, time float32) (byte, bool) {
-	delta := nextThink - time
-	if delta <= 0 {
-		return 0, false
-	}
-	if delta > 1 {
-		delta = 1
-	}
-	return byte(delta*255.0 + 0.5), true
+	return srvnet.EncodeLerpFinish(nextThink, time)
 }
 
 type entitySendCandidate struct {
@@ -591,43 +536,7 @@ func (s *Server) entitySendSortBasis(client *Client) (origin, forward [3]float32
 }
 
 func (s *Server) entitySendSortKey(ent *Edict, origin, forward [3]float32) int {
-	if ent == nil {
-		return 0
-	}
-
-	distSq := float32(0)
-	sizeSq := float32(0)
-	absMin := ent.AbsMin(s)
-	absMax := ent.AbsMax(s)
-	for i := 0; i < 3; i++ {
-		clamped := origin[i]
-		if clamped < absMin[i] {
-			clamped = absMin[i]
-		} else if clamped > absMax[i] {
-			clamped = absMax[i]
-		}
-		delta := clamped - origin[i]
-		distSq += delta * delta
-		size := absMax[i] - absMin[i]
-		sizeSq += size * size
-	}
-	if sizeSq < 1 {
-		sizeSq = 1
-	}
-	dist := int(math.Min(255, 8*math.Sqrt(math.Sqrt(float64(distSq/sizeSq)))))
-
-	forwardDist := float32(0)
-	for i := 0; i < 3; i++ {
-		edge := absMax[i]
-		if forward[i] < 0 {
-			edge = absMin[i]
-		}
-		forwardDist += (edge - origin[i]) * forward[i]
-	}
-	if forwardDist < 0 {
-		dist |= 128
-	}
-	return dist
+	return srvnet.EntitySendSortKey(ent, origin, forward, s)
 }
 
 // writeEntityUpdate performs Quake's bitflag delta encoding between baseline and current entity states.
