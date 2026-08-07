@@ -69,10 +69,9 @@ func TestEntityStateForClient_AlphaScaleDefaultsWhenFieldsMissing(t *testing.T) 
 		QCFieldScale: -1,
 	}
 	newServerTestVM(s, 8)
-	ent := &Edict{
-		Alpha: 77,
-		Scale: 99,
-	}
+	ent := &Edict{Num: 1, Alpha: 77, Scale: 99}
+	ent.SetModel(s, s.QCVM.AllocString("progs/player.mdl"))
+	ent.SetModelIndex(s, 1)
 
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
@@ -90,15 +89,17 @@ func TestEntityStateForClient_ReadsQCAlphaScale(t *testing.T) {
 	t.Parallel()
 
 	vm := newTestQCVM()
-	vm.SetEFloat(1, 0, 0.5) // alpha
-	vm.SetEFloat(1, 1, 2.0) // scale
+	vm.SetEFloat(1, 90, 0.5) // alpha
+	vm.SetEFloat(1, 91, 2.0) // scale
 
 	s := &Server{
 		QCVM:         vm,
-		QCFieldAlpha: 0,
-		QCFieldScale: 1,
+		QCFieldAlpha: 90,
+		QCFieldScale: 91,
 	}
 	ent := &Edict{Num: 1}
+	ent.SetModel(s, vm.AllocString("progs/player.mdl"))
+	ent.SetModelIndex(s, 1)
 
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
@@ -120,6 +121,8 @@ func TestEntityStateForClient_AppliesEffectsMask(t *testing.T) {
 	}
 	newServerTestVM(s, 8)
 	ent := &Edict{Num: 1}
+	ent.SetModel(s, s.QCVM.AllocString("progs/player.mdl"))
+	ent.SetModelIndex(s, 1)
 	ent.SetEffects(s, float32(EffectMuzzleFlash))
 
 	state, ok := s.entityStateForClient(1, ent)
@@ -133,8 +136,9 @@ func TestEntityStateForClient_AppliesEffectsMask(t *testing.T) {
 
 func newTestQCVM() *qc.VM {
 	vm := &qc.VM{
-		NumEdicts: 2,
-		EdictSize: 28 + 128*4, // prefix + 128 float fields
+		NumEdicts:  2,
+		EdictSize:  28 + 128*4, // prefix + 128 float fields
+		StringTable: map[int32]string{},
 	}
 	vm.Edicts = make([]byte, vm.EdictSize*vm.NumEdicts)
 	return vm

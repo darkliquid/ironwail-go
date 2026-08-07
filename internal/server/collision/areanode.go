@@ -156,16 +156,17 @@ func (c *System) LinkEdict(ent *srvtypes.Edict, touchTriggers bool) {
 	node := &c.areanodes[0]
 	for node.Axis != -1 {
 		if absMin[node.Axis] > node.Dist {
-			if node.Children[0] != nil {
-				node = node.Children[0]
+			if node.Children[0] == nil {
+				break
 			}
+			node = node.Children[0]
 		} else if absMax[node.Axis] < node.Dist {
-			if node.Children[1] != nil {
-				node = node.Children[1]
+			if node.Children[1] == nil {
+				break
 			}
-		}
-		if node.Axis == -1 || (absMin[node.Axis] <= node.Dist && absMax[node.Axis] >= node.Dist) {
-			break
+			node = node.Children[1]
+		} else {
+			break // crosses the node
 		}
 	}
 

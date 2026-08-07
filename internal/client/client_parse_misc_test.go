@@ -246,6 +246,7 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 		t.Fatal("failed to alloc entity")
 	}
 	ent.SetModelIndex(s, 2)
+	ent.SetModel(s, s.QCVM.AllocString("progs/ogre.mdl"))
 	ent.SetOrigin(s, [3]float32{10, 20, 30})
 	ent.SetAngles(s, [3]float32{0, 45, 0})
 	ent.SetFrame(s, 4)

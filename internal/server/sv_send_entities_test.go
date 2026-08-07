@@ -147,6 +147,7 @@ func TestWriteEntitiesToClient_OmitsLerpFinishWithoutSendInterval(t *testing.T) 
 	}
 	newServerTestVM(s, 8)
 	ent.SetModelIndex(s, 1)
+	ent.SetModel(s, s.QCVM.AllocString("*1"))
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
 		t.Fatal("entityStateForClient returned ok=false for visible brush entity")
@@ -192,6 +193,7 @@ func TestWriteEntitiesToClient_EmitsLerpFinishOnlyWhenSendIntervalSet(t *testing
 	}
 	newServerTestVM(s, 8)
 	ent.SetModelIndex(s, 1)
+	ent.SetModel(s, s.QCVM.AllocString("*1"))
 	ent.SetNextThink(s, 10.5)
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
@@ -235,6 +237,7 @@ func TestWriteEntitiesToClient_EmitsVisibleBaselineEqualBrushEntity(t *testing.T
 	}
 	newServerTestVM(s, 8)
 	ent.SetModelIndex(s, 1)
+	ent.SetModel(s, s.QCVM.AllocString("*1"))
 	state, ok := s.entityStateForClient(1, ent)
 	if !ok {
 		t.Fatal("entityStateForClient returned ok=false for visible brush entity")
@@ -274,6 +277,7 @@ func TestWriteEntitiesToClient_PrioritizesCloserVisibleEntitiesWhenPacketBudgetT
 	s.ensureQCVMEdictStorage()
 
 	far.SetModelIndex(s, 5)
+	far.SetModel(s, s.QCVM.AllocString("*5"))
 	far.SetOrigin(s, [3]float32{1000, 0, 0})
 	far.SetAbsMin(s, [3]float32{999, -1, -1})
 	far.SetAbsMax(s, [3]float32{1001, 1, 1})
@@ -282,6 +286,7 @@ func TestWriteEntitiesToClient_PrioritizesCloserVisibleEntitiesWhenPacketBudgetT
 	far.Baseline = EntityState{ModelIndex: 5, Origin: far.Origin(s), Scale: inet.ENTSCALE_DEFAULT}
 
 	near.SetModelIndex(s, 6)
+	near.SetModel(s, s.QCVM.AllocString("*6"))
 	near.SetOrigin(s, [3]float32{10, 0, 0})
 	near.SetAbsMin(s, [3]float32{9, -1, -1})
 	near.SetAbsMax(s, [3]float32{11, 1, 1})

@@ -342,6 +342,19 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 			continue
 		}
 
+		// Mirror C SV_WriteEntitiesToClient ("ignore ents without visible
+		// models"): the client edict is added unconditionally, but every
+		// other entity is skipped when it has no modelindex or an empty
+		// model string. Picked-up items keep their modelindex but have
+		// their model string cleared (QuakeC sets self.model=string_null)
+		// while they recharge; without this check the client would keep
+		// rendering them after pickup.
+		if ent != client.Edict {
+			if state.ModelIndex == 0 || s.String(ent.Model(s)) == "" {
+				continue
+			}
+		}
+
 		if ent != client.Edict && !s.SV_VisibleToClient(ent, client) {
 			continue
 		}
