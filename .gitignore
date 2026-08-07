@@ -50,3 +50,5 @@ gha-creds-*.json
 
 # Local scratch TMPDIR for Go toolchain
 .tmp/
+
+.gograph/
