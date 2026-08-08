@@ -669,6 +669,11 @@ func (s *System) PhysicsPusher(ent *srvtypes.Edict) {
 	entNum := facade.NumForEdict(ent)
 	telemetryEnabled := facade.EventsEnabled()
 	oldLTime := ent.LTime(sh)
+	// Snapshot nextthink once, like C: both the movetime derivation and the
+	// post-push think gate must use the SAME original thinktime. Re-reading
+	// nextthink after PushMove lets a blocked/use callback's re-arm (a new
+	// nextthink landing inside the original window) fire the pusher think
+	// twice (or eat the re-arm). Where in C: SV_Physics_Pusher in sv_phys.c.
 	thinkTime := ent.NextThink(sh)
 	movetime := facade.GetFrameTime()
 
@@ -687,7 +692,10 @@ func (s *System) PhysicsPusher(ent *srvtypes.Edict) {
 		s.PushMove(ent, movetime)
 	}
 
-	thinkTime = ent.NextThink(sh)
+	// Gate on the ORIGINAL thinkTime, exactly like C:
+	// `if (thinktime > oldltime && thinktime <= ent->v.ltime)`. curLTime is
+	// the post-push ltime; a new nextthink written by a blocked callback stays
+	// armed for a later frame instead of firing twice in one frame.
 	thinkFn := ent.Think(sh)
 	curLTime := ent.LTime(sh)
 	if thinkTime > oldLTime && thinkTime <= curLTime {

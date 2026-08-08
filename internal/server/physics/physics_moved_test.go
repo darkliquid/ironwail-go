@@ -22,7 +22,11 @@ func newMockLeafSystem(t *testing.T, col srvtypes.CollisionWorld, facade *mockFa
 	if facade.store == nil {
 		facade.store = store
 	}
-	return NewSystemWithFacade(col, store, &handle{vm: facade.vm}, facade), store, &handle{vm: facade.vm}
+	sh := facade.facadeHandle
+	if sh == nil {
+		sh = &handle{vm: facade.vm}
+	}
+	return NewSystemWithFacade(col, store, sh, facade), store, sh.(*handle)
 }
 
 // TestPhysicsNoClipMovesOriginAndAngles verifies noclip integrates velocity

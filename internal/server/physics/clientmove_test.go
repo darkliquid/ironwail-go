@@ -36,6 +36,10 @@ type mockFacade struct {
 	vm         *qc.VM
 	store      srvtypes.EntityStore
 	maxClients int
+	// facadeHandle is the ServerHandle passed to leaf algorithms; when nil,
+	// newMockLeafSystem constructs a fresh handle with the facade's VM, so
+	// gravity field reads and other ServerHandle reads behave like tests.
+	facadeHandle srvtypes.ServerHandle
 	// sounds collects StartSound sample names when non-nil.
 	sounds []string
 	// moved/from are the PushMoveScratch buffers.
@@ -43,6 +47,10 @@ type mockFacade struct {
 	from  [][3]float32
 	// runThink overrides the RunThink gate when non-nil.
 	runThink func(ent *srvtypes.Edict) bool
+	// runExecute overrides ExecuteQCFunction when non-nil (pusher gate tests).
+	runExecute func(funcIdx int) error
+	// execCount records ExecuteQCFunction invocations when runExecute is set.
+	execCount int
 }
 
 func (m *mockFacade) GetTime() float32      { return m.time }
@@ -91,7 +99,13 @@ func (m *mockFacade) RunThink(ent *srvtypes.Edict) bool {
 	return true
 }
 func (m *mockFacade) Impact(e1, e2 *srvtypes.Edict)          {}
-func (m *mockFacade) ExecuteQCFunction(funcIdx int) error    { return nil }
+func (m *mockFacade) ExecuteQCFunction(funcIdx int) error {
+	if m.runExecute != nil {
+		m.execCount++
+		return m.runExecute(funcIdx)
+	}
+	return nil
+}
 func (m *mockFacade) SyncSpawnedEdictsFromQCVM(startEntNum int) {}
 func (m *mockFacade) SetQCTimeGlobal(time float32)           {}
 func (m *mockFacade) StartSound(ent *srvtypes.Edict, channel int, sample string, volume int, attenuation float32) {
