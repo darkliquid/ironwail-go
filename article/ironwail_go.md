@@ -10,6 +10,7 @@
 - [Chapter 5: The Modding System and the QuakeC VM](#chapter-5)
 - [Chapter 6: GoGPU — Pure-Go WebGPU in Practice](#chapter-6)
 - [Chapter 7: Synthesis — What Was Learned, and Where It Goes](#chapter-7)
+- [Chapter 8: The Hardening Days — Parity, Harness, and Developer Tooling](#chapter-8)
 - [Consolidated References and Sources](#ref-consolidated)
 
 ---
@@ -3236,6 +3237,294 @@ with Go packages, immediate-mode OpenGL with WebGPU pipelines, and manual coding
 Even as features are added and parity gaps close, the codebase's lasting value remains its **educational artifact**: a clean, documented, memory-safe, pure-Go implementation of one of the most influential game engines ever written.
 
 ---
+
+<a id="chapter-8"></a>
+# Chapter 8: The Hardening Days — Parity, Harness, and Developer Tooling
+
+Chapter 7 ended on a roadmap: arena allocators, zero-sync QCVM, parity closure,
+a wasm port, and a promise that the engine's "lasting value" was educational.
+Three days later, the project's center of gravity shifted. The headline
+features were done — the engine ran, rendered, and simulated — and what the
+maintainer actually wanted next was a different kind of engineering: *make the
+parity measurable, make the codebase teachable, and give the mod authors a
+real debugger.*
+
+This chapter is the story of that shift. It covers the modularisation wave
+that tamed the big packages, the completion of the zero-sync QCVM story, a
+parity audit that found (and fixed) a real physics-ordering race, the six
+forward plans that turned the roadmap into a queue, and the first harvest of
+executing those plans: docs consolidation, three new parity harnesses, a
+standalone QuakeGo test simulator, and a hot-path optimization with
+benchmarks to prove it.
+
+---
+
+## 8.1 Taming the megastructs: the modularisation wave
+
+The original port was written the way a C engine is written: a handful of big
+files per subsystem, namespaced by prefixes (`server_physics.go`,
+`renderer_gogpu_world_render.go`). That is faithful to C, but Go has a
+stronger tool — the package — and the project had spent months accumulating
+megastructs: `Server` was a god object holding physics, networking, edict
+lifecycle, and QC bridges; `game.Game` held every subsystem the engine has.
+
+Over the week of 2026-08-05, a coordinated refactor split these along the
+*exactly the seam C already drew*: `SV_Physics` became
+`internal/server/physics` (the `StepFrame` frame loop plus the per-movetype
+leaf algorithms `Pusher`/`Walk`/`Toss`/`Impact` moved out of
+`server_physics*.go`), the wire codecs became `internal/server/net`, BSP
+hull builders became `internal/server/collision`, the edict pool became
+`internal/server/edict`, and so on — 53 packages across the tree today
+(`internal/server` alone now holds `collision`, `commands`, `debug`, `edict`,
+`net`, `physics`, `qc`, `savegame`, `state`, and `types`) plus pure-helper
+subpackages in `internal/game` (`camera`, `audio`, `ui`, `csqc`) and
+`internal/renderer` (`alias`, `decal`, `lightmap`, `particle`, `pipeline`,
+`scrap`, `sky`, `surface`, `warpscale`, `oit`, `world`).
+
+The key design decision was **dependency injection without DI containers**.
+The physics system does not reach into `*Server`; it is constructed with
+narrow interfaces — `PhysicsFacade`, `CollisionWorld`, `EntityStore`,
+`ServerHandle` — that the server satisfies (`internal/server/types/physicsfacade.go`).
+That is what lets the physics leafs be unit-tested in isolation with mocks,
+which turned out to be the load-bearing wall for everything in this chapter:
+the parity probes, the fuzz harness, and the save/load round-trip all stand on
+it. The refactor is also why `TestPhysicsStepOnGroundSkipsFreefall` and its
+siblings moved to `internal/server/physics/` with their `// Where in C:`
+citations intact — the migration audit was literally formed by preserving
+those test names. [AGENTS](#ref-agents) [LearningGuide](#ref-learningguide)
+
+## 8.2 Zero-sync QCVM, finished
+
+Chapter 5 described the QCVM dual-storage problem: C shares one `edict_t`
+array between the engine and QuakeC bytecode, while the Go port started with
+an `EntVars` Go struct mirrored into the VM's byte array by a sync layer —
+and the sync layer was the root cause of every trigger/entity regression the
+qbj2 maps exposed.
+
+By the time of the modularisation wave, the migration the article's roadmap
+called out as "future work" was mostly done: 171 typed accessors
+(`Edict.Origin(sh)`, `Edict.SetNextThink(sh, v)`, ...) read and write the
+`QCVM.Edicts` byte array directly, the fragile
+`syncAllToQCVM`/`syncAllFromQCVM` per-callback machinery is gone, and
+`syncEdictToQCVM`/`syncEdictFromQCVM` survive only as no-op shims
+(`internal/server/server_qc_sync.go:11-19`) kept to make the remaining
+`EntVars` removal mechanical. `executeQCFunction`
+(`internal/server/qc_trace.go:71`) now only captures and restores the VM
+execution context — `self`/`other`/depth — exactly as `PR_ExecuteProgram`
+does in C.
+
+One subtlety worth recording: the docs were ahead of the code in the opposite
+direction from usual — `docs/QCVM_ENTITY_SYNC.md` still described the old
+per-callback sync running "at every QC callback," when the code was already
+authoritative-accessor. A stale doc that says *more* machinery exists than
+does is uniquely damaging for an educational project: newcomers read the
+architecture backwards. The docs-consolidation pass (§8.4) rewrote that doc
+to the current truth.
+
+## 8.3 The parity audit: a real race, found and fixed
+
+With the engine modular and the QCVM story resolved, the maintainer ran a
+deep-research parity audit against C Ironwail
+(`ironwail/Quake/*.c`, maintained beside the repo), producing a catalog of
+behavioral divergences (labeled D1–D8) spanning physics, network encoding,
+and rendering. The headline finding was a genuine physics-ordering bug:
+
+**D1 — the pusher think-gate race.** In C, `SV_Physics_Pusher`
+(`sv_phys.c:618-652`) reads `thinktime = ent->v.nextthink` *once*, derives
+`movetime` from it, runs `SV_PushMove`, then gates whether to fire the think
+on that *same original* `thinktime`:
+
+```c
+oldltime = ent->v.ltime;
+thinktime = ent->v.nextthink;                 // read once
+movetime = thinktime - oldltime ...           
+SV_PushMove (ent, movetime);                   // may call a "blocked" QC callback
+if (thinktime > oldltime && thinktime <= ent->v.ltime)
+    PR_ExecuteProgram (ent->v.think);          // gate on the ORIGINAL thinktime
+```
+
+The Go port re-read `ent.NextThink` *after* `PushMove`, then gated on the
+new value and the *new* `ltime`. If the pusher's `blocked` (or a touch that
+re-armed `nextthink` inside the window) mutated the field mid-push — exactly
+what the qbj2 twin-door investigation had been chasing — Go could fire the
+think **twice in one frame** or skip it, leaving doors "armed but never
+scheduled" (`state=UP, think=SUB_CalcMoveDone, vel=0, nextthink=0`), a
+signature that had been documented in
+`docs/diagnoses/intermittent_anomalies.md` without a root cause. [Parity](#ref-parity)
+
+The fix is three lines of discipline — snapshot `thinkTime` before `PushMove`
+and gate on that snapshot — plus a red/green parity test
+(`internal/server/physics/pusher_think_gate_parity_test.go`) that models a
+blocked callback re-arming `nextthink` inside the movetime window and asserts
+the think fires exactly once. The test harness needed a small mock-facade
+extension so a `runExecute` hook could simulate the QC callback; that hook is
+now part of the physics test infrastructure. [QCVM](#ref-qcvm)
+
+The audit also cleared two suspected divergences that turned out to be
+*already correct* — a useful counterpoint to the temptation to "fix" things:
+Go's FlyMove shipped `MAX_CLIP_PLANES = 5` with `bumpcount < 4`, matching C's
+`numbumps = 4` exactly (the "4 vs 5" worry was a misread of the bump count vs
+the plane array), and the `LERP_FINISH` byte
+(`(byte)Q_rint((nextthink - sv.time) * 255)`) is provably equal to Go's
+`byte(delta*255.0 + 0.5)` for exactly the deltas that are ever sent
+(`0 < delta <= 1`), pinned by existing encode tests.
+
+## 8.4 Executing the plans: docs, gates, and the dev kit
+
+The parity audit became six numbered plans (`docs/plans/22`–`27`), each with
+status, prerequisite, steps, verification, and risks, filed in the repo's
+existing `docs/plans/` convention. The recommended execution order was
+docs → parity fixes → parity gates → QC dev kit → hot-path opt → wasm
+walkthrough, and the working session delivered the first four plus the start
+of the fifth.
+
+### Docs consolidation (plan 26)
+
+The stale-doc problem got a *lint*, not just a rewrite:
+`tools/doc_check.sh` (`mise run doc-check`) fails CI when a live doc
+references a symbol that no longer exists — matched only in backticks, so
+historical prose (diagnoses, the sync-history section) is exempt while a
+backticked `syncAllToQCVM` in a live doc is a hard error. The same script
+enforces that every non-archive plan carries a `**Status**` line whose value
+is in `{PLANNED, DONE, COMPLETED, SUPERSEDED, APPROVED}`, and that no doc
+mentions the forbidden `-tags gogpu`/`-tags opengl` build tags (the repo has
+none, by design). Twenty-eight completed plans moved to
+`docs/plans/archive/` with a `README.md` index recording each outcome and
+its merge commit — history preserved, entrance hall decluttered.
+
+### Parity gates become tests (plans 23/24)
+
+The intermittent-anomalies investigation had produced *probes* that passed —
+proving individual code paths healthy — but nothing that proved *ordering*.
+Three new deterministic, asset-free tests close that gap:
+
+- **H2 narrative-chain truth table** (`TestParityNarrativeDoorChainOrderedHops`):
+  a recording QC builtin appends to a hop log as `door_fire` and `door_go_up`
+  run; the test asserts the exact ordered sequence `[owner, half]` rather than
+  just "both halves moved." A duplicated or reordered firing fails even when
+  the final door position looks right. This is the "did the whole chain run in
+  order" binary the probes couldn't give.
+- **H4 StepFrame interleave fuzz**
+  (`internal/server/physics/stepframe_fuzz_test.go`): 300 randomized frames
+  of pusher velocity, rider groundentity, force_retouch, and solid toggles,
+  checking five per-frame invariants — no `think` without `nextthink`, pusher
+  `ltime` monotonic (within one block-restore), `PushMoveScratch` never
+  retaining entries across frames, and no `FL_ONGROUND` with a null
+  `groundentity`. A fixed seed keeps it reproducible; failures print the seed.
+- **H5 save/load stream round-trip**
+  (`TestSaveLoadRoundTripPreservesFrameEvolution`): two servers run the same
+  120-frame scenario; one is saved and restored at frame 60; the post-load
+  edict field stream must equal the uninterrupted run field-for-field. This
+  extends the existing static-state round-trip tests to prove the *simulation*
+  itself is bit-identical after restore — the property a player actually
+  depends on.
+
+Each carries its `// Where in C:` citation (doors.qc, `SV_Physics`,
+`SV_Physics_Pusher`, `SV_Savegame_f`) and runs inside
+`go test ./internal/server/...` with zero assets.
+
+### The QC dev kit: `sim.World` and `qcmod` (plan 25)
+
+The most user-facing deliverable. Writing QuakeC/QuakeGo today means: edit →
+compile `progs.dat` with `cmd/qgo` → boot the *entire engine* → play/fight
+your way to the code path → iterate. The project's own QuakeGo sources
+(`pkg/qgo/quakego`) already shipped a hidden gem: `quake/engine` exposes its
+builtins as Go functions with an injectable `Backend` of hooks. That makes a
+*standalone test simulator* possible: no progs.dat, no GPU, no assets.
+
+`pkg/qgo/quake/sim` (`sim.World`) is that harness. It owns an edict registry
+(entity 0 = worldspawn), a deterministic clock, and the `engine.Backend`
+wiring so builtins route into the world: `spawn`/`remove` mutate the registry,
+`setorigin` shifts `absmin`/`absmax` by the delta, `find` scans fields,
+`sound` records into an assertable list, `random` is a fixed value. A mod test
+is then plain Go:
+
+```go
+w := sim.New()
+door := w.Spawn("func_door")
+door.Think = func() {
+    door.Velocity = quake.MakeVec3(0, 0, 100)
+    door.NextThink = w.Time + 1.0
+    engine.Sound(door, 0, "doors/door1.wav", 1, 1)
+}
+_ = w.Fire(door, nil, door.Think)
+// assert velocity, nextthink delta, w.Sounds — no engine boot
+```
+
+`cmd/qcmod` wraps it: `qcmod test <moddir>` runs `go test` on a mod module
+with `GOWORK=off` (the mod resolves `quake` via its own `replace`, exactly
+like `quakego` does), and `qcmod docs` prints the guide. The repo ships an
+`examplemod` fixture proving the loop end-to-end, plus `qcmod-test` /
+`qcmod-sim` mise tasks. The plan keeps the harder phases for later: an In-VM
+runner (`qcmod test --vm`) against the real `internal/qc` bytecode VM, a
+statement debugger (break/step/watch), and a headless REPL whose JSON
+snapshots will feed the browser walkthrough.
+
+Phase A lands a specific developer-experience win: the mod-author loop goes
+from "boot the game" to "`go test` under one second," with the same
+`engine.Backend` semantics the engine itself uses, so tests can't drift from
+production behavior the way hand-rolled stubs can. [QGoGuide](#ref-qgoguide)
+
+### Hot-path optimization with receipts (plan 27)
+
+The article's earlier chapters noted qbj3-class maps push ~2,000 edicts
+through hundreds of thousands of QCVM field accesses per frame. Plan 27's
+rule was *optimize after parity, and only with numbers*: a baseline benchmark
+first, then a change gated on both the parity suite and the benchmark.
+
+The first target (O1) was the QCVM field accessors themselves. `EFloat` and
+`SetEFloat` were correct but paid a per-call price: `EdictData` re-derived a
+slice (re-multiplying the edict index by `EdictSize` and re-checking the
+array bounds every call), and `EVector`/`SetEVector` called `EFloat` three
+times, tripling that work. The change splits validation from slice with
+`edictBaseFor` — return the backing array, the byte offset, and the end
+offset so the field-range check is one integer compare against a fixed
+per-edict window. Identical bounds semantics, identical layout (the 28-byte
+`edict_t` header stays excluded). The receipts:
+
+```
+BenchmarkEdictFieldAccess      48,647 ns/op  -> 41,465 ns/op   (~15%)
+BenchmarkEdictFieldAccessSingle  7,506 ns/op ->  6,153 ns/op   (~18%)
+both 0 B/op, 0 allocs/op
+```
+
+(AMD Ryzen 9 9900X3D, 2,048 edicts, read-modify-write per field.) The
+benchmarks are committed beside the change so the next optimization has a
+baseline to beat, and the full server suite — including every `// Where in
+C:` parity test — stayed green.
+
+---
+
+## 8.5 The shape of the next era
+
+What emerged from the hardening days is a project whose "educational
+artifact" claim is now load-bearing in a concrete way: the docs are linted,
+the parity is measured by tests that run in milliseconds without assets, the
+modding story is a `go test` away, and the hot paths carry receipts.
+
+Three threads remain, and they are a fair summary of where the maintainer's
+energy is headed:
+
+1. **The browser walkthrough (plan 22).** The wasm target already compiles
+   (`GOOS=js GOARCH=wasm go build ./cmd/ironwailgo`). The walkthrough is
+   deliberately sequenced last because it wants *everything else*: an
+   asset-free synthetic demo mode (the same idea as `sim.World`, at engine
+   scale), the parity gates' deterministic transcripts for replay, and the QC
+   dev kit's debugger for a live QuakeC pane. When the layers finally render
+   in a browser tab — console, host frame, server, QuakeC, client, renderer —
+   the engine will double as an interactive textbook.
+2. **Renderer photometric parity (plan 23 D5).** The qbj3 captures still show
+   a darker, lower-contrast frame (~7 mean channel delta). Now that the
+   behavior gates exist, the visual gate is the last big parity blocker.
+3. **The In-VM runner + debugger (plan 25 phases B–D).** `sim.World` runs
+   QuakeGo *functions*; the plan's prize is stepping *bytecode* — breakpoints
+   on `door_fire`, watches on `self.velocity`, statement stepping through the
+   same `internal/qc` VM the engine ships.
+
+None of these need a hero rewrite. They are the same incremental discipline
+this chapter documented: name the C behavior, write the failing test, make
+the change, keep the receipts. Quake's engine architecture was durable enough
+to survive the move to Go; the practices around it are proving durable too.
 
 ---
 
