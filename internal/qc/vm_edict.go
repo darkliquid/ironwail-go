@@ -37,32 +37,54 @@ type Edict struct {
 // Field offsets are determined by the progs.dat file and can be
 // looked up using FindField.
 
+// edictBaseFor returns vm.Edicts and the byte offset of edictNum's private
+// data area, with the same validation EdictData performs. Splitting the
+// bounds check from the slice keeps EFloat/SetEFloat on the fast path
+// (they check the field range directly against the backing array instead of
+// re-slicing per call).
+//
+// Layout (must match EdictData): each edict occupies [n*EdictSize,
+// n*EdictSize+EdictSize); bytes [0..27] are the edict_t header, so the
+// private data area is [off, off+EdictSize-28) where off = n*EdictSize+28.
+func (vm *VM) edictBaseFor(edictNum int) (base []byte, off int, end int, ok bool) {
+	if vm == nil || edictNum < 0 || edictNum >= vm.NumEdicts || vm.EdictSize <= 28 {
+		return nil, 0, 0, false
+	}
+	base = vm.Edicts
+	off = edictNum*vm.EdictSize + 28
+	end = off + vm.EdictSize - 28
+	if end > len(base) {
+		return nil, 0, 0, false
+	}
+	return base, off, end, true
+}
+
 // EdictData returns a slice of the entity's private data area.
 // This is the raw byte storage for EntVars fields.
 func (vm *VM) EdictData(edictNum int) []byte {
-	if vm == nil || edictNum < 0 || edictNum >= vm.NumEdicts || vm.EdictSize <= 28 {
+	base, off, end, ok := vm.edictBaseFor(edictNum)
+	if !ok {
 		return nil
 	}
-	offset := edictNum * vm.EdictSize
-	if offset+vm.EdictSize > len(vm.Edicts) {
-		return nil
-	}
-	// Skip the edict_t header prefix used before entvars data.
-	return vm.Edicts[offset+28 : offset+vm.EdictSize]
+	return base[off:end]
 }
 
 // EFloat returns a float entity field value.
 // The offset is in float-units (multiply by 4 for byte offset).
 func (vm *VM) EFloat(edictNum int, fieldOfs int) float32 {
-	data := vm.EdictData(edictNum)
-	if data == nil || fieldOfs*4+4 > len(data) {
+	base, off, end, ok := vm.edictBaseFor(edictNum)
+	if !ok {
+		return 0
+	}
+	f := fieldOfs*4 + off
+	if f+4 > end {
 		return 0
 	}
 	// Read as little-endian float32
-	bits := uint32(data[fieldOfs*4]) |
-		uint32(data[fieldOfs*4+1])<<8 |
-		uint32(data[fieldOfs*4+2])<<16 |
-		uint32(data[fieldOfs*4+3])<<24
+	bits := uint32(base[f]) |
+		uint32(base[f+1])<<8 |
+		uint32(base[f+2])<<16 |
+		uint32(base[f+3])<<24
 	return math.Float32frombits(bits)
 }
 
@@ -101,15 +123,19 @@ func (vm *VM) EEntity(edictNum int, fieldOfs int) int32 {
 
 // SetEFloat sets a float entity field value.
 func (vm *VM) SetEFloat(edictNum int, fieldOfs int, v float32) {
-	data := vm.EdictData(edictNum)
-	if data == nil || fieldOfs*4+4 > len(data) {
+	base, off, end, ok := vm.edictBaseFor(edictNum)
+	if !ok {
+		return
+	}
+	f := fieldOfs*4 + off
+	if f+4 > end {
 		return
 	}
 	bits := math.Float32bits(v)
-	data[fieldOfs*4] = byte(bits)
-	data[fieldOfs*4+1] = byte(bits >> 8)
-	data[fieldOfs*4+2] = byte(bits >> 16)
-	data[fieldOfs*4+3] = byte(bits >> 24)
+	base[f] = byte(bits)
+	base[f+1] = byte(bits >> 8)
+	base[f+2] = byte(bits >> 16)
+	base[f+3] = byte(bits >> 24)
 }
 
 // SetEInt sets an integer entity field value.

@@ -1,7 +1,10 @@
 # Implementation Plan 25: QuakeGo/QCVM Test Simulator & Standalone Mod Dev Kit
 
 **Priority**: #1 (Developer Experience for QuakeC/QuakeGo authors)
-**Status**: PLANNED
+**Status**: IN PROGRESS (2026-08-08) — Phase A landed: `pkg/qgo/quake/sim`
+(World + engine.Backend wiring), `cmd/qcmod` (test/docs subcommands,
+examplemod fixture, mise tasks). Phases B (In-VM runner), C (debugger),
+D (REPL/polish) remain.
 **Prerequisite**: `pkg/qgo/quake`, `pkg/qgo/quakego` (separate modules —
 see AGENTS.md gotcha #2), `internal/qc` VM, `internal/server` edict/QC bridges.
 **Estimated effort**: 5-8 focused sessions
