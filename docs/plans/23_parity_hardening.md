@@ -26,12 +26,12 @@ current manual sweep into deterministic, CI-able gates.
 | --- | --- | --- | --- | --- | --- |
 | D1 | Pusher think-gate re-read → double/skip think | `SV_Physics_Pusher` sv_phys.c:618-652 | `leafs.go` PhysicsPusher | **high** | FIXED in-tree (+test) |
 | D2 | flymove clip-plane budget: C `MAX_CLIP_PLANES 5`, Go `maxClipPlanes=5` + `bumpCount<4` (matches C `numbumps=4`) — **verified equal, no change needed** | sv_phys.c:230,254 | leafs.go:21,193 | n/a (verified) | closed |
-| D3 | NaN velocity/origin: C warns, Go silent | sv_phys.c:87-110 | leafs.go CheckVelocity | low | open (cosmetic) |
-| D4 | Inactive client slots still dispatch movetype | sv_phys.c:946-956 | stepframe.go:106-186 | med | open |
-| D5 | Renderer brightness/contrast (qbj3 ~7 mean delta) | gl_rmain.c/gamma path | renderer | high (visual) | open (needs photometric audit) |
-| D6 | Entity send distance-sorted (Go addition; C edict order) | sv_main.c | server_net_send.go:363+ | intentional | DOCUMENT, don't fix |
-| D7 | Stale docs claim QCVM sync-all; code is no-op accessors | QCVM_ENTITY_SYNC.md | server_qc_sync.go:11-17 | low (teachability) | plan 24 doc consolidation |
-| D8 | LERP_FINISH byte: verify equality at encode time | sv_main.c:952 | net/encode.go:32-43 | low | empirical probe needed |
+| D3 | NaN velocity/origin: C warns, Go silent | sv_phys.c:87-110 | leafs.go CheckVelocity | low | FIXED (`a77e64f`) — slog.Warn added |
+| D4 | Inactive client slots still dispatch movetype | sv_phys.c:946-956 | stepframe.go | med | FIXED (`a77e64f`) — slot gate + test |
+| D5 | Renderer brightness/contrast (qbj3 ~7 mean delta) | gl_rmain.c:352 + gl_shaders.h postprocess | renderer present path | high (visual) | OPEN — audit in progress (see §23.5) |
+| D6 | Entity send distance-sorted (Go addition; C edict order) | sv_main.c | server_net_send.go:363+ | intentional | DONE — documented in PARITY.md deviations table |
+| D7 | Stale docs claim QCVM sync-all; code is no-op accessors | QCVM_ENTITY_SYNC.md | server_qc_sync.go:11-17 | low (teachability) | DONE — rewritten in plan 26 (`8117ea0`) |
+| D8 | LERP_FINISH byte: verify equality at encode time | sv_main.c:952 | net/encode.go:32-43 | low | DONE — verified by existing tests + doc note |
 
 ## 3. Step-by-Step Implementation Sequence
 
@@ -68,12 +68,49 @@ current manual sweep into deterministic, CI-able gates.
      id1 scene matrix (all 32 viewpoints; `mise run parity-*`) and split
      diffs into global (gain/gamma) vs spatial (lightmap/texinfo) buckets.
   2. Compare Go's gamma application path against C (`r_gamma` handling in
-     gl_rmain.c) and the lightmap sample→final pipeline against
-     `gl_lightmap`/`r_lightmap.c`-equivalent; fix the culprit.
+     gl_rmain.c:352) and the lightmap sample→final pipeline against the C
+     world shader (`gl_shaders.h`); fix the culprit.
   3. Re-run the matrix; target qbj3 mean channel delta < 2 with id1/expansion
      green.
 - **Verify**: `mise run parity-ref && parity-go && parity-compare`; tighten
   `PARITY_COMPARE_TOLERANCE`/`PARITY_MAX_MISMATCH_PERCENT` as deltas shrink.
+
+### 23.4-a D5 audit results (2026-08-08)
+
+Structural comparison completed — most candidate stages are **proven equal** to
+C, which narrows the hunt:
+
+| Stage | C | Go | Verdict |
+| --- | --- | --- | --- |
+| Final present gamma/contrast | `postprocess_fragment_shader`: `rgb*=contrast; pow(rgb,gamma)` (gl_shaders.h:265-268), params from gl_rmain.c:352 | **no equivalent stage** — `overlay_composite_gogpu.go` fs_main is a plain `textureSample`; `r_gamma`/contrast read into `config.Gamma` but never consumed | Equal at defaults (C identity at gamma=1, contrast=1) — not the default-path culprit, but a real feature gap for non-default cvars |
+| Lightmap combine | `total_light *= 2.0` then `mix(rgb, rgb*total_light, a)` (gl_shaders.h:720-728) | `lightExpr = "mix(sampled.rgb, sampled.rgb*totalLight*2.0, sampled.a)..."` | **Equal** |
+| Lightmap byte path | raw sample bytes | `CompositePageRGBA`/`StackPages` copy bytes unfiltered | **Equal** (no 128/2 bias) |
+| Fog | `ApplyFog`: `fog=clamp(exp2(-w·d²)); mix(Fog.rgb, clr, fog)` (gl_shaders.h:297-304) | same formula in world fragment shader | **Equal** |
+
+Measured deltas on the *committed* captures (PIL, 1892x1072): **stale-artifact
+warnings** — `go/id1-start-spawn.png` is 100% black (broken capture epoch,
+not a real diff), `qbj3-start-view2` nearly black. Only `qbj3-start-view1`
+is a clean pair: `go ≈ 0.53·ref + 13` luma fit (Go darker, lower contrast,
+black-lift).
+
+**Working hypothesis** (next session): the 0.53 gain + +13 lift pattern is
+neither gamma (identity at defaults) nor lightmath/fog (equal). Prime
+suspects, in order:
+1. **Texture sampling**: Go world shader uses `textureSample` (bilinear) with
+   a single `worldSampler`; C uses `textureLod` at explicit coords —
+   a half-texel/atlas-edge bleed on the base texture could dim/cheapen
+   large lit walls.
+2. **Atlas UV half-texel**: Go clamps `localUV` to `halfTexel` of a hardcoded
+   `2048.0` atlas (`renderer_gogpu_world_shaders.go:213-216`) — if the actual
+   atlas width ≠ 2048 or mip sampling differs, sampled texels shift → dimmer.
+3. **Dynamic-light cluster difference** (qbj3 has many): C accumulates
+   `dynamic_light /256 * color` with minlight/rad falloff; Go's
+   `accumulateDynamicLights` may scale/falloff differently → underlit areas.
+
+**Next action**: capture fresh id1 + qbj3 frames with the current binary
+(`mise run parity-go` with a working display/`PARITY_GO_CAPTURE=engine`),
+then A/B the world sampler (Nearest vs Linear) and the atlas half-texel
+constant on the clean qbj3-view1 pair.
 
 ### Step 23.5: D6 — Document the entity-send sort as intentional
 - **Files**: `docs/PARITY.md` §Known parity gaps (extend the table with a
