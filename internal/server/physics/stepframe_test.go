@@ -34,6 +34,8 @@ type mockFrameDriver struct {
 	cvars      map[string]bool
 	maxClients int
 	vm         *qc.VM
+	// pclients maps edict Num -> Client for slots that are active+spawned.
+	pclients map[int]*srvtypes.Client
 }
 
 func (m *mockFrameDriver) BoolValue(name string) bool {
@@ -62,7 +64,12 @@ func (m *mockFrameDriver) GetVM() *qc.VM          { return m.vm }
 func (m *mockFrameDriver) SyncQCVMGlobals()       {}
 func (m *mockFrameDriver) SetQCTimeGlobal(t float32) {}
 func (m *mockFrameDriver) ExecuteQCFunction(i int) error { return nil }
-func (m *mockFrameDriver) PlayerClient(ent *srvtypes.Edict) *srvtypes.Client { return nil }
+func (m *mockFrameDriver) PlayerClient(ent *srvtypes.Edict) *srvtypes.Client {
+	if m.pclients == nil {
+		return nil
+	}
+	return m.pclients[ent.Num]
+}
 func (m *mockFrameDriver) RunClientQCThinkWithMode(c *srvtypes.Client, name string, full bool) {}
 func (m *mockFrameDriver) SyncSpawnedEdictsFromQCVM(start int) {}
 
@@ -96,11 +103,13 @@ func TestStepFrameDispatchesMovetypes(t *testing.T) {
 
 	col := &mockCollisionWorld{}
 	store := &mockEntityStore{edicts: []*srvtypes.Edict{walkEnt, tossEnt, noneEnt}}
-	facade := &mockFacade{frameTime: 0.1, gravity: 800, vm: vm, store: store, maxClients: 2}
+	// maxClients 0: no client slots, so edicts 1-3 are plain entities and all
+	// dispatch through their movetypes (a dedicated server with no clients).
+	facade := &mockFacade{frameTime: 0.1, gravity: 800, vm: vm, store: store, maxClients: 0}
 
 	driver := &mockFrameDriver{
 		cvars:      map[string]bool{"sv_freezenonclients": false},
-		maxClients: 2,
+		maxClients: 0,
 		vm:         vm,
 	}
 
@@ -161,5 +170,61 @@ func TestStepFrameFreezeNonClientsSkipsEdictsAndTime(t *testing.T) {
 	}
 	if got := walkEnt.Origin(h); got != [3]float32{0, 0, 0} {
 		t.Errorf("walk origin = %v, want [0 0 0] (edict beyond client cap skipped)", got)
+	}
+}
+
+// TestStepFrameSkipsInactiveClientSlots pings C parity for SV_Physics_Client's
+// inactive-slot early return.
+//
+// Where in C: SV_Physics_Client in sv_phys.c:946-956:
+//
+//	if (!svs.clients[num-1].active)
+//		return; // unconnected slot
+//
+// C returns BEFORE PlayerPreThink and BEFORE the movetype switch for any
+// client slot that is not active. Go's StepFrame now does the same: an edict
+// in 1..maxclients whose PlayerClient is nil (inactive/unspawned) is skipped
+// entirely — it must NOT run PhysicsWalk/Noclip/etc. (which previously
+// applied gravity and moved the standing edict).
+func TestStepFrameSkipsInactiveClientSlots(t *testing.T) {
+	vm := qc.NewVM()
+	vm.EdictSize = 512
+	vm.NumEdicts = 4
+	vm.Edicts = make([]byte, vm.EdictSize*vm.NumEdicts)
+	h := &handle{vm: vm}
+
+	// Edict 1 = inactive client slot (PlayerClient returns nil -> must skip).
+	inactiveEnt := &srvtypes.Edict{Num: 1}
+	inactiveEnt.SetMoveType(h, float32(srvtypes.MoveTypeWalk))
+	inactiveEnt.SetOrigin(h, [3]float32{0, 0, 0})
+	inactiveEnt.SetVelocity(h, [3]float32{0, 0, -100}) // would fall if PhysicsWalk ran
+	inactiveEnt.SetMins(h, [3]float32{-16, -16, -24})
+	inactiveEnt.SetMaxs(h, [3]float32{16, 16, 32})
+
+	col := &mockCollisionWorld{}
+	store := &mockEntityStore{edicts: []*srvtypes.Edict{nil, inactiveEnt}}
+	facade := &mockFacade{frameTime: 0.1, gravity: 800, vm: vm, store: store, maxClients: 1}
+
+	driver := &mockFrameDriver{
+		cvars:      map[string]bool{"sv_freezenonclients": false},
+		maxClients: 1,
+		vm:         vm,
+		// NOTE: pclients is empty -> slot 1 is inactive.
+	}
+
+	sys := NewSystemWithFacade(col, store, h, facade)
+
+	newTime := sys.StepFrame(driver, 1.0, 0.1)
+
+	// Time still advances (frame ran, world/loop bookkeeping).
+	if newTime != 1.1 {
+		t.Errorf("StepFrame time = %v, want 1.1", newTime)
+	}
+	// The inactive slot's edict must be untouched: no gravity, no walkmove.
+	if got := inactiveEnt.Origin(h); got != [3]float32{0, 0, 0} {
+		t.Errorf("inactive client origin = %v, want [0 0 0] (slot skipped like C)", got)
+	}
+	if got := inactiveEnt.Velocity(h); got != [3]float32{0, 0, -100} {
+		t.Errorf("inactive client velocity = %v, want unchanged [0 0 -100]", got)
 	}
 }

@@ -109,14 +109,25 @@ func (s *System) StepFrame(
 			phaseEnd(&forceRetouchMS)
 		}
 
-		// Mirror C SV_Physics: client-slot entities (i=1..maxclients) go through
-		// SV_Physics_Client which calls PlayerPreThink and PlayerPostThink regardless
-		// of movetype. PhysicsWalk already handles MoveTypeWalk; for all other
-		// movetypes (especially MoveTypeNone during intermission) wrap here so
-		// IntermissionThink in QC fires during intermission.
+		// Mirror C SV_Physics: client-slot entities (i=1..maxclients) go
+		// through SV_Physics_Client which returns IMMEDIATELY for inactive
+		// slots BEFORE any PreThink or movetype dispatch. PlayerClient
+		// returns nil for inactive/unspawned slots, so skip the slot entirely:
+		// an inactive client's edict must not run PhysicsWalk/Pusher/Noclip
+		// (C: `if (!svs.clients[num-1].active) return;` sv_phys.c:946-950).
+		// This also skips the force_retouch relink for inactive slots, which
+		// is correct — C's SV_Physics_Client returns before it too.
 		var clientForPostThink *srvtypes.Client
+		if i > 0 && i <= driver.MaxClients() {
+			pc := driver.PlayerClient(ent)
+			if pc == nil {
+				continue
+			}
+			clientForPostThink = pc
+		}
+
 		if srvtypes.MoveType(ent.MoveType(sh)) != srvtypes.MoveTypeWalk {
-			if pc := driver.PlayerClient(ent); pc != nil {
+			if pc := clientForPostThink; pc != nil {
 				phaseBegin()
 				driver.RunClientQCThinkWithMode(pc, "PlayerPreThink", false)
 				phaseEnd(&preThinkMS)
@@ -124,7 +135,6 @@ func (s *System) StepFrame(
 					// Entity freed by PreThink (e.g. ClientDisconnect during think).
 					continue
 				}
-				clientForPostThink = pc
 			}
 		}
 

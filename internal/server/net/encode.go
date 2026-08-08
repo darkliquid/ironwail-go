@@ -29,6 +29,13 @@ func EncodeScale(a float32) byte {
 
 // EncodeLerpFinish encodes the interval to an entity's next think as a 0..255
 // byte. Returns (0, false) when the think is not in the future.
+//
+// Matches C's `MSG_WriteByte(msg, (byte)Q_rint((nextthink - qcvm->time)*255))`
+// in sv_main.c:952: Q_rint rounds-to-nearest, and `+0.5` with integer
+// truncation is the same for the only deltas ever sent (0 < delta <= 1).
+// Negative/past deltas are never sent (delta <= 0 -> false), so
+// round-half-away-from-zero never differs. Verified by TestEncodeLerpFinish in
+// this package and internal/server/sv_send_test.go.
 func EncodeLerpFinish(nextThink, time float32) (byte, bool) {
 	delta := nextThink - time
 	if delta <= 0 {

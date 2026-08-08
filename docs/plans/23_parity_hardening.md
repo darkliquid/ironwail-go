@@ -1,7 +1,10 @@
 # Implementation Plan 23: Parity Hardening — Behavior Divergences C vs Go
 
 **Priority**: #1 (Parity is the project's primary oracle)
-**Status**: PLANNED
+**Status**: IN PROGRESS (2026-08-08) — D1 fixed earlier; D4 fixed (inactive-slots gate
++ C-cited test); D3 NaN warnings landed; D2 verified-equal; D6 documented in
+PARITY.md; D8 verified by existing tests + doc note. D5 (renderer audit) and
+D7 (docs, folded into plan 26) remain.
 **Prerequisite**: stable baseline (all tests pass); includes a **landed fix** from
 research (`internal/server/physics/leafs.go` pusher think-gate) already in tree.
 **Estimated effort**: 4-7 focused sessions
@@ -22,7 +25,7 @@ current manual sweep into deterministic, CI-able gates.
 | # | Divergence | C anchor | Go anchor | Severity | Status |
 | --- | --- | --- | --- | --- | --- |
 | D1 | Pusher think-gate re-read → double/skip think | `SV_Physics_Pusher` sv_phys.c:618-652 | `leafs.go` PhysicsPusher | **high** | FIXED in-tree (+test) |
-| D2 | `MAX_CLIP_PLANES` 4 vs 5 in FlyMove | sv_phys.c:216 (5) | leafs.go:181-300 (4) | medium | open |
+| D2 | flymove clip-plane budget: C `MAX_CLIP_PLANES 5`, Go `maxClipPlanes=5` + `bumpCount<4` (matches C `numbumps=4`) — **verified equal, no change needed** | sv_phys.c:230,254 | leafs.go:21,193 | n/a (verified) | closed |
 | D3 | NaN velocity/origin: C warns, Go silent | sv_phys.c:87-110 | leafs.go CheckVelocity | low | open (cosmetic) |
 | D4 | Inactive client slots still dispatch movetype | sv_phys.c:946-956 | stepframe.go:106-186 | med | open |
 | D5 | Renderer brightness/contrast (qbj3 ~7 mean delta) | gl_rmain.c/gamma path | renderer | high (visual) | open (needs photometric audit) |

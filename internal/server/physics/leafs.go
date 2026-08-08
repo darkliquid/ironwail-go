@@ -37,10 +37,15 @@ func checkVelocity(cfg srvtypes.PhysicsConfig, ent *srvtypes.Edict, sh srvtypes.
 	maxVel := cfg.GetMaxVelocity()
 	for i := 0; i < 3; i++ {
 		if math.IsNaN(float64(vel[i])) {
+			// C prints "Got a NaN velocity on %s" before zeroing — surface the
+			// same warning instead of silently fixing. Where in C:
+			// SV_CheckVelocity sv_phys.c:87-110.
+			slog.Warn("Got a NaN velocity", "entity", ent.Num, "classname", ent.ClassName(sh))
 			vel[i] = 0
 			changedVel = true
 		}
 		if math.IsNaN(float64(orig[i])) {
+			slog.Warn("Got a NaN origin", "entity", ent.Num, "classname", ent.ClassName(sh))
 			orig[i] = 0
 			changedOrig = true
 		}

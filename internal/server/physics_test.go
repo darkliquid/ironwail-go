@@ -525,6 +525,13 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 		nonClientEnt.SetVelocity(s, [3]float32{20, 0, 0})
 		s.Edicts = append(s.Edicts, clientEnt, nonClientEnt)
 		s.NumEdicts = len(s.Edicts)
+
+		// Edict 1 is a client-slot entity, so give it a real ACTIVE client
+		// (like production). C's SV_Physics_Client returns early for inactive
+		// slots, so without this the client slot would be skipped and the
+		// freezenonclients test could not distinguish client vs non-client
+		// movement. Where in C: SV_Physics_Client sv_phys.c:946.
+		s.Static.Clients = []*Client{{Active: true, Spawned: true, Edict: clientEnt}}
 		return s, clientEnt, nonClientEnt
 	}
 
