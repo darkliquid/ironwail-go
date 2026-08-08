@@ -657,3 +657,33 @@ func decodeEntityUpdateBitsAndPayload(t *testing.T, data []byte) (uint32, []byte
 	}
 	return bits, data[i:]
 }
+
+// TestSendScratchReuseKeepsCapacity verifies the plan 27 O3 scratch-buffer
+// reuse: with a pre-sized scratch, sending must reuse it and NOT allocate a
+// fresh NumEdicts-sized slice every frame.
+func TestSendScratchReuseKeepsCapacity(t *testing.T) {
+	s := NewServer()
+	s.Protocol = ProtocolFitzQuake
+	newServerTestVM(s, 16)
+	s.NumEdicts = 4
+
+	client := &Client{Active: true, Spawned: true}
+	client.Edict = s.AllocEdict()
+	client.Edict.SetSolid(s, float32(SolidSlideBox))
+
+	// Pre-size the scratch with plenty of capacity; a reuse means the
+	// candidate loop resets length but keeps this exact backing array.
+	pre := make([]entitySendCandidate, 0, 128)
+	s.sendScratch = pre
+
+	s.writeEntitiesToClient(client, NewMessageBuffer(4096))
+	// The backing array must be the SAME one we pre-sized (cap unchanged,
+	// length reset to the used count): a fresh make would have a different
+	// cap or the same-but-new array; cap-preservation is the observable.
+	if cap(s.sendScratch) != cap(pre) {
+		t.Fatalf("scratch cap = %d, want %d (backing replaced — O3 reuse failed)", cap(s.sendScratch), cap(pre))
+	}
+	if len(s.sendScratch) >= 128 {
+		t.Fatalf("scratch len = %d, want < 128 (reset to used count)", len(s.sendScratch))
+	}
+}

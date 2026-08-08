@@ -66,6 +66,11 @@ type Server struct {
 	CollisionSys *CollisionSystem
 	NetManager   *NetworkManager
 
+	// sendScratch is the retained per-frame entity-send candidate buffer,
+	// reused across clients/frames to avoid reallocating a NumEdicts-sized
+	// slice per client per frame (plan 27 O3). Sends are single-threaded.
+	sendScratch []entitySendCandidate
+
 	// Timing
 
 	Time      float32

@@ -330,7 +330,20 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		client.EntityStates = make(map[int]EntityState)
 	}
 	sortOrigin, sortForward, haveSortBasis := s.entitySendSortBasis(client)
-	candidates := make([]entitySendCandidate, 0, s.NumEdicts)
+	clientNum := 0
+	if client != nil && client.Edict != nil {
+		clientNum = s.NumForEdict(client.Edict)
+	}
+	// Reuse the retained scratch buffer (plan 27 O3): the candidate list is
+	// NumEdicts-sized per client per frame; resetting the length keeps the
+	// backing array hot and avoids the large per-frame allocation.
+	candidates := s.sendScratch[:0]
+	if cap(candidates) < s.NumEdicts {
+		candidates = make([]entitySendCandidate, 0, s.NumEdicts)
+		if len(s.sendScratch) == 0 {
+			s.sendScratch = candidates
+		}
+	}
 
 	for entNum := 1; entNum < s.NumEdicts; entNum++ {
 		ent := s.Edicts[entNum]
@@ -382,12 +395,20 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		candidates = append(candidates, candidate)
 	}
 
-	sort.SliceStable(candidates, func(i, j int) bool {
-		if candidates[i].sortKey != candidates[j].sortKey {
-			return candidates[i].sortKey < candidates[j].sortKey
-		}
-		return candidates[i].entNum < candidates[j].entNum
-	})
+	// Without a sort basis every candidate got sortKey == entNum. If the
+	// client's own edict is already the first candidate (local single player,
+	// client edict 1, appended first with sortKey -1), the natural order is
+	// already correct and the stable sort is pure overhead. In multiplayer
+	// (client edict N>1) the sort still matters to bring sortKey -1 first, so
+	// keep it there.
+	if haveSortBasis || clientNum > 1 {
+		sort.SliceStable(candidates, func(i, j int) bool {
+			if candidates[i].sortKey != candidates[j].sortKey {
+				return candidates[i].sortKey < candidates[j].sortKey
+			}
+			return candidates[i].entNum < candidates[j].entNum
+		})
+	}
 
 	for _, candidate := range candidates {
 		if msg.Len()+40 > msg.Limit() {
