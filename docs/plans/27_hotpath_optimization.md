@@ -2,7 +2,11 @@
 
 **Priority**: #3 (Performance; strictly AFTER plan 23 parity fixes)
 **Status**: IN PROGRESS (2026-08-08) — O1 landed (QCVM edict access fast path,
-15-18% on benchmark, `13c318a`); O3-O6 remain (profile-dependent + D5-gated).
+15-18% on benchmark, `13c318a`); **O5 landed** (edict storage preallocated to
+the MaxEdicts cap on first touch — no mid-game relocation; removes the
+SightEntity dangle class + make+copy hotspot, `test` +
+TestEnsureQCVMEdictStorageStableCap). O3/O4/O6 remain (profile-dependent +
+D5-gated).
 **Prerequisite**: plan 23 (D1-D6) green, `internal/qc/setglobal_bench_test.go`
 precedent (zero-alloc globals), profile evidence from qbj3 sweep
 (docs/PARITY.md §qbj3; edict-sync + SetEFloat dominant).

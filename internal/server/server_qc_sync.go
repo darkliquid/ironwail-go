@@ -191,14 +191,25 @@ func (s *Server) ensureQCVMEdictStorage() {
 	if maxEdicts <= 0 {
 		maxEdicts = s.NumEdicts
 	}
-	if s.QCVM.MaxEdicts < maxEdicts {
-		s.QCVM.MaxEdicts = maxEdicts
-	}
-	needed := s.QCVM.EdictSize * s.QCVM.MaxEdicts
-	if len(s.QCVM.Edicts) < needed {
+	// O5 (plan 27): preallocate ONCE to the full MaxEdicts cap instead of
+	// growing incrementally. Growing via make+copy mid-game is both a CPU
+	// hotspot on many-edict maps and a memory-address churn that can dangle
+	// QC-cached absolute pointers (e.g. the AI SightEntity window seen in
+	// docs/diagnoses/intermittent_anomalies.md §3). With a stable cap the
+	// backing array never relocates after first touch.
+	needed := s.QCVM.EdictSize * maxEdicts
+	if len(s.QCVM.Edicts) == 0 {
+		// First touch: allocate the full cap in one shot.
+		s.QCVM.Edicts = make([]byte, needed)
+	} else if len(s.QCVM.Edicts) < needed {
+		// Defensive fallback only (should be unreachable with stable caps):
+		// grow to the full cap so no further relocation happens.
 		grown := make([]byte, needed)
 		copy(grown, s.QCVM.Edicts)
 		s.QCVM.Edicts = grown
+	}
+	if s.QCVM.MaxEdicts < maxEdicts {
+		s.QCVM.MaxEdicts = maxEdicts
 	}
 	if s.QCVM.NumEdicts < s.NumEdicts {
 		s.QCVM.NumEdicts = s.NumEdicts

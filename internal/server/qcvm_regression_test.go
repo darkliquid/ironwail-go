@@ -144,3 +144,35 @@ func TestQCVMPlayerDoesNotFallThroughFloor(t *testing.T) {
 		t.Errorf("player FlagOnGround not set after physics (flags=%d)", flags)
 	}
 }
+
+// TestEnsureQCVMEdictStorageStableCap asserts the O5 (plan 27) property: once
+// the QCVM edict backing array is allocated, it must NOT relocate when more
+// edicts are added — address-stable storage prevents the AI SightEntity
+// dangle class and the make+copy hotspot. Where in C: qcvm->edicts is a fixed
+// malloc'd array sized to MAX_EDICTS; it never moves.
+func TestEnsureQCVMEdictStorageStableCap(t *testing.T) {
+	s := NewServer()
+	newServerTestVM(s, 16)
+	s.MaxEdicts = 200
+
+	s.ensureQCVMEdictStorage()
+	if len(s.QCVM.Edicts) != s.QCVM.EdictSize*200 {
+		t.Fatalf("first alloc len = %d, want %d (full cap)", len(s.QCVM.Edicts), s.QCVM.EdictSize*200)
+	}
+	first := &s.QCVM.Edicts[0]
+
+	// Simulate climbing to 120 edicts: storage must not reallocate.
+	for i := 0; i < 120; i++ {
+		s.NumEdicts = i + 1
+		s.ensureQCVMEdictStorage()
+	}
+	s.NumEdicts = 120
+	s.ensureQCVMEdictStorage()
+
+	if &s.QCVM.Edicts[0] != first {
+		t.Fatal("QCVM edict backing array relocated during growth — O5 prealloc failed")
+	}
+	if len(s.QCVM.Edicts) != s.QCVM.EdictSize*200 {
+		t.Fatalf("backing len = %d, want %d (unchanged cap)", len(s.QCVM.Edicts), s.QCVM.EdictSize*200)
+	}
+}
