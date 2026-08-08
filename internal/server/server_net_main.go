@@ -17,6 +17,7 @@ import (
 	srvcollision "github.com/darkliquid/ironwail-go/internal/server/collision"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/server/edict"
+	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
 
 func normalizeServerMapName(mapName string) string {
@@ -291,28 +292,48 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	s.ModelName = fmt.Sprintf("maps/%s.bsp", s.Name)
 	s.SkyboxName = ""
 
+	var tree *bsp.Tree
 	bspData, litData, err := vfs.LoadMapBSPAndLit(s.ModelName)
 	if err != nil {
-		return fmt.Errorf("load map %q: %w", s.ModelName, err)
-	}
+		// No map data in the virtual filesystem (pakless wasm/no-assets boot,
+		// walkthrough demo mode). Fall back to the deterministic synthetic box
+		// room so the engine can still reach a spawnable world.
+		// Where in C: SV_SpawnServer would fail to load maps/*.bsp; here the
+		// engine's own synthetic map is the mod.
+		slog.Warn("map not found in filesystem — using synthetic demo room", "map", s.ModelName, "error", err)
+		syntheticTree, bspFile, synErr := BuildSyntheticMap()
+		if synErr != nil {
+			return fmt.Errorf("build synthetic map: %w", synErr)
+		}
+		tree = syntheticTree
+		worldModel := worldModelFromBSPTree(s.ModelName, tree)
+		populateWorldModelCollision(worldModel, tree, bspFile)
+		s.WorldModel = worldModel
+		s.WorldTree = tree
+		s.SkyboxName = parseWorldspawnSkyboxName(string(tree.Entities))
+		s.SyntheticMap = true
+		slog.Info("synthetic demo room active", "map", mapName)
+	} else {
+		parsedTree, err := bsp.LoadTree(bytes.NewReader(bspData))
+		if err != nil {
+			return fmt.Errorf("parse map %q: %w", s.ModelName, err)
+		}
+		if err := bsp.ApplyLitFile(parsedTree, litData); err != nil {
+			slog.Warn("ignoring invalid .lit sidecar", "map", s.ModelName, "error", err)
+		}
+		bspFile, err := bsp.Load(bytes.NewReader(bspData))
+		if err != nil {
+			return fmt.Errorf("parse collision bsp %q: %w", s.ModelName, err)
+		}
+		tree = parsedTree
 
-	tree, err := bsp.LoadTree(bytes.NewReader(bspData))
-	if err != nil {
-		return fmt.Errorf("parse map %q: %w", s.ModelName, err)
+		worldModel := worldModelFromBSPTree(s.ModelName, tree)
+		populateWorldModelCollision(worldModel, tree, bspFile)
+		s.WorldModel = worldModel
+		s.WorldTree = tree
+		s.SkyboxName = parseWorldspawnSkyboxName(string(tree.Entities))
+		s.SyntheticMap = false
 	}
-	if err := bsp.ApplyLitFile(tree, litData); err != nil {
-		slog.Warn("ignoring invalid .lit sidecar", "map", s.ModelName, "error", err)
-	}
-	bspFile, err := bsp.Load(bytes.NewReader(bspData))
-	if err != nil {
-		return fmt.Errorf("parse collision bsp %q: %w", s.ModelName, err)
-	}
-
-	worldModel := worldModelFromBSPTree(s.ModelName, tree)
-	populateWorldModelCollision(worldModel, tree, bspFile)
-	s.WorldModel = worldModel
-	s.WorldTree = tree
-	s.SkyboxName = parseWorldspawnSkyboxName(string(tree.Entities))
 
 	if s.Static != nil {
 		keep := s.Static.MaxClients + 1
@@ -438,7 +459,14 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 func (s *Server) reloadProgs(vfs *fs.FileSystem) error {
 	progsData, err := vfs.LoadFile("progs.dat")
 	if err != nil {
-		return fmt.Errorf("load progs.dat: %w", err)
+		// No progs.dat on disk (wasm/no-assets demo mode). Fall back to the
+		// same deterministic in-memory compile loadRuntimePrograms uses, so a
+		// map change inside the synthetic demo world still has QC available.
+		slog.Info("progs.dat not in filesystem — recompiling from QuakeGo sources")
+		progsData, err = testutil.CompileProgsDataFromSource()
+		if err != nil {
+			return fmt.Errorf("recompile progs.dat from sources: %w", err)
+		}
 	}
 	if err := s.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
 		return fmt.Errorf("parse progs.dat: %w", err)
@@ -531,11 +559,18 @@ func (s *Server) loadMapEntities(raw string) error {
 		className := ent.ClassNameString(s)
 		if className == "" {
 			if entNum == 0 {
-				return fmt.Errorf("worldspawn has no classname")
+				// Defensive: the synthetic demo room (plan 22) is the only
+				// in-tree map that can produce this. Real maps always carry
+				// worldspawn's classname; treating a missing one as
+				// "worldspawn" keeps the no-assets boot reachable.
+				slog.Warn("worldspawn missing classname — defaulting to worldspawn", "map", s.ModelName)
+				className = "worldspawn"
+				ent.SetClassName(s, s.QCVM.AllocString(className))
+			} else {
+				slog.Warn("entity has no classname", "entNum", entNum)
+				s.FreeEdict(ent)
+				continue
 			}
-			slog.Warn("entity has no classname", "entNum", entNum)
-			s.FreeEdict(ent)
-			continue
 		}
 
 		// Filter entities by skill level and deathmatch flags, matching

@@ -1,12 +1,22 @@
 # Implementation Plan 22: Browser Engine Walkthrough — Interactive Dev Journey (`shadow`-style educational web app)
 
 **Priority**: #1 (Educational / Developer Experience)
-**Status**: IN PROGRESS (2026-08-08) — Phase A part 1 landed: `loadRuntimePrograms`
+**Status**: IN PROGRESS (2026-08-08) — Phase A part 1 landed initially: `loadRuntimePrograms`
 now falls back to an **in-memory compile of the engine's own QuakeGo sources**
 when no `progs.dat` exists in the filesystem (wasm/no-assets case; no disk write
 needed). Test: `TestLoadRuntimeProgramsCompilesProgsWithNoAssets`. Phase A
-part 2 remains: a synthetic `bsp.Tree` / map fallback so a no-assets boot can
-reach a spawnable world (the honest gate for the walkthrough).
+part 2 (synthetic map) landed on 2026-08-08: a built-in box-room
+`BuildSyntheticMap` produces a real `bsp.Tree` + `bsp.File`; `SpawnServer`
+falls back to it when `maps/*.bsp` is absent; a no-assets headless boot
+auto-starts `maps/synthetic` and reaches `server spawned map start` with
+worldspawn and `info_player_start` parsed and the renderer able to build
+geometry (unit-tested: `TestBuildSyntheticMapProducesValidBSP`,
+`TestSpawnServerFallsBackToSyntheticMap`, `TestBuildWorldGeometry_SyntheticRoomShape`).
+**Boundary**: the local-client handshake (`PutClientInServer`) still fails with
+`OPAddress pointer out of bounds` — a qgo-compiler closure-capture sentinel
+(plan 25 Phase B known boundary), not a synthetic-map issue. The walkthrough's
+"spawnable world" gate is server+renderer proven; reaching a *playable* client
+boot needs the qgo sentinel fix or a fallback client-spawn path.
 **Tag**: `wasm-walkthrough`
 **Prerequisite**: stable baseline (all tests pass), wasm build green (`mise run build-wasm`)
 **Estimated effort**: 3-6 focused sessions (phased, each phase independently shippable)

@@ -18,6 +18,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 
 	"github.com/darkliquid/ironwail-go/internal/game"
+	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
 const (
@@ -218,7 +219,16 @@ func hasPlusMapArg(args []string) bool {
 
 func runStartupMap(mapArg string) {
 	if mapArg == "" {
-		return
+		// No explicit startup map. On a normal install the menu handles
+		// level selection; but a no-assets boot (wasm/no game data, the
+		// walkthrough's demo-mode gate) has no menu content and no maps, so
+		// auto-spawn the built-in synthetic room to reach a playable world.
+		if g.Subs != nil && g.Subs.Files != nil && !g.Subs.Files.FileExists("maps/start.bsp") {
+			slog.Info("no map assets found — auto-starting synthetic demo room")
+			mapArg = server.SyntheticMapName
+		} else {
+			return
+		}
 	}
 
 	slog.Info("map spawn started", "map", mapArg)

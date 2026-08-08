@@ -84,9 +84,25 @@ var (
 // compileProgsDataFromSource is the non-memoized implementation of
 // CompileProgsDataFromSource.
 func compileProgsDataFromSource() ([]byte, error) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
+	// Resolve the repo root by walking UP from the working directory until
+	// pkg/qgo/quakego/go.mod is found. The original implementation assumed
+	// the cwd was internal/testutil ("../..") which broke the in-memory
+	// progs fallback when the engine binary ran from any other directory
+	// (plan 22 Phase A — e.g. launching from $HOME).
+	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("resolve repo root: %w", err)
+		return nil, fmt.Errorf("getwd: %w", err)
+	}
+	root := cwd
+	for {
+		if _, err := os.Stat(filepath.Join(root, "pkg", "qgo", "quakego", "go.mod")); err == nil {
+			break
+		}
+		parent := filepath.Dir(root)
+		if parent == root {
+			return nil, fmt.Errorf("repo root (pkg/qgo/quakego) not found above %s", cwd)
+		}
+		root = parent
 	}
 	// pkg/qgo/quakego is a separate Go module ("module progs" with a
 	// `replace quake => ../quake`). Loading it through its own module root
