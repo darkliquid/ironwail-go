@@ -1,7 +1,11 @@
 # Implementation Plan 24: Parity Harness Expansion — Six Deterministic Gates
 
 **Priority**: #1 (Parity tooling; complements plan 23's fixes)
-**Status**: PLANNED
+**Status**: IN PROGRESS (2026-08-08) — H2 narrative-chain ordered-hop test,
+H4 StepFrame interleave fuzz, H5 save/load frame-evolution round-trip landed
+(all asset-free, pass in `go test ./internal/server/...`). H1 (C dumpstate
+schema), H3 (render-record hash), H6 (message-stream recorder) remain
+(opt-in, need C binary/data).
 **Prerequisite**: plan 23 D1-D6 fixes green; `tools/parity_screenshots` +
 `tools/parity_generator` already in tree.
 **Estimated effort**: 4-6 focused sessions
