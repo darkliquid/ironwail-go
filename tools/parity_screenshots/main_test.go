@@ -307,14 +307,18 @@ func TestShouldBuildGoBinaryHonorsSkipEnv(t *testing.T) {
 	}
 }
 
-func TestGoCaptureArgsDefaultToWindowCapture(t *testing.T) {
+func TestGoCaptureArgsDefaultToEngineCapture(t *testing.T) {
+	// The default capture method is engine readback (renderer CaptureScreenshot),
+	// which matches C Ironwail's internal framebuffer screenshot. X11 window
+	// capture (xdotool + import) routes through the compositor and applies its
+	// own gamma/color management, so it is not the parity default.
 	t.Setenv("PARITY_GO_CAPTURE", "")
 	vp := viewpoint{Map: "start", Pos: [3]float64{1, 2, 3}, Angles: [3]float64{4, 5, 6}}
 
 	got := goCaptureArgs("/quake", 640, 480, vp, "/tmp/shot.png", "parity_go_test.cfg")
 
-	if slices.Contains(got, "-screenshot") {
-		t.Fatalf("window capture args included -screenshot: %v", got)
+	if !slices.Contains(got, "-screenshot") {
+		t.Fatalf("default engine capture args should include -screenshot: %v", got)
 	}
 	assertArgSequence(t, got, []string{"-basedir", "/quake", "-window", "-width", "640", "-height", "480"})
 	assertArgSequence(t, got, []string{"+map", "start", "+exec", "parity_go_test.cfg"})

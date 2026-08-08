@@ -122,13 +122,44 @@ description = "Run game"
 run = "./ironwailgo -basedir ${QUAKE_DIR}"
 
 [tasks.parity-ref]
-description = "Capture reference screenshots from C Ironwail"
-run = "go run ./tools/parity_screenshots reference"
+description = "Capture reference screenshots from C Ironwail (uses QUAKE_DIR + ./ironwail symlink)"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+# Resolve Quake data dir: QUAKE_DIR env, else ./quake-data symlink, else error.
+QUAKE_DIR="${QUAKE_DIR:-./quake-data}"
+if [ ! -d "${QUAKE_DIR}" ]; then
+  echo "QUAKE_DIR is required (set it, or run mise run setup-symlinks to create ./quake-data)" >&2
+  exit 1
+fi
+QUAKE_DIR="$(cd "${QUAKE_DIR}" && pwd)"
+# Resolve C Ironwail binary: ./ironwail symlink (source repo w/ Linux build dir).
+IRONWAIL_BIN="${IRONWAIL_BIN:-}"
+if [ -z "${IRONWAIL_BIN}" ] && [ -x ./ironwail/Linux/ironwail ]; then
+  IRONWAIL_BIN="$(cd ./ironwail/Linux && pwd)/ironwail"
+elif [ -z "${IRONWAIL_BIN}" ] && [ -x ./ironwail ]; then
+  IRONWAIL_BIN="$(cd ./ironwail && pwd)"
+fi
+if [ ! -x "${IRONWAIL_BIN}" ]; then
+  echo "C Ironwail binary not found: ${IRONWAIL_BIN:-<unset>} (expected ./ironwail/Linux/ironwail via the ./ironwail symlink)" >&2
+  exit 1
+fi
+QUAKE_BASEDIR="${QUAKE_DIR}" IRONWAIL_BIN="${IRONWAIL_BIN}" go run ./tools/parity_screenshots reference
+"""
 
 [tasks.parity-go]
-description = "Capture screenshots from the GoGPU parity build"
+description = "Capture screenshots from the GoGPU parity build (uses QUAKE_DIR)"
 depends = ["build"]
-run = "go run ./tools/parity_screenshots go"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+QUAKE_DIR="${QUAKE_DIR:-./quake-data}"
+if [ ! -d "${QUAKE_DIR}" ]; then
+  echo "QUAKE_DIR is required (set it, or run mise run setup-symlinks to create ./quake-data)" >&2
+  exit 1
+fi
+QUAKE_BASEDIR="$(cd "${QUAKE_DIR}" && pwd)" go run ./tools/parity_screenshots go
+"""
 
 [tasks.parity-compare]
 description = "Compare reference vs Go screenshots and fail on diffs/missing captures"
@@ -137,7 +168,27 @@ run = "go run ./tools/parity_screenshots compare"
 [tasks.parity-all]
 description = "Capture reference + GoGPU Go screenshots and compare them"
 depends = ["build"]
-run = "go run ./tools/parity_screenshots both"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+QUAKE_DIR="${QUAKE_DIR:-./quake-data}"
+if [ ! -d "${QUAKE_DIR}" ]; then
+  echo "QUAKE_DIR is required (set it, or run mise run setup-symlinks to create ./quake-data)" >&2
+  exit 1
+fi
+QUAKE_DIR="$(cd "${QUAKE_DIR}" && pwd)"
+IRONWAIL_BIN="${IRONWAIL_BIN:-}"
+if [ -z "${IRONWAIL_BIN}" ] && [ -x ./ironwail/Linux/ironwail ]; then
+  IRONWAIL_BIN="$(cd ./ironwail/Linux && pwd)/ironwail"
+elif [ -z "${IRONWAIL_BIN}" ] && [ -x ./ironwail ]; then
+  IRONWAIL_BIN="$(cd ./ironwail && pwd)"
+fi
+if [ ! -x "${IRONWAIL_BIN}" ]; then
+  echo "C Ironwail binary not found: ${IRONWAIL_BIN:-<unset>} (expected ./ironwail/Linux/ironwail via the ./ironwail symlink)" >&2
+  exit 1
+fi
+QUAKE_BASEDIR="${QUAKE_DIR}" IRONWAIL_BIN="${IRONWAIL_BIN}" go run ./tools/parity_screenshots both
+"""
 
 [tasks.build-parity-generator]
 description = "Build the C-Go frame state reference generator utility"
@@ -157,8 +208,23 @@ run = "bash ./tasks/profile_maps.sh"
 description = "Generate a reference state JSON dump for a specific demo from C Ironwail"
 depends = ["build-parity-generator"]
 run = """
+#!/usr/bin/env bash
+set -euo pipefail
 if [ -z "$1" ]; then
   echo "Usage: mise run parity-generate <demo_name>" >&2
+  exit 1
+fi
+# Resolve data + C binary via QUAKE_DIR / ./quake-data and ./ironwail symlinks
+# (the generator itself also falls back to the symlinks, so this is just to
+# prefer explicit env over hardcoded stale defaults).
+export QUAKE_BASEDIR="${QUAKE_BASEDIR:-${QUAKE_DIR:-$([ -d ./quake-data ] && cd ./quake-data && pwd || true)}}"
+if [ -z "${QUAKE_BASEDIR:-}" ]; then
+  echo "QUAKE_DIR is required (set it, or run mise run setup-symlinks to create ./quake-data)" >&2
+  exit 1
+fi
+export IRONWAIL_BIN="${IRONWAIL_BIN:-$([ -x ./ironwail/Linux/ironwail ] && (cd ./ironwail/Linux && pwd)/ironwail || true)}"
+if [ -z "${IRONWAIL_BIN:-}" ]; then
+  echo "C Ironwail binary not found (expected ./ironwail/Linux/ironwail via the ./ironwail symlink)" >&2
   exit 1
 fi
 ./bin/parity_generator "$1"

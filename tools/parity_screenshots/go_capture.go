@@ -15,12 +15,19 @@ import (
 func goCaptureMethod() string {
 	method := strings.ToLower(strings.TrimSpace(os.Getenv("PARITY_GO_CAPTURE")))
 	switch method {
-	case "", "window":
-		return "window"
-	case "engine":
+	case "", "engine":
+		// Engine readback (renderer CaptureScreenshot) is the parity-correct
+		// default: it captures the scene texture directly, matching C
+		// Ironwail's internal framebuffer screenshot. X11 window capture
+		// (xdotool + ImageMagick import) goes through the compositor, which
+		// applies its own gamma/color management and dims the output — that
+		// only belongs in an explicit opt-in for diagnosing window-specific
+		// issues.
 		return "engine"
-	default:
+	case "window":
 		return "window"
+	default:
+		return "engine"
 	}
 }
 

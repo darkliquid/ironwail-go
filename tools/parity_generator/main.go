@@ -17,8 +17,8 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: go run ./tools/parity_generator <demo_name>\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
-		fmt.Fprintf(os.Stderr, "  QUAKE_DIR or QUAKE_BASEDIR  Path to Quake base directory containing id1/ (default: /home/darkliquid/Games/Heroic/Quake)\n")
-		fmt.Fprintf(os.Stderr, "  IRONWAIL_BIN               Path to C Ironwail binary (default: /home/darkliquid/Projects/ironwail/Quake/ironwail)\n")
+		fmt.Fprintf(os.Stderr, "  QUAKE_DIR or QUAKE_BASEDIR  Path to Quake base directory containing id1/ (default: ./quake-data symlink)\n")
+		fmt.Fprintf(os.Stderr, "  IRONWAIL_BIN               Path to C Ironwail binary (default: ./ironwail/Linux/ironwail via the ./ironwail symlink)\n")
 	}
 	flag.Parse()
 
@@ -29,13 +29,20 @@ func main() {
 
 	demoName := flag.Arg(0)
 
-	// Resolve Quake directory
+	// Resolve Quake directory: QUAKE_BASEDIR or QUAKE_DIR env, then
+	// ./quake-data symlink (AGENTS.md convention), then error.
 	quakeDir := os.Getenv("QUAKE_BASEDIR")
 	if quakeDir == "" {
 		quakeDir = os.Getenv("QUAKE_DIR")
 	}
 	if quakeDir == "" {
-		quakeDir = "/home/darkliquid/Games/Heroic/Quake"
+		if st, err := os.Stat("quake-data"); err == nil && st.IsDir() {
+			quakeDir = "quake-data"
+		}
+	}
+	if quakeDir == "" {
+		fmt.Fprintf(os.Stderr, "Error: set QUAKE_DIR (or create the ./quake-data symlink) to locate the Quake data directory.\n")
+		os.Exit(1)
 	}
 	quakeDir = filepath.Clean(quakeDir)
 
@@ -45,10 +52,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Resolve C Ironwail binary
+	// Resolve C Ironwail binary: IRONWAIL_BIN env, then the ./ironwail
+	// symlink's Linux build directory, then error.
 	ironwailBin := os.Getenv("IRONWAIL_BIN")
 	if ironwailBin == "" {
-		ironwailBin = "/home/darkliquid/Projects/ironwail/Quake/ironwail"
+		if st, err := os.Stat("ironwail/Linux/ironwail"); err == nil && !st.IsDir() {
+			ironwailBin = "ironwail/Linux/ironwail"
+		} else if st, err := os.Stat("ironwail"); err == nil && !st.IsDir() {
+			ironwailBin = "ironwail"
+		}
 	}
 	ironwailBin = filepath.Clean(ironwailBin)
 

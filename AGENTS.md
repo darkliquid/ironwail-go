@@ -79,7 +79,7 @@ All canonical tasks are defined in `mise.toml`. `mise tasks` lists them. Key one
 | `mise run race` | `racedetector test ./...` |
 | `mise run verify` | `test` + `build` |
 | `mise run smoke-all` | `smoke-menu`, `smoke-headless`, `smoke-map-start` |
-| `mise run parity-ref` / `parity-go` / `parity-compare` / `parity-all` | Parity screenshot harness |
+| `mise run parity-ref` / `parity-go` / `parity-compare` / `parity-all` | Parity screenshot harness (resolves `QUAKE_DIR`/`./quake-data` + `./ironwail` symlink) |
 | `mise run build-qgo` | Build the QGo compiler (`cmd/qgo`) |
 | `mise run build-progs` | Compile QuakeGo sources into `progs.dat` |
 | `mise run build-bspdiag` | Build the BSP diagnostic inspection CLI (`cmd/bspdiag`) |

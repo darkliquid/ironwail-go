@@ -123,8 +123,25 @@ func run() int {
 		cfg.Viewpoints = filtered
 		fmt.Printf("PARITY_TAG=%s: %d viewpoints", tag, len(filtered))
 	}
-	quakeBaseDir := envOr("QUAKE_BASEDIR", cfg.BaseDir)
-	ironwailBin := envOr("IRONWAIL_BIN", filepath.Join(quakeBaseDir, "ironwail"))
+	quakeBaseDir := envOr("QUAKE_BASEDIR", "")
+	if quakeBaseDir == "" {
+		quakeBaseDir = envOr("QUAKE_DIR", cfg.BaseDir)
+	}
+	if quakeBaseDir == "" {
+		if st, err := os.Stat(filepath.Join(projectDir, "quake-data")); err == nil && st.IsDir() {
+			quakeBaseDir = filepath.Join(projectDir, "quake-data")
+		}
+	}
+	ironwailBin := envOr("IRONWAIL_BIN", "")
+	if ironwailBin == "" {
+		if st, err := os.Stat(filepath.Join(projectDir, "ironwail", "Linux", "ironwail")); err == nil && !st.IsDir() {
+			ironwailBin = filepath.Join(projectDir, "ironwail", "Linux", "ironwail")
+		} else if st, err := os.Stat(filepath.Join(projectDir, "ironwail")); err == nil && !st.IsDir() {
+			ironwailBin = filepath.Join(projectDir, "ironwail")
+		} else {
+			ironwailBin = filepath.Join(quakeBaseDir, "ironwail")
+		}
+	}
 	goBin := envOr("GO_BIN", filepath.Join(projectDir, "ironwailgo"))
 	parityWidth := parseIntEnv("PARITY_WIDTH", 1280)
 	parityHeight := parseIntEnv("PARITY_HEIGHT", 720)

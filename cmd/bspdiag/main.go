@@ -104,7 +104,7 @@ func main() {
 			extraArgs = os.Args[5:]
 		}
 	case "point":
-		if len(os.Args) < 6 {
+		if len(os.Args) < 7 {
 			printUsage()
 			os.Exit(1)
 		}
