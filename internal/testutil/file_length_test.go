@@ -64,6 +64,12 @@ func TestProjectFilesUnderLineCeiling(t *testing.T) {
 			if strings.HasPrefix(name, "go-build") {
 				return filepath.SkipDir
 			}
+			// pkg/qgo/quakego is a separate Go module mirrored from original
+			// QuakeC sources (zombie.go alone is ~1500 lines); mirror fidelity
+			// beats file length there, so it is deliberately exempt.
+			if path == filepath.Join(root, "pkg", "qgo", "quakego") {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !strings.HasSuffix(name, ".go") {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -100,6 +101,31 @@ func vecEquals(a, b [3]float32, epsilon float32) bool {
 func TestDemoStateParity(t *testing.T) {
 	quakeDir := testutil.SkipIfNoQuakeDir(t)
 
+	// A demo parity run needs three pieces of runtime data:
+	//   - demo1.dem (the recorded demo being replayed)
+	//   - progs.dat (server-side QuakeC gameplay code)
+	//   - the demo's map BSP and assets
+	// The last two are guaranteed by the Quake install (and progs.dat can
+	// be rebuilt from pkg/qgo/quakego sources via cmd/qgo when absent).
+	// demo1.dem however is not present in modern rerelease distributions
+	// (the 2021 "Quake Enhanced" data ships no demo files), and notably it
+	// is absent from the QUAKE_DIR referenced by this repo's setup docs, so
+	// there is no reliable way to synthesize it here. The C reference dump
+	// was captured from a full Quake install that contained demo1.dem.
+	//
+	// If the Quake data directory exists but has no demo1.dem, the test
+	// skips (same policy as SkipIfNoPak0 for missing assets) instead of
+	// failing: the parity harness cannot meaningfully run without the demo
+	// being replayed, and auto-generating a different demo would change the
+	// reference frames being compared.
+	demoPath := filepath.Join(quakeDir, "id1", "demo1.dem")
+	if _, err := os.Stat(demoPath); err != nil {
+		if os.IsNotExist(err) {
+			t.Skipf("Skipping: demo1.dem not found at %s (Quake rerelease data ships no demo files; re-run on a full install containing demo1.dem)", demoPath)
+		}
+		t.Fatalf("stat %s: %v", demoPath, err)
+	}
+
 	// Discover all reference dumps in '../../testdata/parity'
 	files, err := os.ReadDir("../../testdata/parity")
 	if err != nil {
@@ -165,6 +191,15 @@ func runParityTest(t *testing.T, quakeDir string, config ParityConfig) {
 	t.Cleanup(func() {
 		_ = os.Chdir(cwd)
 	})
+
+	// Quake rerelease distributions (which QUAKE_DIR often points at) do
+	// not ship progs.dat; rebuild it from the pkg/qgo/quakego QuakeGo
+	// sources through cmd/qgo when no runtime progs.dat is present.
+	// This is done before Chdir (quake dir is not the repo root, and the
+	// compilation resolves the repo root relative to the current cwd).
+	if err := g.EnsureRuntimeProgsData(quakeDir); err != nil {
+		t.Fatalf("EnsureRuntimeProgsData: %v", err)
+	}
 
 	if err := os.Chdir(quakeDir); err != nil {
 		t.Fatalf("Chdir: %v", err)

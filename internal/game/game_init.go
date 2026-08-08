@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	rworld "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
 
 type globalConsoleAdapter struct{}
@@ -582,6 +584,42 @@ func (g *Game) loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error
 		break
 	}
 
+	return nil
+}
+
+// EnsureRuntimeProgsData makes a progs.dat visible to the runtime
+// filesystem before a demo/server is loaded. Modern Quake data
+// distributions (e.g. the 2021 rerelease) ship no progs.dat; when it is
+// absent, the project can rebuild it from the QuakeGo gameplay sources in
+// pkg/qgo/quakego with cmd/qgo via testutil.CompileProgsDataFromSource.
+//
+// The data is installed as a loose file in <basedir>/id1/progs.dat. It is
+// only written when the runtime filesystem cannot already find a progs.dat
+// (so shipping installations and explicit compile output always win), and
+// the compiled bytes are deterministic, so repeated runs are byte-stable.
+func (g *Game) EnsureRuntimeProgsData(basedir string) error {
+	if basedir == "" {
+		return fmt.Errorf("EnsureRuntimeProgsData: basedir empty")
+	}
+	id1 := filepath.Join(basedir, "id1")
+	if _, err := os.Stat(filepath.Join(id1, "progs.dat")); err == nil {
+		return nil
+	}
+	progsData, err := testutil.CompileProgsDataFromSource()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(id1, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", id1, err)
+	}
+	target := filepath.Join(id1, "progs.dat")
+	if _, err := os.Stat(target); err == nil {
+		return nil
+	}
+	if err := os.WriteFile(target, progsData, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", target, err)
+	}
+	slog.Debug("wrote compiled progs.dat for runtime", "path", target, "bytes", len(progsData))
 	return nil
 }
 
