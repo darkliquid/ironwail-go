@@ -1,7 +1,12 @@
 # Implementation Plan 22: Browser Engine Walkthrough — Interactive Dev Journey (`shadow`-style educational web app)
 
 **Priority**: #1 (Educational / Developer Experience)
-**Status**: PLANNED
+**Status**: IN PROGRESS (2026-08-08) — Phase A part 1 landed: `loadRuntimePrograms`
+now falls back to an **in-memory compile of the engine's own QuakeGo sources**
+when no `progs.dat` exists in the filesystem (wasm/no-assets case; no disk write
+needed). Test: `TestLoadRuntimeProgramsCompilesProgsWithNoAssets`. Phase A
+part 2 remains: a synthetic `bsp.Tree` / map fallback so a no-assets boot can
+reach a spawnable world (the honest gate for the walkthrough).
 **Tag**: `wasm-walkthrough`
 **Prerequisite**: stable baseline (all tests pass), wasm build green (`mise run build-wasm`)
 **Estimated effort**: 3-6 focused sessions (phased, each phase independently shippable)

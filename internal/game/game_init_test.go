@@ -648,3 +648,30 @@ func TestRuntimeDrawFileSystemPrefersCurrentSubsystemFilesystem(t *testing.T) {
 		t.Fatalf("runtimeDrawFileSystem() = %p, want current subsystem fs %p", got, current)
 	}
 }
+
+// TestLoadRuntimeProgramsCompilesProgsWithNoAssets verifies the plan 22
+// Phase A in-memory fallback directly against loadRuntimePrograms: with an
+// EMPTY filesystem (no progs.dat — the wasm/no-assets case), the engine must
+// compile its own QuakeGo sources in-memory instead of failing, and the VM
+// must end up with functions loaded. Where in C: the game ships progs.dat;
+// here the engine's sources ARE the mod.
+func TestLoadRuntimeProgramsCompilesProgsWithNoAssets(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short mode: skips deterministic progs compile")
+	}
+	g := New()
+	g.QC = qc.NewVM()
+
+	empty := t.TempDir()
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(empty, "id1"); err != nil {
+		t.Fatalf("fs.Init: %v", err)
+	}
+
+	if err := g.loadRuntimePrograms(fileSys, 1); err != nil {
+		t.Fatalf("loadRuntimePrograms on empty fs: %v", err)
+	}
+	if g.QC.FindFunction("StartFrame") < 0 {
+		t.Fatal("StartFrame not found — progs was not loaded from in-memory compile")
+	}
+}

@@ -542,7 +542,18 @@ func (g *Game) loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error
 
 	progsData, err := fileSys.LoadFile("progs.dat")
 	if err != nil {
-		return fmt.Errorf("failed to load progs.dat: %w", err)
+		// No progs.dat in the runtime filesystem. On a normal desktop this is
+		// handled by EnsureRuntimeProgsData writing to <basedir>/id1, but that
+		// needs a writeable disk — wasm/no-assets boots do not have one. Fall
+		// back to the deterministic in-memory compile so the engine can run
+		// with zero game data (the walkthrough's demo-mode gate).
+		// Where in C: progs.dat ships alongside the game; here the engine's
+		// own QuakeGo sources ARE the mod and are compiled on demand.
+		slog.Info("progs.dat not in filesystem — compiling from QuakeGo sources")
+		progsData, err = testutil.CompileProgsDataFromSource()
+		if err != nil {
+			return fmt.Errorf("failed to compile progs.dat from sources: %w", err)
+		}
 	}
 	if err := g.QC.LoadProgs(bytes.NewReader(progsData)); err != nil {
 		return fmt.Errorf("failed to parse progs.dat: %w", err)
