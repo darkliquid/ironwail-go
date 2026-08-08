@@ -71,12 +71,6 @@ func newVMWorld(progs []byte) (*vmWorld, error) {
 	return &vmWorld{vm: vm}, nil
 }
 
-// findFunction resolves a function name to its index, like FindFunction.
-func (w *vmWorld) findFunction(name string) (int, bool) {
-	idx := w.vm.FindFunction(name)
-	return idx, idx >= 0
-}
-
 // fire calls a QC function by index with self (and optionally other) set and
 // returns the number of edicts spawned during the call (matching
 // SyncSpawnedEdictsFromQCVM semantics — newly spawned edicts need relinking).
@@ -103,16 +97,6 @@ func (w *vmWorld) fireByName(name string, self, other int, time float32) error {
 	}
 	_, err := w.fire(idx, self, other, time)
 	return err
-}
-
-// field returns a float edict field by (edictNum, EntField* offset).
-func (w *vmWorld) field(entNum, fieldOfs int) float32 {
-	return w.vm.EFloat(entNum, fieldOfs)
-}
-
-// setField writes a float edict field.
-func (w *vmWorld) setField(entNum, fieldOfs int, v float32) {
-	w.vm.SetEFloat(entNum, fieldOfs, v)
 }
 
 // compileProgs compiles pkg/qgo/quakego into progs.dat bytes by invoking

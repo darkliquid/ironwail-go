@@ -81,18 +81,32 @@ func (d *Debugger) Paused() bool { return d.paused }
 // Message returns the last halt reason.
 func (d *Debugger) Message() string { return d.message }
 
-// statement is the per-statement TraceFunc hook. It returns only when the
-// debugger says to pause (blocking via the paused flag is handled by the
-// caller loop, not here — this decides "should we stop").
+// hook returns a BreakHook that the REPL installs as vm.BreakHook: it calls
+// the per-statement decision and returns true to pause the VM (ErrBreak).
+// nil-safe so a debugger with no breakpoints/steps/watches does not pause.
+func (d *Debugger) hook() func(vm *qc.VM, stmtIdx int) bool {
+	if len(d.BreakFuncs) == 0 && len(d.BreakStmts) == 0 && d.mode == dbgContinue && len(d.Watches) == 0 {
+		return nil
+	}
+	return func(vm *qc.VM, stmtIdx int) bool {
+		d.statement(vm, stmtIdx, nil, 0)
+		return d.paused
+	}
+}
+
+// statement is the per-statement TraceFunc hook. It decides "should we stop".
 func (d *Debugger) statement(vm *qc.VM, stmtIdx int, st *qc.DStatement, op qc.Opcode) {
-	// Function entry breakpoints: the call-oriented TraceCallFunc would be
-	// more natural, but we only have per-statement visibility here; check the
-	// current function at the FIRST statement of a function.
-	if stmtIdx == 0 && d.BreakFuncs[int(vm.XFunctionIndex)] {
-		d.hit = true
-		d.paused = true
-		d.message = fmt.Sprintf("break at function %d", vm.XFunctionIndex)
-		return
+	// Function entry breakpoints: fire at the function's FIRST statement,
+	// but not while stepping (step controls the pause; an entry break at the
+	// same statement would loop forever).
+	stepping := d.mode == dbgStepInto || d.mode == dbgStepOver || d.mode == dbgStepOut
+	if !stepping && vm.XFunction != nil && len(d.BreakFuncs) > 0 {
+		if d.BreakFuncs[int(vm.XFunctionIndex)] && stmtIdx == int(vm.XFunction.FirstStatement) {
+			d.hit = true
+			d.paused = true
+			d.message = fmt.Sprintf("break at function %d", vm.XFunctionIndex)
+			return
+		}
 	}
 	if d.BreakStmts[[2]int{int(vm.XFunctionIndex), stmtIdx}] {
 		d.hit = true

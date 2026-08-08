@@ -1,16 +1,14 @@
 # Implementation Plan 25: QuakeGo/QCVM Test Simulator & Standalone Mod Dev Kit
 
 **Priority**: #1 (Developer Experience for QuakeC/QuakeGo authors)
-**Status**: IN PROGRESS (2026-08-08) — Phase A landed (`sim.World` + `qcmod test`),
-Phase B In-VM runner landed (`qcmod vm`), **Phase C debugger core landed**:
-`internal/qc` gains a zero-cost-when-nil `BreakHook` + `ErrBreak` +
-`ExecuteFrom(fidx)` so the statement loop can pause WITHOUT unwinding the
-stack, inspect live state, and resume mid-function. Proven by
-`TestDebuggerBreakResume` (synthetic two-statement function: break before the
-op executes, resume completes exactly once). `cmd/qcmod/debugger.go` has the
-Debugger type (breakfuncs/breakstmts/watches/step modes) wired on top. Remaining:
-REPL (Phase D) and mod-style function-value lowering (Phase B boundary noted
-earlier — qgo closure-capture sentinel).
+**Status**: COMPLETED (2026-08-08) — Phases A (sim.World + qcmod test), B
+(In-VM runner `qcmod vm`), C (resumable VM breakpoints: BreakHook/ErrBreak/
+ExecuteFrom + Debugger state machine), and D (**headless REPL `qcmod sim`**:
+functions/run/break/step/cont/watch/inspect/globals/reset/quit over the
+In-VM debugger, test-covered) all landed. Known boundary: qgo's
+closure-capture function values (e.g. trigger_multiple's self.Use = te.use)
+hit a compiler sentinel — custom mods need lowerable function pointers; the
+boundary is documented in `docs/plans/25_qcvm_test_simulator.md` §Phase B.
 **Prerequisite**: `pkg/qgo/quake`, `pkg/qgo/quakego` (separate modules —
 see AGENTS.md gotcha #2), `internal/qc` VM, `internal/server` edict/QC bridges.
 **Estimated effort**: 5-8 focused sessions

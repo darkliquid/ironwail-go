@@ -45,6 +45,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runTest(args[1:], stdout, stderr)
 	case "vm", "run-vm":
 		return runVM(args[1:], stdout, stderr)
+	case "sim":
+		return runREPL(os.Stdin, stdout)
 	case "docs", "help", "-h", "--help":
 		printUsage(stdout)
 		return 0
