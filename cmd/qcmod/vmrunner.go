@@ -1,0 +1,151 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/darkliquid/ironwail-go/internal/qc"
+)
+
+// vmWorld is the plan 25 Phase B In-VM runner: it executes REAL progs.dat
+// bytecode through internal/qc.VM, mirroring how the engine dispatches QC
+// callbacks (set self/other/time globals, call the function). This is the
+// authoritative counterpart to sim.World (which runs QuakeGo *functions*
+// natively In-Go); the mode-parity suite (qv) asserts the two agree.
+//
+// Unlike the full engine, vmWorld needs no server, no physics, no assets —
+// just the VM, edict storage, and the global defs the engine writes.
+type vmWorld struct {
+	vm *qc.VM
+
+	// registry of spawned entity numbers, mirroring sim.World.Ents-ish.
+	spawned []int
+}
+
+// newVMWorld boots a VM from compiled progs bytes. When progs is nil, it
+// compiles pkg/qgo/quakego deterministically (walking up from the working dir
+// to find the repo root, then invoking cmd/qgo like the engine tests do).
+func newVMWorld(progs []byte) (*vmWorld, error) {
+	var err error
+	if progs == nil {
+		progs, err = compileProgs()
+		if err != nil {
+			return nil, fmt.Errorf("compile progs: %w", err)
+		}
+	}
+	vm := qc.NewVM()
+	if err := vm.LoadProgs(bytes.NewReader(progs)); err != nil {
+		return nil, fmt.Errorf("load progs: %w", err)
+	}
+	qc.RegisterBuiltins(vm)
+	// LoadProgs sets EntityFields/EdictSize from the progs header. Preallocate
+	// a small edict table (world + 8 slots) so builtins that dereference
+	// `self`/`other` as edicts resolve; tests/REPL spawn more on demand.
+	vm.NumEdicts = 9 // world (0) + 8 editable slots
+	vm.MaxEdicts = 64
+	vm.EdictSize = vm.EntityFields*4 + 28
+	vm.Edicts = make([]byte, vm.EdictSize*vm.MaxEdicts)
+	// Zero the preallocated slots' private data, exactly as ED_ClearEdict
+	// does: a mod function that reads self.Touch/Use/Think/className before
+	// any spawn setup must see zeroes, not garbage (the engine relies on
+	// this too — see server_runtime.go AllocEdict clearQCVMEdictData).
+	for e := 1; e < vm.NumEdicts; e++ {
+		data := vm.EdictData(e)
+		for i := range data {
+			data[i] = 0
+		}
+	}
+
+	// Register the globals the engine writes into the VM (self/other/time).
+	vm.GlobalDefs = append(vm.GlobalDefs,
+		qc.DDef{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		qc.DDef{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		qc.DDef{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+		qc.DDef{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSParm0), Name: vm.AllocString("parm0")},
+	)
+
+	return &vmWorld{vm: vm}, nil
+}
+
+// findFunction resolves a function name to its index, like FindFunction.
+func (w *vmWorld) findFunction(name string) (int, bool) {
+	idx := w.vm.FindFunction(name)
+	return idx, idx >= 0
+}
+
+// fire calls a QC function by index with self (and optionally other) set and
+// returns the number of edicts spawned during the call (matching
+// SyncSpawnedEdictsFromQCVM semantics — newly spawned edicts need relinking).
+func (w *vmWorld) fire(funcIdx int, self int, other int, time float32) (spawned int, err error) {
+	prev := w.vm.NumEdicts
+	w.vm.SetGInt(qc.OFSSelf, int32(self))
+	w.vm.SetGInt(qc.OFSOther, int32(other))
+	w.vm.SetGInt(qc.OFSTime, int32(math.Float32bits(time)))
+	if err := w.vm.ExecuteFunction(funcIdx); err != nil {
+		return 0, err
+	}
+	spawned = w.vm.NumEdicts - prev
+	if spawned > 0 {
+		w.spawned = append(w.spawned, prev+1) // record first new edict num
+	}
+	return spawned, nil
+}
+
+// fireByName is the ergonomic wrapper used by tests/REPL: resolve name, fire.
+func (w *vmWorld) fireByName(name string, self, other int, time float32) error {
+	idx := w.vm.FindFunction(name)
+	if idx < 0 {
+		return fmt.Errorf("qcmod: no function %q in progs", name)
+	}
+	_, err := w.fire(idx, self, other, time)
+	return err
+}
+
+// field returns a float edict field by (edictNum, EntField* offset).
+func (w *vmWorld) field(entNum, fieldOfs int) float32 {
+	return w.vm.EFloat(entNum, fieldOfs)
+}
+
+// setField writes a float edict field.
+func (w *vmWorld) setField(entNum, fieldOfs int, v float32) {
+	w.vm.SetEFloat(entNum, fieldOfs, v)
+}
+
+// compileProgs compiles pkg/qgo/quakego into progs.dat bytes by invoking
+// cmd/qgo, walking up from the working directory to find the repo root.
+// This is the qcmod equivalent of testutil.CompileProgsDataFromSource (which
+// assumes a test working dir); qcmod runs from anywhere, so it resolves the
+// root itself.
+func compileProgs() ([]byte, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	// Walk up to the repo root (where go.mod + pkg/qgo/quakego live).
+	root := cwd
+	for {
+		if _, err := os.Stat(filepath.Join(root, "pkg", "qgo", "quakego", "go.mod")); err == nil {
+			break
+		}
+		parent := filepath.Dir(root)
+		if parent == root {
+			return nil, fmt.Errorf("repo root not found above %s (need pkg/qgo/quakego)", cwd)
+		}
+		root = parent
+	}
+	progsSrc := filepath.Join(root, "pkg", "qgo", "quakego")
+	out := filepath.Join(os.TempDir(), "ironwail-go-qcmod-progs.dat")
+	cmd := exec.Command("go", "run", filepath.Join(root, "cmd", "qgo"), "-o", out, ".")
+	cmd.Dir = progsSrc
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("qgo compile: %w: %s", err, stderr.String())
+	}
+	return os.ReadFile(out)
+}

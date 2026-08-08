@@ -7,6 +7,10 @@
 //	qcmod test <moddir>   — run In-Go mod tests (wraps `go test` on the mod
 //	                         directory; mod sources import "quake",
 //	                         "quake/engine", and "quake/sim").
+//	qcmod vm <fn> [self [other [time]]]
+//	                       — In-VM runner: boot compiled progs, fire a real
+//	                         QC bytecode function with globals set (plan 25
+//	                         Phase B).
 //	qcmod sim <moddir>    — interactive headless REPL (WIP; see plan 25.6).
 //	qcmod docs            — print this guide.
 //
@@ -39,6 +43,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "test":
 		return runTest(args[1:], stdout, stderr)
+	case "vm", "run-vm":
+		return runVM(args[1:], stdout, stderr)
 	case "docs", "help", "-h", "--help":
 		printUsage(stdout)
 		return 0
@@ -49,6 +55,57 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
+// runVM implements `qcmod vm <function> [self [other [time]]]`: boots the
+// In-VM runner (plan 25 Phase B) against the compiled progs, sets globals,
+// fires the named QC function, and prints the resulting globals/edict count.
+// This is the headless bytecode entry point that the REPL and the walkthrough
+// will later build on.
+func runVM(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "qcmod vm: missing <function>")
+		return 2
+	}
+	// Optional numeric args: self other time.
+	var self, other int
+	var time float32
+	if len(args) > 1 {
+		if _, err := fmt.Sscanf(args[1], "%d", &self); err != nil {
+			fmt.Fprintf(stderr, "qcmod vm: bad self %q\n", args[1])
+			return 2
+		}
+	}
+	if len(args) > 2 {
+		if _, err := fmt.Sscanf(args[2], "%d", &other); err != nil {
+			fmt.Fprintf(stderr, "qcmod vm: bad other %q\n", args[2])
+			return 2
+		}
+	}
+	if len(args) > 3 {
+		if _, err := fmt.Sscanf(args[3], "%f", &time); err != nil {
+			fmt.Fprintf(stderr, "qcmod vm: bad time %q\n", args[3])
+			return 2
+		}
+	}
+
+	w, err := newVMWorld(nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "qcmod vm: %v\n", err)
+		return 1
+	}
+	fn := w.vm.FindFunction(args[0])
+	if fn < 0 {
+		fmt.Fprintf(stderr, "qcmod vm: no function %q in progs\n", args[0])
+		return 1
+	}
+	spawned, err := w.fire(fn, self, other, time)
+	if err != nil {
+		fmt.Fprintf(stderr, "qcmod vm: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "ok %s self=%d other=%d time=%.3f spawned=%d\n", args[0], self, other, time, spawned)
+	return 0
+}
+
 func printUsage(w io.Writer) {
 	// io.WriteString avoids vet's printf check (the usage block contains a
 	// literal %v from the example test code).
@@ -56,6 +113,8 @@ func printUsage(w io.Writer) {
 
 Commands:
   qcmod test <moddir>   run In-Go mod tests (wraps go test on the mod dir)
+  qcmod vm <fn> [self [other [time]]]
+                        boot compiled progs + fire a QC bytecode function
   qcmod sim <moddir>    interactive headless REPL (WIP)
   qcmod docs            print this guide
 
