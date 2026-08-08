@@ -50,7 +50,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, `qcmod — standalone QuakeGo/QCVM mod dev kit (plan 25)
+	// io.WriteString avoids vet's printf check (the usage block contains a
+	// literal %v from the example test code).
+	_, _ = io.WriteString(w, `qcmod — standalone QuakeGo/QCVM mod dev kit (plan 25)
 
 Commands:
   qcmod test <moddir>   run In-Go mod tests (wraps go test on the mod dir)
