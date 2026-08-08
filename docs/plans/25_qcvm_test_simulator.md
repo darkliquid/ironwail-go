@@ -2,14 +2,15 @@
 
 **Priority**: #1 (Developer Experience for QuakeC/QuakeGo authors)
 **Status**: IN PROGRESS (2026-08-08) — Phase A landed (`sim.World` + `qcmod test`),
-Phase B **In-VM runner landed**: `qcmod vm <fn> [self [other [time]]]` boots
-compiled progs via `internal/qc.VM`, preallocates cleared edicts, sets
-self/other/time globals, fires bytecode functions (StartFrame, SUB_Null,
-worldspawn verified + tests). Phase B limitation discovered: mod-style
-functions that capture Go closures as function values (e.g.
-`self.Use = te.use` in trigger_multiple) hit a qgo compiler sentinel
-(`0x40404040` invalid function number) — those need custom mods compiled with
-lowerable function pointers. Phases C (debugger) + D (REPL) remain.
+Phase B In-VM runner landed (`qcmod vm`), **Phase C debugger core landed**:
+`internal/qc` gains a zero-cost-when-nil `BreakHook` + `ErrBreak` +
+`ExecuteFrom(fidx)` so the statement loop can pause WITHOUT unwinding the
+stack, inspect live state, and resume mid-function. Proven by
+`TestDebuggerBreakResume` (synthetic two-statement function: break before the
+op executes, resume completes exactly once). `cmd/qcmod/debugger.go` has the
+Debugger type (breakfuncs/breakstmts/watches/step modes) wired on top. Remaining:
+REPL (Phase D) and mod-style function-value lowering (Phase B boundary noted
+earlier — qgo closure-capture sentinel).
 **Prerequisite**: `pkg/qgo/quake`, `pkg/qgo/quakego` (separate modules —
 see AGENTS.md gotcha #2), `internal/qc` VM, `internal/server` edict/QC bridges.
 **Estimated effort**: 5-8 focused sessions

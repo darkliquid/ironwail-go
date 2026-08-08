@@ -77,17 +77,24 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 		return nil
 	}
 
-	if err := vm.EnterFunction(int32(fnum), f); err != nil {
-		return err
+	if vm.resumeRequested {
+		// Debugger resume (ExecuteFrom): the function was already entered
+		// (stack is live) — skip EnterFunction and the XStatement reset so
+		// the loop continues from the current statement. The existing
+		// Depth/XFunction/XFunctionIndex are authoritative.
+		vm.resumeRequested = false
+	} else {
+		if err := vm.EnterFunction(int32(fnum), f); err != nil {
+			return err
+		}
+		// The Go loop reads Statements[XStatement] then increments at the
+		// bottom. Unlike C (which pre-increments: st++ before reading), we
+		// start at FirstStatement directly so the first iteration executes
+		// the correct statement. callFunction uses FirstStatement-1 because
+		// the bottom XStatement++ fires after it returns.
+		vm.XStatement = int(f.FirstStatement)
 	}
 	vm.traceCall("enter", vm.Depth, int32(fnum))
-
-	// The Go loop reads Statements[XStatement] then increments at the bottom.
-	// Unlike C (which pre-increments: st++ before reading), we start at
-	// FirstStatement directly so the first iteration executes the correct
-	// statement. callFunction uses FirstStatement-1 because the bottom
-	// XStatement++ fires after it returns.
-	vm.XStatement = int(f.FirstStatement)
 
 	// Profile counters track per-function statement execution counts.
 	// C: startprofile = profile = 0; xfunction->profile += profile - startprofile
@@ -109,6 +116,14 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 		if vm.Trace && vm.TraceFunc != nil {
 			vm.TraceFunc(vm, vm.XStatement, st, op)
+		}
+
+		// Debugger breakpoint hook (plan 25 Phase C): a non-nil hook that
+		// returns true pauses the statement loop at THIS statement without
+		// unwinding the stack, so the debugger can inspect and resume from
+		// the exact point via ExecuteFrom.
+		if vm.BreakHook != nil && vm.BreakHook(vm, vm.XStatement) {
+			return ErrBreak
 		}
 
 		switch op {

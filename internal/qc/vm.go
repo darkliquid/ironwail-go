@@ -44,6 +44,8 @@
 package qc
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"strings"
 
@@ -526,6 +528,17 @@ type VM struct {
 	// per-statement noise.
 	TraceCallFunc func(vm *VM, event TraceCallEvent)
 
+	// BreakHook, when non-nil, is called before each statement executes. If
+	// it returns true, the statement loop aborts with ErrBreak WITHOUT
+	// unwinding the stack, so a debugger can inspect live state and resume
+	// from the exact statement via ExecuteFrom. Zero-overhead when nil
+	// (plan 25 Phase C statement debugger).
+	BreakHook func(vm *VM, stmtIdx int) bool
+
+	// resumeRequested is set by ExecuteFrom so the interpreter entry skips
+	// the XStatement reset and continues where ErrBreak stopped.
+	resumeRequested bool
+
 	// XFunction is the currently executing function.
 	XFunction *DFunction
 
@@ -889,4 +902,25 @@ func (vm *VM) GlobalFloat(name string) float32 {
 // Returns any error from bytecode execution.
 func (vm *VM) ExecuteFunction(fnum int) error {
 	return vm.ExecuteProgram(fnum)
+}
+
+// ErrBreak is returned by the statement loop when the BreakHook fires
+// (plan 25 Phase C). The stack is left intact; resume from the current
+// statement with ExecuteFrom.
+var ErrBreak = errors.New("qc: breakpoint")
+
+// ExecuteFrom resumes statement execution from the CURRENT XStatement within
+// the given function index, using the existing (non-unwound) stack left by an
+// ErrBreak. The caller (a debugger) knows which function it broke into, so it
+// passes that index; the stack/Depth are authoritative for continuation.
+func (vm *VM) ExecuteFrom(fidx int) error {
+	if vm.Depth <= 0 {
+		return fmt.Errorf("qc: ExecuteFrom with empty stack")
+	}
+	if fidx < 0 || fidx >= len(vm.Functions) || vm.Functions[fidx].FirstStatement < 0 {
+		return fmt.Errorf("qc: ExecuteFrom: not a bytecode function: %d", fidx)
+	}
+	vm.resumeRequested = true
+	defer func() { vm.resumeRequested = false }()
+	return vm.ExecuteProgram(fidx)
 }
