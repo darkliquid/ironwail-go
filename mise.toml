@@ -265,3 +265,11 @@ run = "go run ./tools/parity_screenshots report"
 [tasks.doc-check]
 description = "Lint docs: plan status lines, stale references, forbidden build tags (plan 26.4)"
 run = "bash ./tasks/doc_check.sh"
+
+[tasks.qcmod-test]
+description = "Run the standalone QuakeGo mod test runner on its example mod (plan 25)"
+run = "go run ./cmd/qcmod test ./cmd/qcmod/examplemod"
+
+[tasks.qcmod-sim]
+description = "Build the qcmod CLI (plan 25)"
+run = "go build -o bin/qcmod ./cmd/qcmod"
