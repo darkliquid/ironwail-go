@@ -69,10 +69,13 @@ Verified findings from the latest local sweep:
 - The map requests external skybox `stick_sunset2_`. PNG candidates are missing,
   but TGA faces load successfully; `stick_sunset2_wind.cfg` is missing, so no
   external sky wind config is loaded.
-- A short headless CPU profile is dominated by QC/server edict synchronization
-  and reflection-heavy paths such as `syncEntVarsFromQC`,
-  `syncEntVarsToQC`, `captureNonPusherQCVMEdictSnapshots`,
-  `syncMutatedNonPushersFromQCVM`, and `qc.(*VM).SetEFloat`.
+- A short headless CPU profile is dominated by QCVM edict field access and
+  per-frame bookkeeping: the typed accessor layer
+  (`internal/server/types/entity_accessors*.go`, `internal/qc/vm_edict.go`
+  `EFloat`/`SetEFloat`) and reporting paths. The qbj2-era selective-sync
+  functions (syncEntVarsFromQC, syncEntVarsToQC, the pusher/non-pusher
+  snapshot helpers) no longer exist — see `docs/QCVM_ENTITY_SYNC.md`.
+  Hot-path optimization is tracked in `docs/plans/27_hotpath_optimization.md`.
 - Clean external window captures for C and Go at the qbj3 spawn view both
   rendered the same room at 1892x1072. The Go image is visibly darker and lower
   contrast, with the largest differences in the upper-center ceiling/light
@@ -85,7 +88,9 @@ Blocked or incomplete evidence:
 
 - The committed `testdata/parity/viewpoints.json` is intentionally a tiny id1
   smoke seed. Add local qbj3-specific viewpoints from C `viewpos` output before
-  treating harness results as qbj3 sign-off.
+  treating harness results as qbj3 sign-off. The harness roadmap (extended
+  dumpstate schema, render-record hashes, narrative-chain gates) is tracked in
+  `docs/plans/24_parity_harness_expansion.md`.
 - The GoGPU runtime `-screenshot` path is still not the canonical visual capture
   path. The parity harness defaults to `PARITY_GO_CAPTURE=window`, which captures
   the rendered X11 window via `xdotool` and ImageMagick `import`; use
@@ -298,6 +303,14 @@ deviations.
 | Save/load and demo lifecycle | Some host/UI lifecycle features may lag C Ironwail | Command coverage and user-visible workflow tests |
 | Audio spatialization/filtering | Oto mixer path is not a 1:1 C DMA mixer port | Focused underwater/spatial audio captures |
 | Mod/addon management | Downloader and server-browser paths are separate from core renderer/server parity | Feature-specific tests rather than visual parity gates |
+
+### Documented intentional deviations
+
+These differ from C on purpose; they are auditable, not silent drift.
+
+| Deviation | Why it exists | Guard |
+| --- | --- | --- |
+| Entity sends are distance-sorted per client (`entitySendSortKey` in `internal/server/server_net_send.go`) instead of C's edict order | Go addition for deterministic incremental/priority entity sends under message-limit pressure | Parity probes assert same-frame ordering is preserved; documented in plan 23 (D6) |
 
 ## Sign-off rules
 

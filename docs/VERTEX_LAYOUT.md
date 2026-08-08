@@ -167,7 +167,7 @@ When adding a new field to `WorldVertex`:
 - [ ] Update **all four** vertex-packing functions listed above
 - [ ] Update the stride constant (`goGPUWorldVertexStrideBytes`,
       `worldVertexStrideBytes`, `aliasVertexStride`) in each file
-- [ ] Run `go test -tags gogpu ./internal/renderer/...` — the SPIR-V
+- [ ] Run `go test ./internal/renderer/...` — the SPIR-V
       validation test catches shader/pipeline mismatches but **not**
       packing-function mismatches
 - [ ] Load a map with moving brush entities (e.g., `start` has a door and

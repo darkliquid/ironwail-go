@@ -261,3 +261,7 @@ run = "bash ./tasks/perf_gate.sh"
 description = "Compare parity screenshots and emit a structured JSON + markdown summary report (plan 14.3)"
 depends = ["build"]
 run = "go run ./tools/parity_screenshots report"
+
+[tasks.doc-check]
+description = "Lint docs: plan status lines, stale references, forbidden build tags (plan 26.4)"
+run = "bash ./tasks/doc_check.sh"

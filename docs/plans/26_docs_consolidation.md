@@ -1,7 +1,9 @@
 # Implementation Plan 26: Documentation Consolidation & Stale-Doc Purge
 
 **Priority**: #2 (Maintainability / Onboarding; unblocks 22-25)
-**Status**: PLANNED
+**Status**: COMPLETED (2026-08-08) — 26.1/26.2 audit done, 26.3 rewrites landed
+(QCVM_ENTITY_SYNC.md, PARITY.md, plans archived, VERTEX_LAYOUT tag fix),
+26.4 `mise run doc-check` green, 26.5 graphify refresh pending
 **Prerequisite**: none (do this first — it unblocks every other plan's
 reading experience)
 **Estimated effort**: 2-4 focused sessions
