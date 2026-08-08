@@ -131,7 +131,7 @@ func BuildMaterialTextureRGBA(pixels, palette []byte, textureType model.TextureT
 			continue
 		}
 		r, g, b := paletteColor(idx, palette)
-		if idx >= 224 && idx <= 254 {
+		if idx >= 224 && idx <= 255 {
 			switch {
 			case cutout:
 				fullbright[base+0] = r
@@ -150,7 +150,11 @@ func BuildMaterialTextureRGBA(pixels, palette []byte, textureType model.TextureT
 				diffuse[base+1] = g
 				diffuse[base+2] = b
 				// Regular world materials use alpha as a lighting mask for embedded
-				// fullbright texels; they are not true transparent pixels.
+				// fullbright texels; they are not true transparent pixels. Mirror
+				// C Ironwail's is_fullbright set from gl_texmgr.c: every palette
+				// index whose colormap row is constant is unlit, which for the
+				// standard palette is 224..255 (index 255 is a brownish skin
+				// color that C treats as fullbright — do not light it).
 				diffuse[base+3] = 0
 			}
 			continue

@@ -9,11 +9,11 @@ keeps its own `Status` line and commit references).
 | # | Plan | Status | Depends on |
 | --- | --- | --- | --- |
 | 26 | `26_docs_consolidation.md` — doc consolidation & stale purge | COMPLETED (2026-08-08) | none |
-| 23 | `23_parity_hardening.md` — behavior divergences C vs Go | IN PROGRESS (D1-D4,D6,D8 closed; D5 renderer audit needs fresh captures) | 26 |
+| 23 | `23_parity_hardening.md` — behavior divergences C vs Go | IN PROGRESS (D1-D4,D6,D8 closed; D5 improved: index-255 fullbright + engine-capture default, residual ~0.90 median ratio parked) | 26 |
 | 24 | `24_parity_harness_expansion.md` — six deterministic parity gates | IN PROGRESS (H2,H4,H5 landed; H1,H3,H6 opt-in remain) | 23 |
 | 25 | `25_qcvm_test_simulator.md` — standalone QuakeGo/QCVM dev kit | IN PROGRESS (A/B/C landed: sim, vm runner, debugger core; D REPL remains) | — |
 | 27 | `27_hotpath_optimization.md` — post-parity hot-path opt | IN PROGRESS (O1+O5 landed; O3,O4,O6 remain) | 23 |
-| 22 | `22_browser_engine_walkthrough.md` — interactive wasm dev journey | IN PROGRESS (Phase A part 1: in-memory progs fallback; synthetic BSP map half remains) | 24, 25 |
+| 22 | `22_browser_engine_walkthrough.md` — interactive wasm dev journey | IN PROGRESS (Phase A landed: in-memory progs fallback + synthetic map + auto-start; client-handshake blocked on qgo closure sentinel (plan 25 boundary)) | 24, 25 |
 
 ## Archived plans (superseded/completed — see archive/)
 

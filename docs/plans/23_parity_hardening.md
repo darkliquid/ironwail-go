@@ -28,7 +28,7 @@ current manual sweep into deterministic, CI-able gates.
 | D2 | flymove clip-plane budget: C `MAX_CLIP_PLANES 5`, Go `maxClipPlanes=5` + `bumpCount<4` (matches C `numbumps=4`) — **verified equal, no change needed** | sv_phys.c:230,254 | leafs.go:21,193 | n/a (verified) | closed |
 | D3 | NaN velocity/origin: C warns, Go silent | sv_phys.c:87-110 | leafs.go CheckVelocity | low | FIXED (`a77e64f`) — slog.Warn added |
 | D4 | Inactive client slots still dispatch movetype | sv_phys.c:946-956 | stepframe.go | med | FIXED (`a77e64f`) — slot gate + test |
-| D5 | Renderer brightness/contrast (qbj3 ~7 mean delta) | gl_rmain.c:352 + gl_shaders.h postprocess | renderer present path | high (visual) | OPEN — audit in progress (see §23.5) |
+| D5 | Renderer brightness/contrast (qbj3 ~7 mean delta) | gl_rmain.c:352 + gl_shaders.h postprocess | renderer present path | high (visual) | IMPROVED (2026-08-08): index-255 fullbright parity + engine-capture default landed; median ratio 0.90; residual multi-factor (see §23.5) |
 | D6 | Entity send distance-sorted (Go addition; C edict order) | sv_main.c | server_net_send.go:363+ | intentional | DONE — documented in PARITY.md deviations table |
 | D7 | Stale docs claim QCVM sync-all; code is no-op accessors | QCVM_ENTITY_SYNC.md | server_qc_sync.go:11-17 | low (teachability) | DONE — rewritten in plan 26 (`8117ea0`) |
 | D8 | LERP_FINISH byte: verify equality at encode time | sv_main.c:952 | net/encode.go:32-43 | low | DONE — verified by existing tests + doc note |
@@ -65,7 +65,7 @@ current manual sweep into deterministic, CI-able gates.
   delta + SSIM — use it as the measurement tool).
 - **Actions**:
   1. Classify the delta (whole-frame gain vs local lightmap drift): run the
-     id1 scene matrix (all 32 viewpoints; `mise run parity-*`) and split
+     id1 scene matrix (all 31 viewpoints; `mise run parity-*`) and split
      diffs into global (gain/gamma) vs spatial (lightmap/texinfo) buckets.
   2. Compare Go's gamma application path against C (`r_gamma` handling in
      gl_rmain.c:352) and the lightmap sample→final pipeline against the C
@@ -111,6 +111,36 @@ suspects, in order:
 (`mise run parity-go` with a working display/`PARITY_GO_CAPTURE=engine`),
 then A/B the world sampler (Nearest vs Linear) and the atlas half-texel
 constant on the clean qbj3-view1 pair.
+
+### 23.4-b D5 continued (2026-08-08) — audit results & landed fixes
+
+Follow-up audit after the viewpoint matrix was repaired (31 valid open-space
+viewpoints, distinct positions) and Go captures switched to engine readback:
+
+| Candidate | Verdict |
+| --- | --- |
+| Light combine `mix(sampled, sampled*light*2, a)` | Equal to C (opaque `a=1` → `sampled*light*2` both) |
+| Lightmap byte path (`CompositePageRGBA`/`StackPages`) | Equal — raw bytes, no 128/2 bias; `.lit` RGB adopted identically |
+| Lightstyle values (`DefaultStyleValues[0]=1`) | Equal to C's static `1.f` |
+| Lightmap UV texel-centering / page padding | Equal — geometry emits `+0.5` interior-clamped coords |
+| Fog (`exp2(-d²)`, `mix`) | Equal |
+| Dynamic-light accumulation (`clamp((rad-min-dist)/16)*max(0,rad-dist)/256*color`) | Line-for-line equal |
+| Final gamma/contrast postprocess | C applies `rgb*=contrast; pow(rgb,gamma)` at present; Go has no equivalent stage — but identity at defaults (`gamma=1`,`contrast=1`), not the default-path culprit (still a feature gap for non-default cvars) |
+| **Fullbright set (real bug)** | C computes `is_fullbright` from the **colormap** (`gl_texmgr.c:760`), which for the standard palette marks **225..255** incl. **index 255** (brownish skin `(159,91,83)`). Go hardcoded `224..254`, **excluding 255** → Go lit skin/leather that C keeps unlit. **Fixed** (`texture.go:134` range → `224..255`), with regression test. |
+| Capture path (harness bug) | Go parity default was **X11 window capture** (xdotool+ImageMagick `import`), which routes through the compositor and applies its own gamma/color management. Switched default to **`PARITY_GO_CAPTURE=engine`** (renderer `CaptureScreenshot` scene readback — same as C's internal screenshot). Verified engine readback == window pixels for the same frame, so window capture wasn't the dimmer, but engine capture is the parity-correct path. |
+
+Measured after fixes (engine capture, 31 viewpoints): **median luma ratio 0.90**
+(was ~0.81 window / ~0.78 stale), 10 viewpoints ≥0.93, several ≥1.04 (Go
+*brighter*: qbj3-view4/5, e1m1-spawn-cross, hip1m1). Closest absolute pairs:
+qbj2-water-room Δ3.15, qbj3-view2 Δ3.60, e3m7 Δ4.66, stickflip-spawn Δ4.53.
+
+**Remaining residual** ~0.90 median: not attributable to any single audited
+stage (all equal). Bright-region-specific dimming on some viewpoints
+(stickflip bright walls ~2× dim) and pattern correlation drops on dark
+viewpoints suggest a **lightmap addressing/sampling boundary** issue (e.g.
+Linear sampling bleeding between styles/pages) plus dynamic-light cluster grid
+differences. Requires on-GPU per-surface instrumentation to pin down; parked
+pending the D5 photometric gate re-run on the repaired matrix.
 
 ### Step 23.5: D6 — Document the entity-send sort as intentional
 - **Files**: `docs/PARITY.md` §Known parity gaps (extend the table with a

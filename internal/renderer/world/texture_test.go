@@ -75,3 +75,20 @@ func TestBuildMaterialTextureRGBA_CutoutSplitsFullbright(t *testing.T) {
 		t.Fatalf("cutout fullbright overlay pixel should be opaque")
 	}
 }
+
+func TestBuildMaterialTextureRGBA_Index255IsFullbrightOnRegular(t *testing.T) {
+	// C Ironwail's is_fullbright (gl_texmgr.c) marks palette index 255 as
+	// fullbright for the standard Quake palette (its colormap row is
+	// constant). index 255 is a brownish skin/leather color: lighting it
+	// would darken every skin/flesh surface in the world (D5 divergence).
+	palette := fakePalette()
+	pixels := []byte{255, 130}
+
+	got := BuildMaterialTextureRGBA(pixels, palette, model.TexTypeDefault)
+	if got.DiffuseRGBA[0*4+3] != 0 {
+		t.Fatalf("index 255 texel should have alpha-mask=0 on regular world materials, got %d", got.DiffuseRGBA[0*4+3])
+	}
+	if got.DiffuseRGBA[1*4+3] != 255 {
+		t.Fatalf("non-fullbright texel index 130 should have alpha 255, got %d", got.DiffuseRGBA[1*4+3])
+	}
+}
