@@ -229,3 +229,22 @@ func TestExecuteQCFunctionRestoresVMStateAfterSuccess(t *testing.T) {
 		t.Fatalf("XStatement after success = %d, want 123", vm.XStatement)
 	}
 }
+
+// TestCaptureQCExecutionContextNoAlloc verifies the plan 27 O4 change: the
+// per-QC-call context capture must not allocate (the previous inline-closure
+// version could retain closures).
+func TestCaptureQCExecutionContextNoAlloc(t *testing.T) {
+	vm := qc.NewVM()
+	vm.Globals = make([]float32, qc.OFSOther+1)
+	vm.Depth = 1
+	vm.LocalUsed = 2
+	allocs := testing.AllocsPerRun(1000, func() {
+		ctx := captureQCExecutionContext(vm)
+		if ctx.self != 0 || ctx.depth != 1 {
+			t.Fatalf("capture mismatch: %+v", ctx)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("captureQCExecutionContext allocs/run = %.2f, want 0", allocs)
+	}
+}

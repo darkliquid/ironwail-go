@@ -22,20 +22,18 @@ func captureQCExecutionContext(vm *qc.VM) qcExecutionContext {
 	if vm == nil {
 		return qcExecutionContext{}
 	}
+	// O4 (plan 27): plain field reads instead of inline closures — the
+	// previous func() wrappers could keep closures alive per call. Reading
+	// the globals directly is identical and allocation-free.
 	hasGlobals := len(vm.Globals) > qc.OFSOther
+	var self, other int32
+	if hasGlobals {
+		self = vm.GInt(qc.OFSSelf)
+		other = vm.GInt(qc.OFSOther)
+	}
 	return qcExecutionContext{
-		self: func() int32 {
-			if hasGlobals {
-				return vm.GInt(qc.OFSSelf)
-			}
-			return 0
-		}(),
-		other: func() int32 {
-			if hasGlobals {
-				return vm.GInt(qc.OFSOther)
-			}
-			return 0
-		}(),
+		self:           self,
+		other:          other,
 		depth:          vm.Depth,
 		localUsed:      vm.LocalUsed,
 		xFunction:      vm.XFunction,
