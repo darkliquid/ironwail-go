@@ -295,11 +295,15 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	var tree *bsp.Tree
 	bspData, litData, err := vfs.LoadMapBSPAndLit(s.ModelName)
 	if err != nil {
-		// No map data in the virtual filesystem (pakless wasm/no-assets boot,
-		// walkthrough demo mode). Fall back to the deterministic synthetic box
-		// room so the engine can still reach a spawnable world.
-		// Where in C: SV_SpawnServer would fail to load maps/*.bsp; here the
-		// engine's own synthetic map is the mod.
+		// No map data for this name. Fall back to the deterministic synthetic
+		// box room ONLY when the map is explicitly the synthetic demo map
+		// (runStartupMap's no-assets auto-start uses SyntheticMapName). An
+		// explicitly named but missing map (e.g. a savegame referencing a map
+		// not installed, or a typo) must still report load failure.
+		// Where in C: SV_SpawnServer would fail to load maps/*.bsp.
+		if mapName != SyntheticMapName {
+			return fmt.Errorf("load map %q: %w", s.ModelName, err)
+		}
 		slog.Warn("map not found in filesystem — using synthetic demo room", "map", s.ModelName, "error", err)
 		syntheticTree, bspFile, synErr := BuildSyntheticMap()
 		if synErr != nil {

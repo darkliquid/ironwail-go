@@ -79,9 +79,10 @@ func TestBuildSyntheticMapProducesValidBSP(t *testing.T) {
 
 func TestSpawnServerFallsBackToSyntheticMap(t *testing.T) {
 	// A filesystem with NO map data should trigger the synthetic fallback
-	// instead of failing SpawnServer.
+	// instead of failing SpawnServer — but only for the synthetic demo map
+	// name (the auto-start path). Arbitrary missing map names must fail.
 	vfs := fs.NewFileSystem()
-	cases := []string{"hypothetical_missing_map", "zzz_nonexistent"}
+	cases := []string{SyntheticMapName}
 	for _, mapName := range cases {
 		srv := newSyntheticTestServer(t)
 		err := srv.SpawnServer(mapName, vfs)
@@ -97,6 +98,14 @@ func TestSpawnServerFallsBackToSyntheticMap(t *testing.T) {
 		// World model collision must be populated for movement.
 		if cm, ok := srv.WorldModel.(interface{ ModelHull0() any }); ok && cm.ModelHull0() == nil {
 			t.Fatalf("world hull 0 not populated")
+		}
+	}
+
+	// A named-but-missing map (savegame reference / typo) must fail loudly.
+	for _, badMap := range []string{"missingmap", "zzz_nonexistent"} {
+		srv := newSyntheticTestServer(t)
+		if err := srv.SpawnServer(badMap, vfs); err == nil {
+			t.Fatalf("SpawnServer(%q) should fail when map is missing", badMap)
 		}
 	}
 }
