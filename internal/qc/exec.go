@@ -382,12 +382,16 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 			if vm.EdictSize > 0 {
 				maxEdicts = len(vm.Edicts) / vm.EdictSize
 			}
+			fnName := "?"
+			if vm.XFunction != nil {
+				fnName = vm.String(vm.XFunction.Name)
+			}
 			if edictNum < 0 || edictNum >= maxEdicts {
-				return fmt.Errorf("OPAddress invalid edict: %d", edictNum)
+				return fmt.Errorf("OPAddress invalid edict: %d (fn=%s stmt=%d fieldOfs=%d)", edictNum, fnName, vm.XStatement, fieldOfs)
 			}
 			ptr := edictNum*vm.EdictSize + 28 + fieldOfs*4
 			if ptr < 0 || ptr+4 > len(vm.Edicts) {
-				return fmt.Errorf("OPAddress pointer out of bounds: %d", ptr)
+				return fmt.Errorf("OPAddress pointer out of bounds: %d (fn=%s stmt=%d edict=%d fieldOfs=%d edictSize=%d edictsLen=%d)", ptr, fnName, vm.XStatement, edictNum, fieldOfs, vm.EdictSize, len(vm.Edicts))
 			}
 			vm.SetGInt(int(st.C), int32(ptr))
 
@@ -473,7 +477,11 @@ func (vm *VM) callFunction(fnum int, argc int) error {
 		return vm.consumeBuiltinError()
 	}
 	if fnum >= len(vm.Functions) {
-		return fmt.Errorf("invalid function number: %d", fnum)
+		fnName := "?"
+		if vm.XFunction != nil {
+			fnName = vm.String(vm.XFunction.Name)
+		}
+		return fmt.Errorf("invalid function number: %d (fn=%s stmt=%d)", fnum, fnName, vm.XStatement)
 	}
 
 	f := &vm.Functions[fnum]
