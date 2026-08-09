@@ -14,6 +14,7 @@ keeps its own `Status` line and commit references).
 | 25 | `25_qcvm_test_simulator.md` — standalone QuakeGo/QCVM dev kit | IN PROGRESS (A/B/C landed: sim, vm runner, debugger core; D REPL remains) | — |
 | 27 | `27_hotpath_optimization.md` — post-parity hot-path opt | IN PROGRESS (O1+O5 landed; O3,O4,O6 remain) | 23 |
 | 22 | `22_browser_engine_walkthrough.md` — interactive wasm dev journey | IN PROGRESS (Phase A landed: in-memory progs fallback + synthetic map + auto-start; client-handshake blocked on qgo closure sentinel (plan 25 boundary)) | 24, 25 |
+| 28 | `28_qgo_compiler_function_values.md` — qgo function-value wiring (the closure sentinel) | PLANNED (fixes the unresolved `OP_CALL` function-index cells; unblocks plan 22) | 22, 25 |
 
 ## Archived plans (superseded/completed — see archive/)
 
