@@ -467,10 +467,12 @@ func (s *Server) reloadProgs(vfs *fs.FileSystem) error {
 		if err != nil {
 			return fmt.Errorf("recompile progs.dat from sources: %w", err)
 		}
+		slog.Debug("recompiled progs", "bytes", len(progsData))
 	}
 	if err := s.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
 		return fmt.Errorf("parse progs.dat: %w", err)
 	}
+	slog.Debug("reloadProgs loaded", "entityFields", s.QCVM.EntityFields, "edictSize", s.QCVM.EdictSize, "progsBytes", len(progsData))
 	// Clear runtime string allocations from the previous map. LoadProgs
 	// replaces the static string table but StringTable (negative-index
 	// entries from AllocString) is separate.
