@@ -3,6 +3,7 @@ package compiler
 import (
 	"go/ast"
 	"go/types"
+	"strconv"
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
@@ -13,6 +14,9 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 		return result
 	}
 	if result, handled := l.lowerTypeConversionExpr(fn, call); handled {
+		return result
+	}
+	if result, handled := l.lowerSprintfIntrinsic(fn, call); handled {
 		return result
 	}
 
@@ -343,6 +347,178 @@ func (l *Lowerer) lowerEntityFieldFloatMethodIntrinsic(fn *IRFunc, call *ast.Cal
 	return VRegInvalid, false
 }
 
+// lowerSprintfIntrinsic expands quake.Sprintf(fmt, args...) into a runtime
+// chain of engine builtin calls. Literal format segments become string
+// constants; %s args are passed through; %f/%d args are ftos()-ed. The
+// result is a left-nested strcat chain like C's sprint.
+//
+// Only literal formats are supported; a dynamic (non-constant) format string
+// is a compile error until a real mod needs it (plan R3).
+func (l *Lowerer) lowerSprintfIntrinsic(fn *IRFunc, call *ast.CallExpr) (VReg, bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return VRegInvalid, false
+	}
+	pkgIdent, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return VRegInvalid, false
+	}
+	pkgObj, ok := l.currentInfo.Uses[pkgIdent].(*types.PkgName)
+	if !ok || pkgObj == nil || pkgObj.Imported() == nil || pkgObj.Imported().Name() != "quake" {
+		return VRegInvalid, false
+	}
+	if sel.Sel.Name != "Sprintf" {
+		return VRegInvalid, false
+	}
+	if len(call.Args) < 1 {
+		l.errors.Addf(l.pos(call), "quake.Sprintf expects at least a format argument")
+		return VRegInvalid, true
+	}
+
+	// The format must be a constant string.
+	fmttv, ok := l.currentInfo.Types[call.Args[0]]
+	if !ok || fmttv.Value == nil {
+		l.errors.Addf(l.pos(call.Args[0]), "quake.Sprintf requires a constant format string (runtime formats unsupported)")
+		return VRegInvalid, true
+	}
+	format := fmttv.Value.ExactString()
+	if len(format) >= 2 && format[0] == '"' {
+		if unquoted, err := strconv.Unquote(format); err == nil {
+			format = unquoted
+		}
+	}
+
+	argIdx := 1
+	last := VRegInvalid
+	i := 0
+	for i < len(format) {
+		if format[i] != '%' {
+			// Scan the literal run.
+			j := i
+			for j < len(format) && format[j] != '%' {
+				j++
+			}
+			seg := l.constString(fn, format[i:j])
+			last = l.sprintfCat(fn, last, seg)
+			i = j
+			continue
+		}
+		if i+1 < len(format) && format[i+1] == '%' {
+			// Escaped '%%' → literal '%'.
+			seg := l.constString(fn, "%")
+			last = l.sprintfCat(fn, last, seg)
+			i += 2
+			continue
+		}
+		// Format directive: consume "%<verb>".
+		verb := byte('s')
+		if i+1 < len(format) {
+			verb = format[i+1]
+			i += 2
+		} else {
+			i++
+		}
+		if argIdx >= len(call.Args) {
+			l.errors.Addf(l.pos(call), "quake.Sprintf: not enough arguments for format %q", format)
+			return VRegInvalid, true
+		}
+		argVReg := l.lowerExpr(fn, call.Args[argIdx])
+		argIdx++
+		switch verb {
+		case 's':
+			last = l.sprintfCat(fn, last, argVReg)
+		case 'f', 'd', 'i', 'v', 'g', 'e':
+			// Numeric: ftos(arg).
+			ftos := l.sprintfFtos(fn, argVReg)
+			last = l.sprintfCat(fn, last, ftos)
+		default:
+			l.errors.Addf(l.pos(call), "quake.Sprintf: unsupported format verb %%%c", verb)
+			return VRegInvalid, true
+		}
+	}
+
+	if last == VRegInvalid {
+		// Format with no directives → the literal itself.
+		return l.constString(fn, format), true
+	}
+	if argIdx < len(call.Args) {
+		l.errors.Addf(l.pos(call), "quake.Sprintf: too many arguments for format %q", format)
+		return VRegInvalid, true
+	}
+	return last, true
+}
+
+// sprintfCat emits strcat(l, r) if l is valid; otherwise returns r (first
+// segment needs no concatenation).
+func (l *Lowerer) sprintfCat(fn *IRFunc, lv, rv VReg) VReg {
+	if lv == VRegInvalid {
+		return rv
+	}
+	return l.emitStringBuiltin(fn, qc.OPCall1, "engine.Strcat", "Strcat", []VReg{lv, rv})
+}
+
+// sprintfFtos emits the ftos builtin call for a numeric argument.
+func (l *Lowerer) sprintfFtos(fn *IRFunc, v VReg) VReg {
+	return l.sprintfCat(fn, VRegInvalid, l.emitStringBuiltin(fn, qc.OPCall1, "engine.Ftos", "Ftos", []VReg{v}))
+}
+
+// emitStringBuiltin emits a call to an engine builtin (Strcat/Ftos above)
+// returning a string, using the builtin's func cell (FuncInit resolves to
+// the correct table index). Parameters are copied to OFS_PARM0+i*3 (the VM
+// strides params by 3 slots, matching EnterFunction's copy loop).
+func (l *Lowerer) emitStringBuiltin(fn *IRFunc, op qc.Opcode, qualified, qcName string, args []VReg) VReg {
+	// The builtin's engine package object is resolved by name at lowering
+	// time through the loaded type info. We create a dedicated cell for it.
+	cell := l.globalCellForName(qualified, qcName)
+
+	// Copy args to OFS_PARM slots (3-slot stride; scalar types use slot 0).
+	for i, a := range args {
+		if i >= qc.MaxParms {
+			break
+		}
+		parmOfs := VReg(qc.OFSParm0 + i*3)
+		fn.Body = append(fn.Body, IRInst{
+			Op:   opcodeForStore(EvString),
+			A:    a,
+			B:    parmOfs,
+			Type: EvString,
+		})
+	}
+	result := l.allocVReg()
+	fn.Body = append(fn.Body, IRInst{
+		Op:       op,
+		A:        cell,
+		ArgCount: len(args),
+	})
+	fn.Locals = append(fn.Locals, IRLocal{Type: EvString, VReg: result})
+	fn.Body = append(fn.Body, IRInst{
+		Op:   opcodeForStore(EvString),
+		A:    VReg(qc.OFSReturn),
+		B:    result,
+		Type: EvString,
+	})
+	return result
+}
+
+// globalCellForName returns a function-value cell VReg for a named engine
+// builtin (Strcat/Ftos), creating it if absent. The cell's FuncInit is the
+// QC record name so codegen patches the correct builtin table index.
+func (l *Lowerer) globalCellForName(qualified, qcName string) VReg {
+	for i := range l.program.Globals {
+		if l.program.Globals[i].Name == qualified {
+			return VReg(l.program.Globals[i].Offset)
+		}
+	}
+	ofs := l.allocGlobalOfs(1)
+	l.program.Globals = append(l.program.Globals, IRGlobal{
+		Name:     qualified,
+		Type:     EvFunction,
+		Offset:   ofs,
+		FuncInit: qcName,
+	})
+	return VReg(ofs)
+}
+
 func (l *Lowerer) fieldOffsetIntrinsicName(call *ast.CallExpr) (string, bool) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
@@ -457,9 +633,11 @@ func (l *Lowerer) lowerSelectorExpr(fn *IRFunc, sel *ast.SelectorExpr) VReg {
 	fieldType := l.goTypeToQC(selObj.Type())
 	result := l.allocVReg()
 
-	// For entity field access: ADDRESS(ent, fieldOfs) then LOAD
+	// For entity field access: ADDRESS(ent, fieldOfs) then LOAD. The field
+	// offset must be an INT cell (OPAddress reads GInt(st.B)); using a float
+	// const would bit-cast the float to a garbage field index.
 	fieldOfs := l.resolveFieldOffset(selObj)
-	fieldOfsVReg := l.constFloat(fn, float64(fieldOfs))
+	fieldOfsVReg := l.intConst(fn, int64(fieldOfs))
 
 	fn.Body = append(fn.Body, IRInst{
 		Op:   opcodeForLoad(fieldType),
@@ -483,7 +661,7 @@ func (l *Lowerer) lowerFieldStore(fn *IRFunc, sel *ast.SelectorExpr, val VReg) {
 
 	fieldType := l.goTypeToQC(selObj.Type())
 	fieldOfs := l.resolveFieldOffset(selObj)
-	fieldOfsVReg := l.constFloat(fn, float64(fieldOfs))
+	fieldOfsVReg := l.intConst(fn, int64(fieldOfs))
 
 	// ADDRESS(ent, fieldOfs) -> pointer
 	ptr := l.allocVReg()

@@ -31,18 +31,55 @@ func (l *Lowerer) lowerGenDecl(decl *ast.GenDecl) {
 					Type: l.goTypeToQC(obj.Type()),
 				}
 
-				// Check for qgo tag in comments or if it's a field (ValueSpec doesn't have Tags, but we can check the comment)
+				// Func-typed package vars are null-initialized function
+				// cells (set at runtime by assignment). Reserve their offset
+				// at lowering time (like funcGlobalCell) so they never
+				// collide with other cells, and key them for resolveObject.
+				if g.Type == EvFunction && obj != nil {
+					g.Offset = l.allocGlobalOfs(1)
+					l.funcCells[obj] = VReg(g.Offset)
+				}
+
+				// Check for qgo tag in comments. Both a Doc (preceding
+				// comment block) and a trailing Comment may carry a
+				// //qgo: directive; a var with BOTH (e.g. quakego's Self
+				// under "// System Globals") must have both scanned.
 				if vs.Doc != nil {
 					for _, c := range vs.Doc.List {
 						if strings.HasPrefix(c.Text, "//qgo:") {
 							g.Name = strings.TrimSpace(c.Text[6:])
 						}
 					}
-				} else if vs.Comment != nil {
+				}
+				if vs.Comment != nil {
 					for _, c := range vs.Comment.List {
 						if strings.HasPrefix(c.Text, "//qgo:") {
 							g.Name = strings.TrimSpace(c.Text[6:])
 						}
+					}
+				}
+
+				if obj != nil {
+					// A //qgo: tag naming a QCVM system global ("self",
+					// "time", "mapname", "parm1", ...) maps this var to the
+					// FIXED global offset. Record it so resolveObject
+					// returns that offset (not an uninitialized local) and
+					// codegen's AllocGlobal dedups to the same slot by name.
+					if g.Type != EvFunction {
+						if ofs, ok := systemGlobalOffsetByName(g.Name); ok {
+							g.Offset = ofs
+							l.globalVarOfs[obj] = ofs
+						}
+					}
+
+					// Func-typed package vars are null-initialized function
+					// cells (set at runtime by assignment). Reserve their
+					// offset at lowering time so they never collide with
+					// other cells, and key them for resolveObject (plan
+					// D3/L3: never a resolve target, null until set).
+					if g.Type == EvFunction {
+						g.Offset = l.allocGlobalOfs(1)
+						l.funcCells[obj] = VReg(g.Offset)
 					}
 				}
 

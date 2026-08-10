@@ -44,7 +44,15 @@ func (cg *CodeGen) Generate(prog *IRProgram) (*EmitInput, error) {
 	for i := range prog.Globals {
 		g := &prog.Globals[i]
 		slots := slotsForType(g.Type)
-		g.Offset = cg.globals.AllocGlobal(g.Name, slots)
+
+		if g.Type == EvFunction && g.Offset >= FreeGlobalBase {
+			// Function-value cell: the Lowerer already assigned a real
+			// global offset (>= FreeGlobalBase) so the cell VReg is stable
+			// across function bodies and codegen reuses the same slot.
+			cg.globals.Reserve(g.Offset, g.Name, slots)
+		} else {
+			g.Offset = cg.globals.AllocGlobal(g.Name, slots)
+		}
 
 		switch g.Type {
 		case EvFloat:
@@ -54,6 +62,10 @@ func (cg *CodeGen) Generate(prog *IRProgram) (*EmitInput, error) {
 			cg.globals.SetInt(g.Offset, ofs)
 		case EvVector:
 			cg.globals.SetVector(g.Offset, g.InitVec)
+		case EvFunction:
+			// Function cell default: null (index 0). The FuncInit patch
+			// below fills in the registered function index.
+			cg.globals.SetInt(g.Offset, 0)
 		}
 
 		cg.globalDefs = append(cg.globalDefs, qc.DDef{
@@ -75,6 +87,19 @@ func (cg *CodeGen) Generate(prog *IRProgram) (*EmitInput, error) {
 	// Generate functions
 	for i := range prog.Functions {
 		cg.generateFunc(&prog.Functions[i])
+	}
+
+	// Patch function-value cells AFTER the function table is complete: each
+	// EvFunction cell with FuncInit is set to the table index of that
+	// function (or left 0 for unresolvable intrinsics).
+	for i := range prog.Globals {
+		g := &prog.Globals[i]
+		if g.Type != EvFunction || g.FuncInit == "" {
+			continue
+		}
+		if idx := functionIndexByName(cg.functions, cg.strings, g.FuncInit); idx >= 0 {
+			cg.globals.SetInt(g.Offset, int32(idx))
+		}
 	}
 
 	if err := cg.errors.Err(); err != nil {
@@ -209,6 +234,13 @@ func (cg *CodeGen) emitInst(inst *IRInst) {
 		cg.globals.SetFloat(cg.resolveVReg(inst.B), inst.ImmFloat)
 		return
 	}
+	if op == qc.OPStoreFNC && inst.HasImmFloat {
+		// Raw int const: the ImmFloat carries the uint32 bit pattern of the
+		// integer value (function index or field offset). Write it as an int
+		// so OPAddress/OP_CALL/OPStorePFNC read the correct GInt.
+		cg.globals.SetInt(cg.resolveVReg(inst.B), int32(uint32(inst.ImmFloat)))
+		return
+	}
 
 	switch op {
 	case qc.OPGoto:
@@ -262,6 +294,20 @@ func (cg *CodeGen) resolveVReg(v VReg) uint16 {
 	}
 	// Direct global offset encoded as VReg
 	return uint16(v)
+}
+
+// functionIndexByName returns the table index of a function record whose
+// name string equals name, or -1 if absent. Functions are appended in
+// declaration order; builtins carry negative FirstStatement but still occupy
+// a table slot, exactly like C's progs.
+func functionIndexByName(fns []qc.DFunction, st *StringTable, name string) int {
+	want := st.Intern(name)
+	for i := range fns {
+		if fns[i].Name == want {
+			return i
+		}
+	}
+	return -1
 }
 
 func (cg *CodeGen) allocLocal(slots uint16) uint16 {

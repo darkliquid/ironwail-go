@@ -16,6 +16,91 @@ type GlobalAllocator struct {
 	temps   map[uint16]bool   // Currently free temp offsets
 }
 
+// FreeGlobalBase is the first offset at which the compiler may allocate
+// user-defined global variables. It sits just past the QCVM parameter
+// region (parm1..parm16 = OFSParmStart..OFSParmStart+15) so that no
+// allocation can ever collide with parm slots during function calls, and
+// past the last system global (msg_entity = OFSMsgEntity = 81).
+//
+// This is the ONE source of truth for the free-global start: both the
+// GlobalAllocator (codegen) and the Lowerer's function-value cell allocator
+// derive their cursors from it so a layout change can never silently diverge
+// (the earlier 43..91 param-collision regression did exactly that).
+//
+// Note the QCVM call-param region is OFSParm0..OFSParm7 (4..27); parm1..16
+// at 43..58 are the *named* global aliases. Starting at 91 keeps every
+// compiler-owned global clear of both.
+const FreeGlobalBase uint16 = qc.OFSParmStart + 16*3
+
+// systemParamWindow reports whether ofs falls inside the QCVM system/param
+// window (ReservedOFS..OFSMsgEntity inclusive plus parm1..parm16). The
+// allocator and the lowerer must never hand out an offset here; this guard
+// is the defense-in-depth backstop behind FreeGlobalBase (plan D2).
+func systemParamWindow(ofs uint16, slots uint16) bool {
+	// 43..58 are the named parm1..parm16 aliases; 4..27 are the call param
+	// slots OFSParm0..7. All are off-limits to compiler-owned globals.
+	if ofs >= qc.OFSParmStart && ofs <= qc.OFSParmStart+15 {
+		return true
+	}
+	if ofs >= qc.OFSParm0 && ofs < qc.OFSParm0+8*3 {
+		return true
+	}
+	// Also keep clear of the system globals block (28..81) that preexists in
+	// the VM; new globals start at FreeGlobalBase.
+	return ofs < qc.ReservedOFS
+}
+
+// systemGlobalOffsetByName returns the fixed QCVM global offset for a
+// compiler-known system global name ("self", "time", "mapname", "parm1",
+// "trace_endpos", ...), or ok=false. Both the GlobalAllocator (codegen) and
+// the Lowerer (resolveObject for //qgo:tagged package vars) use this single
+// table so a package var like `Self *quake.Entity //qgo:self` always resolves
+// to the same slot the engine writes via QCVM globals.
+func systemGlobalOffsetByName(name string) (uint16, bool) {
+	ofs, ok := systemGlobalOffsets[name]
+	return ofs, ok
+}
+
+var systemGlobalOffsets = func() map[string]uint16 {
+	m := map[string]uint16{
+		"self":            qc.OFSSelf,
+		"other":           qc.OFSOther,
+		"world":           qc.OFSWorld,
+		"time":            qc.OFSTime,
+		"frametime":       qc.OFSFrameTime,
+		"force_retouch":   qc.OFSForceRetouch,
+		"mapname":         qc.OFSMapName,
+		"deathmatch":      qc.OFSDeathmatch,
+		"coop":            qc.OFSCoop,
+		"teamplay":        qc.OFSTeamplay,
+		"serverflags":     qc.OFSServerFlags,
+		"total_secrets":   qc.OFSTotalSecrets,
+		"total_monsters":  qc.OFSTotalMonsters,
+		"found_secrets":   qc.OFSFoundSecrets,
+		"killed_monsters": qc.OFSKilledMonsters,
+
+		"v_forward": qc.OFSGlobalVForward,
+		"v_up":      qc.OFSGlobalVUp,
+		"v_right":   qc.OFSGlobalVRight,
+
+		"trace_allsolid":     qc.OFSTraceAllSolid,
+		"trace_startsolid":   qc.OFSTraceStartSolid,
+		"trace_fraction":     qc.OFSTraceFraction,
+		"trace_endpos":       qc.OFSTraceEndPos,
+		"trace_plane_normal": qc.OFSTracePlaneNormal,
+		"trace_plane_dist":   qc.OFSTracePlaneDist,
+		"trace_ent":          qc.OFSTraceEnt,
+		"trace_inopen":       qc.OFSTraceInOpen,
+		"trace_inwater":      qc.OFSTraceInWater,
+		"msg_entity":         qc.OFSMsgEntity,
+	}
+	// parm1..parm16 begin at OFSParmStart (43).
+	for i := 0; i < 16; i++ {
+		m[fmt.Sprintf("parm%d", i+1)] = qc.OFSParmStart + uint16(i)
+	}
+	return m
+}()
+
 // NewGlobalAllocator creates a new allocator with system globals pre-reserved.
 func NewGlobalAllocator() *GlobalAllocator {
 	ga := &GlobalAllocator{
@@ -26,48 +111,45 @@ func NewGlobalAllocator() *GlobalAllocator {
 	}
 
 	// Pre-register system globals at their fixed offsets
-	ga.named["self"] = qc.OFSSelf
-	ga.named["other"] = qc.OFSOther
-	ga.named["world"] = qc.OFSWorld
-	ga.named["time"] = qc.OFSTime
-	ga.named["frametime"] = qc.OFSFrameTime
-	ga.named["force_retouch"] = qc.OFSForceRetouch
-	ga.named["mapname"] = qc.OFSMapName
-	ga.named["deathmatch"] = qc.OFSDeathmatch
-	ga.named["coop"] = qc.OFSCoop
-	ga.named["teamplay"] = qc.OFSTeamplay
-	ga.named["serverflags"] = qc.OFSServerFlags
-	ga.named["total_secrets"] = qc.OFSTotalSecrets
-	ga.named["total_monsters"] = qc.OFSTotalMonsters
-	ga.named["found_secrets"] = qc.OFSFoundSecrets
-	ga.named["killed_monsters"] = qc.OFSKilledMonsters
-
-	// parm1..parm16 begin at OFSParmStart (43)
-	for i := 0; i < 16; i++ {
-		name := fmt.Sprintf("parm%d", i+1)
-		ga.named[name] = qc.OFSParmStart + uint16(i)
+	for name, ofs := range systemGlobalOffsets {
+		ga.named[name] = ofs
 	}
 
-	ga.named["v_forward"] = qc.OFSGlobalVForward
-	ga.named["v_up"] = qc.OFSGlobalVUp
-	ga.named["v_right"] = qc.OFSGlobalVRight
-
-	ga.named["trace_allsolid"] = qc.OFSTraceAllSolid
-	ga.named["trace_startsolid"] = qc.OFSTraceStartSolid
-	ga.named["trace_fraction"] = qc.OFSTraceFraction
-	ga.named["trace_endpos"] = qc.OFSTraceEndPos
-	ga.named["trace_plane_normal"] = qc.OFSTracePlaneNormal
-	ga.named["trace_plane_dist"] = qc.OFSTracePlaneDist
-	ga.named["trace_ent"] = qc.OFSTraceEnt
-	ga.named["trace_inopen"] = qc.OFSTraceInOpen
-	ga.named["trace_inwater"] = qc.OFSTraceInWater
-	ga.named["msg_entity"] = qc.OFSMsgEntity
-
-	// Next free offset after all pre-registered system globals
-	ga.nextOfs = qc.OFSMsgEntity + 1
+	// Next free offset after all pre-registered system globals. Start at
+	// FreeGlobalBase (past the system block AND the parm1..16 region) so no
+	// compile-emitted global can collide with a call parameter slot.
+	ga.nextOfs = FreeGlobalBase
 	ga.grow(int(ga.nextOfs))
 
 	return ga
+}
+
+// Reserve allocates a named global at a specific preassigned offset (used by
+// function-value cells whose offset was allocated during lowering). If the
+// name was already registered at the same offset it is a no-op (dedupe);
+// a conflicting offset is a hard error. Anonymous cells (empty name) are
+// always fresh.
+func (ga *GlobalAllocator) Reserve(ofs uint16, name string, slots uint16) {
+	if name != "" {
+		if existing, ok := ga.named[name]; ok {
+			if existing != ofs {
+				panic(fmt.Sprintf("Reserve(%q): already at %d, want %d", name, existing, ofs))
+			}
+			return
+		}
+	}
+	if systemParamWindow(ofs, slots) {
+		panic(fmt.Sprintf("Reserve(%q): offset %d falls in system/param window", name, ofs))
+	}
+	if name != "" {
+		ga.named[name] = ofs
+	}
+	if int(ofs)+int(slots) > len(ga.data) {
+		ga.grow(int(ofs) + int(slots))
+	}
+	if int(ofs)+int(slots) > int(ga.nextOfs) {
+		ga.nextOfs = ofs + slots
+	}
 }
 
 // AllocGlobal allocates a named global variable with the given number of slots.
@@ -76,6 +158,10 @@ func (ga *GlobalAllocator) AllocGlobal(name string, slots uint16) uint16 {
 		return ofs
 	}
 	ofs := ga.nextOfs
+	if systemParamWindow(ofs, slots) {
+		// Backstop: never allocate inside the system/param window.
+		panic(fmt.Sprintf("AllocGlobal(%q): offset %d falls in system/param window", name, ofs))
+	}
 	ga.named[name] = ofs
 	ga.grow(int(ofs) + int(slots))
 	ga.nextOfs += slots
@@ -85,6 +171,9 @@ func (ga *GlobalAllocator) AllocGlobal(name string, slots uint16) uint16 {
 // AllocAnon allocates an unnamed global with the given number of slots.
 func (ga *GlobalAllocator) AllocAnon(slots uint16) uint16 {
 	ofs := ga.nextOfs
+	if systemParamWindow(ofs, slots) {
+		panic(fmt.Sprintf("AllocAnon: offset %d falls in system/param window", ofs))
+	}
 	ga.grow(int(ofs) + int(slots))
 	ga.nextOfs += slots
 	return ofs

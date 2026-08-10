@@ -3,13 +3,11 @@ package compiler
 import (
 	"math"
 	"testing"
-
-	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 func TestGlobalAllocator_ReservesSystem(t *testing.T) {
 	ga := NewGlobalAllocator()
-	want := uint16(qc.OFSMsgEntity + 1)
+	want := uint16(FreeGlobalBase)
 	if ga.NextOffset() != want {
 		t.Fatalf("expected next offset %d, got %d", want, ga.NextOffset())
 	}
@@ -18,7 +16,7 @@ func TestGlobalAllocator_ReservesSystem(t *testing.T) {
 func TestGlobalAllocator_AllocGlobal(t *testing.T) {
 	ga := NewGlobalAllocator()
 	ofs := ga.AllocGlobal("health", 1)
-	wantFirst := uint16(qc.OFSMsgEntity + 1)
+	wantFirst := uint16(FreeGlobalBase)
 	if ofs != wantFirst {
 		t.Fatalf("first global should be at %d, got %d", wantFirst, ofs)
 	}

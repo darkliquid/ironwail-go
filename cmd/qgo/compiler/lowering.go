@@ -30,14 +30,39 @@ type Lowerer struct {
 	// Per-package state during lowering
 	currentInfo *types.Info
 	currentFset *token.FileSet
+
+	// Plan 28: function-value and int-literal global cells. These cells are
+	// allocated at lowering time with REAL global offsets (>= FreeGlobalBase)
+	// so that sub-vregBase VRegs passed to OPAddress/OPCall/OPStorePFNC
+	// resolve to int-holding global slots (the VM reads GInt there).
+	funcCells    map[types.Object]VReg // func-valued object -> cell VReg (offset)
+	constInts    map[int64]VReg        // int literal pool (cell VRegs)
+	nextGlobalOfs uint16               // free-global cursor, mirrors GlobalAllocator
+	globalVarOfs map[types.Object]uint16 // package-level var -> real global offset
 }
 
 // NewLowerer creates a new lowerer.
 func NewLowerer() *Lowerer {
 	return &Lowerer{
-		entityFields: make(map[types.Type][]IRField),
-		fieldOffsets: make(map[types.Object]uint16),
+		entityFields:  make(map[types.Type][]IRField),
+		fieldOffsets:  make(map[types.Object]uint16),
+		funcCells:     make(map[types.Object]VReg),
+		constInts:     make(map[int64]VReg),
+		globalVarOfs:  make(map[types.Object]uint16),
+		nextGlobalOfs: FreeGlobalBase,
 	}
+}
+
+// allocGlobalOfs advances the lowering-time global cursor and returns the
+// next free offset, honoring the system/param window guard (plan D2).
+func (l *Lowerer) allocGlobalOfs(slots uint16) uint16 {
+	ofs := l.nextGlobalOfs
+	if systemParamWindow(ofs, slots) {
+		// Backstop: never hand out a slot inside the param/system window.
+		l.errors.Addf(token.Position{}, "internal: global offset %d falls in system/param window", ofs)
+	}
+	l.nextGlobalOfs += slots
+	return ofs
 }
 
 // LowerPackages processes a collection of packages and returns the IR program.

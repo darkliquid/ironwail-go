@@ -349,6 +349,7 @@ func syntheticEntities() string {
 "classname" "worldspawn"
 "message" "Synthetic demo room (plan 22 no-assets fallback)"
 "mapversion" "220"
+"model" "*0"
 }
 {
 "classname" "info_player_start"

@@ -62,9 +62,146 @@ func (l *Lowerer) constString(fn *IRFunc, val string) VReg {
 	return v
 }
 
+// funcGlobalCell returns a REAL global-offset VReg (sub-vregBase) that holds
+// the function table index of obj. The cell is registered once per object
+// (keyed by the object identity, plan L2) and its index value is patched in
+// codegen via FuncInit. Unknown functions that are not registered in the
+// program receive a cell initialized to 0 (null function).
+//
+// pkgQualifiedName is the dedup lookup key (e.g. "quake.MakeVec3" — two
+// packages may share a short name); qcName is the name used by the function
+// RECORD in the emitted table (e.g. "Target" or "MakeVec3").
+func (l *Lowerer) funcGlobalCell(fn *IRFunc, obj types.Object, pkgQualifiedName, qcName string) VReg {
+	if v, ok := l.funcCells[obj]; ok {
+		return v
+	}
+	ofs := l.allocGlobalOfs(1)
+	v := VReg(ofs)
+	l.funcCells[obj] = v
+
+	// Register the cell as an EvFunction global. The codegen pass patches
+	// its data slot to the function table index (FuncInit), or leaves 0.
+	l.program.Globals = append(l.program.Globals, IRGlobal{
+		Name:     pkgQualifiedName,
+		Type:     EvFunction,
+		Offset:   ofs,
+		FuncInit: qcName,
+	})
+	return v
+}
+
+// intConst returns a REAL global-offset VReg whose global slot holds the raw
+// int32 value val (host byte order, matching C's raw integer globals). Used
+// wherever an IR operand must be an int/function index (OPAddress field
+// offsets, OP_CALL targets, OPStorePFNC values).
+func (l *Lowerer) intConst(fn *IRFunc, val int64) VReg {
+	if v, ok := l.constInts[val]; ok {
+		return v
+	}
+	ofs := l.allocGlobalOfs(1)
+	v := VReg(ofs)
+	l.constInts[val] = v
+
+	// Register an anonymous (unnamed) EvFunction global at this offset; the
+	// per-function IRStoreFNC instruction below writes the raw int bits into
+	// it at codegen time (emitInst OPStoreFNC+HasImmFloat).
+	l.program.Globals = append(l.program.Globals, IRGlobal{
+		Name:   "",
+		Type:   EvFunction,
+		Offset: ofs,
+	})
+	fn.Body = append(fn.Body, IRInst{
+		Op:          qc.OPStoreFNC,
+		A:           v,
+		B:           v,
+		ImmFloat:    float64(uint32(val)),
+		HasImmFloat: true,
+		Type:        EvFunction,
+	})
+	return v
+}
+
+// engineVarQCGlobal maps a quake/engine package var name to the QCVM global
+// offset it mirrors (e.g. engine.Self → self at OFSSelf). The engine package
+// declares these as plain Go vars so QuakeC code can read/write them; the
+// compiler must resolve them to the REAL global slots (GlobalAllocator
+// pre-registers the same offsets by name) instead of uninitialized locals.
+var engineVarQCGlobal = map[string]uint16{
+	"Self":             qc.OFSSelf,             // self
+	"Other":            qc.OFSOther,            // other
+	"World":            qc.OFSWorld,            // world
+	"Time":             qc.OFSTime,             // time
+	"FrameTime":        qc.OFSFrameTime,        // frametime
+	"MapName":          qc.OFSMapName,          // mapname
+	"VForward":         qc.OFSGlobalVForward,   // v_forward
+	"VUp":              qc.OFSGlobalVUp,        // v_up
+	"VRight":           qc.OFSGlobalVRight,     // v_right
+	"TraceAllSolid":    qc.OFSTraceAllSolid,    // trace_allsolid
+	"TraceStartSolid":  qc.OFSTraceStartSolid,  // trace_startsolid
+	"TraceFraction":    qc.OFSTraceFraction,    // trace_fraction
+	"TraceEndPos":      qc.OFSTraceEndPos,      // trace_endpos
+	"TracePlaneNormal": qc.OFSTracePlaneNormal, // trace_plane_normal
+	"TracePlaneDist":   qc.OFSTracePlaneDist,   // trace_plane_dist
+	"TraceEnt":         qc.OFSTraceEnt,         // trace_ent
+	"TraceInOpen":      qc.OFSTraceInOpen,      // trace_inopen
+	"TraceInWater":     qc.OFSTraceInWater,     // trace_inwater
+}
+
 func (l *Lowerer) resolveObject(fn *IRFunc, obj types.Object) VReg {
 	if v, ok := l.vregMap[obj]; ok {
 		return v
+	}
+	// A package-level variable that is not a function value.
+	if _, isFunc := obj.(*types.Func); !isFunc {
+		if pv, ok := obj.(*types.Var); ok && pv.Pkg() != nil {
+			// quake/engine globals mirror QCVM globals at fixed offsets.
+			if pv.Pkg().Name() == "engine" {
+				if ofs, ok := engineVarQCGlobal[pv.Name()]; ok {
+					return VReg(ofs)
+				}
+			}
+			// A package var whose qgo tag binds a QCVM system global
+			// (e.g. quakego defs.go `//qgo:self`): return that fixed slot.
+			if ofs, ok := l.globalVarOfs[obj]; ok {
+				return VReg(ofs)
+			}
+
+			// Fallback for plain package vars (rare in QC code).
+			v := l.allocVReg()
+			l.vregMap[obj] = v
+			return v
+		}
+	}
+	// Function object: return its function-value cell (real global offset).
+	if fnObj, isFunc := obj.(*types.Func); isFunc {
+		// A method (recv != nil) shares the package-qualified name with every
+		// other method of the same name in the package (e.g. the many
+		// `entity()` accessor methods). Its DDef name must still be unique so
+		// Reserve never collides; qualify with the receiver type. Method
+		// values are never registered as QC functions, so their cell stays 0
+		// (a null func) — the unique name is only for the DDef slot.
+		if fnObj.Type() != nil {
+			if sig, ok := fnObj.Type().(*types.Signature); ok && sig.Recv() != nil {
+				recv := sig.Recv().Type()
+				if p, ok := recv.(*types.Pointer); ok {
+					recv = p.Elem()
+				}
+				recvName := "?"
+				if named, ok := recv.(*types.Named); ok && named.Obj() != nil {
+					recvName = named.Obj().Name()
+				}
+				pkgQualified := fnObj.Name() + "@" + recvName
+				return l.funcGlobalCell(fn, obj, pkgQualified, fnObj.Name())
+			}
+		}
+		name := fnObj.Name()
+		pkgQualified := fnObj.Name()
+		if pkg := fnObj.Pkg(); pkg != nil {
+			pkgQualified = pkg.Name() + "." + fnObj.Name()
+		}
+		// The DDef/record name is the Go short (QC) name; the qualified name
+		// is only for deduping cells across packages (plan L2).
+		return l.funcGlobalCell(fn, obj, pkgQualified, name)
 	}
 	// Must be a global or builtin — use a placeholder VReg that codegen resolves
 	v := l.allocVReg()

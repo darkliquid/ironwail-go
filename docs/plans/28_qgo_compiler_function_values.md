@@ -1,7 +1,7 @@
 # Implementation Plan 28: QGo Compiler Function-Value Wiring (the closure sentinel)
 
 **Priority**: #1 (unblocks plan 22 playable no-assets demo + plan 25 qcmod mod dev kit)
-**Status**: PLANNED (2026-08-09)
+**Status**: COMPLETED (2026-08-10)
 **Prerequisite**: `c990111f` landed (entity fields + dependency builtins registered from
 imported packages); `qgo` test suite green; full `go test ./...` green except the two
 pre-existing `internal/host` savegame failures fixed in `e2b13a00` (now zero).
@@ -201,3 +201,36 @@ through `LoadProgs` + `ExecuteProgram` with no crash and correct results.
 - Wrapping function *values* across engine↔QC boundaries beyond what quakego needs
   (e.g. passing QC functions into engine callbacks).
 - Performance of the compiled progs (covers correctness; optimize later if profiling asks).
+
+## 9. Completion notes (2026-08-10)
+
+All gates met; `go test ./...` green (59 packages, 0 failures), qgo packages race-clean.
+
+- **Sentinel test**: `TestCompile_BuiltinCallFunctionValues` in
+  `cmd/qgo/compiler/builtincall_test.go` (fixture `cmd/qgo/testdata/builtincall`)
+  round-trips through the real VM: `th.Think = Target; th.Think()` stores the
+  function table index into the entity field (`EInt(thEdict, think)==Target idx`),
+  the indirect call executes, `Sprintf` produces `"$qc_test quux   2.5"` via
+  engine `Strcat`/`Ftos`, and `var FuncVar func()` stays a null cell.
+- **Global layout**: `FreeGlobalBase = OFSParmStart + 16*3 = 91` is the single
+  source of truth; `systemParamWindow` guards both allocators; the 
+  `GlobalAllocator.named` system table was extracted to `systemGlobalOffsets`
+  so the lowerer and codegen resolve `//qgo:`-tagged vars (`self`, `other`,
+  `world`, `time`, `mapname`, `parm1..16`, `v_*`, `trace_*`) to the SAME fixed
+  offsets.
+- **Extra bug found & fixed while landing 28.6**: `lowerGenDecl`'s `//qgo:`
+  tag scan used `else if`, so a var carrying BOTH a Doc comment (e.g. the
+  `// System Globals` header) and a trailing `//qgo:self` comment never had
+  its trailing tag read. `Self` (and anything like it) therefore resolved to
+  an uninitialized function-local instead of the QCVM `self` global, which
+  made `worldspawn`'s `PrecacheModel(Self.Model)` read an empty string and
+  abort the synthetic boot. Fixed by scanning Doc and Comment independently.
+- **No-assets gate (28.6)**: `ironwailgo -basedir <empty> -headless` from the
+  repo root now reaches `map spawn finished` + `client active` on the
+  synthetic room. The synthetic worldspawn entity gained `"model" "*0"` (real
+  maps always carry it).
+- **Follow-up (not blocking)**: after `client active`, the synthetic demo's
+  first-frame `respawn()` issues `changelevel *0` because the QC `mapname`
+  global picks up the world model string instead of `"synthetic"` — a
+  no-assets spawnparms quirk to chase in plan 22 if the demo should
+  stay-running rather than reload. Not a func-cell regression.

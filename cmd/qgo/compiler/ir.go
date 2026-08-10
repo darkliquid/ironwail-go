@@ -59,6 +59,7 @@ type IRGlobal struct {
 	InitFloat float64 // Initial float value
 	InitStr   string  // Initial string value (interned later)
 	InitVec   [3]float32
+	FuncInit  string // Function value cell: name of the function whose table index fills this slot
 }
 
 // IRField represents an entity field definition.
@@ -303,6 +304,11 @@ func isNoOpStore(inst IRInst) bool {
 		return false
 	}
 	if inst.Op == qc.OPStoreF && inst.HasImmFloat {
+		return false
+	}
+	if inst.Op == qc.OPStoreFNC && inst.HasImmFloat {
+		// Raw int const cell init (intConst): A==B shape but the immediate
+		// carry is meaningful.
 		return false
 	}
 	switch inst.Op {

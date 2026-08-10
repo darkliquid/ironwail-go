@@ -20,6 +20,7 @@
 !/.golangci.yml
 !/pkg/qgo/quake/go.mod
 !/pkg/qgo/quakego/go.mod
+!/cmd/qgo/testdata/**/go.mod
 
 # Keep this file
 !.gitignore
