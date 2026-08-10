@@ -330,6 +330,9 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		client.EntityStates = make(map[int]EntityState)
 	}
 	sortOrigin, sortForward, haveSortBasis := s.entitySendSortBasis(client)
+	if haveSortBasis {
+		s.SV_AddToFatPVS(sortOrigin, client)
+	}
 	clientNum := 0
 	if client != nil && client.Edict != nil {
 		clientNum = s.NumForEdict(client.Edict)

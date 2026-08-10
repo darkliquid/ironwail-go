@@ -254,6 +254,8 @@ func NewServer() *Server {
 		compatRNG:            compatRNG,
 		CVar:                 cvar.NewCVarSystem(),
 		Net:                  inet.DefaultNetwork(),
+		Datagram:             NewMessageBuffer(MaxDatagram),
+		ReliableDatagram:     NewMessageBuffer(MaxDatagram),
 	}
 	s.signonWriter = stategp.NewSignonWriter(&s.SignonBuffers, &s.Signon, SignonSize, func() uint32 { return uint32(s.ProtocolFlags()) })
 	s.acceptConnection = s.Net.CheckNewConnections

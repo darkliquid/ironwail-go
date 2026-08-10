@@ -18,7 +18,6 @@ import (
 
 func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	s := NewServer()
-	newServerTestVM(s, 16)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	s.Static = &ServerStatic{Clients: []*Client{{Active: true, Message: NewMessageBuffer(MaxDatagram)}}}
 	pak0Path := testutil.SkipIfNoPak0(t)
@@ -33,7 +32,17 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	defer fileSys.Close()
 	s.FileSystem = fileSys
 
+	// Set up the VM edict storage up front. newServerTestVM reallocates the
+	// VM edict byte array; doing it after entities are configured would wipe
+	// their QCVM-backed fields (e.g. the world's SOLID_BSP), breaking
+	// collision.
+	vm := newServerTestVM(s, 16)
+	vm.SetServerHooks(s.QCVM.ServerHooks)
+	qc.RegisterBuiltins(vm)
+
 	s.WorldModel = CreateSyntheticWorldModel()
+	s.State = ServerStateLoading
+	s.ClearWorld()
 	if world := s.EdictNum(0); world != nil {
 		world.SetSolid(s, float32(SolidBSP))
 	}
@@ -43,10 +52,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	e.SetMins(s, [3]float32{-16, -16, -24})
 	e.SetMaxs(s, [3]float32{16, 16, 32})
 	e.SetSolid(s, float32(SolidSlideBox))
-
-	vm := newServerTestVM(s, 8)
 	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
 
 	// traceline: from above ground into the floor.
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(e)))
@@ -133,7 +139,9 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
 	vm.SetGFloat(qc.OFSParm1, 1)
 	vm.SetGString(qc.OFSParm2, "misc/menu1.wav")
-	vm.SetGFloat(qc.OFSParm3, DefaultSoundVolume)
+	// The sound builtin scales parm3 by 255 (volume is a 0..1 float); pass 1.0
+	// for full volume (DefaultSoundVolume is already the scaled byte value).
+	vm.SetGFloat(qc.OFSParm3, 1.0)
 	vm.SetGFloat(qc.OFSParm4, DefaultSoundAttenuation)
 	vm.Builtins[8](vm)
 	if s.Datagram.Len() <= datagramBefore {
@@ -253,21 +261,19 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 		t.Fatalf("WriteByte builtin did not write to MSG_BROADCAST datagram")
 	}
 
-	// MSG_ALL should use reliable client messages for every connected client.
-	client0Before := s.Static.Clients[0].Message.Len()
-	client1 := &Client{Active: true, Message: NewMessageBuffer(MaxDatagram)}
-	s.Static.Clients = append(s.Static.Clients, client1)
+	// MSG_ALL should use the shared reliable datagram buffer.
+	reliableBefore := s.ReliableDatagram.Len()
 	vm.SetGFloat(qc.OFSParm0, 2)
 	vm.SetGFloat(qc.OFSParm1, 9)
 	vm.Builtins[52](vm)
-	if s.Static.Clients[0].Message.Len() <= client0Before || client1.Message.Len() == 0 {
-		t.Fatalf("WriteByte builtin did not write to MSG_ALL reliable buffers")
+	if s.ReliableDatagram.Len() <= reliableBefore {
+		t.Fatalf("WriteByte builtin did not write to MSG_ALL reliable buffer")
 	}
 
 	// MSG_INIT should use the signon buffer, not client reliable messages.
 	s.Signon = NewMessageBuffer(SignonSize)
 	signonBefore := s.Signon.Len()
-	client0Before = s.Static.Clients[0].Message.Len()
+	client0Before := s.Static.Clients[0].Message.Len()
 	vm.SetGFloat(qc.OFSParm0, 3)
 	vm.SetGFloat(qc.OFSParm1, 11)
 	vm.Builtins[52](vm)

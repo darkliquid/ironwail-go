@@ -11,6 +11,9 @@ func (s *Server) SV_AddToFatPVS(org [3]float32, client *Client) {
 	if s.WorldTree == nil || len(s.WorldTree.Nodes) == 0 {
 		return
 	}
+	if client.FatPVS != nil {
+		clear(client.FatPVS)
+	}
 	s.sv_AddToFatPVSRecursive(org, bsp.TreeChild{Index: 0, IsLeaf: false}, client)
 }
 
@@ -56,8 +59,11 @@ func (s *Server) sv_AddToFatPVSRecursive(org [3]float32, child bsp.TreeChild, cl
 
 // SV_VisibleToClient checks whether any entity leaf intersects the client's precomputed FatPVS.
 func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
-	if ent == nil || client.FatPVS == nil {
+	if ent == nil {
 		return false
+	}
+	if client.FatPVS == nil {
+		return true
 	}
 	if ent.NumLeafs >= MaxEntityLeafs {
 		return true
