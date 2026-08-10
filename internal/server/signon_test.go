@@ -294,3 +294,63 @@ func TestGetClientLoopbackMessageStagesOversizedSignonBuffers(t *testing.T) {
 		t.Fatalf("SendSignon after final chunk = %v, want %v", client.SendSignon, SignonSignonBufs)
 	}
 }
+
+// TestBuildSignonBuffersWritesBaselineForDelayedPrecacheModel verifies that
+// buildSignonBuffers writes a spawnbaseline (with origin) for an entity whose
+// engine modelindex is nonzero even when the baseline modelindex is still 0 —
+// the qbj3 pattern where StartItem nulls the model string and delays setmodel
+// to ItemPlace (+0.2s). C SV_SpawnServer skips only on !v.modelindex; writing
+// the baseline is what lets the client place stationary pickups at their map
+// origin instead of world origin [0 0 0].
+func TestBuildSignonBuffersWritesBaselineForDelayedPrecacheModel(t *testing.T) {
+	s := NewServer()
+	newServerTestVM(s, 16)
+	s.Static = &ServerStatic{MaxClients: 1, MaxClientsLimit: 1, Clients: []*Client{{Active: true}}}
+	// Player edict occupies Num 1; the pickup is Num 2 (> MaxClients), which is
+	// exactly the qbj3 case where the old skip incorrectly dropped baselines.
+	s.AllocEdict() // Num 1
+	ent := s.AllocEdict() // Num 2
+	ent.SetOrigin(s, [3]float32{1024, 0, 504})
+	// Engine v.modelindex nonzero (visible model), but Baseline.ModelIndex 0
+	// (model string not yet in the precache list at baseline time).
+	ent.SetModelIndex(s, 174)
+	ent.Baseline.ModelIndex = 0
+	ent.Baseline.Origin = [3]float32{1024, 0, 504}
+	if ent.Num <= s.Static.MaxClients {
+		t.Fatalf("precondition: pickup ent Num=%d must exceed MaxClients=%d", ent.Num, s.Static.MaxClients)
+	}
+
+	// FindModel returns 0 for an unprecached name, matching the qbj3 case.
+	if got := s.FindModel("progs/b_s_key.mdl"); got != 0 {
+		t.Fatalf("precondition: FindModel(unprecached) = %d, want 0", got)
+	}
+
+	if err := s.buildSignonBuffers(); err != nil {
+		t.Fatalf("buildSignonBuffers: %v", err)
+	}
+
+	// The signon buffer must contain a spawnbaseline for ent 2 (our pickup).
+	data := s.signonBufferData()
+	found := false
+	for i := 0; i+1 < len(data); i++ {
+		if (data[i] == byte(inet.SVCSpawnBaseline) || data[i] == byte(inet.SVCSpawnBaseline2)) &&
+			int16(data[i+1])|int16(data[i+2])<<8 == int16(ent.Num) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("no svc_spawnbaseline for ent %d in signon data (len=%d); baseline was skipped despite nonzero engine modelindex", ent.Num, len(data))
+	}
+}
+
+func (s *Server) signonBufferData() []byte {
+	var out []byte
+	for _, b := range s.SignonBuffers {
+		if b == nil {
+			continue
+		}
+		out = append(out, b.Data[:b.Len()]...)
+	}
+	return out
+}

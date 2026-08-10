@@ -352,7 +352,12 @@ func (g *Game) runtimeCameraState(origin, angles [3]float32) renderer.CameraStat
 		}
 	}
 
-	camera := renderer.ConvertClientStateToCamera(cameraOrigin, angles, 96.0)
+	// C Ironwail V_RenderView: SCR_CalcFov decides r_refdef.basefov, the same
+	// value the viewmodel+world both share. Passing the live fov cvar here
+	// keeps the camera projection (and thus the near-plane depth range the
+	// viewmodel draws into) consistent with the world projection and the C
+	// reference instead of a hardcoded 96.
+	camera := renderer.ConvertClientStateToCamera(cameraOrigin, angles, g.currentRuntimeFOV())
 	if g.Client != nil {
 		if g.Client.Intermission == 0 {
 			deadPlayer := false

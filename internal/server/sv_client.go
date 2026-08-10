@@ -263,7 +263,13 @@ func (s *Server) buildSignonBuffers() error {
 		if ent == nil || ent.Free {
 			continue
 		}
-		if s.Static != nil && entNum > s.Static.MaxClients && ent.Baseline.ModelIndex == 0 {
+		// C SV_SpawnServer skips only entities without an engine modelindex
+		// (v.modelindex); it still writes a baseline (with origin/angles/model 0)
+		// for entities whose model string precaches later (e.g. qbj3 StartItem
+		// delays setmodel to ItemPlace). Mirroring C exactly here is required:
+		// the client relies on the baseline origin for stationary deltas, and
+		// dropping it leaves pickups stuck at world origin.
+		if s.Static != nil && entNum > s.Static.MaxClients && ent.ModelIndex(s) == 0 {
 			continue
 		}
 		if err := s.writeSpawnBaselineToSignon(entNum, ent.Baseline); err != nil {

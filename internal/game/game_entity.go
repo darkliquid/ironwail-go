@@ -771,7 +771,8 @@ func (g *Game) collectViewModelEntity() *renderer.AliasModelEntity {
 	}
 	// Use raw entity origin + viewheight for weapon origin, NOT camera origin.
 	// C Ironwail V_CalcRefdef: VectorCopy(ent->origin, view->origin); view->origin[2] += cl.viewheight;
-	// The camera origin already has bob applied — using it would double-bob.
+	// The base origin carries entity origin + viewheight (bob-free), exactly
+	// like C's view->origin before the bob apply below.
 	origin := g.runtimeWeaponBaseOrigin()
 	viewAngles := g.runtimeInterpolatedViewAngles()
 	// CalcGunAngle runs before camera gunkick/punch is applied in canonical C.
@@ -781,8 +782,8 @@ func (g *Game) collectViewModelEntity() *renderer.AliasModelEntity {
 	}
 	angles := g.viewCalcGunAngle(&g.viewCalc, viewAngles, g.Client.Time, frameTime)
 
-	// Keep the viewmodel anchored to the same first-person eye origin while bob
-	// is isolated from the live runtime path.
+	// Apply the view bob exactly once, as C does: view->origin += forward*bob*0.4; view->origin[2]+=bob.
+	// The camera path (runtimeViewState) applies the same single bob to the eye.
 	bob := g.runtimeFirstPersonBobOffset()
 	if bob != 0 {
 		forward, _, _ := g.runtimeAngleVectors(viewAngles)

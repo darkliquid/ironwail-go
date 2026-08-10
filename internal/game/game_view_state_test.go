@@ -494,6 +494,8 @@ func TestRuntimeViewStateSmoothsUpwardStepAndKeepsViewModelAligned(t *testing.T)
 	if entity == nil {
 		t.Fatal("g.collectViewModelEntity() = nil, want entity")
 	}
+	// With no bob, the weapon origin equals the eye origin (C V_CalcRefdef:
+	// view->origin = ent->origin + viewheight, bob contribution zero).
 	if entity.Origin != viewOrigin {
 		t.Fatalf("viewmodel origin = %v, want aligned smoothed eye origin %v", entity.Origin, viewOrigin)
 	}
@@ -556,6 +558,9 @@ func TestCollectViewModelEntityAppliesCanonicalBobWhenPresent(t *testing.T) {
 		if entity == nil {
 			t.Fatal("g.collectViewModelEntity() = nil, want entity")
 		}
+		// C V_CalcRefdef applies the view bob exactly once to the weapon
+		// origin. The doubled-bob behavior (weapon base origin pre-bobbed and
+		// then bobbed again in collect) was a Go regression.
 		wantOrigin := [3]float32{100 + bob*0.4, 200, 322 + bob}
 		if entity.Origin != wantOrigin {
 			t.Fatalf("viewmodel origin = %v, want bobbed weapon origin %v", entity.Origin, wantOrigin)

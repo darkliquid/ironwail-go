@@ -254,6 +254,24 @@
       "description": "qbj3 start map viewpos 5"
     },
     {
+      "id": "qbj3-pixeldud-spawn",
+      "game": "qbj3",
+      "map": "qbj3_pixeldud",
+      "pos": [0, 0, 56],
+      "angles": [0, 90, 0],
+      "tag": "diag",
+      "description": "qbj3 pixeldud spawn viewpoint (shows first-person viewmodel)"
+    },
+    {
+      "id": "qbj3-pixeldud-keycard",
+      "game": "qbj3",
+      "map": "qbj3_pixeldud",
+      "pos": [0, 0, 56],
+      "angles": [0, 0, 0],
+      "tag": "diag",
+      "description": "qbj3 pixeldud spawn facing +x toward keycard room (1024,0,504)"
+    },
+    {
       "id": "qbj3-stickflip-spawn",
       "game": "qbj3",
       "map": "qbj3_stickflip",
