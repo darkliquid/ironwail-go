@@ -52,9 +52,11 @@ func checkBottom(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *s
 	var start [3]float32
 	var stop [3]float32
 
+	// If all of the points under the corners are solid world, don't bother
+	// with the tougher checks. The corners must be within STEPSIZE of the
+	// midpoint. Mirrors C SV_CheckBottom (sv_move.c).
 	start[2] = mins[2] - 1
-	stop[2] = start[2] - 2
-
+	allSolid := true
 	for x := 0; x <= 1; x++ {
 		for y := 0; y <= 1; y++ {
 			if x == 0 {
@@ -67,11 +69,56 @@ func checkBottom(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *s
 			} else {
 				start[1] = maxs[1]
 			}
-			stop[0] = start[0]
-			stop[1] = start[1]
+			if col.PointContents(start) != bsp.ContentsSolid {
+				allSolid = false
+				goto realcheck
+			}
+		}
+	}
+	if allSolid {
+		return true // we got out easy
+	}
 
-			contents := col.PointContents(start)
-			if contents != bsp.ContentsSolid {
+realcheck:
+	// The midpoint must be within STEPSIZE of the bottom.
+	start[2] = mins[2]
+	start[0] = (mins[0] + maxs[0]) * 0.5
+	start[1] = (mins[1] + maxs[1]) * 0.5
+	stop[0] = start[0]
+	stop[1] = start[1]
+	stop[2] = start[2] - 2*stepSize
+	trace := col.SV_Move(start, [3]float32{}, [3]float32{}, stop, srvtypes.MoveNoMonsters, ent)
+
+	if trace.Fraction == 1.0 {
+		return false
+	}
+	mid := trace.EndPos[2]
+	bottom := trace.EndPos[2]
+
+	// The corners must be within STEPSIZE of the midpoint.
+	for x := 0; x <= 1; x++ {
+		for y := 0; y <= 1; y++ {
+			cornerStart := [3]float32{}
+			cornerStop := [3]float32{}
+			if x == 0 {
+				cornerStart[0] = mins[0]
+			} else {
+				cornerStart[0] = maxs[0]
+			}
+			if y == 0 {
+				cornerStart[1] = mins[1]
+			} else {
+				cornerStart[1] = maxs[1]
+			}
+			cornerStart[2] = start[2] // mins[2], the top of the drop
+			cornerStop[0] = cornerStart[0]
+			cornerStop[1] = cornerStart[1]
+			cornerStop[2] = stop[2]
+			cornerTrace := col.SV_Move(cornerStart, [3]float32{}, [3]float32{}, cornerStop, srvtypes.MoveNoMonsters, ent)
+			if cornerTrace.Fraction != 1.0 && cornerTrace.EndPos[2] > bottom {
+				bottom = cornerTrace.EndPos[2]
+			}
+			if cornerTrace.Fraction == 1.0 || mid-cornerTrace.EndPos[2] > stepSize {
 				return false
 			}
 		}

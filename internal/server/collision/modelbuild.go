@@ -99,15 +99,16 @@ func PopulateWorldModelCollision(m *model.Model, tree *bsp.Tree, file *bsp.File)
 	}
 
 	m.ClipNodes = clipNodes
+	// C Mod_LoadClipnodes (gl_model.c): the clip hulls (1 and 2) both use the
+	// entire clipnode lump starting at clipnode 0 — the BSP model's
+	// HeadNode[1]/[2] are not used for world collision. Using those headnodes
+	// as FirstClipNode walks the clip tree from a mid-array node and produces
+	// bogus solid results (e.g. e2m2 monsters reported stuck in the world).
 	for hullNum := 1; hullNum <= 2; hullNum++ {
-		headNode := int(tree.Models[0].HeadNode[hullNum])
-		if headNode < 0 {
-			continue
-		}
 		m.Hulls[hullNum] = model.Hull{
 			ClipNodes:     clipNodes,
 			Planes:        m.Planes,
-			FirstClipNode: headNode,
+			FirstClipNode: 0,
 			LastClipNode:  len(clipNodes) - 1,
 			ClipMins:      brushHullClipBounds[hullNum].mins,
 			ClipMaxs:      brushHullClipBounds[hullNum].maxs,
