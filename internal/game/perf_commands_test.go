@@ -29,6 +29,16 @@ func runTestFrames(g *Game, n int) {
 func newPerfTestGame(t *testing.T) (*Game, *strings.Builder) {
 	t.Helper()
 	g := New()
+	// Point the profile output path at a temp dir so perf capture tests do
+	// not write ./id1/ pprof files into the package directory (which would
+	// break testutil.LocateQuakeDir for other tests in this package) and
+	// make failures show the exact bytes written.
+	profileDir := t.TempDir()
+	if g.Host == nil {
+		t.Fatal("New() did not initialize Host")
+	}
+	g.Host.SetBaseDir(profileDir)
+	g.ModDir = "id1"
 	var out strings.Builder
 	console.SetPrintCallback(func(msg string) {
 		out.WriteString(msg)
