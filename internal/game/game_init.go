@@ -802,15 +802,20 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 		if err != nil {
 			return err
 		}
-		if err := host.LoadArchivedCvars(g.Host.CVar, startupUserDir, []string{
-			"vid_width",
-			"vid_height",
-			"vid_fullscreen",
-			"vid_vsync",
-			"host_maxfps",
-			"r_gamma",
-		}); err != nil {
-			return fmt.Errorf("failed to load startup video cvars: %w", err)
+		// Skip archived startup cvars on js/wasm: the browser shim cannot
+		// open config files (os.Open → "not implemented on js"), there is no
+		// persistent user dir, and the walkthrough uses in-memory defaults.
+		if runtime.GOOS != "js" {
+			if err := host.LoadArchivedCvars(g.Host.CVar, startupUserDir, []string{
+				"vid_width",
+				"vid_height",
+				"vid_fullscreen",
+				"vid_vsync",
+				"host_maxfps",
+				"r_gamma",
+			}); err != nil {
+				return fmt.Errorf("failed to load startup video cvars: %w", err)
+			}
 		}
 		applyStartupVideoOverrides(g.Host.CVar)
 		if err := g.initGameRenderer(); err != nil {
