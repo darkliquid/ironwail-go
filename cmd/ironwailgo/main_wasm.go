@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/darkliquid/ironwail-go/internal/game"
+	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
 const (
@@ -32,8 +33,17 @@ func main() {
 	// (window.ironwailInspector). The walkthrough UI consumes it.
 	installInspector(g)
 
+	// Auto-start the synthetic no-assets map so the walkthrough has a live
+	// world to inspect even with no Quake data (mirrors runStartupMap).
+	if g.Subs != nil && g.Subs.Files != nil && !g.Subs.Files.FileExists("maps/start.bsp") {
+		slog.Info("no map assets found — auto-starting synthetic demo room (wasm)")
+		if err := g.Host.CmdMap(server.SyntheticMapName, g.Subs); err != nil {
+			log.Printf("Failed to spawn synthetic map: %v", err)
+		}
+	}
+
 	slog.Info("Ironwail-Go WASM initialized successfully")
 
-	// Keep the Go WASM event loop running
-	select {}
+	// Drive host frames so the inspector's timing/edict/camera data is live.
+	g.RunWasmInspectorLoop()
 }

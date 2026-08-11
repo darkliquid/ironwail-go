@@ -106,8 +106,8 @@ run = "go build -o ironwailgo ./cmd/ironwailgo"
 
 [tasks.build-wasm]
 depends = ["go-generate"]
-description = "Build WebAssembly binary (ironwail.wasm)"
-run = "mkdir -p web/bin && GOOS=js GOARCH=wasm go build -o web/bin/ironwail.wasm ./cmd/ironwailgo"
+description = "Build WebAssembly binary (ironwail.wasm) + copy wasm_exec.js loader"
+run = "mkdir -p web/bin && GOOS=js GOARCH=wasm go build -o web/bin/ironwail.wasm ./cmd/ironwailgo && cp \"$(go env GOROOT)/lib/wasm/wasm_exec.js\" web/"
 
 [tasks.serve-wasm]
 depends = ["build-wasm"]
