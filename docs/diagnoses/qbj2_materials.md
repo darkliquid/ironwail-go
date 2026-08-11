@@ -1,8 +1,9 @@
 # Materials System — Known Issues and Diagnostics
 
 > **Status:** The button texture frame bug is **fixed** (commit `aa17df6`).
-> The texture atlas overflow (>256 textures on BSP2 maps) is **open**. The
-> liquid lighting question is **partially addressed** (lightmap fallback
+> The texture atlas overflow (>256 textures on BSP2 maps) is **closed**
+> (dynamic storage-buffer sizing; capacity diagnostics audit the real buffer).
+> The liquid lighting question is **partially addressed** (lightmap fallback
 > fixed, but lit water on large maps is not fully verified). This document
 > consolidates `TEXTURE_ATLAS_DIAGNOSTIC_PLAN.md` and
 > `qbj2_render_issues.md`.
@@ -46,57 +47,69 @@ alternate textures.
 - `internal/renderer/world_gogpu_translucent.go` — translucent brush loops
   (same treatment)
 
-## Open Issue: Texture Atlas Overflow (>256 Textures)
+## Resolved: Texture Atlas Overflow (>256 Textures)
 
-### Problem
+### Problem (original)
 
 Small maps (id1 start) render correctly. Large BSP2 maps (qbj2 start) render
-with incorrect textures. The materials uniform buffer is hardcoded to 256
+with incorrect textures. The materials uniform buffer was hardcoded to 256
 entries, but `baseMaterials` is allocated as `textureCount + 2` with no
 clamping. When a map has more than 254 textures:
 
-1. `uploadWorldMaterialTextures` allocates `baseMaterials` with
-   `textureCount+2` slots (`world_resources_gogpu.go:486`)
+1. `uploadWorldMaterialTextures` allocated `baseMaterials` with
+   `textureCount+2` slots
 2. GPU buffer created with capacity for exactly 256 materials
-   (`world_upload_gogpu.go:323`: `Size: 256 * 32`)
-3. WGSL shader declares `array<MaterialData, 256>`
-   (`world_shaders_gogpu.go:128`)
-4. `queue.WriteBuffer` writes all `textureCount+2` entries into the 256-slot
+3. WGSL shader declared `array<MaterialData, 256>`
+4. `queue.WriteBuffer` wrote all `textureCount+2` entries into the 256-slot
    buffer — **silent buffer overflow**
-5. Shader indexes `materials[materialID]` where `materialID` can be
+5. Shader indexed `materials[materialID]` where `materialID` can be
    `textureCount+1` — **out-of-bounds GPU array access**
 
-### Proposed Fix
+### Resolution
 
-Make the materials buffer size dynamic (sized to `textureCount + 2`), or use
-a `var<storage, read>` buffer instead of `var<uniform>` to avoid the 256-entry
-uniform buffer limit. The WGSL shader array size must match the buffer.
+Both halves of the proposed fix landed:
 
-### Diagnostic Plan (Not Yet Implemented)
+- **Dynamic buffer sizing**: the GPU buffer is now created at
+  `len(baseMaterials)*32` bytes (`renderer_gogpu_world_upload.go`, external
+  brush path in `renderer_gogpu_worldstate.go`), so a map with hundreds of
+  textures gets a buffer that fits. Bind group entries use the real buffer
+  size.
+- **Storage buffer shader**: the WGSL shaders declare
+  `var<storage, read> materials: array<MaterialData>` (runtime-sized) instead
+  of a fixed 256-entry array (`renderer_gogpu_world_shaders.go:128,351,525`),
+  so the shader bound matches the buffer.
 
-**Phase 1 (P0): Material buffer capacity audit.** Add WARN logs when
-`len(baseMaterials) > 256` in:
-- `uploadWorldMaterialTextures` (`world_resources_gogpu.go`)
-- `world_upload_gogpu.go` before `queue.WriteBuffer`
-- `updateWorldMaterialsBuffer` (`world_material_gogpu.go:61`)
-- External brush path (`renderer_gogpu_worldstate.go`)
+### Diagnostic Plan (implemented in `internal/renderer/diag_atlas.go`)
 
-**Phase 2 (P0): MaterialID range validation.** Histogram of `materialID`
-values in `BuildModelGeometry` (`world_geometry_gogpu.go`). WARN if
-`max >= 256`.
+All six phases are implemented. The diagnostics now compare against the
+**actual runtime buffer capacity** (material table length / buffer byte size)
+rather than a fixed constant, and mirror vertex-build clamping (the `-1`
+missing-texture sentinel maps to slot 0).
 
-**Phase 3 (P1): Atlas layer distribution telemetry.** Per-layer breakdown,
-bounds cross-check, GPU limit verification.
+- **Phase 1 (P0): Material buffer capacity audit.** `diagMaterialBufferWrite`
+  at every write site (`uploadWorldMaterialTextures`,
+  `UploadWorld initial write`, `updateWorldMaterialsBuffer`, external brush
+  path) — warns on writes exceeding the real buffer bytes.
+- **Phase 2 (P0): MaterialID range validation.** `diagMaterialIDRange` +
+  `diagMaterialIDFaceAudit` + histogram dump in `BuildModelGeometry`, WARNs
+  when any id `>=` material table capacity.
+- **Phase 3 (P1): Atlas layer distribution telemetry.**
+  `diagAtlasLayerDistribution` + `diagAtlasLayerLimit` (GPU texture-array
+  layer check).
+- **Phase 4 (P2): Animation chain integrity.** `diagAnimationChains` +
+  `diagAnimationRemap` validate remap targets against the material count.
+- **Phase 5 (P1): Structured first-frame material dump.** CSV/JSON table +
+  atlas layer PNG exports, gated by `IRONWAIL_DEBUG_MATERIAL_DUMP=1`.
+- **Phase 6 (P2): Debug shader variants.** `IRONWAIL_DEBUG_MATERIAL_VIZ`
+  outputs `materialID`/layer/UV as color (`renderer_gogpu_world_shaders.go`).
 
-**Phase 4 (P2): Animation chain integrity.** Verify animated texture
-remapping doesn't produce out-of-range indices.
+### Verification
 
-**Phase 5 (P1): Structured first-frame material dump.** CSV/JSON of every
-material entry + atlas layer PNG exports. Gated by env var
-`IRONWAIL_DEBUG_MATERIAL_DUMP=1`.
-
-**Phase 6 (P2): Debug shader variants.** Fragment shader outputs `materialID`
-as color, gated by `r_debug_materials` cvar.
+`TestQbj2StartWaterVisibility` (real qbj2 start map, 232,407 faces) passes
+with **zero** `MATERIALID EXCEEDS` / write-overflow warnings. Regression
+tests: `TestDiagMaterialIDRangeDetectsOverflow`,
+`TestDiagMaterialIDFaceAuditUsesCapacity`,
+`TestFaceMaterialIDSentinelClampedToZero`.
 
 ### Key Files
 

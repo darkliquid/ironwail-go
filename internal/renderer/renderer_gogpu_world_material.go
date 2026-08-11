@@ -13,9 +13,6 @@ type WorldMaterialData struct {
 	Pad         [3]float32
 }
 
-// worldMaterialsBufferSize is the maximum size for the materials uniform buffer.
-const worldMaterialsBufferSize = 1024 * int(unsafe.Sizeof(WorldMaterialData{}))
-
 // animateWorldMaterials returns a copy of baseMaterials with active texture
 // animations applied for the given entity frame. Frame 0 selects primary
 // animation chains (+0button, +1button, ...); frame != 0 selects alternate
@@ -45,7 +42,7 @@ func animateWorldMaterials(baseMaterials []WorldMaterialData, animations []*surf
 			continue
 		}
 		// Phase 4 diagnostic: log animation remap when audit is enabled.
-		diagAnimationRemap(i, targetIdx, baseMaterials[targetIdx])
+		diagAnimationRemap(i, targetIdx, baseMaterials[targetIdx], len(baseMaterials))
 		animatedMaterials[i] = baseMaterials[targetIdx]
 	}
 	return animatedMaterials
@@ -66,7 +63,7 @@ func (r *Renderer) updateWorldMaterialsBuffer(queue *wgpu.Queue, timeValue float
 	animatedMaterials := animateWorldMaterials(r.worldBaseMaterials, r.worldTextureAnimations, 0, timeValue)
 
 	// Phase 1 diagnostic: check for buffer overflow before per-frame write.
-	diagMaterialBufferWrite("updateWorldMaterialsBuffer", len(animatedMaterials), worldMaterialsBufferSize)
+	diagMaterialBufferWrite("updateWorldMaterialsBuffer", len(animatedMaterials), int(r.resources.WorldMaterialsBuffer.Size()))
 
 	byteLen := len(animatedMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
 	byteData := unsafe.Slice((*byte)(unsafe.Pointer(&animatedMaterials[0])), byteLen)

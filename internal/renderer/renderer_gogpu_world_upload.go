@@ -477,7 +477,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	// Phase 5 diagnostic: dump materialID histogram to CSV when enabled.
-	diagMaterialIDHistogramDump(geom, fmt.Sprintf("bsp_v%d", tree.Version))
+	diagMaterialIDHistogramDump(geom, fmt.Sprintf("bsp_v%d", tree.Version), len(worldBaseMaterials))
 
 	worldSkySolidTextures, worldSkyAlphaTextures := r.uploadWorldEmbeddedSkyTextures(device, queue, worldTextureSampler, tree)
 	lightstyleValues := lightmap.DefaultStyleValues()
@@ -575,7 +575,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	// render frame has valid material data before updateWorldMaterialsBuffer runs.
 	if len(worldBaseMaterials) > 0 && materialsBuffer != nil {
 		// Phase 1 diagnostic: check for buffer overflow before writing.
-		diagMaterialBufferWrite("UploadWorld initial write", len(worldBaseMaterials), 256*32)
+		diagMaterialBufferWrite("UploadWorld initial write", len(worldBaseMaterials), int(materialsBuffer.Size()))
 		byteLen := len(worldBaseMaterials) * int(unsafe.Sizeof(WorldMaterialData{}))
 		byteData := unsafe.Slice((*byte)(unsafe.Pointer(&worldBaseMaterials[0])), byteLen)
 		if err := queue.WriteBuffer(materialsBuffer, 0, byteData); err != nil {

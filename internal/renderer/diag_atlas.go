@@ -32,20 +32,20 @@ import (
 // IRONWAIL_DEBUG_ATLAS_DIR=path   — directory for diagnostic file output
 //   (defaults to the current directory).
 
-// worldMaterialsBufferCapacity is the fixed GPU uniform buffer capacity
-// shared between the Go allocation, the GPU buffer creation, and the WGSL
-// shader array declaration. This value MUST match:
-//   - world_upload_gogpu.go:  Size: 256 * 32
-//   - world_material_gogpu.go: worldMaterialsBufferSize constant
-//   - world_shaders_gogpu.go:  array<MaterialData, 256>
-//
-// If a map has more textures than this, the material buffer overflows and
-// the shader reads out-of-bounds material data, producing wrong textures.
-const worldMaterialsBufferCapacity = 256
-
 // debugMaterialAuditEnabled returns true when IRONWAIL_DEBUG_MATERIAL_AUDIT=1.
 func debugMaterialAuditEnabled() bool {
 	return os.Getenv("IRONWAIL_DEBUG_MATERIAL_AUDIT") == "1"
+}
+
+// faceMaterialID mirrors the vertex-build clamping in extractFaceVertices:
+// a negative TextureIndex (missing/invalid miptex sentinel -1) is remapped
+// to material slot 0, not interpreted as a huge unsigned ID. Diagnostics
+// must agree with what the GPU actually samples.
+func faceMaterialID(face WorldFace) uint32 {
+	if face.TextureIndex >= 0 {
+		return uint32(face.TextureIndex)
+	}
+	return 0
 }
 
 // debugMaterialDumpEnabled returns true when IRONWAIL_DEBUG_MATERIAL_DUMP=1.
@@ -137,8 +137,8 @@ func worldMaterialDataSize() int {
 
 // diagMaterialIDRange computes the min, max, and unique count of materialID
 // values across all faces in a WorldGeometry, and warns if any materialID
-// exceeds the shader array bound.
-func diagMaterialIDRange(geom *WorldGeometry) {
+// exceeds the material buffer capacity (materialCount entries).
+func diagMaterialIDRange(geom *WorldGeometry, materialCount int) {
 	if geom == nil || len(geom.Faces) == 0 {
 		return
 	}
@@ -152,9 +152,10 @@ func diagMaterialIDRange(geom *WorldGeometry) {
 			continue
 		}
 		// Faces store TextureIndex (int32) which becomes materialID (uint32)
-		// at vertex build time. We don't have the vertex materialID directly
+		// at vertex build time (clamped to 0 when negative - see
+		// faceMaterialID). We don't have the vertex materialID directly
 		// here, but TextureIndex is the source value.
-		id := uint32(face.TextureIndex)
+		id := faceMaterialID(face)
 		if id < minID {
 			minID = id
 		}
@@ -168,11 +169,29 @@ func diagMaterialIDRange(geom *WorldGeometry) {
 		return
 	}
 
+	overCapacity := 0
+	for id := range uniqueIDs {
+		if id >= uint32(materialCount) {
+			overCapacity++
+		}
+	}
+
 	slog.Debug("MaterialID range",
 		"min_id", minID,
 		"max_id", maxID,
 		"unique_ids", len(uniqueIDs),
+		"over_capacity_count", overCapacity,
+		"material_count", materialCount,
 	)
+
+	if overCapacity > 0 {
+		slog.Warn("MATERIALID EXCEEDS MATERIAL BUFFER CAPACITY",
+			"over_capacity_ids", overCapacity,
+			"max_id", maxID,
+			"material_count", materialCount,
+			"explanation", "faces reference material slots beyond the material buffer size; textures will render wrong or out-of-bounds",
+		)
+	}
 
 	if debugMaterialAuditEnabled() {
 		// Log the top N most-used materialIDs to identify which textures
@@ -193,10 +212,7 @@ func diagMaterialIDRange(geom *WorldGeometry) {
 				}
 			}
 		}
-		limit := 20
-		if len(counts) < limit {
-			limit = len(counts)
-		}
+		limit := min(20, len(counts))
 		var sb strings.Builder
 		sb.WriteString("Top materialIDs by face count: ")
 		for i := 0; i < limit; i++ {
@@ -208,27 +224,24 @@ func diagMaterialIDRange(geom *WorldGeometry) {
 
 // diagMaterialIDFaceAudit dumps per-face materialID information for the first
 // N faces when IRONWAIL_DEBUG_MATERIAL_AUDIT=1. This shows exactly which
-// faces get out-of-range IDs.
-func diagMaterialIDFaceAudit(geom *WorldGeometry, maxFaces int) {
+// faces get out-of-range IDs relative to the material buffer capacity.
+func diagMaterialIDFaceAudit(geom *WorldGeometry, maxFaces int, materialCount int) {
 	if !debugMaterialAuditEnabled() || geom == nil {
 		return
 	}
-	limit := maxFaces
-	if limit > len(geom.Faces) {
-		limit = len(geom.Faces)
-	}
+	limit := min(maxFaces, len(geom.Faces))
 
 	slog.Debug("Per-face materialID audit (first N faces)",
 		"face_count", limit,
-		"buffer_capacity", worldMaterialsBufferCapacity,
+		"buffer_capacity", materialCount,
 	)
 	for i := 0; i < limit; i++ {
 		face := geom.Faces[i]
 		if face.NumIndices == 0 {
 			continue
 		}
-		id := uint32(face.TextureIndex)
-		over := id >= worldMaterialsBufferCapacity
+		id := faceMaterialID(face)
+		over := id >= uint32(materialCount)
 		slog.Debug("face materialID",
 			"face_index", i,
 			"texture_index", face.TextureIndex,
@@ -357,7 +370,8 @@ func diagAtlasLayerLimit(atlasLayerCount int, maxTextureArrayLayers int) {
 // ============================================================================
 
 // diagAnimationChains logs the structure of texture animation chains and
-// validates that all chain indices are within the material buffer capacity.
+// validates that all chain indices are within the material buffer capacity
+// (baseMaterialCount entries).
 func diagAnimationChains(animations []*surfacepkg.SurfaceTexture, baseMaterialCount int) {
 	if len(animations) == 0 {
 		slog.Debug("No texture animations to audit")
@@ -384,7 +398,7 @@ func diagAnimationChains(animations []*surfacepkg.SurfaceTexture, baseMaterialCo
 		for current != nil && !visited[current.TextureIndex] {
 			visited[current.TextureIndex] = true
 			chainIndices = append(chainIndices, current.TextureIndex)
-			if int(current.TextureIndex) >= worldMaterialsBufferCapacity {
+			if int(current.TextureIndex) >= baseMaterialCount {
 				overCapacityTargets++
 			}
 			current = current.AnimNext
@@ -407,25 +421,25 @@ func diagAnimationChains(animations []*surfacepkg.SurfaceTexture, baseMaterialCo
 		"total_animation_slots", len(animations),
 		"animated_groups", animatedGroups,
 		"over_capacity_targets", overCapacityTargets,
-		"buffer_capacity", worldMaterialsBufferCapacity,
+		"buffer_capacity", baseMaterialCount,
 	)
 
 	if overCapacityTargets > 0 {
 		slog.Warn("ANIMATION CHAIN REFERENCES OUT-OF-RANGE MATERIAL",
 			"over_capacity_targets", overCapacityTargets,
-			"buffer_capacity", worldMaterialsBufferCapacity,
-			"explanation", "animated textures will remap materialID to indices beyond the shader array bound",
+			"buffer_capacity", baseMaterialCount,
+			"explanation", "animated textures will remap materialID to indices beyond the material buffer size",
 		)
 	}
 }
 
 // diagAnimationRemap logs each animated texture remapping at render time
 // when IRONWAIL_DEBUG_MATERIAL_AUDIT=1.
-func diagAnimationRemap(sourceIdx int, targetIdx int, targetMat WorldMaterialData) {
+func diagAnimationRemap(sourceIdx int, targetIdx int, targetMat WorldMaterialData, materialCount int) {
 	if !debugMaterialAuditEnabled() {
 		return
 	}
-	over := targetIdx >= worldMaterialsBufferCapacity
+	over := targetIdx >= materialCount
 	slog.Debug("Animation remap",
 		"source_index", sourceIdx,
 		"target_index", targetIdx,
@@ -483,7 +497,7 @@ func diagMaterialTableDump(baseMaterials []WorldMaterialData, textureNames []str
 // diagMaterialIDHistogramDump writes a CSV showing which materialIDs are used
 // by how much geometry, so we can identify which out-of-range IDs affect the
 // most faces.
-func diagMaterialIDHistogramDump(geom *WorldGeometry, mapName string) {
+func diagMaterialIDHistogramDump(geom *WorldGeometry, mapName string, materialCount int) {
 	if !debugMaterialDumpEnabled() || geom == nil {
 		return
 	}
@@ -512,7 +526,7 @@ func diagMaterialIDHistogramDump(geom *WorldGeometry, mapName string) {
 		if face.NumIndices == 0 {
 			continue
 		}
-		id := uint32(face.TextureIndex)
+		id := faceMaterialID(face)
 		entry := histogram[id]
 		entry.faces++
 		entry.indices += face.NumIndices
@@ -539,7 +553,7 @@ func diagMaterialIDHistogramDump(geom *WorldGeometry, mapName string) {
 
 	for _, r := range rows {
 		over := "false"
-		if r.id >= worldMaterialsBufferCapacity {
+		if r.id >= uint32(materialCount) {
 			over = "true"
 		}
 		w.Write([]string{
@@ -587,7 +601,7 @@ func writeMaterialTableCSV(path string, baseMaterials []WorldMaterialData, textu
 			}
 		}
 		over := "false"
-		if i >= worldMaterialsBufferCapacity {
+		if i >= len(baseMaterials) {
 			over = "true"
 		}
 		w.Write([]string{
@@ -651,7 +665,7 @@ func writeMaterialTableJSON(path string, baseMaterials []WorldMaterialData, text
 			BoundsH:      mat.AtlasBounds[3],
 			IsAnimated:   isAnim,
 			AnimChainLen: chainLen,
-			OverCapacity: i >= worldMaterialsBufferCapacity,
+			OverCapacity: i >= len(baseMaterials),
 		}
 	}
 
@@ -660,7 +674,7 @@ func writeMaterialTableJSON(path string, baseMaterials []WorldMaterialData, text
 		MaterialCount  int             `json:"material_count"`
 		Materials      []materialEntry `json:"materials"`
 	}{
-		BufferCapacity: worldMaterialsBufferCapacity,
+		BufferCapacity: len(baseMaterials),
 		MaterialCount:  len(baseMaterials),
 		Materials:      entries,
 	}
@@ -707,9 +721,13 @@ func sanitizeMapName(name string) string {
 // texture arrays have matching layer counts and that the material buffer
 // is correctly sized.
 func diagWorldUploadSummary(diffuse, fullbright, lightmap *gpuWorldTexture, materialsBuffer *wgpu.Buffer, materialCount int, skyTextureCount int) {
+	var materialBufferCapacity int
+	if materialsBuffer != nil {
+		materialBufferCapacity = int(materialsBuffer.Size()) / worldMaterialDataSize()
+	}
 	slog.Debug("World GPU resource summary",
 		"material_count", materialCount,
-		"material_buffer_capacity", worldMaterialsBufferCapacity,
+		"material_buffer_capacity", materialBufferCapacity,
 		"sky_texture_count", skyTextureCount,
 	)
 
@@ -757,8 +775,8 @@ func diagWorldUploadSummary(diffuse, fullbright, lightmap *gpuWorldTexture, mate
 	if materialsBuffer != nil {
 		slog.Debug("Materials buffer",
 			"material_count", materialCount,
-			"buffer_capacity", worldMaterialsBufferCapacity,
-			"over_capacity", materialCount > worldMaterialsBufferCapacity,
+			"buffer_capacity", materialBufferCapacity,
+			"over_capacity", materialCount > materialBufferCapacity,
 		)
 	}
 }

@@ -287,9 +287,10 @@ func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.
 		)
 	}
 
-	// Phase 1 diagnostic: warn if material count exceeds the fixed GPU
-	// buffer capacity (256 entries). This is the suspected root cause of
-	// texture corruption on large BSP2 maps like qbj2 start.
+	// Phase 1 diagnostic: report the material count and buffer size. The GPU
+	// buffer is sized to the material table (textureCount + 2), so large BSP2
+	// maps (qbj2 start) with hundreds of textures are handled; this log makes
+	// the actual count auditable when texture corruption is suspected.
 	diagMaterialBufferCapacity("uploadWorldMaterialTextures", textureCount+2)
 
 	atlas := NewWorldTextureAtlas(2048, 2048)

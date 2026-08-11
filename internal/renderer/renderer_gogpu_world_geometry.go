@@ -290,11 +290,16 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		)
 	}
 
-	// Phase 2 diagnostic: validate materialID range against the GPU buffer
-	// capacity. Faces with textureIndex >= 256 will produce out-of-bounds
-	// reads in the WGSL materials[] array.
-	diagMaterialIDRange(geom)
-	diagMaterialIDFaceAudit(geom, 50)
+	// Phase 2 diagnostic: validate materialID range against the material
+	// buffer capacity (len(tree.Textures) + 2 dummy slots, matching the
+	// world material table size). Faces with textureIndex >= capacity will
+	// produce out-of-bounds reads in the WGSL materials[] storage array.
+	materialCapacity := 0
+	if tc, ok := worldimpl.TextureCount(tree); ok {
+		materialCapacity = int(tc) + 2
+	}
+	diagMaterialIDRange(geom, materialCapacity)
+	diagMaterialIDFaceAudit(geom, 50, materialCapacity)
 
 	// Convert lightmap layer from page index to V-offset for the
 	// vertically-stacked lightmap texture. Each page occupies
