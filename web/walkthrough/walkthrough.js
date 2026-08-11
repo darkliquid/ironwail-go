@@ -38,23 +38,45 @@ function renderRail() {
   }
 }
 
+// Cache of last-rendered strings so a paused frame (unchanged state) does not
+// tear down and rebuild the panel DOM every animation frame.
+let lastPanelJSON = "";
+let lastTimelineText = "";
+let lastEdictsText = "";
+let panelBuilt = false;
+let lastPanelRender = 0; // ms timestamp; throttles play-time DOM rebuilds
+
 function renderState() {
   const panel = document.getElementById("panel");
   const insp = window.ironwailInspector;
   if (!insp || !insp.getState) {
     panel.innerHTML = "<p>Inspector not available. Load the wasm boot first.</p>";
+    lastPanelJSON = "";
+    panelBuilt = false;
     return;
   }
   const state = insp.getState(activeLayer);
   if (!state) return;
 
-  const title = el("h2", "", LAYER_TITLES[activeLayer]);
+  const json = JSON.stringify(state, null, 2);
+  const a = (insp.getSourceAnchor ? (insp.getSourceAnchor(activeLayer) || {}) : {});
+  const anchorLine = a.file + (a.line ? ":" + a.line : "") + "|" + (a.doc || "");
+  const key = activeLayer + "|" + anchorLine + "|" + json;
+  if (panelBuilt && key === lastPanelJSON) return; // unchanged since last frame
+
+  // Throttle play-time rebuilds to ~8/s so a running sim doesn't churn the
+  // DOM; when paused the cache above already stops rebuilds entirely.
+  const now = performance.now();
+  if (panelBuilt && now - lastPanelRender < 125) return;
+  lastPanelRender = now;
+
   panel.innerHTML = "";
-  panel.appendChild(title);
+  panelBuilt = true;
+  lastPanelJSON = key;
+
+  panel.appendChild(el("h2", "", LAYER_TITLES[activeLayer]));
 
   // Source anchor card.
-  let a = {};
-  if (insp.getSourceAnchor) a = insp.getSourceAnchor(activeLayer) || {};
   const card = el("div", "card");
   card.appendChild(el("div", "card-title", "Source anchor"));
   card.appendChild(el("div", "mono", a.file + (a.line ? ":" + a.line : "")));
@@ -66,7 +88,7 @@ function renderState() {
   const snap = el("div", "card");
   snap.appendChild(el("div", "card-title", "Live state"));
   const pre = el("pre", "mono");
-  pre.textContent = JSON.stringify(state, null, 2);
+  pre.textContent = json;
   snap.appendChild(pre);
   panel.appendChild(snap);
 }
@@ -77,18 +99,24 @@ function renderTimeline() {
   if (!insp || !insp.getTimeline) return;
   const t = insp.getTimeline();
   if (!t) return;
-  tl.textContent = "frame " + t.frameCount + " · srvTime " + (t.srvTime !== undefined ? t.srvTime.toFixed(2) : "?") + " · dt " + (t.frameTimeMs !== undefined ? t.frameTimeMs.toFixed(1) + "ms" : "?");
+  const text = "frame " + t.frameCount + " · srvTime " + (t.srvTime !== undefined ? t.srvTime.toFixed(2) : "?") + " · dt " + (t.frameTimeMs !== undefined ? t.frameTimeMs.toFixed(1) + "ms" : "?");
+  if (text === lastTimelineText) return;
+  lastTimelineText = text;
+  tl.textContent = text;
 }
 
 function renderEdicts() {
   const box = document.getElementById("edicts");
   const insp = window.ironwailInspector;
-  if (!insp || !insp.getState) { box.textContent = "(no inspector)"; return; }
+  if (!insp || !insp.getState) { box.textContent = "(no inspector)"; lastEdictsText = ""; return; }
   const state = insp.getState("server");
-  if (!state || !state.edicts) { box.textContent = "(no server)"; return; }
-  box.textContent = state.edicts.slice(0, 12).map(e =>
+  if (!state || !state.edicts) { box.textContent = "(no server)"; lastEdictsText = ""; return; }
+  const text = state.edicts.slice(0, 12).map(e =>
     "#" + e.num + " " + (e.classname || "?") + " @(" + (e.origin ? e.origin.map(v => v.toFixed(0)).join(",") : "?") + ")"
   ).join("\n");
+  if (text === lastEdictsText) return;
+  lastEdictsText = text;
+  box.textContent = text;
 }
 
 function syncPause() {
