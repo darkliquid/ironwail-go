@@ -41,18 +41,20 @@ function renderRail() {
 function renderState() {
   const panel = document.getElementById("panel");
   const insp = window.ironwailInspector;
-  if (!insp) {
+  if (!insp || !insp.getState) {
     panel.innerHTML = "<p>Inspector not available. Load the wasm boot first.</p>";
     return;
   }
   const state = insp.getState(activeLayer);
+  if (!state) return;
 
   const title = el("h2", "", LAYER_TITLES[activeLayer]);
   panel.innerHTML = "";
   panel.appendChild(title);
 
   // Source anchor card.
-  const a = insp.getSourceAnchor(activeLayer);
+  let a = {};
+  if (insp.getSourceAnchor) a = insp.getSourceAnchor(activeLayer) || {};
   const card = el("div", "card");
   card.appendChild(el("div", "card-title", "Source anchor"));
   card.appendChild(el("div", "mono", a.file + (a.line ? ":" + a.line : "")));
@@ -72,17 +74,18 @@ function renderState() {
 function renderTimeline() {
   const tl = document.getElementById("timeline");
   const insp = window.ironwailInspector;
-  if (!insp) return;
+  if (!insp || !insp.getTimeline) return;
   const t = insp.getTimeline();
+  if (!t) return;
   tl.textContent = "frame " + t.frameCount + " · srvTime " + (t.srvTime !== undefined ? t.srvTime.toFixed(2) : "?") + " · dt " + (t.frameTimeMs !== undefined ? t.frameTimeMs.toFixed(1) + "ms" : "?");
 }
 
 function renderEdicts() {
   const box = document.getElementById("edicts");
   const insp = window.ironwailInspector;
-  if (!insp) return;
+  if (!insp || !insp.getState) { box.textContent = "(no inspector)"; return; }
   const state = insp.getState("server");
-  if (!state.edicts) { box.textContent = "(no server)"; return; }
+  if (!state || !state.edicts) { box.textContent = "(no server)"; return; }
   box.textContent = state.edicts.slice(0, 12).map(e =>
     "#" + e.num + " " + (e.classname || "?") + " @(" + (e.origin ? e.origin.map(v => v.toFixed(0)).join(",") : "?") + ")"
   ).join("\n");

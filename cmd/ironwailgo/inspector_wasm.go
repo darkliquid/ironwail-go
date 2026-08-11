@@ -23,16 +23,33 @@ var inspectorLayers = []string{
 	"boot", "console", "host", "server", "quakec", "client", "renderer",
 }
 
-// installInspector registers window.ironwailInspector.
+// installInspector registers window.ironwailInspector. js.Func values must be
+// attached to a JS object via Set (with .Release on each after assignment is
+// not required here because the funcs live for the program's lifetime);
+// embedding them in a Go map and passing that to Set panics with
+// "ValueOf: invalid value".
 func installInspector(g *game.Game) {
-	api := map[string]any{
-		"getState":       js.FuncOf(func(this js.Value, args []js.Value) any { return inspectorGetState(g, args) }),
-		"getTimeline":    js.FuncOf(func(this js.Value, args []js.Value) any { return inspectorGetTimeline(g) }),
-		"getEdict":       js.FuncOf(func(this js.Value, args []js.Value) any { return inspectorGetEdict(g, args) }),
-		"getSourceAnchor": js.FuncOf(func(this js.Value, args []js.Value) any { return inspectorGetSourceAnchor(g, args) }),
-		"getLayers":      js.FuncOf(func(this js.Value, args []js.Value) any { return inspectorLayers }),
-	}
-	js.Global().Set("ironwailInspector", api)
+	obj := js.Global().Get("Object").New()
+	obj.Set("getState", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return inspectorGetState(g, args)
+	}))
+	obj.Set("getTimeline", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return inspectorGetTimeline(g)
+	}))
+	obj.Set("getEdict", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return inspectorGetEdict(g, args)
+	}))
+	obj.Set("getSourceAnchor", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return inspectorGetSourceAnchor(g, args)
+	}))
+	obj.Set("getLayers", js.FuncOf(func(this js.Value, args []js.Value) any {
+		layers := js.Global().Get("Array").New(len(inspectorLayers))
+		for i, l := range inspectorLayers {
+			layers.SetIndex(i, l)
+		}
+		return layers
+	}))
+	js.Global().Set("ironwailInspector", obj)
 }
 
 // inspectorGetState returns a JSON-friendly snapshot for a single layer.
