@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"syscall/js"
 
 	"github.com/darkliquid/ironwail-go/internal/game"
 	"github.com/darkliquid/ironwail-go/internal/server"
@@ -52,9 +53,16 @@ func main() {
 
 	slog.Info("Ironwail-Go WASM initialized successfully")
 
-	// Run the real renderer loop (gogpu WebGPU on the browser canvas). It
-	// blocks, driving per-frame OnUpdate/OnDraw, exactly like the desktop
-	// binary; the inspector reads live state through the js-visible globals.
+	// WebGPU available → run the real renderer loop on the canvas. Absent
+	// (older/unsupported browser) → degrade to the headless inspector loop so
+	// the data panels still work; the walkthrough must not die.
+	navGpu := js.Global().Get("navigator").Get("gpu")
+	if navGpu.IsUndefined() || navGpu.IsNull() {
+		slog.Warn("navigator.gpu unavailable — running headless walkthrough (no WebGPU viewport)")
+		g.RunWasmHeadlessLoop()
+		return
+	}
+
 	startup := game.StartupOptions{
 		BaseDir:    "/",
 		GameDir:    "id1",
@@ -62,6 +70,9 @@ func main() {
 		MaxClients: 4,
 	}
 	if _, err := g.RunRuntimeRendererLoop(startup, ""); err != nil {
-		log.Fatalf("WASM renderer loop failed: %v", err)
+		// Renderer loop failed (adapter/surface/compile): fall back to the
+		// headless inspector loop rather than dying and flooding the console.
+		slog.Warn("renderer loop failed — falling back to headless walkthrough", "err", err)
+		g.RunWasmHeadlessLoop()
 	}
 }
