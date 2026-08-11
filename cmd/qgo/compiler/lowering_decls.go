@@ -83,6 +83,31 @@ func (l *Lowerer) lowerGenDecl(decl *ast.GenDecl) {
 					}
 				}
 
+				// Plain package vars (no //qgo: tag, non-func) also need a
+				// REAL global-offset cell keyed by object so resolveObject
+				// returns the same slot the codegen data area holds. Without
+				// this, cross-function access (write in one function, read in
+				// another — e.g. NextMap written by NextLevel and read by
+				// GotoNextMap) falls into the resolveObject virtual-local
+				// fallback and reads uninitialized memory (the plan-28
+				// no-assets "changelevel *0" quirk: MapName was fine, but the
+				// plain NextMap package var degraded to a per-function local
+				// that never touched the real global cell).
+				//
+				// Scoped to the requested target package(s): pass 1 also
+				// walks stdlib/imported deps (strings, fmt ...) whose
+				// internals would otherwise consume hundreds of global cells
+				// for vars no QC function references. quake/quake-engine
+				// package vars are already handled by engineVarQCGlobal and
+				// the //qgo: system-global table.
+				if g.Type != EvFunction && g.Offset == 0 && obj != nil && l.inTargetPackage {
+					if _, isSys := systemGlobalOffsetByName(g.Name); !isSys {
+						g.Offset = l.allocGlobalOfs(slotsForType(g.Type))
+						l.globalVarOfs[obj] = g.Offset
+						g.OffsetAssigned = true
+					}
+				}
+
 				// Initial value
 				if i < len(vs.Values) {
 					g = l.evalGlobalInit(g, vs.Values[i])

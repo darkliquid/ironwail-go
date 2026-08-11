@@ -50,6 +50,11 @@ func (cg *CodeGen) Generate(prog *IRProgram) (*EmitInput, error) {
 			// global offset (>= FreeGlobalBase) so the cell VReg is stable
 			// across function bodies and codegen reuses the same slot.
 			cg.globals.Reserve(g.Offset, g.Name, slots)
+		} else if g.Offset >= FreeGlobalBase && g.OffsetAssigned {
+			// Plain package var (NextMap etc.): lowering pre-assigned the
+			// offset and keyed resolveObject to it. Reserve (not re-alloc)
+			// so the VReg stays stable across function bodies.
+			cg.globals.Reserve(g.Offset, g.Name, slots)
 		} else {
 			g.Offset = cg.globals.AllocGlobal(g.Name, slots)
 		}

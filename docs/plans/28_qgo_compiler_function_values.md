@@ -229,8 +229,16 @@ All gates met; `go test ./...` green (59 packages, 0 failures), qgo packages rac
   repo root now reaches `map spawn finished` + `client active` on the
   synthetic room. The synthetic worldspawn entity gained `"model" "*0"` (real
   maps always carry it).
-- **Follow-up (not blocking)**: after `client active`, the synthetic demo's
-  first-frame `respawn()` issues `changelevel *0` because the QC `mapname`
-  global picks up the world model string instead of `"synthetic"` — a
-  no-assets spawnparms quirk to chase in plan 22 if the demo should
-  stay-running rather than reload. Not a func-cell regression.
+- **Follow-up (RESOLVED 2026-08-11)**: after `client active`, the synthetic
+  demo's first-frame `respawn()` issued `changelevel *0` — the no-assets demo
+  reloaded forever. Root cause was NOT the `mapname` global (that stayed
+  "synthetic"); it was **plain package vars** (`NextMap`, `ResetFlag`,
+  `IntermissionRunning`, ...) getting a per-function *virtual local* VReg from
+  `resolveObject` instead of a real global cell. `NextLevel()` wrote
+  `NextMap = o.Map`, but `GotoNextMap()` read a different per-function local →
+  uninitialized edict memory → the `*0` world-model string. Fixed by
+  pre-allocating real global cells (with `OffsetAssigned`) for target-package
+  plain vars at lowering, keyed via `globalVarOfs` for `resolveObject`, and by
+  codegen `Reserve`-ing (not re-Alloc-ing) those offsets. Regression test:
+  `TestCrossFunctionPackageVarCell` (fails with `changelevel *0` pre-fix,
+  passes with `changelevel synthetic`).

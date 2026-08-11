@@ -60,6 +60,12 @@ type IRGlobal struct {
 	InitStr   string  // Initial string value (interned later)
 	InitVec   [3]float32
 	FuncInit  string // Function value cell: name of the function whose table index fills this slot
+	// OffsetAssigned distinguishes lowering-pre-assigned plain package vars
+	// (e.g. quakego's NextMap/ResetFlag) whose offset codegen must Reserve
+	// rather than re-Alloc — the resolveObject VReg is keyed to that exact
+	// slot. Function cells already opt into Reserve via
+	// (Type==EvFunction && Offset>=FreeGlobalBase).
+	OffsetAssigned bool
 }
 
 // IRField represents an entity field definition.

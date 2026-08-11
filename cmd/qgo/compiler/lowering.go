@@ -39,6 +39,12 @@ type Lowerer struct {
 	constInts    map[int64]VReg        // int literal pool (cell VRegs)
 	nextGlobalOfs uint16               // free-global cursor, mirrors GlobalAllocator
 	globalVarOfs map[types.Object]uint16 // package-level var -> real global offset
+
+	// inTargetPackage is true while lowering the requested target package
+	// (vs a transitively imported dependency). Plain-var global cells are
+	// only allocated for target-package vars — dependency internals (stdlib
+	// etc.) are not QC globals.
+	inTargetPackage bool
 }
 
 // NewLowerer creates a new lowerer.
@@ -139,6 +145,8 @@ func sortedSyntaxFiles(p *packages.Package) []*ast.File {
 }
 
 func (l *Lowerer) lowerFileDecls(file *ast.File, target bool) {
+	l.inTargetPackage = target
+	defer func() { l.inTargetPackage = false }()
 	for _, decl := range file.Decls {
 		switch d := decl.(type) {
 		case *ast.GenDecl:
