@@ -123,7 +123,7 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 		consoleVisible := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 		g.updateRuntimeConsoleSlide(dt, consoleVisible, g.runtimeConsoleForcedUp())
 
-		transientEvents := g.RunRuntimeFrame(dt, cb)
+		transientEvents := g.RunRuntimeFrameUnlessPaused(dt, cb)
 		if g.Host != nil && g.Host.IsAborted() {
 			if g.Renderer != nil {
 				g.Renderer.Stop()

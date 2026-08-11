@@ -29,11 +29,11 @@ func main() {
 	game.WasmEmbeddedProgsData = embeddedProgsData
 	server.EmbeddedProgsData = embeddedProgsData
 
-	// InitSubsystems(true /*headless*/, ...). The wasm deploy has no Quake
-	// data in the browser; basedir "/" + gamedir "id1" keeps the registration
-	// check on the shareware path (gamedir != "id1" would demand a registered
-	// version), and the synthetic no-assets map provides the world.
-	if err := g.InitSubsystems(true, false, 4, "/", "id1", nil); err != nil {
+	// Non-headless so the WebGPU renderer constructs and binds the <canvas>
+	// (gogpu browser platform). basedir "/" + gamedir "id1" keeps the
+	// registration check on the shareware path; the synthetic map provides
+	// the world without Quake data.
+	if err := g.InitSubsystems(false, false, 4, "/", "id1", nil); err != nil {
 		log.Fatalf("WASM initialization failed: %v", err)
 	}
 
@@ -52,6 +52,16 @@ func main() {
 
 	slog.Info("Ironwail-Go WASM initialized successfully")
 
-	// Drive host frames so the inspector's timing/edict/camera data is live.
-	g.RunWasmInspectorLoop()
+	// Run the real renderer loop (gogpu WebGPU on the browser canvas). It
+	// blocks, driving per-frame OnUpdate/OnDraw, exactly like the desktop
+	// binary; the inspector reads live state through the js-visible globals.
+	startup := game.StartupOptions{
+		BaseDir:    "/",
+		GameDir:    "id1",
+		Listen:     true,
+		MaxClients: 4,
+	}
+	if _, err := g.RunRuntimeRendererLoop(startup, ""); err != nil {
+		log.Fatalf("WASM renderer loop failed: %v", err)
+	}
 }

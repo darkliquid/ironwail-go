@@ -136,7 +136,6 @@ func installInspector(g *game.Game) {
 	}))
 	js.Global().Set("ironwailInspector", obj)
 }
-
 // inspectorGetState returns a JSON-friendly snapshot for a single layer.
 func inspectorGetState(g *game.Game, args []js.Value) any {
 	layer := "host"
@@ -273,8 +272,20 @@ func inspectorRendererState(g *game.Game) any {
 	origin, angles := g.WasmViewState()
 	out["cameraOrigin"] = []float32{origin[0], origin[1], origin[2]}
 	out["cameraAngles"] = []float32{angles[0], angles[1], angles[2]}
+	out["backend"] = "gogpu/WebGPU"
+	if doc := js.Global().Get("document"); !doc.IsUndefined() && !doc.IsNull() {
+		canvas := doc.Call("querySelector", "canvas")
+		out["canvasPresent"] = !canvas.IsNull() && !canvas.IsUndefined()
+		nav := js.Global().Get("navigator")
+		gpu := nav.Get("gpu")
+		out["webgpu"] = gpu.Truthy()
+	}
 	if g.Server != nil && g.Server.WorldTree != nil {
 		out["worldTree"] = "loaded"
+		out["worldFaces"] = len(g.Server.WorldTree.Faces)
+	}
+	if g.Renderer != nil {
+		out["rendererActive"] = true
 	}
 	return out
 }

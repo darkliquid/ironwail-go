@@ -5,16 +5,15 @@ package game
 import "testing"
 
 // TestWasmPlayControlStateMachine verifies the pause/step intent logic that
-// backs the walkthrough Play/Step buttons: pause freezes, stepping queues
-// exactly n frames (drained one per loop tick), and unpausing clears steps.
+// backs the walkthrough Play/Step buttons on the renderer-driven loop:
+// pause freezes frame production, stepping queues exactly n frames (drained
+// one per renderer tick), and unpausing clears steps.
 func TestWasmPlayControlStateMachine(t *testing.T) {
 	g := &Game{}
 
-	// Start running.
-	g.WasmSetPaused(false)
-	if g.WasmPaused() {
-		t.Fatal("should start running")
-	}
+	// Show zero-state runs (desktop default): not paused, no steps.
+	playbackPaused.Store(false)
+	playbackSteps.Store(0)
 
 	// Pause freezes.
 	g.WasmSetPaused(true)
@@ -27,33 +26,29 @@ func TestWasmPlayControlStateMachine(t *testing.T) {
 	if !g.WasmPaused() {
 		t.Fatal("stepping should re-pause")
 	}
-	if wasmPlay.steps != 3 {
-		t.Fatalf("steps = %d, want 3", wasmPlay.steps)
+	if got := playbackSteps.Load(); got != 3 {
+		t.Fatalf("steps = %d, want 3", got)
 	}
 
-	// Draining one frame per loop tick consumes the queue.
-	consume := func() {
-		wasmPlay.mu.Lock()
-		defer wasmPlay.mu.Unlock()
-		if wasmPlay.steps > 0 {
-			wasmPlay.steps--
+	// Draining the queue: three calls to the gate consume the three frames.
+	cb := gameCallbacks{}
+	for i := 0; i < 3; i++ {
+		if g.RunRuntimeFrameUnlessPaused(0.016, cb); false {
+			break
 		}
+		// The gate consumes one step per call; verify by inspecting state.
 	}
-	consume()
-	if wasmPlay.steps != 2 {
-		t.Fatalf("after one consume steps = %d, want 2", wasmPlay.steps)
-	}
-	consume()
-	consume()
-	if wasmPlay.steps != 0 {
-		t.Fatalf("after draining steps = %d, want 0", wasmPlay.steps)
+	// The gate ran RunRuntimeFrame each time (g is a bare Game, method
+	// tolerates nil Host). The step counter should now be 0.
+	if got := playbackSteps.Load(); got != 0 {
+		t.Fatalf("after draining steps = %d, want 0", got)
 	}
 
 	// Unpause clears any residual queued steps.
 	g.WasmStepFrames(5)
 	g.WasmSetPaused(false)
-	if wasmPlay.steps != 0 {
-		t.Fatalf("unpause should clear queued steps, got %d", wasmPlay.steps)
+	if got := playbackSteps.Load(); got != 0 {
+		t.Fatalf("unpause should clear queued steps, got %d", got)
 	}
 	if g.WasmPaused() {
 		t.Fatal("unpause did not clear pause")
