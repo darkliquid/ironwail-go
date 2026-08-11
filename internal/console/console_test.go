@@ -172,3 +172,15 @@ func TestConsoleCursorEditingAndHistoryRestore(t *testing.T) {
 		t.Fatalf("NextHistory restore = %q, want draft", got)
 	}
 }
+
+// TestGlobalReturnsSingleton verifies Global() exposes the process-wide
+// console instance used by the wasm walkthrough inspector (plan 22 Phase B).
+func TestGlobalReturnsSingleton(t *testing.T) {
+	if Global() == nil {
+		t.Fatal("console.Global() returned nil")
+	}
+	// Same instance across calls (singleton).
+	if Global() != Global() {
+		t.Fatal("console.Global() returned different instances")
+	}
+}

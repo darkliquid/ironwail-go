@@ -1,0 +1,28 @@
+// index.html — plan 22 Phase C walkthrough. Served by web/server.go next to
+// the engine wasm. The left rail selects one of seven engine layers; the
+// panels show live inspector state + a source anchor pointing at the code
+// that owns the layer.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ironwail-Go — Engine Walkthrough</title>
+  <link rel="stylesheet" href="walkthrough/style.css">
+</head>
+<body>
+  <nav id="rail" aria-label="Engine layers"></nav>
+  <main id="main">
+    <h1>Ironwail-Go Engine Walkthrough</h1>
+    <div id="boot-status">Press Play to boot the engine, then inspect each layer.</div>
+    <div id="timeline" class="mono"></div>
+    <div id="panel"></div>
+    <div class="card">
+      <div class="card-title">Edict table (first 12)</div>
+      <pre id="edicts" class="mono"></pre>
+    </div>
+  </main>
+  <script src="walkthrough/load_wasm.js"></script>
+  <script src="walkthrough/walkthrough.js"></script>
+</body>
+</html>

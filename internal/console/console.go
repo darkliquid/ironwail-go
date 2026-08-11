@@ -163,6 +163,13 @@ type Console struct {
 // test fixtures can supply a mockConsole without touching globalConsole.
 var globalConsole = NewConsole(DefaultTextSize)
 
+// Global returns the process-wide singleton Console instance. The walkthrough
+// inspector (plan 22 Phase B) and other read-side tools use it to surface
+// console lines without owning the instance.
+func Global() *Console {
+	return globalConsole
+}
+
 // NewConsole allocates a Console with the given buffer capacity. The buffer
 // is not usable until Init is called — NewConsole only records the desired
 // size. This two-phase construction mirrors the original C Quake pattern

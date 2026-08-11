@@ -1,19 +1,23 @@
 # Implementation Plan 22: Browser Engine Walkthrough — Interactive Dev Journey (`shadow`-style educational web app)
 
 **Priority**: #1 (Educational / Developer Experience)
-**Status**: IN PROGRESS (2026-08-08, updated 2026-08-11) — Phase A landed
-fully: in-memory QuakeGo progs compile fallback
-(`TestLoadRuntimeProgramsCompilesProgsWithNoAssets`), the synthetic box-room
-map (`BuildSyntheticMap`, `TestSpawnServerFallsBackToSyntheticMap`), and a
-no-assets headless boot that auto-starts `maps/synthetic` and reaches
-`client active` on a playable world. The plan-28 qgo function-value sentinel
-(responsible for the old `OPAddress pointer out of bounds` client-handshake
-failure) was resolved by plan 28; the remaining `changelevel *0` reload loop
-after first-frame `respawn()` was root-caused and fixed 2026-08-11 (plain
-package vars like `NextMap` needed real global cells — see plan 28 §9). The
-synthetic demo now stays running after boot.
-**Boundary (next)**: Phase B (inspector bridge `inspector_wasm.go`) and
-Phase C (web UI) remain — see the step-by-step below.
+**Status**: IN PROGRESS (2026-08-11) — Phase A landed fully; **Phase B
+(inspector bridge) + Phase C (web UI) landed 2026-08-11**:
+`cmd/ironwailgo/inspector_wasm.go` exposes `window.ironwailInspector`
+(`getState(layer)`, `getTimeline()`, `getEdict(n)`, `getSourceAnchor(layer)`)
+reading console lines (`console.Global()`), host timing, server edict table,
+client state, and camera (`game.WasmViewState`, wasm-only wrapper over
+`runtimeViewState`). `web/walkthrough/` is a static no-bundler app (vanilla JS)
+with a seven-layer left rail + source-anchor cards (anchors.json); served by
+`web/server.go` (verified over HTTP). `Console.Global()` added with a unit
+test; `startup_args_test.go` got the missing `!js` tag so the wasm build vets
+clean. Wasm build (`GOOS=js GOARCH=wasm`) green; wasm-tag `go vet` clean.
+The plan-28 sentinel + changelevel-loop quirks are resolved, so the demo
+stays running after boot.
+**Remaining (next)**: Phase D polish — Step 22.7 `#rec=` embedded NDJSON
+replay mode and the guided transcript's per-layer "try this" experiments
+(partly in `docs/WALKTHROUGH_WEB.md`); manual browser smoke on a
+WebGPU-capable page is the open verification item.
 **Tag**: `wasm-walkthrough`
 **Prerequisite**: stable baseline (all tests pass), wasm build green (`mise run build-wasm`)
 **Estimated effort**: 3-6 focused sessions (phased, each phase independently shippable)

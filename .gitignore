@@ -36,6 +36,14 @@ tasks/perf_gate_reference.csv
 !/testdata/parity/
 !/testdata/parity/*.json
 
+# Browser walkthrough static app (plan 22 Phase C)
+!/web/
+!/web/walkthrough/
+!/web/walkthrough/*.html
+!/web/walkthrough/*.js
+!/web/walkthrough/*.css
+!/web/walkthrough/*.json
+
 # bv (beads viewer) local config and caches
 .bv/
 

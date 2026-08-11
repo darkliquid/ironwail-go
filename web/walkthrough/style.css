@@ -1,0 +1,50 @@
+// style.css — plan 22 Phase C walkthrough styling. Dark terminal aesthetic to
+// match the Quake console.
+body {
+  margin: 0;
+  font-family: "Menlo", "DejaVu Sans Mono", monospace;
+  background: #1a1a1a;
+  color: #d8d8d8;
+  display: flex;
+  height: 100vh;
+}
+#rail {
+  width: 200px;
+  border-right: 1px solid #333;
+  padding: 8px;
+  overflow-y: auto;
+}
+.rail-btn {
+  display: block;
+  width: 100%;
+  margin: 4px 0;
+  padding: 8px;
+  background: #2a2a2a;
+  border: none;
+  color: #ccc;
+  text-align: left;
+  cursor: pointer;
+}
+.rail-btn.active { background: #3b5b7a; color: #fff; }
+#main {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card {
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 10px;
+}
+.card-title { font-weight: bold; color: #9cc8ff; margin-bottom: 6px; }
+.mono { font-family: monospace; white-space: pre-wrap; word-break: break-word; }
+.dim { color: #888; }
+.err { color: #ff8080; }
+h1 { font-size: 18px; color: #fff; }
+h2 { font-size: 14px; color: #9cc8ff; margin: 0 0 8px; }
+#timeline { color: #7ae07a; padding: 4px 0; }
+#edicts { color: #d0d0a0; }

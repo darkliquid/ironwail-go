@@ -28,6 +28,10 @@ func main() {
 		log.Fatalf("WASM initialization failed: %v", err)
 	}
 
+	// Plan 22 Phase B: expose the read-side inspector bridge to the browser
+	// (window.ironwailInspector). The walkthrough UI consumes it.
+	installInspector(g)
+
 	slog.Info("Ironwail-Go WASM initialized successfully")
 
 	// Keep the Go WASM event loop running

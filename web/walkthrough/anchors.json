@@ -1,0 +1,9 @@
+{
+  "boot":     { "file": "cmd/ironwailgo/main.go",        "doc": "docs/LEARNING_GUIDE.md",                  "note": "VFS mount order, startup flags, pak search" },
+  "console":  { "file": "internal/host/commands.go",     "doc": "docs/WALKTHROUGH_BOOT_TO_MENU.md",        "note": "command exec log, aliases, cvars" },
+  "host":     { "file": "internal/game/game_loop.go",    "line": 492, "doc": "docs/WALKTHROUGH_SINGLEPLAYER_FORWARD.md", "note": "RunRuntimeFrame ordering, dt/srvTime" },
+  "server":   { "file": "internal/server/physics/stepframe.go", "doc": "docs/WALKTHROUGH_SINGLEPLAYER_FORWARD.md", "note": "movetype dispatch, pusher/walk/toss, phase bars" },
+  "quakec":   { "file": "internal/qc/exec.go",           "doc": "docs/QGO_QUAKEGO_GUIDE.md",               "note": "execution + field accessors, trace lines" },
+  "client":   { "file": "internal/client/parse_clientdata.go", "doc": "docs/LEARNING_GUIDE.md",          "note": "svc_* parse, lerp/pred state" },
+  "renderer": { "file": "internal/renderer/renderer_gogpu_frame.go", "doc": "docs/RENDERER_LEARNING_PLAN.md", "note": "5-phase pipeline, pass counters" }
+}
