@@ -456,6 +456,11 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	return nil
 }
 
+// EmbeddedProgsData holds the precompiled QuakeGo progs.dat for wasm boots
+// (set by cmd/ironwailgo main_wasm from the build-time embed). Nil on
+// desktop, where reloadProgs falls back to the source compile.
+var EmbeddedProgsData []byte
+
 // reloadProgs reloads progs.dat into the QCVM, resetting all QC globals to
 // their initial values. This matches C Ironwail's PR_LoadProgs call within
 // SV_SpawnServer. Without this, QC globals like intermission_running persist
@@ -463,15 +468,22 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 func (s *Server) reloadProgs(vfs *fs.FileSystem) error {
 	progsData, err := vfs.LoadFile("progs.dat")
 	if err != nil {
-		// No progs.dat on disk (wasm/no-assets demo mode). Fall back to the
-		// same deterministic in-memory compile loadRuntimePrograms uses, so a
-		// map change inside the synthetic demo world still has QC available.
-		slog.Info("progs.dat not in filesystem — recompiling from QuakeGo sources")
-		progsData, err = testutil.CompileProgsDataFromSource()
-		if err != nil {
-			return fmt.Errorf("recompile progs.dat from sources: %w", err)
+		// No progs.dat on disk (wasm/no-assets demo mode). On wasm the
+		// precompiled bytes are embedded (main_wasm sets EmbeddedProgsData);
+		// otherwise fall back to the same deterministic in-memory compile
+		// loadRuntimePrograms uses, so a map change inside the synthetic demo
+		// world still has QC available.
+		if len(EmbeddedProgsData) > 0 {
+			slog.Info("progs.dat not in filesystem — using wasm-embedded progs bytes")
+			progsData = EmbeddedProgsData
+		} else {
+			slog.Info("progs.dat not in filesystem — recompiling from QuakeGo sources")
+			progsData, err = testutil.CompileProgsDataFromSource()
+			if err != nil {
+				return fmt.Errorf("recompile progs.dat from sources: %w", err)
+			}
+			slog.Debug("recompiled progs", "bytes", len(progsData))
 		}
-		slog.Debug("recompiled progs", "bytes", len(progsData))
 	}
 	if err := s.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
 		return fmt.Errorf("parse progs.dat: %w", err)

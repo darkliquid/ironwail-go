@@ -6,6 +6,7 @@ package fs
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // addEnginePak locates and loads the engine-provided PAK archive
@@ -325,6 +327,15 @@ func discoverPakFiles(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		// The wasm JS filesystem shim (wasm_exec.js) does not implement
+		// directory reads (readdir → ENOSYS). In a browser there are no paks
+		// to discover anyway — the engine mounts an empty VFS and the
+		// no-assets synthetic map boots. Treat an unsupported readdir the
+		// same as an empty dir rather than aborting the boot.
+		if errors.Is(err, syscall.ENOSYS) {
+			slog.Debug("dir read unsupported (wasm) — treating as empty", "dir", dir)
 			return nil, nil
 		}
 		return nil, fmt.Errorf("read dir %q: %w", dir, err)

@@ -28,6 +28,11 @@ import (
 
 type globalConsoleAdapter struct{}
 
+// WasmEmbeddedProgsData holds the precompiled QuakeGo progs.dat for wasm
+// boots (set by cmd/ironwailgo main_wasm from the build-time embed). Nil on
+// desktop, where loadRuntimePrograms compiles from sources on demand.
+var WasmEmbeddedProgsData []byte
+
 var (
 	startupVidWidth              = 1280
 	startupVidHeight             = 720
@@ -544,15 +549,23 @@ func (g *Game) loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error
 	if err != nil {
 		// No progs.dat in the runtime filesystem. On a normal desktop this is
 		// handled by EnsureRuntimeProgsData writing to <basedir>/id1, but that
-		// needs a writeable disk — wasm/no-assets boots do not have one. Fall
-		// back to the deterministic in-memory compile so the engine can run
-		// with zero game data (the walkthrough's demo-mode gate).
+		// needs a writeable disk — wasm/no-assets boots do not have one.
 		// Where in C: progs.dat ships alongside the game; here the engine's
 		// own QuakeGo sources ARE the mod and are compiled on demand.
-		slog.Info("progs.dat not in filesystem — compiling from QuakeGo sources")
-		progsData, err = testutil.CompileProgsDataFromSource()
-		if err != nil {
-			return fmt.Errorf("failed to compile progs.dat from sources: %w", err)
+		//
+		// wasm has no `go` binary or disk, so the build embeds the precompiled
+		// progs.dat (cmd/ironwailgo/gen_wasm_progs → progs_data.go) and the
+		// wasm main sets WasmEmbeddedProgsData; use those bytes directly
+		// instead of the subprocess compile.
+		if len(WasmEmbeddedProgsData) == 0 {
+			slog.Info("progs.dat not in filesystem — compiling from QuakeGo sources")
+			progsData, err = testutil.CompileProgsDataFromSource()
+			if err != nil {
+				return fmt.Errorf("failed to compile progs.dat from sources: %w", err)
+			}
+		} else {
+			slog.Info("progs.dat not in filesystem — using wasm-embedded progs bytes")
+			progsData = WasmEmbeddedProgsData
 		}
 	}
 	if err := g.QC.LoadProgs(bytes.NewReader(progsData)); err != nil {

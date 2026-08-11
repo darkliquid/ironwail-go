@@ -10,7 +10,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/game"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
-
 const (
 	VersionMajor = 0
 	VersionMinor = 2
@@ -25,7 +24,16 @@ func main() {
 
 	g = game.New()
 
-	if err := g.InitSubsystems(true, false, 4, "/", "/", nil); err != nil {
+	// The no-assets wasm boot has no `go` binary or disk: feed the QC VM the
+	// build-time embedded progs.dat (see gen_wasm_progs + progs_data.go).
+	game.WasmEmbeddedProgsData = embeddedProgsData
+	server.EmbeddedProgsData = embeddedProgsData
+
+	// InitSubsystems(true /*headless*/, ...). The wasm deploy has no Quake
+	// data in the browser; basedir "/" + gamedir "id1" keeps the registration
+	// check on the shareware path (gamedir != "id1" would demand a registered
+	// version), and the synthetic no-assets map provides the world.
+	if err := g.InitSubsystems(true, false, 4, "/", "id1", nil); err != nil {
 		log.Fatalf("WASM initialization failed: %v", err)
 	}
 
