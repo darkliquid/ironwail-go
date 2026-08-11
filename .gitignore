@@ -53,3 +53,6 @@ gha-creds-*.json
 .tmp/
 
 .gograph/
+
+# Beads / Dolt files (added by bd init)
+.beads/proxieddb/
