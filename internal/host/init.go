@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -462,8 +463,14 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	}
 	h.userDir = resolvedUserDir
 
-	if err := os.MkdirAll(h.userDir, 0755); err != nil {
-		return fmt.Errorf("failed to create user directory: %w", err)
+	// Create the user configuration directory (e.g. ~/.ironwail). Skip on
+	// js/wasm: there is no persistent filesystem or home dir, and mkdir is
+	// not implemented by the browser shim — the engine boots with a
+	// non-persistent config instead.
+	if runtime.GOOS != "js" {
+		if err := os.MkdirAll(h.userDir, 0755); err != nil {
+			return fmt.Errorf("failed to create user directory: %w", err)
+		}
 	}
 
 	if subs.Files != nil {
