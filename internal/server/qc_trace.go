@@ -81,19 +81,15 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 		}
 	}()
 
-	if s.DebugTelemetry == nil || !s.DebugTelemetry.QCTraceVerbosityEnabled(1) {
-		err := vm.ExecuteFunction(funcIdx)
-		if err == nil {
-			s.SyncSpawnedEdictsFromQCVM(prevNumEdicts)
-		}
-		return err
-	}
-
+	// Install the trace hook unconditionally: it feeds the walkthrough
+	// inspector's QC event ring (always) and the sv_debug_qc_trace telemetry
+	// (only when the cvar is enabled, decided inside logQCTraceEvent).
 	previousTraceCallFunc := vm.TraceCallFunc
 	vm.TraceCallFunc = func(vm *qc.VM, event qc.TraceCallEvent) {
 		if previousTraceCallFunc != nil {
 			previousTraceCallFunc(vm, event)
 		}
+		s.recordQCTraceEvent(vm, event)
 		s.logQCTraceEvent(vm, event)
 	}
 	defer func() {

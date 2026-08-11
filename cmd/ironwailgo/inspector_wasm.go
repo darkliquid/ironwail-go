@@ -152,6 +152,8 @@ func inspectorGetState(g *game.Game, args []js.Value) any {
 		return inspectorHostState(g)
 	case "server":
 		return inspectorServerState(g)
+	case "quakec":
+		return inspectorQCState(g)
 	case "client":
 		return inspectorClientState(g)
 	case "renderer":
@@ -274,6 +276,49 @@ func inspectorRendererState(g *game.Game) any {
 	if g.Server != nil && g.Server.WorldTree != nil {
 		out["worldTree"] = "loaded"
 	}
+	return out
+}
+
+// inspectorQCState surfaces the QuakeC layer: core QC globals, the recent
+// function-call trace ring, and per-function call counts. Reads the server's
+// retained QC observer (internal/server/qc_trace_record.go), which is filled
+// for every VM call regardless of the sv_debug_qc_trace telemetry cvar.
+func inspectorQCState(g *game.Game) any {
+	out := map[string]any{}
+	if g.Server == nil || g.Server.QCVM == nil {
+		out["active"] = false
+		return out
+	}
+	vm := g.Server.QCVM
+	out["active"] = true
+
+	globals := map[string]any{}
+	if o := vm.FindGlobal("time"); o >= 0 {
+		globals["time"] = vm.GFloat(o)
+	}
+	if o := vm.FindGlobal("self"); o >= 0 {
+		globals["self"] = vm.GInt(o)
+	}
+	if o := vm.FindGlobal("world"); o >= 0 {
+		globals["world"] = vm.GInt(o)
+	}
+	if o := vm.FindGlobal("mapname"); o >= 0 {
+		globals["mapname"] = vm.GString(o)
+	}
+	out["globals"] = globals
+
+	events, counts := g.Server.QCTraceSnapshot()
+	trace := make([]map[string]any, 0, len(events))
+	for _, e := range events {
+		trace = append(trace, map[string]any{
+			"phase": e.Phase,
+			"fn":    e.Function,
+			"depth": e.Depth,
+			"self":  e.Self,
+		})
+	}
+	out["trace"] = trace
+	out["callCounts"] = counts
 	return out
 }
 

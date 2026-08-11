@@ -38,8 +38,12 @@ panel consumes it each animation frame.
    flip paused to freeze the timeline.
 4. **Server physics**: read the edict table; find the player (classname
    "player") and watch its origin move as the main loop runs.
-5. **QuakeC**: set a monster's `nextthink` by hand (via the wasm debug bridge in
-   a future phase) and watch the pusher fire once — the D1 parity fix.
+5. **QuakeC**: the panel shows live QC globals (time/self/world/mapname), a
+   bounded ring of recent function enter/leave/builtin events, and per-function
+   call counts (sourced from `internal/server/qc_trace_record.go`, filled for
+   every VM call). Set a monster's `nextthink` by hand (via the wasm debug
+   bridge in a future phase) and watch the pusher fire once — the D1 parity
+   fix.
 6. **Client**: confirm `state` = active and `entities` > 0 after signon.
 7. **Renderer**: confirm `cameraOrigin` matches the player edict origin (within
    viewheight) and `worldTree` = "loaded".

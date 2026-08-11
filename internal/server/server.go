@@ -170,6 +170,14 @@ type Server struct {
 
 	modelCache map[string]cachedModelInfo
 
+	// qcObservedEvents is a small retained ring of recent QuakeC call events
+	// for the walkthrough inspector's QuakeC layer panel. It is filled for
+	// every VM call (independent of the sv_debug_qc_trace cvar telemetry) so
+	// the browser can surface live function enter/leave without enabling
+	// verbose logging. Bounded; never grows.
+	qcObservedEvents []QCTraceRecord
+	qcCallCounts     map[string]int32
+
 	// Cmd is the command system used for server-issued commands such as
 	// changelevel and QC localcmd/stuffcmd fallbacks. Wired by the host/game
 	// after construction; nil-safe consumers must guard against the zero

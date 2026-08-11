@@ -13,11 +13,18 @@ with a seven-layer left rail + source-anchor cards (anchors.json); served by
 test; `startup_args_test.go` got the missing `!js` tag so the wasm build vets
 clean. Wasm build (`GOOS=js GOARCH=wasm`) green; wasm-tag `go vet` clean.
 The plan-28 sentinel + changelevel-loop quirks are resolved, so the demo
-stays running after boot.
+stays running after boot. Pause/play/step controls landed (Play/Pause/Step-1/
+Step-5; wasm-gated control-state test). **QuakeC layer landed 2026-08-11**:
+the inspector's `quakec` panel now shows live QC globals (time/self/world/
+mapname), a bounded ring of recent function enter/leave/builtin events, and
+per-function call counts — sourced from a retained observer on the server
+(`internal/server/qc_trace_record.go`) that runs for every VM call,
+independent of the `sv_debug_qc_trace` telemetry cvar.
 **Remaining (next)**: Phase D polish — Step 22.7 `#rec=` embedded NDJSON
 replay mode and the guided transcript's per-layer "try this" experiments
-(partly in `docs/WALKTHROUGH_WEB.md`); manual browser smoke on a
-WebGPU-capable page is the open verification item.
+(partly in `docs/WALKTHROUGH_WEB.md`); renderer layer needs the non-headless
+WebGPU viewport (issue `2p1`); manual browser smoke on a WebGPU-capable page
+is the open verification item.
 **Tag**: `wasm-walkthrough`
 **Prerequisite**: stable baseline (all tests pass), wasm build green (`mise run build-wasm`)
 **Estimated effort**: 3-6 focused sessions (phased, each phase independently shippable)
