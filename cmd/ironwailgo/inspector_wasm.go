@@ -23,6 +23,60 @@ var inspectorLayers = []string{
 	"boot", "console", "host", "server", "quakec", "client", "renderer",
 }
 
+// toJSValue recursively converts a Go value into the shapes syscall/js.ValueOf
+// accepts: map[string]any (objects), []any (arrays), string/float64/int/bool,
+// and nil. Go slices of any other element type ([]float32, []string,
+// []map[string]any, []int ...) are NOT convertible by ValueOf and panic —
+// the inspector's return maps would crash the wasm program otherwise.
+func toJSValue(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, val := range x {
+			out[k] = toJSValue(val)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = toJSValue(val)
+		}
+		return out
+	case []map[string]any:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = toJSValue(val)
+		}
+		return out
+	case []string:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = val
+		}
+		return out
+	case []float32:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = val
+		}
+		return out
+	case []int:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = val
+		}
+		return out
+	case [32]int:
+		out := make([]any, len(x))
+		for i, val := range x {
+			out[i] = val
+		}
+		return out
+	default:
+		return v
+	}
+}
+
 // installInspector registers window.ironwailInspector. js.Func values must be
 // attached to a JS object via Set (with .Release on each after assignment is
 // not required here because the funcs live for the program's lifetime);
@@ -31,16 +85,16 @@ var inspectorLayers = []string{
 func installInspector(g *game.Game) {
 	obj := js.Global().Get("Object").New()
 	obj.Set("getState", js.FuncOf(func(this js.Value, args []js.Value) any {
-		return inspectorGetState(g, args)
+		return toJSValue(inspectorGetState(g, args))
 	}))
 	obj.Set("getTimeline", js.FuncOf(func(this js.Value, args []js.Value) any {
-		return inspectorGetTimeline(g)
+		return toJSValue(inspectorGetTimeline(g))
 	}))
 	obj.Set("getEdict", js.FuncOf(func(this js.Value, args []js.Value) any {
-		return inspectorGetEdict(g, args)
+		return toJSValue(inspectorGetEdict(g, args))
 	}))
 	obj.Set("getSourceAnchor", js.FuncOf(func(this js.Value, args []js.Value) any {
-		return inspectorGetSourceAnchor(g, args)
+		return toJSValue(inspectorGetSourceAnchor(g, args))
 	}))
 	obj.Set("getLayers", js.FuncOf(func(this js.Value, args []js.Value) any {
 		layers := js.Global().Get("Array").New(len(inspectorLayers))
