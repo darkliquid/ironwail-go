@@ -6,7 +6,6 @@ package fs
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 
 	"fmt"
 	"io"
@@ -18,7 +17,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 // addEnginePak locates and loads the engine-provided PAK archive
@@ -318,6 +316,15 @@ func (fs *FileSystem) ListFiles(pattern string) []string {
 // case-insensitive to handle Windows-style naming.
 var pakFilePattern = regexp.MustCompile(`(?i)^pak([0-9]+)\.pak$`)
 
+// pakDiscoveryDirUnsupported reports whether a readdir failure is the wasm
+// JS filesystem shim's "directory reads not implemented" error (a plain
+// "syscall.Open: O_DIRECTORY is not supported on Windows" string, not an
+// Errno). The browser has no on-disk Quake data, so it should be treated as
+// an empty dir rather than aborting the boot.
+func pakDiscoveryDirUnsupported(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "O_DIRECTORY")
+}
+
 // discoverPakFiles scans a directory for numbered PAK files and returns their
 // full paths sorted in ascending numeric order (pak0, pak1, pak2, …).
 // Non-existent directories are silently accepted (return nil, nil) to allow
@@ -326,16 +333,8 @@ var pakFilePattern = regexp.MustCompile(`(?i)^pak([0-9]+)\.pak$`)
 func discoverPakFiles(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		// The wasm JS filesystem shim (wasm_exec.js) does not implement
-		// directory reads (readdir → ENOSYS). In a browser there are no paks
-		// to discover anyway — the engine mounts an empty VFS and the
-		// no-assets synthetic map boots. Treat an unsupported readdir the
-		// same as an empty dir rather than aborting the boot.
-		if errors.Is(err, syscall.ENOSYS) {
-			slog.Debug("dir read unsupported (wasm) — treating as empty", "dir", dir)
+		if os.IsNotExist(err) || pakDiscoveryDirUnsupported(err) {
+			slog.Debug("dir read unsupported (wasm) or missing — treating as empty", "dir", dir, "err", err)
 			return nil, nil
 		}
 		return nil, fmt.Errorf("read dir %q: %w", dir, err)
