@@ -1,5 +1,5 @@
-// style.css — plan 22 Phase C walkthrough styling. Dark terminal aesthetic to
-// match the Quake console.
+/* style.css — plan 22 Phase C walkthrough styling. Dark terminal aesthetic to
+   match the Quake console. */
 body {
   margin: 0;
   font-family: "Menlo", "DejaVu Sans Mono", monospace;

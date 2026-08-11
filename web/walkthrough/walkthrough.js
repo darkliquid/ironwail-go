@@ -99,7 +99,7 @@ function tick() {
 
 window.addEventListener("load", async () => {
   try {
-    const r = await fetch("walkthrough/anchors.json");
+    const r = await fetch("anchors.json");
     anchors = await r.json();
   } catch (e) {
     anchors = {};

@@ -19,8 +19,17 @@ func main() {
 			path = "/index.html"
 		}
 
-		if strings.HasSuffix(path, ".wasm") {
+		switch {
+		case strings.HasSuffix(path, ".wasm"):
 			w.Header().Set("Content-Type", "application/wasm")
+		case strings.HasSuffix(path, ".js"):
+			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		case strings.HasSuffix(path, ".css"):
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		case strings.HasSuffix(path, ".json"):
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		case strings.HasSuffix(path, ".html"):
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		}
 
 		http.ServeFile(w, r, filepath.Join(dir, path))
