@@ -88,7 +88,6 @@ func (s *Server) AllocEdict() *Edict {
 			s.NumEdicts = max(s.NumEdicts, i+1)
 			s.ensureQCVMEdictStorage()
 			clearQCVMEdictData(s.QCVM, i)
-			s.syncEdictToQCVM(i, e)
 			return e
 		}
 	}
@@ -102,7 +101,6 @@ func (s *Server) AllocEdict() *Edict {
 	s.NumEdicts = len(s.Edicts)
 	s.ensureQCVMEdictStorage()
 	clearQCVMEdictData(s.QCVM, s.NumEdicts-1)
-	s.syncEdictToQCVM(s.NumEdicts-1, e)
 	return e
 }
 
@@ -120,7 +118,6 @@ func (s *Server) FreeEdict(e *Edict) {
 		entNum := s.NumForEdict(e)
 		if entNum >= 0 && entNum < s.QCVM.NumEdicts {
 			clearQCVMEdictData(s.QCVM, entNum)
-			s.syncEdictToQCVM(entNum, e)
 		}
 	}
 }

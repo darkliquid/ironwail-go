@@ -136,9 +136,6 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	}
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = 4
-	for entNum, ent := range s.Edicts {
-		s.syncEdictToQCVM(entNum, ent)
-	}
 	vm.SetEInt(1, qc.EntFieldTargetName, vm.AllocString("door"))
 	vm.SetEVector(1, qc.EntFieldOrigin, [3]float32{100, 0, 0})
 	vm.SetEInt(2, qc.EntFieldTargetName, vm.AllocString("trigger"))
@@ -226,9 +223,6 @@ func TestServerHooksSearchFunctionsSkipFreedEdicts(t *testing.T) {
 	}
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
-	for entNum, ent := range s.Edicts {
-		s.syncEdictToQCVM(entNum, ent)
-	}
 
 	vm.SetEInt(2, qc.EntFieldTargetName, vm.AllocString("tele_dest"))
 	vm.SetEFloat(2, qc.EntFieldHealth, 100)
@@ -285,7 +279,6 @@ func TestServerHooksCheckBottomSyncsEntityFromQCVM(t *testing.T) {
 
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
-	s.syncEdictToQCVM(entNum, ent)
 	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{0, 0, 128})
 	vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{-16, -16, 104})
 	vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{16, 16, 160})
@@ -313,7 +306,6 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 		t.Fatal("failed to alloc edict")
 	}
 	vm.NumEdicts = s.NumEdicts
-	s.syncEdictToQCVM(s.NumForEdict(ent), ent)
 	vm.SetEVector(s.NumForEdict(ent), qc.EntFieldOrigin, [3]float32{64, 32, 16})
 	s.ClearWorld()
 
@@ -391,7 +383,6 @@ func TestServerHooksSetOriginImportsPendingQCBoundsForLink(t *testing.T) {
 	ent.SetOrigin(s, [3]float32{0, 0, 0})
 	ent.SetMins(s, [3]float32{-1, -1, -1})
 	ent.SetMaxs(s, [3]float32{1, 1, 1})
-	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetEVector(entNum, qc.EntFieldMins, [3]float32{-16, -8, -4})
 	vm.SetEVector(entNum, qc.EntFieldMaxs, [3]float32{16, 8, 12})
@@ -428,7 +419,6 @@ func TestServerHooksSetSizeImportsPendingQCOriginForLink(t *testing.T) {
 	ent.SetOrigin(s, [3]float32{0, 0, 0})
 	ent.SetMins(s, [3]float32{-1, -1, -1})
 	ent.SetMaxs(s, [3]float32{1, 1, 1})
-	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{200, 20, 8})
 	vm.SetGInt(qc.OFSParm0, int32(entNum))
@@ -463,7 +453,6 @@ func TestServerHooksSetModelImportsPendingQCOriginForLink(t *testing.T) {
 	s.ClearWorld()
 
 	ent.SetOrigin(s, [3]float32{0, 0, 0})
-	s.syncEdictToQCVM(entNum, ent)
 	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{64, 32, 16})
 
 	s.ModelName = "maps/test.bsp"
@@ -516,7 +505,6 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	ent.SetSolid(s, float32(SolidSlideBox))
 	ent.SetFlags(s, float32(FlagOnGround))
 	s.LinkEdict(ent, false)
-	s.syncEdictToQCVM(entNum, ent)
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
 
 	// Walk forward 10 units at yaw=0
@@ -533,7 +521,6 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	ent.SetFlags(s, 0)
 	ent.SetGroundEntity(s, 0)
 	s.LinkEdict(ent, false)
-	s.syncEdictToQCVM(entNum, ent)
 	if fn := vm.Builtins[34]; fn != nil {
 		fn(vm)
 	}
@@ -574,7 +561,6 @@ func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *tes
 	angles[1] = 45
 	ent.SetAngles(s, angles)
 	ent.SetIdealYaw(s, 123)
-	s.syncEdictToQCVM(entNum, ent)
 	vm.SetEFloat(entNum, qc.EntFieldFlags, float32(FlagOnGround))
 	vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{0, 33, 0})
 	vm.SetEFloat(entNum, qc.EntFieldIdealYaw, 77)
@@ -623,7 +609,6 @@ func TestServerHooksDropToFloorImportsPendingQCState(t *testing.T) {
 	ent.SetMaxs(s, [3]float32{16, 16, 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	s.LinkEdict(ent, false)
-	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetEVector(entNum, qc.EntFieldMins, [3]float32{-16, -16, -8})
 	vm.SetEVector(entNum, qc.EntFieldMaxs, [3]float32{16, 16, 8})
@@ -657,7 +642,6 @@ func TestServerHooksWalkMoveRequiresMovementFlags(t *testing.T) {
 	ent.SetMins(s, [3]float32{-16, -16, -24})
 	ent.SetMaxs(s, [3]float32{16, 16, 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
-	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
 	vm.SetGFloat(qc.OFSParm0, 0)
@@ -720,8 +704,6 @@ func TestServerHooksWalkMoveRestoresQCContextAfterNestedTouch(t *testing.T) {
 
 	s.LinkEdict(mover, false)
 	s.LinkEdict(trigger, false)
-	s.syncEdictToQCVM(moverNum, mover)
-	s.syncEdictToQCVM(s.NumForEdict(trigger), trigger)
 
 	vm.SetGInt(qc.OFSSelf, int32(moverNum))
 	vm.SetGInt(qc.OFSOther, 77)

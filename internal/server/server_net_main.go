@@ -630,7 +630,6 @@ func (s *Server) loadMapEntities(raw string) error {
 		// the VM, so do not clear here or those progs-defined fields would be lost
 		// before spawn.
 		s.ensureQCVMEdictStorage()
-		s.syncEdictToQCVM(entNum, ent)
 
 		// Set QC globals and execute the spawn function.
 		if err := s.ReserveSignonSpace(512); err != nil {
@@ -660,7 +659,6 @@ func (s *Server) loadMapEntities(raw string) error {
 		}
 
 		// Pull QC-modified fields back to Go (solid, touch, think, etc.).
-		s.syncEdictFromQCVM(entNum, ent)
 		if telemetryEnabled && strings.HasPrefix(className, "trigger_") {
 			absMin := ent.AbsMin(s)
 			absMax := ent.AbsMax(s)

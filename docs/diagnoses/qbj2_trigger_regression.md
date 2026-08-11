@@ -1,5 +1,11 @@
 # Diagnosis: qbj2 Button/Trigger Regression
 
+> **Status: Resolved.** Phase 1 (stop `syncQCVMState` clobber) and Phase 2
+> (accessor migration in world.go) landed in-session; Phase 3 (zero
+> production `ent.Vars.*` reads) and Phase 4 (EntVars struct + mirror
+> removal, savegame QCVM-byte serialization) are complete — see the Phase
+> 3/4 sections below for the 2026-08-11 audit.
+
 ## Summary
 
 Buttons in the spawn area of qbj2's start map no longer trigger door
@@ -158,26 +164,43 @@ their QC-mutated fields are still clobbered every frame.
   AbsMin/AbsMax via `SetAbsMin`/`SetAbsMax` (dual-write) so both EntVars and
   QCVM see the updated AABB.
 
-### Phase 3: Migrate remaining `ent.Vars.*` reads (TODO)
+### Phase 3: Migrate remaining `ent.Vars.*` reads (DONE)
 
-Audit and migrate all remaining production-code `ent.Vars.*` reads:
+The production `ent.Vars.*` migration is complete. Audited 2026-08-11:
+**zero** production `ent.Vars.*` reads remain in `internal/server` (tests
+excluded). The table below is historical; all rows were migrated to accessor
+methods in the original `47df06d6` deletion plus follow-ups:
 
-| File | Lines | Fields | Priority |
-| --- | --- | --- | --- |
-| `world.go` | clipToLinks | `Vars.Size`, `Vars.Owner` | High (collision) |
-| `server_qc_sync.go` | newCheckClient | `Vars.Health`, `Vars.Flags`, `Vars.Origin`, `Vars.ViewOfs` | Medium |
-| `user.go` | SV_ClientThink, airMove, etc. | All direct `Vars` reads/writes | High (client movement) |
-| `host/server_browser.go` | 50 | `Vars.Frags` | Low |
-| `user_spawn.go` | initClientSpawnFallback | Direct `Vars` writes | Medium |
+| File | Fields (migrated) | Priority |
+| --- | --- | --- |
+| `world.go` | clipToLinks `Size`, `Owner` | High (collision) |
+| `server_qc_sync.go` | newCheckClient `Health`, `Flags`, `Origin`, `ViewOfs` | Medium |
+| `user.go` | SV_ClientThink, airMove, etc. | High (client movement) |
+| `host/server_browser.go` | `Frags` | Low |
+| `user_spawn.go` | initClientSpawnFallback writes | Medium |
 
-### Phase 4: Complete EntVars removal (architectural, TODO)
+### Phase 4: Complete EntVars removal (DONE)
 
-Once all `ent.Vars.*` reads/writes are migrated to accessor methods:
-1. Delete `EntVars` struct from `types_entities.go`
-2. Delete `server_qc_sync.go` (sync layer)
-3. Simplify `executeQCFunction` — no sync calls at all, matching C's
-   zero-sync architecture
-4. Update `savegame.go` to serialize QCVM bytes directly
+All four items are complete:
+
+1. **`EntVars` struct deleted** — the dual-write mirror struct was removed
+   from `internal/server/types_entities.go` in `47df06d6`. The last dead
+   remnants — `qc.EntVars` (`internal/qc/vm.go`, 231 lines) and the unused
+   `Edict.Vars` pointer (`internal/qc/vm_edict.go`) — were removed
+   2026-08-11.
+2. **`server_qc_sync.go` sync layer** — `syncQCVMState` no longer walks
+   every edict (the per-entity pass was a no-op loop); it now publishes
+   globals + ensures edict storage. The `syncEdictToQCVM` /
+   `syncEdictFromQCVM` no-op stubs and all ~64 call sites (production +
+   tests) were deleted outright on 2026-08-11 — no dead no-op code
+   remains.
+3. **`executeQCFunction` zero-sync** — confirmed no sync calls
+   (`internal/server/qc_trace.go:69`; only `SyncSpawnedEdictsFromQCVM` for
+   newly-spawned edicts, matching C's spawn-time behavior).
+4. **`savegame.go` serializes QCVM bytes** — `RawQCVMData` (the VM edict
+   bytes) is captured and restored directly
+   (`internal/server/savegame/savegame.go:194-197,244-246`), with strings
+   handled via `captureSavedEdictStringsQCVM`.
 
 ## Verification
 

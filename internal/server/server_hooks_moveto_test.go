@@ -315,12 +315,9 @@ func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
 	vm := s.QCVM
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
-	s.syncEdictToQCVM(0, s.Edicts[0])
 
 	selfNum := s.NumForEdict(self)
 	vm.SetGInt(qc.OFSSelf, int32(selfNum))
-	s.syncEdictToQCVM(selfNum, self)
-	s.syncEdictToQCVM(s.NumForEdict(goal), goal)
 
 	vm.SetEFloat(selfNum, qc.EntFieldFlags, float32(FlagOnGround))
 	vm.SetGFloat(qc.OFSParm0, 16)
@@ -371,8 +368,6 @@ func TestServerHooksMoveToGoalImportsPendingQCGoalEdict(t *testing.T) {
 	selfNum := s.NumForEdict(self)
 	goalNum := s.NumForEdict(goal)
 	vm.SetGInt(qc.OFSSelf, int32(selfNum))
-	s.syncEdictToQCVM(selfNum, self)
-	s.syncEdictToQCVM(goalNum, goal)
 	vm.SetEVector(goalNum, qc.EntFieldOrigin, [3]float32{64, 0, 16})
 
 	if fn := vm.Builtins[67]; fn == nil {
@@ -404,7 +399,6 @@ func TestServerHooksChangeYawImportsPendingQCState(t *testing.T) {
 	ent.SetAngles(s, a)
 	ent.SetIdealYaw(s, 20)
 	ent.SetYawSpeed(s, 1)
-	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
 	vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{0, 10, 0})
@@ -483,9 +477,6 @@ func TestServerHooksMoveToGoalRestoresQCContextAfterNestedTouch(t *testing.T) {
 	s.LinkEdict(self, false)
 	s.LinkEdict(goal, false)
 	s.LinkEdict(trigger, false)
-	s.syncEdictToQCVM(selfNum, self)
-	s.syncEdictToQCVM(s.NumForEdict(goal), goal)
-	s.syncEdictToQCVM(s.NumForEdict(trigger), trigger)
 
 	vm.SetGInt(qc.OFSSelf, int32(selfNum))
 	vm.SetGInt(qc.OFSOther, 77)

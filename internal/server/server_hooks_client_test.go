@@ -319,8 +319,6 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
 	vm.SetGVector(qc.OFSGlobalVForward, [3]float32{0, 1, 0})
-	s.syncEdictToQCVM(s.NumForEdict(self), self)
-	s.syncEdictToQCVM(s.NumForEdict(target), target)
 
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
 	if fn := vm.Builtins[17]; fn == nil {
@@ -352,7 +350,6 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	})
 	target.SetOrigin(s, [3]float32{40, 100, 64})
 	s.LinkEdict(target, false)
-	s.syncEdictToQCVM(s.NumForEdict(target), target)
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
 	vm.SetGFloat(qc.OFSParm1, 0)
 	vm.Builtins[44](vm)
@@ -376,8 +373,6 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	s.LinkEdict(teammate, false)
 	s.LinkEdict(target, false)
 	vm.NumEdicts = s.NumEdicts
-	s.syncEdictToQCVM(s.NumForEdict(teammate), teammate)
-	s.syncEdictToQCVM(s.NumForEdict(target), target)
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
 	vm.SetGFloat(qc.OFSParm1, 0)
 	vm.Builtins[44](vm)
@@ -438,8 +433,6 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 	vm := s.QCVM
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
-	s.syncEdictToQCVM(s.NumForEdict(self), self)
-	s.syncEdictToQCVM(s.NumForEdict(target), target)
 
 	s.Time = 0.2
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
@@ -453,7 +446,6 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 	}
 
 	self.SetOrigin(s, [3]float32{64, 0, 0})
-	s.syncEdictToQCVM(s.NumForEdict(self), self)
 	s.Time = 0.25
 	if fn := vm.Builtins[17]; fn == nil {
 		t.Fatal("checkclient builtin not registered")
@@ -497,8 +489,6 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 	vm := s.QCVM
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
-	s.syncEdictToQCVM(s.NumForEdict(self), self)
-	s.syncEdictToQCVM(s.NumForEdict(target), target)
 
 	// Both entities resolve to BSP leaf index 1, which must map to visleaf 0.
 	self.SetOrigin(s, [3]float32{1, 0, 0})
@@ -557,8 +547,6 @@ func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
 
 	selfNum := s.NumForEdict(self)
 	targetNum := s.NumForEdict(target)
-	s.syncEdictToQCVM(selfNum, self)
-	s.syncEdictToQCVM(targetNum, target)
 	vm.SetEVector(selfNum, qc.EntFieldOrigin, [3]float32{64, 0, 0})
 
 	s.Time = 0.2

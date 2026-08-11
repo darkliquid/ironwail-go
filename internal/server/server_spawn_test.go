@@ -459,7 +459,6 @@ func TestPutClientInServerRealProgsNoPanic(t *testing.T) {
 		t.Fatalf("invalid client edict index %d", entNum)
 	}
 	s.syncQCVMState()
-	s.syncEdictToQCVM(entNum, client.Edict)
 
 	s.QCVM.Time = float64(s.Time)
 	s.QCVM.SetGlobal("time", s.Time)
@@ -491,7 +490,6 @@ func TestPutClientInServerRealProgsNoPanic(t *testing.T) {
 		t.Fatalf("PutClientInServer returned error: %v", execErr)
 	}
 
-	s.syncEdictFromQCVM(entNum, client.Edict)
 	if client.Edict.Health(s) <= 0 {
 		t.Fatalf("player health = %v, want > 0 after PutClientInServer", client.Edict.Health(s))
 	}

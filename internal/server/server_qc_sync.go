@@ -8,15 +8,6 @@ import (
 	srvqc "github.com/darkliquid/ironwail-go/internal/server/qc"
 )
 
-func (s *Server) syncEdictToQCVM(entNum int, ent *Edict) {
-}
-
-// syncEdictFromQCVM pulls one VM edict's fields back into the Go Edict struct.
-// With accessor-based dual-write, QCVM data is already authoritative; this
-// is now a no-op kept for call-site compatibility.
-func (s *Server) syncEdictFromQCVM(entNum int, ent *Edict) {
-}
-
 func clearQCVMEdictData(vm *qc.VM, entNum int) {
 	if vm == nil {
 		return
@@ -216,19 +207,18 @@ func (s *Server) ensureQCVMEdictStorage() {
 	}
 }
 
-// syncQCVMState publishes core server globals and all live edicts into the QC VM.
-// This is called at key boundaries (e.g. map spawn/load) so QuakeC starts from an
-// accurate world snapshot before executing functions like worldspawn or client logic.
+// syncQCVMState publishes core server globals into the QC VM.
+// This is called at key boundaries (e.g. map spawn/load) so QuakeC starts
+// from an accurate world state before executing functions like worldspawn
+// or client logic. Per-entity data is not copied here: entity fields live
+// only in the VM edict bytes (the accessor refactor removed the EntVars
+// dual-write mirror), so a per-edict sync pass would be a no-op loop.
 func (s *Server) syncQCVMState() {
 	if s.QCVM == nil {
 		return
 	}
 	s.ensureQCVMEdictStorage()
 	s.SyncQCVMGlobals()
-
-	for entNum := 0; entNum < s.NumEdicts; entNum++ {
-		s.syncEdictToQCVM(entNum, s.EdictNum(entNum))
-	}
 }
 
 // SyncQCVMGlobals publishes core server globals (time, world, mapname,

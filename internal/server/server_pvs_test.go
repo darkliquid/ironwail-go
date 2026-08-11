@@ -66,7 +66,7 @@ func TestSyncEdictFromQCVM_EmptyModelClearsStaleModelIndex(t *testing.T) {
 	// Simulate QC clearing the model field
 	vm.SetEInt(1, qc.EntFieldModel, 0)
 	// When model is cleared, modelindex should also be cleared
-	// (previously done by syncEdictFromQCVM, now must be done explicitly)
+	// (previously done by a VM sync pass, now must be done explicitly)
 	if ent.Model(s) == 0 {
 		ent.SetModelIndex(s, 0)
 	}

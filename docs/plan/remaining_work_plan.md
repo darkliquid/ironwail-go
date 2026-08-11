@@ -108,15 +108,14 @@ is already expressible via `QCCallback`/`ThinkExecutor` seams. Candidate for a
 `clientMoveContext`-style glue is thin. Pick off the three `runClient*QC`
 helpers if a clean seam emerges; do not force it.
 
-### 3.5 `server_qc_sync.go` (`syncEdictToQCVM`/`syncQCVMState`, 259 lines)
-`syncEdictToQCVM` and `syncEdictFromQCVM` are **empty no-ops** (accessor-based
-dual-write made them dead; kept for call-site compatibility). Deleting them
-means removing ~9 call sites in `server.go` (the VM-mirroring hooks in the
-QC builtins) — do this only as a deliberate cleanup pass with `sv_debug_qc_trace`
-verification, not as part of a functional change. The live remainder
+### 3.5 `server_qc_sync.go` (`syncEdictToQCVM`/`syncQCVMState`) — DONE 2026-08-11
+`syncEdictToQCVM` and `syncEdictFromQCVM` were **empty no-ops** (accessor-based
+dual-write made them dead; kept for call-site compatibility). They and all
+~64 call sites (production hooks in `server.go` + QC builtins, and tests)
+were deleted outright — no dead no-op code remains. The live remainder
 (`SyncQCVMGlobals`, `SetQCTimeGlobal`, `ensureQCVMEdictStorage`,
-`EdictDefaultOffsets`, `worldLeafIndex`, `newCheckClient`) stays. Net gain is
-small (~40 lines); treat as optional polish.
+`EdictDefaultOffsets`, `worldLeafIndex`, `newCheckClient`, and the
+globals-only `syncQCVMState`) stays.
 
 ---
 
@@ -261,7 +260,7 @@ package plus subpackages, not zero.
 
 | Item | Work | Result |
 | :--- | :--- | :--- |
-| 1 | Server 3.5 no-op pruning | **Deferred** — `syncEdictToQCVM`/`syncEdictFromQCVM` no-ops have ~70 call sites (most in tests documenting intent) for ~40-line gain. Not worth the churn. |
+| 1 | Server 3.5 no-op pruning | **Done 2026-08-11** — `syncEdictToQCVM`/`syncEdictFromQCVM` no-op stubs and all ~64 call sites deleted; `syncQCVMState` pruned to globals-only. Previously deferred (call sites documented intent), later removed outright per maintainer preference for zero dead no-op code. |
 | 2 | Renderer 5.2 | Pure buffer/texture/sampler creation moved to `world/gogpu/resources.go` (`CreateWorldVertexBuffer`, `CreateWorldIndexBuffer`, `CreateWorldSolidTexture[Array]`, `CreateWorldWhiteTexture`, three sampler creators, `WriteTextureChunked`, `WorldLightmapFallbackView`). Root keeps 1:1 delegators; added `resources_test.go`. Root reduction: ~930 → 596 lines. |
 | 3 | Game 4.1 | Pure CSQC image/rect helpers moved to new `game/csqc` package (`NearestPaletteIndex`, `ClipDrawRect`, `SubPicFromNormalizedRect`, `ScaleQPic`, `PreparePic`). Root keeps delegators for the ones with live call sites; dead ones deleted. Added `csqc_test.go`. Root reduction: 515 → 365 lines. |
 | 4 | Game 4.3 | Cvar-only viewcalc moved to `game/camera` (`CalcBob`, `CalcRoll`, `AddIdle`, `ApplyViewmodelQuakeFudge`) behind a new local `CVarReader` seam (implemented by `*cvar.CVarSystem`). Stateful `viewCalcGunAngle`/`viewApplyDamageKick`/`viewStairSmoothOffset` stay in root (reference `viewCalcState` with `*cl.Client` latch). Added `viewcalc_test.go`. Root reduction: 396 → 258 lines. |

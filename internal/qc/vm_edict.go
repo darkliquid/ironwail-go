@@ -17,10 +17,6 @@ import "math"
 type Edict struct {
 	// Num is the entity number in the edict array.
 	Num int
-
-	// Vars is a typed view of the entity's field data.
-	// May be nil if not yet accessed.
-	Vars *EntVars
 }
 
 // Entity Field Access Methods

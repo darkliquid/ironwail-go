@@ -222,9 +222,6 @@ type ServerStatic struct {
 // Client struct definition has been moved to internal/server/types/client.go;
 // the type alias server.Client is exported in internal/server/types.go.
 
-// syncEdictToQCVM copies one Go edict's EntVars into the QuakeC VM edict table.
-// This is part of the engine↔QC bridge: before QC runs, the authoritative Go state
-// is mirrored so QC builtins and scripts read the same fields (origin, health, etc.).
 func NewServer() *Server {
 	compatRNG := compatrand.New()
 
@@ -434,7 +431,6 @@ func NewServer() *Server {
 			self := int(vm.GInt(qc.OFSSelf))
 			if self > 0 && self < vm.NumEdicts {
 				if selfEnt := s.EdictNum(self); selfEnt != nil && !selfEnt.Free {
-					s.syncEdictFromQCVM(self, selfEnt)
 				}
 			}
 			if s.checkClientSlot == 0 || s.Time-s.checkClientTime >= 0.1 {
@@ -495,7 +491,6 @@ func NewServer() *Server {
 			if e == nil {
 				return false
 			}
-			s.syncEdictFromQCVM(entNum, e)
 			return s.CheckBottom(e)
 		},
 		PointContents: func(vm *qc.VM, point [3]float32) int {
@@ -580,7 +575,6 @@ func NewServer() *Server {
 			if e == nil || e.Free {
 				return false
 			}
-			s.syncEdictFromQCVM(self, e)
 			flags := uint32(e.Flags(s))
 			if flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
 				return false
@@ -602,7 +596,6 @@ func NewServer() *Server {
 			vm.SetGInt(qc.OFSOther, oldOther)
 			vm.XFunction = oldXFunction
 			vm.XFunctionIndex = oldXFunctionIndex
-			s.syncEdictToQCVM(self, e)
 			return ok
 		},
 		DropToFloor: func(vm *qc.VM) bool {
@@ -613,7 +606,6 @@ func NewServer() *Server {
 			// If the server has an Edict, run a downward trace using the
 			// server Move helpers to land on the floor properly.
 			if e := s.EdictNum(self); e != nil {
-				s.syncEdictFromQCVM(self, e)
 				start := e.Origin(s)
 				end := start
 				end[2] -= 256
@@ -631,7 +623,6 @@ func NewServer() *Server {
 					e.SetGroundEntity(s, 0)
 				}
 				s.LinkEdict(e, false)
-				s.syncEdictToQCVM(self, e)
 				return true
 			}
 
@@ -649,7 +640,6 @@ func NewServer() *Server {
 			vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{org[0] + mins[0], org[1] + mins[1], org[2] + mins[2]})
 			vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{org[0] + maxs[0], org[1] + maxs[1], org[2] + maxs[2]})
 			if e := s.EdictNum(entNum); e != nil {
-				s.syncEdictFromQCVM(entNum, e)
 				e.SetOrigin(s, org)
 				mins := e.Mins(s)
 				maxs := e.Maxs(s)
@@ -667,7 +657,6 @@ func NewServer() *Server {
 			vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
 			vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
 			if e := s.EdictNum(entNum); e != nil {
-				s.syncEdictFromQCVM(entNum, e)
 				e.SetMins(s, mins)
 				e.SetMaxs(s, maxs)
 				e.SetSize(s, size)
@@ -697,7 +686,6 @@ func NewServer() *Server {
 			vm.SetEFloat(entNum, qc.EntFieldModelIndex, float32(modelIndex))
 
 			if e := s.EdictNum(entNum); e != nil {
-				s.syncEdictFromQCVM(entNum, e)
 				e.SetModel(s, modelString)
 				e.SetModelIndex(s, float32(modelIndex))
 				if mins, maxs, ok := s.modelBounds(modelName); ok {
@@ -722,9 +710,9 @@ func NewServer() *Server {
 				s.LinkEdict(e, false)
 
 				// Only push the fields SetModel actually modified back to
-				// the QCVM. A full syncEdictToQCVM here would clobber any
-				// QC-set fields (e.g. solid, touch, movetype) that were
-				// changed between builtins within the same QC function.
+				// the QCVM. A full sync here would clobber QC-set fields
+				// (e.g. solid, touch, movetype) changed between builtins
+				// within the same QC function.
 				vm.SetEVector(entNum, qc.EntFieldMins, e.Mins(s))
 				vm.SetEVector(entNum, qc.EntFieldMaxs, e.Maxs(s))
 				vm.SetEVector(entNum, qc.EntFieldSize, e.Size(s))
@@ -941,10 +929,8 @@ func NewServer() *Server {
 			if ent == nil || ent.Free {
 				return
 			}
-			s.syncEdictFromQCVM(entNum, ent)
 			if goalNum := int(ent.GoalEntity(s)); goalNum > 0 {
 				if goal := s.EdictNum(goalNum); goal != nil && !goal.Free {
-					s.syncEdictFromQCVM(goalNum, goal)
 				}
 			}
 			oldSelf := vm.GInt(qc.OFSSelf)
@@ -956,7 +942,6 @@ func NewServer() *Server {
 			vm.SetGInt(qc.OFSOther, oldOther)
 			vm.XFunction = oldXFunction
 			vm.XFunctionIndex = oldXFunctionIndex
-			s.syncEdictToQCVM(entNum, ent)
 		},
 		ChangeYaw: func(vm *qc.VM) {
 			entNum := int(vm.GInt(qc.OFSSelf))
@@ -964,9 +949,7 @@ func NewServer() *Server {
 			if ent == nil || ent.Free {
 				return
 			}
-			s.syncEdictFromQCVM(entNum, ent)
 			s.changeYaw(ent)
-			s.syncEdictToQCVM(entNum, ent)
 		},
 		IssueChangeLevel: func(vm *qc.VM, level string) bool {
 			level = strings.TrimSpace(level)

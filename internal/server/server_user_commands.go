@@ -147,7 +147,6 @@ func (s *Server) RunClientQCThinkWithMode(client *Client, funcName string, fullS
 	if fullSync {
 		s.SyncQCVMGlobals()
 	}
-	s.syncEdictToQCVM(entNum, client.Edict)
 	s.QCVM.Time = float64(s.Time)
 	s.QCVM.SetGlobal("time", s.Time)
 	s.QCVM.SetGlobal("frametime", s.FrameTime)
@@ -169,7 +168,6 @@ func (s *Server) RunClientQCThinkWithMode(client *Client, funcName string, fullS
 		slog.Warn("client think QC failed", "function", funcName, "entity", entNum, "error", err)
 		return
 	}
-	s.syncEdictFromQCVM(entNum, client.Edict)
 	if svDebugMoveLevel() >= 1 {
 		org := client.Edict.Origin(s)
 		vel := client.Edict.Velocity(s)
