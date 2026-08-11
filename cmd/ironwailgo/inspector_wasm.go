@@ -103,6 +103,25 @@ func installInspector(g *game.Game) {
 		}
 		return layers
 	}))
+	obj.Set("setPaused", js.FuncOf(func(this js.Value, args []js.Value) any {
+		paused := false
+		if len(args) > 0 && args[0].Type() == js.TypeBoolean {
+			paused = args[0].Bool()
+		}
+		g.WasmSetPaused(paused)
+		return nil
+	}))
+	obj.Set("getPaused", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return g.WasmPaused()
+	}))
+	obj.Set("stepFrames", js.FuncOf(func(this js.Value, args []js.Value) any {
+		n := 1
+		if len(args) > 0 && args[0].Type() == js.TypeNumber {
+			n = args[0].Int()
+		}
+		g.WasmStepFrames(n)
+		return nil
+	}))
 	js.Global().Set("ironwailInspector", obj)
 }
 

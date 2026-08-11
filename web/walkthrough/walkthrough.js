@@ -16,7 +16,7 @@ const LAYER_TITLES = {
 };
 
 let activeLayer = "host";
-let paused = false;
+let paused = false;   // UI mirror of the engine's wasm pause state
 let anchors = {};
 
 function el(tag, cls, text) {
@@ -91,12 +91,46 @@ function renderEdicts() {
   ).join("\n");
 }
 
+function syncPause() {
+  const insp = window.ironwailInspector;
+  if (insp && insp.getPaused) paused = !!insp.getPaused();
+  const playBtn = document.getElementById("btn-play");
+  if (playBtn) playBtn.textContent = paused ? "Play" : "Pause";
+}
+
+function stepFrames(n) {
+  const insp = window.ironwailInspector;
+  if (insp && insp.stepFrames) insp.stepFrames(n);
+  paused = true;
+  syncPause();
+}
+
+function setupControls() {
+  const playBtn = el("button", "ctrl-btn", "Play");
+  playBtn.id = "btn-play";
+  playBtn.onclick = () => {
+    const insp = window.ironwailInspector;
+    if (insp && insp.setPaused) insp.setPaused(!paused);
+    paused = !paused;
+    syncPause();
+  };
+  const stepBtn = el("button", "ctrl-btn", "Step 1");
+  stepBtn.onclick = () => stepFrames(1);
+  const step5Btn = el("button", "ctrl-btn", "Step 5");
+  step5Btn.onclick = () => stepFrames(5);
+
+  const bar = document.getElementById("controls");
+  bar.innerHTML = "";
+  bar.appendChild(playBtn);
+  bar.appendChild(stepBtn);
+  bar.appendChild(step5Btn);
+}
+
 function tick() {
-  if (!paused) {
-    renderState();
-    renderTimeline();
-    renderEdicts();
-  }
+  syncPause();
+  renderState();
+  renderTimeline();
+  renderEdicts();
   requestAnimationFrame(tick);
 }
 
@@ -108,6 +142,7 @@ window.addEventListener("load", async () => {
     anchors = {};
   }
   renderRail();
+  setupControls();
   renderState();
   // Poll the inspector after the wasm boot installs it.
   setTimeout(tick, 500);
