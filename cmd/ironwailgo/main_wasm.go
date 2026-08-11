@@ -69,9 +69,23 @@ func main() {
 		Listen:     true,
 		MaxClients: 4,
 	}
+	runRendererSafe(g, startup)
+}
+
+// runRendererSafe runs the WebGPU renderer loop, degrading to the headless
+// inspector loop on any failure — including the renderer's internal panics
+// (WebGPU strict-validation issues surface as panics, not errors, e.g. missing
+// depth32float-stencil8 feature, WGSL uniformity rules, or the 4-bind-group
+// layout limit). The walkthrough must stay usable as a data tour even when the
+// renderer is not browser-ready.
+func runRendererSafe(g *game.Game, startup game.StartupOptions) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Warn("renderer panic — falling back to headless walkthrough", "panic", fmt.Sprint(r))
+			g.RunWasmHeadlessLoop()
+		}
+	}()
 	if _, err := g.RunRuntimeRendererLoop(startup, ""); err != nil {
-		// Renderer loop failed (adapter/surface/compile): fall back to the
-		// headless inspector loop rather than dying and flooding the console.
 		slog.Warn("renderer loop failed — falling back to headless walkthrough", "err", err)
 		g.RunWasmHeadlessLoop()
 	}
