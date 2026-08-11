@@ -8,6 +8,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strconv"
 	"syscall/js"
 
@@ -86,6 +87,17 @@ func installInspector(g *game.Game) {
 	obj := js.Global().Get("Object").New()
 	obj.Set("getState", js.FuncOf(func(this js.Value, args []js.Value) any {
 		return toJSValue(inspectorGetState(g, args))
+	}))
+	obj.Set("getStateJSON", js.FuncOf(func(this js.Value, args []js.Value) any {
+		// Deterministic payload: encoding/json sorts map keys, so the string
+		// is byte-stable for identical state — the page's change-detection
+		// cache keys on it. (js object conversion would reorder Go map keys
+		// randomly every call, breaking the paused-frame stability.)
+		data, err := json.Marshal(inspectorGetState(g, args))
+		if err != nil {
+			return ""
+		}
+		return string(data)
 	}))
 	obj.Set("getTimeline", js.FuncOf(func(this js.Value, args []js.Value) any {
 		return toJSValue(inspectorGetTimeline(g))

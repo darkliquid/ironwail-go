@@ -49,16 +49,21 @@ let lastPanelRender = 0; // ms timestamp; throttles play-time DOM rebuilds
 function renderState() {
   const panel = document.getElementById("panel");
   const insp = window.ironwailInspector;
-  if (!insp || !insp.getState) {
+  if (!insp || (!insp.getStateJSON && !insp.getState)) {
     panel.innerHTML = "<p>Inspector not available. Load the wasm boot first.</p>";
     lastPanelJSON = "";
     panelBuilt = false;
     return;
   }
-  const state = insp.getState(activeLayer);
-  if (!state) return;
+  // Use the deterministic JSON payload (sorted keys) for both the display and
+  // the change-detection cache: Go maps iterate in random order, so the
+  // object form would reorder keys every call and look like live churn even
+  // when the actual state is frozen.
+  const stateText = insp.getStateJSON ? insp.getStateJSON(activeLayer) : JSON.stringify(insp.getState(activeLayer));
+  if (stateText === undefined || stateText === null) return;
+  const state = JSON.parse(stateText);
 
-  const json = JSON.stringify(state, null, 2);
+  const json = stateText;
   const a = (insp.getSourceAnchor ? (insp.getSourceAnchor(activeLayer) || {}) : {});
   const anchorLine = a.file + (a.line ? ":" + a.line : "") + "|" + (a.doc || "");
   const key = activeLayer + "|" + anchorLine + "|" + json;
@@ -84,11 +89,12 @@ function renderState() {
   if (a.error) card.appendChild(el("div", "err", a.error));
   panel.appendChild(card);
 
-  // Layer snapshot.
+  // Layer snapshot. Render the parsed object pretty-printed; the cache key
+  // stays on the compact JSON string (stable across frames).
   const snap = el("div", "card");
   snap.appendChild(el("div", "card-title", "Live state"));
   const pre = el("pre", "mono");
-  pre.textContent = json;
+  pre.textContent = JSON.stringify(state, null, 2);
   snap.appendChild(pre);
   panel.appendChild(snap);
 }
@@ -108,8 +114,11 @@ function renderTimeline() {
 function renderEdicts() {
   const box = document.getElementById("edicts");
   const insp = window.ironwailInspector;
-  if (!insp || !insp.getState) { box.textContent = "(no inspector)"; lastEdictsText = ""; return; }
-  const state = insp.getState("server");
+  const getter = insp && (insp.getStateJSON || insp.getState);
+  if (!insp || !getter) { box.textContent = "(no inspector)"; lastEdictsText = ""; return; }
+  const raw = getter("server");
+  let state = null;
+  try { state = typeof raw === "string" ? JSON.parse(raw) : raw; } catch (e) { state = null; }
   if (!state || !state.edicts) { box.textContent = "(no server)"; lastEdictsText = ""; return; }
   const text = state.edicts.slice(0, 12).map(e =>
     "#" + e.num + " " + (e.classname || "?") + " @(" + (e.origin ? e.origin.map(v => v.toFixed(0)).join(",") : "?") + ")"
