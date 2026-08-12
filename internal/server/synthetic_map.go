@@ -83,7 +83,7 @@ func BuildSyntheticMap() (*bsp.Tree, *bsp.File, error) {
 			NumEdges:  4,
 			Texinfo:   int32(fi),
 			Styles:    [bsp.MaxLightmaps]uint8{0, 255, 255, 255},
-			LightOfs:  0,
+			LightOfs:  0, // fixed below with the sequential lump layout
 		})
 	}
 
@@ -165,9 +165,17 @@ func BuildSyntheticMap() (*bsp.Tree, *bsp.File, error) {
 	miptex := flatColorMiptex(syntheticTexSize, syntheticTexSize, 0x8f, 0x8f, 0x9f)
 	textureData := miptexLump(miptex)
 
-	// Lightmap: a single constant sample repeated over the room (light level
-	// 200, mostly white). The renderer treats styles scale-1 raw bytes.
-	lightmap := buildSyntheticLightmap(len(faces), 1, 1, 200, 200, 210)
+	// Lightmap: the renderer computes each face's lightmap extent from its
+	// UV min/max (lightmap grid = 16 world units, style 0 = 1 byte/sample in
+	// the monochrome lump). The room spans -256..256 on the in-plane axes, so
+	// every face needs a 33x33 sample block. LightOfs was set to 0 above;
+	// fill the real sequential offsets in now that the layout is known.
+	// buildSyntheticLightmap returns the raw monochrome lump and the per-face
+	// offsets.
+	lightmap, lightmapOffsets := buildSyntheticLightmap(len(faces), 200)
+	for fi := range faces {
+		faces[fi].LightOfs = int32(lightmapOffsets[fi])
+	}
 
 	entities := syntheticEntities()
 
@@ -331,15 +339,32 @@ func miptexLump(miptex []byte) []byte {
 }
 
 // buildSyntheticLightmap returns a tiny constant RGB lightmap for each face.
-func buildSyntheticLightmap(faces, w, h int, r, g, b byte) []byte {
-	n := faces * w * h * 3
-	lm := make([]byte, n)
-	for i := 0; i < n; i += 3 {
-		lm[i] = r
-		lm[i+1] = g
-		lm[i+2] = b
+// syntheticLightmapGrid is the Quake lightmap grid size in world units: the
+// renderer computes each face's lightmap extent as
+// ceil((maxUV-textureMin)/16)*16 in 16-unit blocks, so a face spanning
+// 512 world units (the room's in-plane extent) yields 33x33 blocks.
+const syntheticLightmapGrid = 16
+
+// buildSyntheticLightmap emits a monochrome lightmap lump sized so every one
+// of the room's faces has enough style-0 samples at its (sequential) offset.
+// faces is the number of faces (6); level is the constant light intensity
+// written to every sample. Returns the lump and the per-face byte offsets.
+// The renderer reads the lump as monochrome (tree.LightingRGB=false), one
+// byte per sample.
+func buildSyntheticLightmap(faces int, level byte) ([]byte, []int) {
+	const extentBlocks = (syntheticRoomMax - syntheticRoomMin) / syntheticLightmapGrid
+	// smax = extentBlocks + 1 = 33, matching the renderer's extentU/16+1.
+	samplesPerFace := (extentBlocks + 1) * (extentBlocks + 1)
+
+	lump := make([]byte, faces*samplesPerFace)
+	offsets := make([]int, faces)
+	for i := 0; i < faces; i++ {
+		offsets[i] = i * samplesPerFace
+		for j := offsets[i]; j < offsets[i]+samplesPerFace; j++ {
+			lump[j] = level
+		}
 	}
-	return lm
+	return lump, offsets
 }
 
 // syntheticEntities emits a worldspawn + one info_player_start inside the room.
