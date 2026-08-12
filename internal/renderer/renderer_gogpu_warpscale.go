@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"runtime"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
@@ -385,6 +386,14 @@ func shouldUseSceneRenderTarget(state *RenderFrameState) bool {
 		return false
 	}
 	if os.Getenv("PARITY_RUN") == "1" {
+		return state.DrawWorld || state.DrawEntities
+	}
+	// Browsers walk the world through the offscreen scene target and a single
+	// composite present: gogpu's direct-to-surface + separate queue.Submit
+	// path does not present reliably on WebGPU, and the capture tooling reads
+	// the scene target. Native keeps the zero-copy direct-to-surface path for
+	// parity with C Ironwail.
+	if runtime.GOOS == "js" {
 		return state.DrawWorld || state.DrawEntities
 	}
 	if !state.WaterWarp {
