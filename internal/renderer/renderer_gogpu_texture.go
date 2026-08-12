@@ -1,27 +1,31 @@
 package renderer
 
 import (
-	"errors"
 	"log/slog"
 	"runtime"
+	"sync"
 
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/gogpu/gogpu"
 )
 
-// ErrGogpuTextureUploadUnavailable marks texture uploads that cannot be
-// performed through gogpu on the current platform.
-var ErrGogpuTextureUploadUnavailable = errors.New("gogpu texture upload unavailable on this platform")
+// gogpuTextureUploadUnavailableWarned gates the one-time WARN for wasm
+// texture upload unavailability, so the per-frame HUD upload attempts do not
+// flood the console.
+var gogpuTextureUploadUnavailableWarned sync.Once
 
 // uploadRGBAThruGogpu uploads RGBA pixels through gogpu's texture path.
 // In browsers (js/wasm) gogpu's NewTextureFromRGBA panics: the wgpu browser
 // shim dereferences a nil texture-view descriptor that the native path
-// defaults (upstream gogpu/wgpu#315). Rather than crash the frame, report
-// the upload as unavailable so callers degrade gracefully (e.g. skip the
-// HUD texture draw) until upstream ships the nil-descriptor fix.
+// defaults (upstream gogpu/wgpu#315). Rather than crash the frame, warn once
+// and return a nil texture so callers degrade gracefully (skipping the HUD
+// texture draw) until upstream ships the nil-descriptor fix.
 func uploadRGBAThruGogpu(ctx *gogpu.Context, width, height int, rgba []byte) (*gogpu.Texture, error) {
 	if runtime.GOOS == "js" {
-		return nil, ErrGogpuTextureUploadUnavailable
+		gogpuTextureUploadUnavailableWarned.Do(func() {
+			slog.Warn("gogpu texture upload unavailable in browser (upstream gogpu/wgpu#315); HUD textures disabled until upstream fix")
+		})
+		return nil, nil
 	}
 	return ctx.Renderer().NewTextureFromRGBA(width, height, rgba)
 }
