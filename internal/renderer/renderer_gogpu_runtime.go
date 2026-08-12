@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	"github.com/darkliquid/ironwail-go/internal/renderer/pipeline"
 	"github.com/gogpu/gogpu"
@@ -197,7 +198,19 @@ func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 				gamma:    gamma,
 				renderer: r,
 			}
-			callback(dc)
+			// Guarded so a panic inside the draw path prints its true origin
+			// instead of being re-raised through gogpu's render thread and
+			// losing the stack (see runRendererSafe).
+			func() {
+				defer func() {
+					if p := recover(); p != nil {
+						slog.Error("draw callback panic", "panic", fmt.Sprint(p))
+						debug.PrintStack()
+						panic(p)
+					}
+				}()
+				callback(dc)
+			}()
 		}
 	})
 }
