@@ -94,7 +94,6 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	indexScratchBuffer := r.brushEntityScratchIndexBuffer
 	depthView := r.resources.WorldDepthTextureView
 	dynamicLightsBuffer := r.resources.WorldDynamicLightsBuffer
-	dynamicLightsBindGroup := r.resources.WorldDynamicLightsBindGroup
 	camera := r.cameraState
 	worldTextures := r.worldTextures
 	worldFullbrightTextures := r.worldFullbrightTextures
@@ -109,7 +108,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	}
 	activeDynamicLights := r.activeDynamicLightsScratch
 	r.mu.Unlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
+	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
 		return
 	}
 	if transparentBindGroup == nil {
@@ -189,7 +188,6 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		slog.Warn("failed to upload brush dynamic lights", "error", err1)
 		return
 	}
-	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)
 
 	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
@@ -351,7 +349,6 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	whiteTextureBindGroup := r.resources.WhiteTextureBindGroup
 	transparentBindGroup := r.resources.TransparentBindGroup
 	dynamicLightsBuffer := r.resources.WorldDynamicLightsBuffer
-	dynamicLightsBindGroup := r.resources.WorldDynamicLightsBindGroup
 	worldSkySolidTextures := r.worldSkySolidTextures
 	worldSkyAlphaTextures := r.worldSkyAlphaTextures
 	externalSkyMode := r.worldSkyExternalMode
@@ -368,7 +365,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		treeEntities = r.worldData.Geometry.Tree.Entities
 	}
 	r.mu.RUnlock()
-	if uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil {
+	if uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil {
 		return
 	}
 	if transparentBindGroup == nil {
@@ -414,10 +411,9 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	if useExternalSky {
 		renderPass.SetPipeline(externalSkyOverlayPipeline)
 		renderPass.SetBindGroup(1, externalSkyBindGroup, nil)
-		// Keep the external sky pipeline layout compatible with the world
-		// pipeline layout; placeholder groups satisfy WebGPU validation.
-		renderPass.SetBindGroup(2, whiteTextureBindGroup, nil)
-		renderPass.SetBindGroup(3, whiteTextureBindGroup, nil)
+		// The external sky pipeline layout only chains groups 0 (uniform,
+		// set below) and 1 (sky faces); do not bind placeholder groups 2-4,
+		// which strict-validating browsers reject as out-of-range.
 		if logExternalSkyDraw {
 			slog.Debug("external sky brush draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 		}
@@ -430,15 +426,21 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
 	passStartUniformOffset := r.uniformOffset
-	ptr3, lightData3 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
-	err3 := queue.WriteBuffer(dynamicLightsBuffer, 0, lightData3)
-	dynamicLightsBytesPool.Put(ptr3)
-	if err3 != nil {
-		slog.Warn("failed to upload brush dynamic lights", "error", err3)
-		_ = renderPass.End()
-		return
+	if !useExternalSky {
+		// Dynamic lights live in bind group 0 after consolidation; group 4 no
+		// longer exists. The classic sky pipeline (which shares the world
+		// layout) reads lights from group 0's storage bindings, so there is
+		// nothing to bind here either. The light data is still uploaded so
+		// the fragment shader sees it via group 0.
+		ptr3, lightData3 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
+		err3 := queue.WriteBuffer(dynamicLightsBuffer, 0, lightData3)
+		dynamicLightsBytesPool.Put(ptr3)
+		if err3 != nil {
+			slog.Warn("failed to upload brush dynamic lights", "error", err3)
+			_ = renderPass.End()
+			return
+		}
 	}
-	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)
 
 	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
@@ -631,7 +633,6 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	indexScratchBuffer := r.brushEntityScratchIndexBuffer
 	depthView := r.resources.WorldDepthTextureView
 	dynamicLightsBuffer := r.resources.WorldDynamicLightsBuffer
-	dynamicLightsBindGroup := r.resources.WorldDynamicLightsBindGroup
 	camera := r.cameraState
 	worldTextures := r.worldTextures
 	worldFullbrightTextures := r.worldFullbrightTextures
@@ -644,7 +645,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	}
 	activeDynamicLights := r.activeDynamicLightsScratch
 	r.mu.Unlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
+	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
 		return
 	}
 	if transparentBindGroup == nil {
@@ -723,7 +724,6 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		slog.Warn("failed to upload brush dynamic lights", "error", err2)
 		return
 	}
-	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)
 
 	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}

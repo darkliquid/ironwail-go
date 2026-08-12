@@ -14,7 +14,11 @@ import (
 // the four created bind group layouts are stored on the Renderer for reuse
 // by the external-sky pipeline and bind-group creation.
 func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule) (*wgpu.RenderPipeline, *wgpu.PipelineLayout, error) {
-	pipelineObj, pipelineLayout, uniformLayout, textureLayout, lightmapLayout, lightsLayout, err := pipeline.CreateWorldPipeline(device, vertexShader, fragmentShader, r.worldPipelineParams())
+	// Pick the world depth format from the device's enabled features before
+	// any depth-state pipeline is created (browsers reject pipelines that use
+	// an unrequested depth feature at strict validation).
+	r.updateWorldDepthFormatForDevice()
+	pipelineObj, pipelineLayout, uniformLayout, textureLayout, lightmapLayout, err := pipeline.CreateWorldPipeline(device, vertexShader, fragmentShader, r.worldPipelineParams())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -22,7 +26,7 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 	r.resources.UniformBindGroupLayout = uniformLayout
 	r.resources.TextureBindGroupLayout = textureLayout
 	r.resources.LightmapBindGroupLayout = lightmapLayout
-	r.resources.WorldDynamicLightsBindGroupLayout = lightsLayout
+	r.resources.WorldDynamicLightsBindGroupLayout = nil
 	r.mu.Unlock()
 
 	slog.Debug("World render pipeline created")
@@ -34,11 +38,10 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 // when it stores them on the Renderer; the external-sky wrapper fills them in.
 func (r *Renderer) worldPipelineParams() pipeline.WorldPipelineParams {
 	return pipeline.WorldPipelineParams{
-		SurfaceFormat:                r.surfaceFormat(),
-		UniformBindGroupLayout:       r.resources.UniformBindGroupLayout,
-		TextureBindGroupLayout:       r.resources.TextureBindGroupLayout,
-		LightmapBindGroupLayout:      r.resources.LightmapBindGroupLayout,
-		DynamicLightsBindGroupLayout: r.resources.WorldDynamicLightsBindGroupLayout,
+		SurfaceFormat:           r.surfaceFormat(),
+		UniformBindGroupLayout:  r.resources.UniformBindGroupLayout,
+		TextureBindGroupLayout:  r.resources.TextureBindGroupLayout,
+		LightmapBindGroupLayout: r.resources.LightmapBindGroupLayout,
 	}
 }
 

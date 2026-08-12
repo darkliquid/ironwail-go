@@ -38,15 +38,14 @@ fn cs_main(
     @builtin(global_invocation_id) gid: vec3<u32>,
     @builtin(local_invocation_index) lid: u32,
 ) {
-    if (gid.x >= LIGHT_TILES_X || gid.y >= LIGHT_TILES_Y || gid.z >= LIGHT_TILES_Z) {
-        return;
-    }
+    // WebGPU uniformity analysis requires workgroupBarrier() to be reached
+    // with uniform control flow: every invocation must execute it. Early
+    // returns keyed on gid/numlights (previous version) made the barrier
+    // non-uniform and strict-validating browsers rejected the module.
+    // Instead, compute an inbounds flag and run the barrier unconditionally.
+    let inBounds = gid.x < LIGHT_TILES_X && gid.y < LIGHT_TILES_Y && gid.z < LIGHT_TILES_Z;
     
     let numlights = uniforms.numLights;
-    if (numlights == 0u) {
-        textureStore(lightClusters, vec3<i32>(gid), vec4<u32>(0u, 0u, 0u, 0u));
-        return;
-    }
     
     let groupsize = 64u;
     let numpasses = (numlights + (groupsize - 1u)) / groupsize;
@@ -61,6 +60,14 @@ fn cs_main(
     }
     
     workgroupBarrier();
+    
+    if (!inBounds) {
+        return;
+    }
+    if (numlights == 0u) {
+        textureStore(lightClusters, vec3<i32>(gid), vec4<u32>(0u, 0u, 0u, 0u));
+        return;
+    }
     
     let TileSizeX = 2.0 / f32(LIGHT_TILES_X);
     let TileSizeY = 2.0 / f32(LIGHT_TILES_Y);

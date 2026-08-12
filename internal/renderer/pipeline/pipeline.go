@@ -45,7 +45,20 @@ const WorldDynamicLightBufferSize = 16 + 512*32
 // depth attachments. Depth32FloatStencil8 is used instead of
 // Depth24PlusStencil8 because the wgpu HAL maps Depth24PlusStencil8 to
 // VK_FORMAT_D24_UNORM_S8_UINT, which NVIDIA GPUs do not support.
-const WorldDepthTextureFormat = gputypes.TextureFormatDepth32FloatStencil8
+//
+// It is a variable rather than a constant so the renderer can fall back to
+// Depth24PlusStencil8 on devices (notably browsers) that do not expose the
+// depth32float-stencil8 feature. The package default stays Depth32FloatStencil8
+// for desktop parity; SetWorldDepthTextureFormat is called once at device
+// discovery, before any pipeline is created.
+var WorldDepthTextureFormat = gputypes.TextureFormatDepth32FloatStencil8
+
+// SetWorldDepthTextureFormat updates the shared world depth format used by
+// every world pipeline and depth attachment. Callers should derive the value
+// from the wgpu device's enabled features before creating pipelines.
+func SetWorldDepthTextureFormat(format gputypes.TextureFormat) {
+	WorldDepthTextureFormat = format
+}
 
 // NonDecalDepthStencilState returns the depth/stencil state used by world
 // render passes that do not write stencil marks (the decal pass has its own).

@@ -328,24 +328,6 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		return fmt.Errorf("create world dynamic lights buffer: %w", err)
 	}
 
-	var dynamicLightsBindGroup *wgpu.BindGroup
-	if lightsLayout := r.resources.WorldDynamicLightsBindGroupLayout; lightsLayout != nil {
-		entries := []wgpu.BindGroupEntry{
-			{Binding: 1, Buffer: dynamicLightsBuffer, Offset: 0, Size: gogpuWorldDynamicLightBufferSize},
-		}
-		if computeTextureView != nil {
-			entries = append(entries, wgpu.BindGroupEntry{Binding: 0, TextureView: computeTextureView})
-		}
-		dynamicLightsBindGroup, err = device.CreateBindGroup(&wgpu.BindGroupDescriptor{
-			Label:   "World Dynamic Lights BG",
-			Layout:  lightsLayout,
-			Entries: entries,
-		})
-		if err != nil {
-			return fmt.Errorf("create world dynamic lights bind group: %w", err)
-		}
-	}
-
 	var computeBindGroup *wgpu.BindGroup
 	if computeBindGroupLayout != nil {
 		computeBindGroup, err = device.CreateBindGroup(&wgpu.BindGroupDescriptor{
@@ -432,6 +414,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	// Create bind group for world uniform buffer.
+	// Stash the dynamic-lights resources before building the uniform bind
+	// group so its entries (bindings 2/3: cluster texture + lights buffer)
+	// are complete even on the first world upload.
+	r.resources.WorldDynamicLightsBuffer = dynamicLightsBuffer
+	r.resources.WorldClusterComputeTextureView = computeTextureView
 	uniformLayout := r.resources.UniformBindGroupLayout
 	if uniformLayout != nil {
 		uniformBindGroup, err := r.createWorldUniformBindGroup(device, uniformLayout, uniformBuffer, materialsBuffer)
@@ -551,7 +538,6 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.resources.WorldPipelineLayout = pipelineLayout
 	r.resources.WorldSkyExternalPipelineLayout = externalSkyPipelineLayout
 	r.resources.WorldDynamicLightsBuffer = dynamicLightsBuffer
-	r.resources.WorldDynamicLightsBindGroup = dynamicLightsBindGroup
 	r.resources.WorldClusterComputePipeline = computePipeline
 	r.resources.WorldClusterComputePipelineLayout = computePipelineLayout
 	r.resources.WorldClusterComputeBindGroupLayout = computeBindGroupLayout
@@ -655,12 +641,22 @@ func (r *Renderer) createWorldUniformBindGroup(device *wgpu.Device, layout *wgpu
 	if materialsBuffer != nil {
 		matSize = materialsBuffer.Size()
 	}
+	entries := []wgpu.BindGroupEntry{
+		{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: worldUniformBufferSize},
+		{Binding: 1, Buffer: materialsBuffer, Offset: 0, Size: matSize},
+	}
+	// Dynamic lights ride in group 0 (bindings 2 and 3) after the bind-group
+	// consolidation that removed group 4. Binding 2 is the 3D light-cluster
+	// texture; binding 3 is the dynamic-light storage buffer.
+	if clusterView := r.resources.WorldClusterComputeTextureView; clusterView != nil {
+		entries = append(entries, wgpu.BindGroupEntry{Binding: 2, TextureView: clusterView})
+	}
+	if lightsBuffer := r.resources.WorldDynamicLightsBuffer; lightsBuffer != nil {
+		entries = append(entries, wgpu.BindGroupEntry{Binding: 3, Buffer: lightsBuffer, Offset: 0, Size: gogpuWorldDynamicLightBufferSize})
+	}
 	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
-		Label:  "World Uniform BG",
-		Layout: layout,
-		Entries: []wgpu.BindGroupEntry{
-			{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: worldUniformBufferSize},
-			{Binding: 1, Buffer: materialsBuffer, Offset: 0, Size: matSize},
-		},
+		Label:   "World Uniform BG",
+		Layout:  layout,
+		Entries: entries,
 	})
 }

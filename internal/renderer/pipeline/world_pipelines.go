@@ -10,23 +10,29 @@ import (
 // WorldPipelineParams are the layouts and formats every world pipeline needs.
 // The parent supplies its owned layouts; nothing here holds Renderer state.
 type WorldPipelineParams struct {
-	UniformBindGroupLayout       *wgpu.BindGroupLayout
-	TextureBindGroupLayout       *wgpu.BindGroupLayout
-	LightmapBindGroupLayout      *wgpu.BindGroupLayout
-	DynamicLightsBindGroupLayout *wgpu.BindGroupLayout
-	SurfaceFormat                gputypes.TextureFormat
+	UniformBindGroupLayout  *wgpu.BindGroupLayout
+	TextureBindGroupLayout  *wgpu.BindGroupLayout
+	LightmapBindGroupLayout *wgpu.BindGroupLayout
+	SurfaceFormat           gputypes.TextureFormat
 }
 
 // CreateWorldPipeline builds the main world pipeline, its shared pipeline
-// layout, and the four bind group layouts (uniform, texture, lightmap,
-// dynamic lights) the parent stores and reuses for the sub-pipelines and the
-// external sky pipeline layout.
-func CreateWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, params WorldPipelineParams) (*wgpu.RenderPipeline, *wgpu.PipelineLayout, *wgpu.BindGroupLayout, *wgpu.BindGroupLayout, *wgpu.BindGroupLayout, *wgpu.BindGroupLayout, error) {
+// layout, and the three shared bind group layouts (uniform-with-lights,
+// texture, lightmap) the parent stores and reuses for the sub-pipelines and
+// the external sky pipeline layout. The fullbright group reuses the lightmap
+// layout and the dynamic lights live in the uniform group, so the pipeline
+// fits the browser's 4-bind-group cap.
+func CreateWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, params WorldPipelineParams) (*wgpu.RenderPipeline, *wgpu.PipelineLayout, *wgpu.BindGroupLayout, *wgpu.BindGroupLayout, *wgpu.BindGroupLayout, error) {
 	if device == nil || vertexShader == nil || fragmentShader == nil {
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("invalid shader modules or device")
+		return nil, nil, nil, nil, nil, fmt.Errorf("invalid shader modules or device")
 	}
 
-	// Create bind group layout for @group(0) @binding(0) uniform buffer.
+	// Create bind group layout for @group(0): uniforms + materials +
+	// dynamic-lights cluster (fragment reads the 3D cluster texture and the
+	// dynamic light storage buffer from bindings 2 and 3). The dynamic
+	// lights were previously a separate @group(4); folding them into group 0
+	// keeps the pipeline layout at 4 bind groups, which strict-validating
+	// browsers cap at.
 	uniformLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "World Uniform BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{
@@ -48,10 +54,28 @@ func CreateWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu
 					MinBindingSize:   32,
 				},
 			},
+			{
+				Binding:    2,
+				Visibility: gputypes.ShaderStageFragment,
+				Texture: &gputypes.TextureBindingLayout{
+					SampleType:    gputypes.TextureSampleTypeUint,
+					ViewDimension: gputypes.TextureViewDimension3D,
+					Multisampled:  false,
+				},
+			},
+			{
+				Binding:    3,
+				Visibility: gputypes.ShaderStageFragment,
+				Buffer: &gputypes.BufferBindingLayout{
+					Type:             gputypes.BufferBindingTypeReadOnlyStorage,
+					HasDynamicOffset: false,
+					MinBindingSize:   WorldDynamicLightBufferSize,
+				},
+			},
 		},
 	})
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("create uniform bind group layout: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("create uniform bind group layout: %w", err)
 	}
 
 	// Create bind group layouts for @group(1) textures.
@@ -78,7 +102,7 @@ func CreateWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu
 	})
 	if err != nil {
 		uniformLayout.Release()
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("create texture bind group layout: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("create texture bind group layout: %w", err)
 	}
 
 	// Sky lightmaps bind group layout.
@@ -106,52 +130,22 @@ func CreateWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu
 	if err != nil {
 		textureLayout.Release()
 		uniformLayout.Release()
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("create lightmap bind group layout: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("create lightmap bind group layout: %w", err)
 	}
 
-	// Dynamic lights bind group layout: 3D uint cluster texture + storage
-	// buffer of dynamic light data. Both bindings are fragment-stage.
-	lightsLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
-		Label: "World Dynamic Lights BGL",
-		Entries: []gputypes.BindGroupLayoutEntry{
-			{
-				Binding:    0,
-				Visibility: gputypes.ShaderStageFragment,
-				Texture: &gputypes.TextureBindingLayout{
-					SampleType:    gputypes.TextureSampleTypeUint,
-					ViewDimension: gputypes.TextureViewDimension3D,
-					Multisampled:  false,
-				},
-			},
-			{
-				Binding:    1,
-				Visibility: gputypes.ShaderStageFragment,
-				Buffer: &gputypes.BufferBindingLayout{
-					Type:             gputypes.BufferBindingTypeReadOnlyStorage,
-					HasDynamicOffset: false,
-					MinBindingSize:   WorldDynamicLightBufferSize,
-				},
-			},
-		},
-	})
-	if err != nil {
-		lightmapLayout.Release()
-		textureLayout.Release()
-		uniformLayout.Release()
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("create dynamic lights bind group layout: %w", err)
-	}
-
-	// Create pipeline layout combining all bind group layouts.
+	// Create pipeline layout combining all bind group layouts. Group 3
+	// (fullbright, previously a separate group) reuses the lightmap layout
+	// shape (sampler + 2D texture), and the dynamic lights live in group 0,
+	// so the layout fits the browser's 4-bind-group cap.
 	layout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label:            "World Pipeline Layout",
-		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, textureLayout, lightmapLayout, textureLayout, lightsLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, textureLayout, lightmapLayout, lightmapLayout},
 	})
 	if err != nil {
 		uniformLayout.Release()
 		textureLayout.Release()
 		lightmapLayout.Release()
-		lightsLayout.Release()
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("create world pipeline layout: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("create world pipeline layout: %w", err)
 	}
 
 	pipeline, err := CreatePipeline(device, &wgpu.RenderPipelineDescriptor{
@@ -191,11 +185,10 @@ func CreateWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu
 		uniformLayout.Release()
 		textureLayout.Release()
 		lightmapLayout.Release()
-		lightsLayout.Release()
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("create world pipeline: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("create world pipeline: %w", err)
 	}
 
-	return pipeline, layout, uniformLayout, textureLayout, lightmapLayout, lightsLayout, nil
+	return pipeline, layout, uniformLayout, textureLayout, lightmapLayout, nil
 }
 
 // CreateWorldOpaquePipeline builds the alpha-test (opaque-pass) variant.
@@ -286,11 +279,13 @@ func CreateWorldSkyPipelineWithDepthState(device *wgpu.Device, vertexShader, fra
 // CreateWorldExternalSkyPipeline builds the two external-skybox pipelines
 // (full 3D camera-space sky + overlay), their shared pipeline layout, and
 // the sky texture bind group layout. It needs the parent's shared layouts
-// because the external sky's pipeline layout chains group(0) uniform,
-// group(1) sky textures, and group(2/3) world textures + lights.
+// because the external sky's pipeline layout chains group(0) uniform and
+// group(1) sky textures. The external-sky shaders reference only those two
+// groups, and strict-validating browsers reject pipeline layouts whose
+// bind-group layouts are not all referenced by the shader.
 func CreateWorldExternalSkyPipeline(device *wgpu.Device, vertexShader, overlayVertexShader, fragmentShader *wgpu.ShaderModule, params WorldPipelineParams) (*wgpu.RenderPipeline, *wgpu.RenderPipeline, *wgpu.PipelineLayout, *wgpu.BindGroupLayout, error) {
 	if device == nil || vertexShader == nil || overlayVertexShader == nil || fragmentShader == nil ||
-		params.UniformBindGroupLayout == nil || params.TextureBindGroupLayout == nil || params.DynamicLightsBindGroupLayout == nil {
+		params.UniformBindGroupLayout == nil {
 		return nil, nil, nil, nil, fmt.Errorf("missing external sky pipeline inputs")
 	}
 	textureLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
@@ -316,7 +311,7 @@ func CreateWorldExternalSkyPipeline(device *wgpu.Device, vertexShader, overlayVe
 	}
 	layout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label:            "World External Sky Pipeline Layout",
-		BindGroupLayouts: []*wgpu.BindGroupLayout{params.UniformBindGroupLayout, textureLayout, params.TextureBindGroupLayout, params.TextureBindGroupLayout, params.DynamicLightsBindGroupLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{params.UniformBindGroupLayout, textureLayout},
 	})
 	if err != nil {
 		textureLayout.Release()

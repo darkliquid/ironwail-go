@@ -127,6 +127,12 @@ var<uniform> uniforms: Uniforms;
 @group(0) @binding(1)
 var<storage, read> materials: array<MaterialData>;
 
+@group(0) @binding(2)
+var lightClusters: texture_3d<u32>;
+
+@group(0) @binding(3)
+var<storage, read> dynamicLights: DynamicLights;
+
 @group(1) @binding(0)
 var worldSampler: sampler;
 
@@ -144,12 +150,6 @@ var worldFullbrightSampler: sampler;
 
 @group(3) @binding(1)
 var worldFullbrightTexture: texture_2d<f32>;
-
-@group(4) @binding(0)
-var lightClusters: texture_3d<u32>;
-
-@group(4) @binding(1)
-var<storage, read> dynamicLights: DynamicLights;
 
 fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>, clipPos: vec4<f32>) -> vec3<f32> {
     let normalLenSq = dot(planeNormalRaw, planeNormalRaw);
@@ -524,6 +524,12 @@ var<uniform> uniforms: Uniforms;
 @group(0) @binding(1)
 var<storage, read> materials: array<MaterialData>;
 
+@group(0) @binding(2)
+var lightClusters: texture_3d<u32>;
+
+@group(0) @binding(3)
+var<storage, read> dynamicLights: DynamicLights;
+
 @group(1) @binding(0)
 var worldSampler: sampler;
 
@@ -541,12 +547,6 @@ var worldFullbrightSampler: sampler;
 
 @group(3) @binding(1)
 var worldFullbrightTexture: texture_2d<f32>;
-
-@group(4) @binding(0)
-var lightClusters: texture_3d<u32>;
-
-@group(4) @binding(1)
-var<storage, read> dynamicLights: DynamicLights;
 
 fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>) -> vec3<f32> {
     let normalLenSq = dot(planeNormalRaw, planeNormalRaw);
@@ -674,34 +674,43 @@ var skyUP: texture_2d<f32>;
 var skyDN: texture_2d<f32>;
 
 fn sampleExternalSky(dir: vec3<f32>) -> vec4<f32> {
+    // Branchless cubemap face selection: every invocation runs all six
+    // textureSample calls unconditionally and combines them with select(),
+    // because WebGPU's uniformity analysis forbids texture sampling inside
+    // non-uniform (per-invocation) control flow. The face/UV math mirrors
+    // the C Ironwail cubemap convention exactly; select() leaves only the
+    // chosen face's contribution.
     let absDir = abs(dir);
-    var ma: f32;
-    var uv: vec2<f32>;
-    if (absDir.x >= absDir.y && absDir.x >= absDir.z) {
-        ma = max(absDir.x, 0.000001);
-        if (dir.x > 0.0) {
-            uv = vec2<f32>((-dir.z / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
-            return textureSample(skyFT, skySampler, uv);
-        }
-        uv = vec2<f32>((dir.z / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
-        return textureSample(skyBK, skySampler, uv);
-    }
-    if (absDir.y >= absDir.x && absDir.y >= absDir.z) {
-        ma = max(absDir.y, 0.000001);
-        if (dir.y > 0.0) {
-            uv = vec2<f32>((dir.x / ma + 1.0) * 0.5, (dir.z / ma + 1.0) * 0.5);
-            return textureSample(skyUP, skySampler, uv);
-        }
-        uv = vec2<f32>((dir.x / ma + 1.0) * 0.5, (-dir.z / ma + 1.0) * 0.5);
-        return textureSample(skyDN, skySampler, uv);
-    }
-    ma = max(absDir.z, 0.000001);
-    if (dir.z > 0.0) {
-        uv = vec2<f32>((dir.x / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
-        return textureSample(skyRT, skySampler, uv);
-    }
-    uv = vec2<f32>((-dir.x / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
-    return textureSample(skyLF, skySampler, uv);
+    let epsMaX = max(absDir.x, 0.000001);
+    let epsMaY = max(absDir.y, 0.000001);
+    let epsMaZ = max(absDir.z, 0.000001);
+
+    let isX = select(0.0, 1.0, absDir.x >= absDir.y && absDir.x >= absDir.z);
+    let isY = select(0.0, 1.0, absDir.y > absDir.x && absDir.y >= absDir.z);
+    let isZ = select(0.0, 1.0, absDir.z > absDir.x && absDir.z > absDir.y);
+
+    let uvXP = vec2<f32>((-dir.z / epsMaX + 1.0) * 0.5, (-dir.y / epsMaX + 1.0) * 0.5);
+    let uvXN = vec2<f32>(( dir.z / epsMaX + 1.0) * 0.5, (-dir.y / epsMaX + 1.0) * 0.5);
+    let uvYP = vec2<f32>(( dir.x / epsMaY + 1.0) * 0.5, ( dir.z / epsMaY + 1.0) * 0.5);
+    let uvYN = vec2<f32>(( dir.x / epsMaY + 1.0) * 0.5, (-dir.z / epsMaY + 1.0) * 0.5);
+    let uvZP = vec2<f32>(( dir.x / epsMaZ + 1.0) * 0.5, (-dir.y / epsMaZ + 1.0) * 0.5);
+    let uvZN = vec2<f32>((-dir.x / epsMaZ + 1.0) * 0.5, (-dir.y / epsMaZ + 1.0) * 0.5);
+
+    let sigX = select(0.0, 1.0, dir.x > 0.0);
+    let sigY = select(0.0, 1.0, dir.y > 0.0);
+    let sigZ = select(0.0, 1.0, dir.z > 0.0);
+
+    let sXP = textureSample(skyFT, skySampler, uvXP);
+    let sXN = textureSample(skyBK, skySampler, uvXN);
+    let sYP = textureSample(skyUP, skySampler, uvYP);
+    let sYN = textureSample(skyDN, skySampler, uvYN);
+    let sZP = textureSample(skyRT, skySampler, uvZP);
+    let sZN = textureSample(skyLF, skySampler, uvZN);
+
+    let pickX = select(sXN, sXP, sigX);
+    let pickY = select(sYN, sYP, sigY);
+    let pickZ = select(sZN, sZP, sigZ);
+    return pickX * isX + pickY * isY + pickZ * isZ;
 }
 
 @fragment

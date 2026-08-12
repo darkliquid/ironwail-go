@@ -183,13 +183,14 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	} else {
 		slog.Warn("renderWorldInternal: NO uniform bind group set")
 	}
-	if dc.renderer.resources.WorldDynamicLightsBindGroup == nil || dc.renderer.resources.WorldDynamicLightsBuffer == nil {
-		slog.Warn("renderWorldInternal: no dynamic light bind group available")
+	// Dynamic lights ride in bind group 0 (bindings 2/3) after consolidation;
+	// the light buffer must still exist because the cluster compute pass fills
+	// the cluster texture that the fragment shader reads.
+	if dc.renderer.resources.WorldDynamicLightsBuffer == nil {
+		slog.Warn("renderWorldInternal: no dynamic light buffer available")
 		_ = renderPass.End()
 		return
 	}
-	// Light buffer was already uploaded in dispatchWorldClusterCompute
-	renderPass.SetBindGroup(4, dc.renderer.resources.WorldDynamicLightsBindGroup, nil)
 
 	if dc.renderer.resources.WhiteTextureBindGroup == nil || dc.renderer.resources.WhiteLightmapBindGroup == nil {
 		slog.Warn("renderWorldInternal: no world texture/lightmap bind group available")
@@ -512,15 +513,12 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor [3]float32, fog
 		dc.renderer.resources.UniformBuffer == nil ||
 		dc.renderer.resources.UniformBindGroup == nil ||
 		dc.renderer.resources.WhiteTextureBindGroup == nil ||
-		dc.renderer.resources.WorldDynamicLightsBindGroup == nil ||
 		dc.renderer.resources.WorldDepthTextureView == nil {
 		dc.renderer.mu.RUnlock()
 		return
 	}
 	pipeline := dc.renderer.resources.WorldSkyExternalOverlayPipeline
 	externalSkyBindGroup := dc.renderer.resources.WorldSkyExternalBindGroup
-	whiteTextureBindGroup := dc.renderer.resources.WhiteTextureBindGroup
-	dynamicLightsBindGroup := dc.renderer.resources.WorldDynamicLightsBindGroup
 	uniformBuffer := dc.renderer.resources.UniformBuffer
 	uniformBindGroup := dc.renderer.resources.UniformBindGroup
 	vertexBuffer := dc.renderer.worldVertexBuffer
@@ -585,9 +583,6 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor [3]float32, fog
 	renderPass.SetPipeline(pipeline)
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
 	renderPass.SetBindGroup(1, externalSkyBindGroup, nil)
-	renderPass.SetBindGroup(2, whiteTextureBindGroup, nil)
-	renderPass.SetBindGroup(3, whiteTextureBindGroup, nil)
-	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)
 	renderPass.SetVertexBuffer(0, vertexBuffer, 0)
 	renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
 	var drawnIndices uint32

@@ -106,9 +106,18 @@ func (c *Core) InitHeadless() error {
 		return ErrCoreNoAdapters
 	}
 
+	// Request the depth32float-stencil8 feature only when the adapter
+	// supports it. Some backends (DX12) reject device creation outright when
+	// a required feature is unsupported, so the request must be gated rather
+	// than unconditional — the world renderer falls back to
+	// depth24plus-stencil8 when the feature is absent.
+	requiredFeatures := wgpu.Features(0)
+	if adapter.Features().Contains(gputypes.FeatureDepth32FloatStencil8) {
+		requiredFeatures = wgpu.Features(gputypes.FeatureDepth32FloatStencil8)
+	}
 	openDevice, err := adapter.RequestDevice(&wgpu.DeviceDescriptor{
 		Label:            "Ironwail-Go WGPU Device",
-		RequiredFeatures: 0,
+		RequiredFeatures: requiredFeatures,
 		RequiredLimits:   adapter.Limits(),
 	})
 	if err != nil {

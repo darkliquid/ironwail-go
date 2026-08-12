@@ -30,8 +30,9 @@ func (dc *DrawContext) renderWorldSkyPass(
 		}
 		renderPass.SetPipeline(dc.renderer.resources.WorldSkyExternalPipeline)
 		renderPass.SetBindGroup(1, dc.renderer.resources.WorldSkyExternalBindGroup, nil)
-		renderPass.SetBindGroup(2, dc.renderer.resources.WhiteTextureBindGroup, nil)
-		renderPass.SetBindGroup(3, dc.renderer.resources.WhiteTextureBindGroup, nil)
+		// The external sky pipeline layout chains only groups 0 (uniform,
+		// already bound by the caller) and 1 (sky faces); do not bind
+		// placeholder groups 2-3, which strict-validating browsers reject.
 		if logExternalSkyDraw {
 			slog.Debug("external sky world draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 		}

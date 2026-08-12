@@ -32,7 +32,13 @@ type WorldFace = worldimpl.WorldFace
 // wgpu HAL maps Depth24PlusStencil8 to VK_FORMAT_D24_UNORM_S8_UINT, which
 // NVIDIA GPUs do not support. Depth32FloatStencil8 maps to
 // VK_FORMAT_D32_SFLOAT_S8_UINT which is universally supported.
-const worldDepthTextureFormat = gputypes.TextureFormatDepth32FloatStencil8
+//
+// worldDepthTextureFormat is a variable (not a constant) so the renderer can
+// fall back to Depth24PlusStencil8 on devices — notably browsers — that do
+// not expose the depth32float-stencil8 feature. It mirrors
+// pipeline.WorldDepthTextureFormat and is kept in sync via
+// updateWorldDepthFormatForDevice at device discovery.
+var worldDepthTextureFormat = gputypes.TextureFormatDepth32FloatStencil8
 
 func gogpuNonDecalDepthStencilState(depthWrite bool) *wgpu.DepthStencilState {
 	stencilFace := wgpu.StencilFaceState{

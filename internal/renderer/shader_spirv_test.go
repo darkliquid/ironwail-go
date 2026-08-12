@@ -28,6 +28,7 @@ func TestWorldShaderSPIRVValidation(t *testing.T) {
 		"sky_mask_vertex":    worldSkyMaskVertexShaderWGSL,
 		"sky_fragment":       worldSkyFragmentShaderWGSL,
 		"sky_external_frag":  worldSkyExternalFaceFragmentShaderWGSL,
+		"cluster_compute":    worldClusterComputeShaderWGSL,
 		"turbulent_fragment": worldTurbulentFragmentShaderWGSL,
 	}
 
