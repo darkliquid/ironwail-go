@@ -79,6 +79,10 @@ func (r *Renderer) createWorldSolidTextureArray(device *wgpu.Device, queue *wgpu
 	return worldgogpu.CreateWorldSolidTextureArray(device, queue, label, pixel, layers)
 }
 
+func (r *Renderer) createWorldSolidTexture(device *wgpu.Device, queue *wgpu.Queue, label string, pixel [4]byte) (*wgpu.Texture, *wgpu.TextureView, error) {
+	return worldgogpu.CreateWorldSolidTexture(device, queue, label, pixel)
+}
+
 // createWorldWhiteTexture creates a simple 1x1 white texture for fallback.
 // Used when actual textures are not yet available for rendering.
 func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queue) (*wgpu.Texture, *wgpu.TextureView, error) {

@@ -93,7 +93,7 @@ func (dc *DrawContext) flush2DOverlayWithDraw(doDraw bool) {
 		r.overlayTextureDirtyH = currentDirty.h
 		r.overlayTextureDirtyValid = true
 		r.mu.Unlock()
-		tex, err := dc.ctx.Renderer().NewTextureFromRGBA(ov.width, ov.height, ov.pixels)
+		tex, err := uploadRGBAThruGogpu(dc.ctx, ov.width, ov.height, ov.pixels)
 		if err != nil {
 			slog.Error("flush2DOverlay: texture upload failed", "error", err)
 			dc.overlay = nil

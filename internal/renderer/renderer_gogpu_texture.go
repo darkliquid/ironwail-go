@@ -1,11 +1,31 @@
 package renderer
 
 import (
+	"errors"
 	"log/slog"
+	"runtime"
 
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/gogpu/gogpu"
 )
+
+// ErrGogpuTextureUploadUnavailable marks texture uploads that cannot be
+// performed through gogpu on the current platform.
+var ErrGogpuTextureUploadUnavailable = errors.New("gogpu texture upload unavailable on this platform")
+
+// uploadRGBAThruGogpu uploads RGBA pixels through gogpu's texture path.
+// In browsers (js/wasm) gogpu's NewTextureFromRGBA panics: the wgpu browser
+// shim dereferences a nil texture-view descriptor that the native path
+// defaults (upstream gogpu/wgpu#315). Rather than crash the frame, report
+// the upload as unavailable so callers degrade gracefully (e.g. skip the
+// HUD texture draw) until upstream ships the nil-descriptor fix.
+func uploadRGBAThruGogpu(ctx *gogpu.Context, width, height int, rgba []byte) (*gogpu.Texture, error) {
+	if runtime.GOOS == "js" {
+		return nil, ErrGogpuTextureUploadUnavailable
+	}
+	return ctx.Renderer().NewTextureFromRGBA(width, height, rgba)
+}
+
 
 func (r *Renderer) getCharPic(num int) *image.QPic {
 	r.mu.RLock()
@@ -51,7 +71,7 @@ func (r *Renderer) getOrCreateCharTexture(ctx *gogpu.Context, num int, pic *imag
 	}
 
 	rgba := ConvertConcharsToRGBA(pic.Pixels, palette)
-	newTex, err := ctx.Renderer().NewTextureFromRGBA(int(pic.Width), int(pic.Height), rgba)
+	newTex, err := uploadRGBAThruGogpu(ctx, int(pic.Width), int(pic.Height), rgba)
 	if err != nil {
 		slog.Error("getOrCreateCharTexture: upload failed", "num", num, "error", err)
 		return nil
@@ -117,7 +137,7 @@ func (r *Renderer) getOrCreateTexture(ctx *gogpu.Context, pic *image.QPic) *gogp
 	rgba := ConvertPaletteToRGBA(pic.Pixels, palette)
 
 	// Create texture
-	tex, err := ctx.Renderer().NewTextureFromRGBA(int(pic.Width), int(pic.Height), rgba)
+	tex, err := uploadRGBAThruGogpu(ctx, int(pic.Width), int(pic.Height), rgba)
 	if err != nil {
 		slog.Error("Failed to create texture", "error", err)
 		return nil
@@ -153,7 +173,7 @@ func (r *Renderer) getOrCreateColorTexture(ctx *gogpu.Context, color byte) *gogp
 		rgba[0], rgba[1], rgba[2], rgba[3] = pr, pg, pb, 255
 	}
 
-	newTex, err := ctx.Renderer().NewTextureFromRGBA(1, 1, rgba)
+	newTex, err := uploadRGBAThruGogpu(ctx, 1, 1, rgba)
 	if err != nil {
 		slog.Error("Failed to create color texture", "error", err)
 		return nil

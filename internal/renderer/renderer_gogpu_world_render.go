@@ -179,7 +179,11 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Set uniform bind group.
 	if dc.renderer.resources.UniformBindGroup != nil {
 		slog.Debug("renderWorldInternal: setting bind group", "group", fmt.Sprintf("%T", dc.renderer.resources.UniformBindGroup))
-		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, nil)
+		// Binding 0 is a dynamic-uniform buffer; the world path writes its
+		// scene uniforms at offset 0 each frame, so supply the single dynamic
+		// offset the layout declares (strict-validating browsers reject
+		// SetBindGroup with 0 offsets for a layout with 1 dynamic buffer).
+		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, []uint32{0})
 	} else {
 		slog.Warn("renderWorldInternal: NO uniform bind group set")
 	}
@@ -581,7 +585,7 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor [3]float32, fog
 		return
 	}
 	renderPass.SetPipeline(pipeline)
-	renderPass.SetBindGroup(0, uniformBindGroup, nil)
+	renderPass.SetBindGroup(0, uniformBindGroup, []uint32{0})
 	renderPass.SetBindGroup(1, externalSkyBindGroup, nil)
 	renderPass.SetVertexBuffer(0, vertexBuffer, 0)
 	renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)

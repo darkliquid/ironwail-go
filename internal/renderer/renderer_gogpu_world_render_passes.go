@@ -208,7 +208,7 @@ func (dc *DrawContext) renderWorldTranslucentPass(
 				return fmt.Errorf("failed to write translucent liquid uniform")
 			}
 		}
-		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, nil)
+		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, []uint32{0})
 
 		setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
 		if setTexture {

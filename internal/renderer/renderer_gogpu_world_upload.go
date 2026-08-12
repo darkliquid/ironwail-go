@@ -494,7 +494,10 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			// The shader multiplies texture color by totalLight * 2.0,
 			// so black (0) gives 0 brightness, matching C behavior.
 			var blackErr error
-			blackTexture, blackLightmapView, blackErr = r.createWorldSolidTextureArray(device, queue, "World Black Lightmap Array", [4]byte{0, 0, 0, 255}, 1)
+			// Black fallback lightmap: a plain 2D view. The lightmap bind
+			// group layout expects TextureViewDimension2D; the array variant
+			// (2DArray view) is rejected by strict-validating browsers.
+			blackTexture, blackLightmapView, blackErr = r.createWorldSolidTexture(device, queue, "World Black Lightmap", [4]byte{0, 0, 0, 255})
 			if blackErr != nil || blackLightmapView == nil {
 				slog.Warn("Failed to create black lightmap fallback texture", "error", blackErr)
 				fallbackView := worldLightmapFallbackView(transparentTextureView, whiteTextureView)
