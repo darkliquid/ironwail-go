@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"runtime/debug"
 	"syscall/js"
 
 	"github.com/darkliquid/ironwail-go/internal/game"
@@ -82,6 +83,7 @@ func runRendererSafe(g *game.Game, startup game.StartupOptions) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Warn("renderer panic — falling back to headless walkthrough", "panic", fmt.Sprint(r))
+			debug.PrintStack()
 			g.RunWasmHeadlessLoop()
 		}
 	}()

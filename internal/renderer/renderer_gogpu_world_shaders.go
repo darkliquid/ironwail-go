@@ -707,9 +707,12 @@ fn sampleExternalSky(dir: vec3<f32>) -> vec4<f32> {
     let sZP = textureSample(skyRT, skySampler, uvZP);
     let sZN = textureSample(skyLF, skySampler, uvZN);
 
-    let pickX = select(sXN, sXP, sigX);
-    let pickY = select(sYN, sYP, sigY);
-    let pickZ = select(sZN, sZP, sigZ);
+    // Blend the +/- pair per axis with the scalar sign, then mask with the
+    // dominant-axis factor. mix(vecN,f32) avoids select(vecN,vecN,bool),
+    // which browser-strict WGSL rejects (vector select needs vecN<bool>).
+    let pickX = mix(sXN, sXP, sigX);
+    let pickY = mix(sYN, sYP, sigY);
+    let pickZ = mix(sZN, sZP, sigZ);
     return pickX * isX + pickY * isY + pickZ * isZ;
 }
 
