@@ -371,10 +371,13 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			_ = renderPass.End()
 			return
 		}
-		if err := queue.WriteBuffer(opaqueBatchBuffer, 0, uint32SliceToBytes(batchedIndices)); err != nil {
-			slog.Error("renderWorldInternal: Failed to upload batched world indices", "error", err)
-			_ = renderPass.End()
-			return
+		if !cacheHit || dc.renderer.worldDynamicIndexBufferLeaf != cameraLeafIndex {
+			if err := queue.WriteBuffer(opaqueBatchBuffer, 0, uint32SliceToBytes(batchedIndices)); err != nil {
+				slog.Error("renderWorldInternal: Failed to upload batched world indices", "error", err)
+				_ = renderPass.End()
+				return
+			}
+			dc.renderer.worldDynamicIndexBufferLeaf = cameraLeafIndex
 		}
 		batchUploadMS = float64(time.Since(batchUploadStart)) / float64(time.Millisecond)
 	}

@@ -217,6 +217,7 @@ type worldRendererState struct {
 	worldIndexBuffer              *wgpu.Buffer
 	worldDynamicIndexBuffer       *wgpu.Buffer
 	worldDynamicIndexBufferSize   uint64
+	worldDynamicIndexBufferLeaf   int
 	worldIndexCount               uint32
 	// resources owns the renderer's wgpu object graph (plan 16+2a); the
 	// fields below are the ones whose types live in renderer-root and cannot

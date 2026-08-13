@@ -40,6 +40,7 @@ func (r *Renderer) ensureGoGPUWorldDynamicIndexBuffer(device *wgpu.Device, size 
 		r.worldDynamicIndexBuffer.Release()
 		r.worldDynamicIndexBuffer = nil
 		r.worldDynamicIndexBufferSize = 0
+		r.worldDynamicIndexBufferLeaf = -1
 	}
 	allocSize := size
 	if allocSize < 4096 {
@@ -56,6 +57,7 @@ func (r *Renderer) ensureGoGPUWorldDynamicIndexBuffer(device *wgpu.Device, size 
 	}
 	r.worldDynamicIndexBuffer = buffer
 	r.worldDynamicIndexBufferSize = allocSize
+	r.worldDynamicIndexBufferLeaf = -1
 	return buffer, nil
 }
 
