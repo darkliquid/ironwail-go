@@ -2,6 +2,7 @@
 TIMEOUT = "5"
 CGO_ENABLED = "0"
 [tools]
+deno = "latest"
 go = "1.26"
 golangci-lint = "latest"
 "go:golang.org/x/vuln/cmd/govulncheck" = "latest"
@@ -123,7 +124,6 @@ run = "mkdir -p web/bin && GOOS=js GOARCH=wasm go build -o web/bin/ironwail-harn
 depends = ["build-wasm-harness"]
 description = "Run the Deno wasm-walkthrough test suite (webgpu_smoke + harness). Needs a pak; tries .tmp/pak0.pak then $PAK0_PATH"
 run = "deno test -A --no-check web/deno-tests/"
-
 
 
 [tasks.run]
