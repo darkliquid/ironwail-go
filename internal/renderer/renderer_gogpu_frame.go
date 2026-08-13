@@ -182,7 +182,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// HAL renders to dc.ctx.SurfaceView() which is the current frame's swapchain texture.
 	// Then gogpu draws 2D overlay on top with LoadOpLoad to preserve the world.
 	if state.DrawWorld {
-		slog.Info("debug_frame_state", "draw_world", state.DrawWorld, "draw_entities", state.DrawEntities, "scene_target_active", sceneTargetActive, "has_world_data", dc.renderer.HasWorldData())
+		slog.Debug("debug_frame_state", "draw_world", state.DrawWorld, "draw_entities", state.DrawEntities, "scene_target_active", sceneTargetActive, "has_world_data", dc.renderer.HasWorldData())
 		dc.renderer.setGoGPUWorldLightStyleValues(state.LightStyles)
 		slog.Debug("RenderFrame: rendering world to surface")
 		phaseBegin()

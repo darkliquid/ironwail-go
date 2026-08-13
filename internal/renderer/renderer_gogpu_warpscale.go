@@ -82,10 +82,6 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 `
 
 func (r *Renderer) sceneSurfaceFormat() gputypes.TextureFormat {
-	if fmt := gogpu.GetBrowserPreferredCanvasFormat(); fmt != gputypes.TextureFormatUndefined && fmt != gputypes.TextureFormatBGRA8Unorm {
-		return fmt
-	}
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
 	if r != nil && r.app != nil {
 		if provider := r.app.DeviceProvider(); provider != nil {
 			if fmt := provider.SurfaceFormat(); fmt != gputypes.TextureFormatUndefined {
@@ -93,7 +89,10 @@ func (r *Renderer) sceneSurfaceFormat() gputypes.TextureFormat {
 			}
 		}
 	}
-	return surfaceFormat
+	if fmt := gogpu.GetBrowserPreferredCanvasFormat(); fmt != gputypes.TextureFormatUndefined {
+		return fmt
+	}
+	return gputypes.TextureFormatBGRA8Unorm
 }
 
 func (r *Renderer) destroySceneCompositeResourcesLocked() {

@@ -66,3 +66,20 @@ func TestGetStateJSONStableAcrossCalls(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestInspectorGoroutinesAndTelemetry(t *testing.T) {
+	goroutines := inspectorGetGoroutines()
+	res, ok := goroutines.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map[string]any, got %T", goroutines)
+	}
+	count, ok := res["count"].(int)
+	if !ok || count <= 0 {
+		t.Fatalf("expected positive count, got %v", res["count"])
+	}
+	stack, ok := res["stack"].(string)
+	if !ok || len(stack) == 0 {
+		t.Fatalf("expected non-empty stack string, got %v", res["stack"])
+	}
+}
+

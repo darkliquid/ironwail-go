@@ -14,6 +14,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"unsafe"
 
@@ -159,15 +160,12 @@ func engineStepFrames(n uint32) {
 
 
 //go:wasmexport boot_renderer
-//go:wasmexport boot_renderer
 func bootRenderer() uint32 {
-	// Boots the rAF-driven browser frame path WITHOUT gogpu's App.Run main
-	// loop (which busy-loops + deadlocks on wasm). Installs the runtime
-	// update callback so each rAF tick -> StepWasmFrame -> one full host
-	// frame (input/physics/client), matching the browser walkthrough after
-	// the RunRuntimeRendererLoop fix. rc is written to stateMem[124]
-	// (0 ok, 1 nil renderer) since wasm return values carry garbage high
-	// bits. Returns 0 always.
+	// Boots the rAF-driven browser frame path with gogpu's App.Run initialized
+	// in a goroutine. Installs the runtime update callback so each rAF tick ->
+	// StepWasmFrame -> one full host frame (input/physics/client).
+	// rc is written to stateMem[124] (0 ok, 1 nil renderer) since wasm return
+	// values carry garbage high bits. Returns 0 always.
 	if g == nil || g.Renderer == nil {
 		leu32(stateMem[124:], 1)
 		return 0
@@ -179,6 +177,11 @@ func bootRenderer() uint32 {
 	g.Renderer.OnUpdate(func(dt float64) {
 		g.DriveRuntimeFrame(dt)
 	})
+	go func() {
+		if err := g.Renderer.Run(); err != nil {
+			slog.Warn("WASM harness gogpu renderer loop exited", "error", err)
+		}
+	}()
 	g.StartWasmRendererFrameLoop()
 	leu32(stateMem[124:], 0)
 	return 0

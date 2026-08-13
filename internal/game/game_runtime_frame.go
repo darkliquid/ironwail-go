@@ -58,17 +58,37 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 
 	slog.Debug("frame loop started")
 
-	// Browser (js/wasm): gogpu's App.Run() main loop cannot run on Go's wasm
-	// runtime — its render-thread goroutine + no-op WaitEvents busy-loops at
-	// 100% CPU and derails on JS re-entrancy, spinning without presenting and
-	// growing memory. The browser path therefore does NOT call Renderer.Run
-	// at all: install the runtime callbacks so StepWasmFrame drives host
-	// frames (input/physics/client) from requestAnimationFrame, and let the
-	// rAF loop's best-effort CPU blit + watchdog handle the GPU side (see
-	// wasm_frameloop.go). The engine starts paused so the world loads frozen;
-	// the walkthrough Play/Step controls advance frames.
+	// Browser (js/wasm): gogpu's App.Run() initializes the WebGPU device,
+	// queue, and swapchain on the canvas. On WASM, App.Run() is launched in a
+	// background goroutine so that gogpu initializes the GPU context while
+	// StepWasmFrame and requestAnimationFrame drive host frames and redraws.
+	// The engine starts paused so the world loads frozen; the walkthrough
+	// Play/Step controls advance frames.
 	if runtime.GOOS == "js" {
 		g.wasmStartPaused()
+		if g.Renderer != nil {
+			ready := make(chan struct{})
+			go func() {
+				go func() {
+					for i := 0; i < 100; i++ {
+						if dp, ok := g.Renderer.(interface{ DeviceProvider() any }); ok && dp.DeviceProvider() != nil {
+							close(ready)
+							return
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+					select {
+					case <-ready:
+					default:
+						close(ready)
+					}
+				}()
+				if err := g.Renderer.Run(); err != nil {
+					slog.Warn("WASM gogpu renderer loop exited", "error", err)
+				}
+			}()
+			<-ready
+		}
 		g.StartWasmRendererFrameLoop()
 		select {}
 	}
@@ -108,7 +128,7 @@ func (g *Game) prepareRuntimeRendererScreenshot(screenshotMode bool) {
 
 func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeRendererLoopState) {
 	var paritySetupDone bool
-	var paritySettleCountdown int = 15
+	var paritySettleCountdown = 15
 	g.Renderer.OnUpdate(func(dt float64) {
 		if os.Getenv("PARITY_RUN") == "1" && g.Client != nil && g.Client.State == cl.StateActive && g.Host.SignOns() == 4 {
 			if !paritySetupDone {
@@ -153,7 +173,9 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 
 	var lastDrawTime time.Time
 	g.Renderer.OnDraw(func(dc renderer.RenderContext) {
-		g.runtimeMu.Lock()
+		if !g.runtimeMu.TryLock() {
+			return
+		}
 		defer g.runtimeMu.Unlock()
 
 		now := time.Now()

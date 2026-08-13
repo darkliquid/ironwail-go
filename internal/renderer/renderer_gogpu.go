@@ -198,6 +198,12 @@ type worldRendererState struct {
 	worldOpaqueBatchScratch       []gogpuWorldFaceBatch
 	worldAlphaBatchScratch        []gogpuWorldFaceBatch
 	worldLiquidBatchScratch       []gogpuWorldFaceBatch
+
+	// Persistent WASM readback staging buffer to avoid per-frame GPU allocations.
+	wasmReadbackBuf  *wgpu.Buffer
+	wasmReadbackSize uint64
+	wasmReadbackOut  []byte
+
 	worldBatchCacheEntries        [gogpuWorldBatchCacheEntryCount]gogpuWorldBatchCacheEntry
 	worldBatchCacheNext           int
 

@@ -12,14 +12,28 @@
 package renderer
 
 import (
-	"log/slog"
 	"syscall/js"
+)
+
+var (
+	wasmBlitImgBytes  []byte
+	wasmBlitJSClamped js.Value
+	wasmBlitJSImgData js.Value
+	wasmBlitJSW       int
+	wasmBlitJSH       int
 )
 
 // WasmBlitPresent copies the last rendered world texture onto the page
 // canvas (2D context). Returns false when no frame is available (headless /
 // renderer not producing) — the caller degrades gracefully.
 func (r *Renderer) WasmBlitPresent() bool {
+	if r == nil {
+		return false
+	}
+	// When WebGPU is active, frames present directly to the canvas swapchain.
+	if r.DeviceProvider() != nil {
+		return true
+	}
 	data, width, height, ok := r.ReadbackWorldTexture()
 	if !ok || width <= 0 || height <= 0 || len(data) < width*height*4 {
 		return false
@@ -41,30 +55,36 @@ func (r *Renderer) WasmBlitPresent() bool {
 	canvas.Set("width", width)
 	canvas.Set("height", height)
 
+	neededLen := width * height * 4
+	if len(wasmBlitImgBytes) != neededLen {
+		wasmBlitImgBytes = make([]byte, neededLen)
+	}
+
 	// putImageData expects RGBA; the readback is BGRA on Deno/browser.
-	imgBytes := make([]byte, width*height*4)
 	for y := 0; y < height; y++ {
 		srcRow := y * width * 4
 		dstRow := y * width * 4
 		for x := 0; x < width; x++ {
 			src := srcRow + x*4
 			dst := dstRow + x*4
-			imgBytes[dst+0] = data[src+2] // R
-			imgBytes[dst+1] = data[src+1] // G
-			imgBytes[dst+2] = data[src+0] // B
-			imgBytes[dst+3] = 255         // A
+			wasmBlitImgBytes[dst+0] = data[src+2] // R
+			wasmBlitImgBytes[dst+1] = data[src+1] // G
+			wasmBlitImgBytes[dst+2] = data[src+0] // B
+			wasmBlitImgBytes[dst+3] = 255         // A
 		}
 	}
-	// Copy into a JS buffer for putImageData.
-	ab := js.Global().Get("ArrayBuffer").New(len(imgBytes))
-	js.CopyBytesToJS(ab, imgBytes) //nolint:gocritic // byte-slice -> JS ArrayBuffer
-	imgData := js.Global().Get("ImageData").New(
-		js.Global().Get("Uint8ClampedArray").New(ab),
-		width,
-		height,
-	)
-	ctx.Call("putImageData", imgData, 0, 0)
-	slog.Debug("wasm blit present", "width", width, "height", height)
+
+	// Reuse JS Uint8ClampedArray and ImageData objects if resolution hasn't changed.
+	if wasmBlitJSW != width || wasmBlitJSH != height || wasmBlitJSImgData.IsUndefined() || wasmBlitJSImgData.IsNull() {
+		jsArrayBuffer := js.Global().Get("ArrayBuffer").New(neededLen)
+		wasmBlitJSClamped = js.Global().Get("Uint8ClampedArray").New(jsArrayBuffer)
+		wasmBlitJSImgData = js.Global().Get("ImageData").New(wasmBlitJSClamped, width, height)
+		wasmBlitJSW = width
+		wasmBlitJSH = height
+	}
+
+	js.CopyBytesToJS(wasmBlitJSClamped, wasmBlitImgBytes)
+	ctx.Call("putImageData", wasmBlitJSImgData, 0, 0)
 	return true
 }
 

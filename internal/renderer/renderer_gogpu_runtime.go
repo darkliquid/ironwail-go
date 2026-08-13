@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"time"
 
 	"github.com/darkliquid/ironwail-go/internal/renderer/pipeline"
 	"github.com/gogpu/gogpu"
@@ -18,6 +19,14 @@ import (
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
+
+// DeviceProvider returns the underlying gogpu DeviceProvider.
+func (r *Renderer) DeviceProvider() gogpu.DeviceProvider {
+	if r == nil || r.app == nil {
+		return nil
+	}
+	return r.app.DeviceProvider()
+}
 
 func New() (*Renderer, error) {
 	return NewWithConfig(ConfigFromCvars())
@@ -45,17 +54,10 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	gpuCfg.Height = cfg.Height
 	gpuCfg.Fullscreen = cfg.Fullscreen
 
-	// Configure continuous rendering for game loop
-	// Quake engines typically run at max FPS, not event-driven
-	gpuCfg = gpuCfg.WithContinuousRender(true)
-
-	// Browser/wasm: render is driven by the rAF loop (StepWasmFrame →
-	// RequestRedraw), not by a continuous main loop — the browser's WaitEvents
-	// no-ops, so continuous render would hot-loop and starve the page event
-	// loop, locking the tab. WithContinuousRender(false) renders only on
-	// RequestRedraw, letting the rAF loop pace frames.
-	if runtime.GOOS == "js" {
-		gpuCfg = gpuCfg.WithContinuousRender(false)
+	// Configure continuous rendering for game loop on desktop.
+	// On browser/wasm, rendering is demand-driven by requestAnimationFrame (RequestRedraw).
+	if runtime.GOOS != "js" {
+		gpuCfg = gpuCfg.WithContinuousRender(true)
 	}
 
 	// Apply VSync setting from engine config
@@ -186,8 +188,9 @@ func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 			return // Not ready yet
 		}
 
-		// Log device info once
+		// Log device info once & attach WASM WebGPU error/device-loss listeners
 		if !printed {
+			attachWasmDeviceListeners(provider.Device())
 			slog.Debug(
 				"DeviceProvider",
 				slog.String("device", fmt.Sprintf("%T", provider.Device())),
@@ -271,7 +274,9 @@ func (r *Renderer) OnUpdate(callback func(dt float64)) {
 	// updateCallback directly. Without this, App.Run's runFrame would run
 	// onUpdate a second time, double-stepping physics/input.
 	if runtime.GOOS == "js" {
-		r.app.OnUpdate(func(float64) {})
+		r.app.OnUpdate(func(float64) {
+			time.Sleep(16 * time.Millisecond)
+		})
 		return
 	}
 	r.app.OnUpdate(func(dt float64) {
@@ -389,17 +394,30 @@ func (r *Renderer) ReadbackWorldTexture() ([]byte, int, int, bool) {
 	bytesPerRow := (width*4 + 255) &^ 255
 	bufferSize := uint64(bytesPerRow * height)
 
-	readbackBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
-		Label:            "Harness Readback Buffer",
-		Size:             bufferSize,
-		Usage:            gputypes.BufferUsageCopyDst | gputypes.BufferUsageMapRead,
-		MappedAtCreation: false,
-	})
-	if err != nil {
-		slog.Warn("readback: create buffer failed", "err", err)
-		return nil, 0, 0, false
+	r.mu.Lock()
+	if r.wasmReadbackBuf == nil || r.wasmReadbackSize != bufferSize {
+		if r.wasmReadbackBuf != nil {
+			r.wasmReadbackBuf.Release()
+			r.wasmReadbackBuf = nil
+		}
+		readbackBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label:            "Harness Readback Buffer",
+			Size:             bufferSize,
+			Usage:            gputypes.BufferUsageCopyDst | gputypes.BufferUsageMapRead,
+			MappedAtCreation: false,
+		})
+		if err != nil {
+			r.mu.Unlock()
+			slog.Warn("readback: create buffer failed", "err", err)
+			return nil, 0, 0, false
+		}
+		r.wasmReadbackBuf = readbackBuffer
+		r.wasmReadbackSize = bufferSize
+		r.wasmReadbackOut = make([]byte, bufferSize)
 	}
-	defer readbackBuffer.Release()
+	readbackBuffer := r.wasmReadbackBuf
+	outBuf := r.wasmReadbackOut
+	r.mu.Unlock()
 
 	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Harness Readback Encoder"})
 	if err != nil {
@@ -450,17 +468,16 @@ func (r *Renderer) ReadbackWorldTexture() ([]byte, int, int, bool) {
 	defer mappedRange.Release()
 
 	mapped := mappedRange.Bytes()
-	out := make([]byte, bufferSize)
-	copy(out, mapped)
-	return out, width, height, true
+	copy(outBuf, mapped)
+	return outBuf, width, height, true
 }
 
 // CaptureScreenshot reads back the current rendered scene texture and exports a PNG image.
 func (r *Renderer) CaptureScreenshot(filename string) error {
-	// width/height feed the headless fallback image; format decodes the
-	// readback channel order.
-	width := r.resources.WorldRenderWidth
-	height := r.resources.WorldRenderHeight
+	var (
+		width  int
+		height int
+	)
 	format := r.sceneSurfaceFormat()
 
 	data, rbWidth, rbHeight, ok := r.ReadbackWorldTexture()

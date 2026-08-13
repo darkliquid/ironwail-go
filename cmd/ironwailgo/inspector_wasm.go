@@ -96,8 +96,45 @@ func installInspector(g *game.Game) {
 		g.WasmStepFrames(n)
 		return nil
 	}))
+	obj.Set("getGoroutines", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return toJSValue(inspectorGetGoroutines())
+	}))
+	obj.Set("getTelemetryLog", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return toJSValue(inspectorGetTelemetryLog(g))
+	}))
+	obj.Set("getGpuStatus", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return toJSValue(inspectorGetGpuStatus(g))
+	}))
 	js.Global().Set("ironwailInspector", obj)
 }
+
+func inspectorGetGoroutines() any {
+	return game.WasmGoroutineSnapshot()
+}
+
+func inspectorGetTelemetryLog(g *game.Game) any {
+	if g == nil {
+		return []map[string]any{}
+	}
+	return g.GetWasmTelemetryLog()
+}
+
+func inspectorGetGpuStatus(g *game.Game) any {
+	out := map[string]any{
+		"navigatorGpu": false,
+		"rendererActive": false,
+	}
+	if doc := js.Global().Get("document"); !doc.IsUndefined() && !doc.IsNull() {
+		nav := js.Global().Get("navigator")
+		gpu := nav.Get("gpu")
+		out["navigatorGpu"] = gpu.Truthy()
+	}
+	if g != nil && g.Renderer != nil {
+		out["rendererActive"] = true
+	}
+	return out
+}
+
 // inspectorGetState returns a JSON-friendly snapshot for a single layer.
 func inspectorGetState(g *game.Game, args []js.Value) any {
 	layer := "host"

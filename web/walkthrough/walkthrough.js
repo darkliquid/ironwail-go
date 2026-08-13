@@ -141,6 +141,34 @@ function renderState() {
       panel.appendChild(passCard);
     }
   }
+
+  if (insp.getGoroutines && (activeLayer === "host" || activeLayer === "boot")) {
+    const gr = insp.getGoroutines();
+    if (gr && gr.count) {
+      const grCard = el("div", "card");
+      grCard.appendChild(el("div", "card-title", "Goroutines (" + gr.count + " active)"));
+      const grPre = el("pre", "mono");
+      grPre.style.maxHeight = "200px";
+      grPre.style.overflow = "auto";
+      grPre.textContent = gr.stack || "(no stack)";
+      grCard.appendChild(grPre);
+      panel.appendChild(grCard);
+    }
+  }
+
+  if (insp.getTelemetryLog && (activeLayer === "host" || activeLayer === "boot")) {
+    const tele = insp.getTelemetryLog();
+    if (tele && tele.length) {
+      const teleCard = el("div", "card");
+      teleCard.appendChild(el("div", "card-title", "Engine Telemetry Log (" + tele.length + " events)"));
+      const telePre = el("pre", "mono");
+      telePre.style.maxHeight = "150px";
+      telePre.style.overflow = "auto";
+      telePre.textContent = tele.map(e => "+" + e.timeMs + "ms [" + e.phase + "] " + e.message).join("\n");
+      teleCard.appendChild(telePre);
+      panel.appendChild(teleCard);
+    }
+  }
 }
 
 function renderTimeline() {
@@ -208,6 +236,7 @@ function setupControls() {
 }
 
 function tick() {
+  if (window.__ironwailRecordFrameTick) window.__ironwailRecordFrameTick();
   syncPause();
   renderState();
   renderTimeline();

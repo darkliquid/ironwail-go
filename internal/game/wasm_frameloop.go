@@ -105,7 +105,7 @@ func (g *Game) StartWasmRendererFrameLoop() {
 			// it onto the canvas so the viewport shows real engine output
 			// even if gogpu's swapchain never presents on wasm.
 			if rr, ok := g.Renderer.(interface{ WasmBlitPresent() bool }); ok {
-				if rr.WasmBlitPresent() {
+				if rr.WasmBlitPresent() || g.WasmPaused() {
 					idleSince = -1
 				} else if idleSince < 0 {
 					idleSince = 0
@@ -114,11 +114,12 @@ func (g *Game) StartWasmRendererFrameLoop() {
 				}
 			}
 
-			// Watchdog: no frame produced for too long => renderer is
+			// Watchdog: no frame produced for too long while playing => renderer is
 			// spinning without presenting. Stop it and run the headless
 			// inspector loop (frames/panels keep working).
 			if idleSince > watchdogFrames {
-				slog.Warn("WASM renderer produced no frames — stopping and degrading to headless loop")
+				slog.Warn("WASM renderer produced no frames while playing — stopping and degrading to headless loop")
+				g.RecordWasmTelemetry("renderer", "watchdog degraded renderer to headless loop after timeout")
 				g.Renderer.Stop()
 				g.Renderer = nil
 				frameFunc.Release()
