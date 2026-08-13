@@ -76,6 +76,13 @@ func (g *Game) StartWasmRendererFrameLoop() {
 	last := time.Now()
 	var frameFunc js.Func
 
+	// watchdog: if the renderer never produces a GPU world frame within this
+	// many rAF callbacks, stop it and degrade to the headless loop. gogpu's
+	// wasm App.Run can busy-loop (WaitEvents no-op) and leak memory without
+	// ever presenting; this bounds the damage so the walkthrough stays usable.
+	const watchdogFrames = 120 // ~2s at 60fps
+	var idleSince = -1
+
 	frameFunc = js.FuncOf(func(this js.Value, args []js.Value) any {
 		if g.Host != nil && g.Host.IsAborted() {
 			frameFunc.Release()
@@ -93,6 +100,31 @@ func (g *Game) StartWasmRendererFrameLoop() {
 		// frame state) and request WebGPU redraw.
 		if g.Renderer != nil {
 			g.Renderer.StepWasmFrame(dt)
+
+			// Best-effort CPU present: when a world frame is available, blit
+			// it onto the canvas so the viewport shows real engine output
+			// even if gogpu's swapchain never presents on wasm.
+			if rr, ok := g.Renderer.(interface{ WasmBlitPresent() bool }); ok {
+				if rr.WasmBlitPresent() {
+					idleSince = -1
+				} else if idleSince < 0 {
+					idleSince = 0
+				} else {
+					idleSince++
+				}
+			}
+
+			// Watchdog: no frame produced for too long => renderer is
+			// spinning without presenting. Stop it and run the headless
+			// inspector loop (frames/panels keep working).
+			if idleSince > watchdogFrames {
+				slog.Warn("WASM renderer produced no frames — stopping and degrading to headless loop")
+				g.Renderer.Stop()
+				g.Renderer = nil
+				frameFunc.Release()
+				go g.RunWasmHeadlessLoop()
+				return nil
+			}
 		}
 
 		window.Call("requestAnimationFrame", frameFunc)

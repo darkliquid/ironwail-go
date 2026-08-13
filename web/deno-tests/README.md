@@ -12,6 +12,8 @@ question, answered headlessly.
 | `harness.ts` | Deno driver for the pollable engine wasm (`web/bin/ironwail-harness.wasm`): loads `wasm_exec.js`, mounts a Quake pak into linear memory, reads the shared state struct, injects input, steps frames, and captures pixels. |
 | `walkthrough_test.ts` | Engine-level assertions: boots the engine, loads `maps/start.bsp`, advances the host frame loop, injects input that reaches the `input.System`, and verifies renderer/pixel status degrades gracefully without a WebGPU surface. |
 | `webgpu_smoke_test.ts` | Engine-independent proof that Deno's WebGPU (OffscreenCanvas + `navigator.gpu`) can clear, draw, and **read back** pixels to the CPU — the platform prerequisite for any GPU pixel assertion. |
+| `browser_env.ts` | DOM/canvas polyfill for the browser-present tests: `document`/`window`/`requestAnimationFrame` backed by Deno's OffscreenCanvas + WebGPU. |
+| `browser_present_test.ts` | Browser-walkthrough present path: boots the rAF-driven loop like a real page, asserts frames advance and the renderer watchdog keeps CPU/memory bounded when gogpu's wasm loop cannot present. |
 | `deno.json` | Import map + compiler options for the suite. |
 
 ## The engine side: `cmd/ironwailgo-harness`
@@ -76,3 +78,39 @@ deno test -A --no-check web/deno-tests/
 - Deterministic assertions that always hold: engine boots → map active →
   frames advance → dt is honored → input reaches `input.System` → renderer
   present + readback attempts don't crash the engine.
+
+## Browser render-loop fix (why the walkthrough spun + leaked)
+
+The browser walkthrough previously ran `go Renderer.Run()` (gogpu's `App.Run`)
+under wasm. Two wasm-specific failures combined to spin CPU at 100% and grow
+memory without ever presenting:
+
+1. `App.Run`'s `for { runFrame() }` loop calls `platform.WaitEvents()`, which
+   is a **no-op on the browser platform** — so the loop busy-spins whenever
+   there is nothing to draw (no invalidation).
+2. gogpu's render work runs on a dedicated render-thread goroutine + channel
+   (`internal/thread.Thread`). On Go's single-threaded wasm runtime, the
+   worker's `syscall/js` calls into wgpu/browser require the **main goroutine**
+   to pump the JS event loop — but the main goroutine is blocked on the
+   channel. The result is a deadlock/spin with no frames, plus memory growth.
+
+The fix (`internal/game/game_runtime_frame.go` + `internal/game/wasm_frameloop.go`):
+
+- **Do not call `Renderer.Run()` on wasm.** Install the runtime update
+  callback and drive host frames from `requestAnimationFrame` via
+  `StepWasmFrame` (input/physics/client all advance; the renderer is started
+  only if gogpu can present).
+- **CPU-blit present** (`internal/renderer/wasm_blit.go`, best-effort): when a
+  world frame IS produced, `ReadbackWorldTexture` + `putImageData` onto the
+  canvas so the walkthrough viewport shows real engine output even when
+  gogpu's swapchain cannot present.
+- **Watchdog:** if no GPU world frame is produced within ~2s of rAF ticks,
+  stop the renderer and degrade to the headless inspector loop (bounded CPU +
+  memory; panels/console keep working). Verified by
+  `browser_present_test.ts` ("WASM renderer produced no frames — stopping and
+  degrading to headless loop").
+
+Known limitation (tracked): gogpu's full wasm render loop — inline render
+thread + `StartWasm`/per-rAF `runFrame` — requires a gogpu patch (vendored
+fork). The current fix bounds the damage and keeps the walkthrough usable;
+full GPU presents on the canvas need that follow-up.

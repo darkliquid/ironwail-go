@@ -140,6 +140,52 @@ func engineAdvance(dtNS int64) uint32 {
 	fillState()
 	return uint32(uintptr(unsafe.Pointer(&stateMem[0])))
 }
+//go:wasmexport engine_set_paused
+func engineSetPaused(paused uint32) {
+	if g == nil {
+		return
+	}
+	g.WasmSetPaused(paused != 0)
+}
+
+//go:wasmexport engine_step_frames
+func engineStepFrames(n uint32) {
+	if g == nil || n == 0 {
+		return
+	}
+	g.WasmStepFrames(int(n))
+}
+
+
+
+//go:wasmexport boot_renderer
+//go:wasmexport boot_renderer
+func bootRenderer() uint32 {
+	// Boots the rAF-driven browser frame path WITHOUT gogpu's App.Run main
+	// loop (which busy-loops + deadlocks on wasm). Installs the runtime
+	// update callback so each rAF tick -> StepWasmFrame -> one full host
+	// frame (input/physics/client), matching the browser walkthrough after
+	// the RunRuntimeRendererLoop fix. rc is written to stateMem[124]
+	// (0 ok, 1 nil renderer) since wasm return values carry garbage high
+	// bits. Returns 0 always.
+	if g == nil || g.Renderer == nil {
+		leu32(stateMem[124:], 1)
+		return 0
+	}
+	g.WasmSetPaused(true)
+	renderedFrames = 0
+	// Mirror installRuntimeRendererCallbacks: the rAF driver's StepWasmFrame
+	// calls this to run the full runtime frame.
+	g.Renderer.OnUpdate(func(dt float64) {
+		g.DriveRuntimeFrame(dt)
+	})
+	g.StartWasmRendererFrameLoop()
+	leu32(stateMem[124:], 0)
+	return 0
+}
+
+// renderedFrames counts StepWasmFrame-driven renderer updates (diagnostic).
+var renderedFrames int64
 
 //go:wasmexport debug_state
 func debugState() uint32 {

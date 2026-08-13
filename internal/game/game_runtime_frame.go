@@ -58,20 +58,17 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 
 	slog.Debug("frame loop started")
 
-	// Browser (js/wasm): the renderer must stay alive via App.Run, but its
-	// WaitEvents is a no-op in the browser and continuous render hot-loops.
-	// We disable continuous render at init (see NewWithConfig) so frames are
-	// paced by RequestRedraw; run App.Run in a goroutine so the page event
-	// loop stays responsive, and let the rAF driver issue RequestRedraw.
-	// The engine starts paused so the synthetic room loads frozen; the user
-	// steps frame-by-frame with the walkthrough's Play/Step controls.
+	// Browser (js/wasm): gogpu's App.Run() main loop cannot run on Go's wasm
+	// runtime — its render-thread goroutine + no-op WaitEvents busy-loops at
+	// 100% CPU and derails on JS re-entrancy, spinning without presenting and
+	// growing memory. The browser path therefore does NOT call Renderer.Run
+	// at all: install the runtime callbacks so StepWasmFrame drives host
+	// frames (input/physics/client) from requestAnimationFrame, and let the
+	// rAF loop's best-effort CPU blit + watchdog handle the GPU side (see
+	// wasm_frameloop.go). The engine starts paused so the world loads frozen;
+	// the walkthrough Play/Step controls advance frames.
 	if runtime.GOOS == "js" {
 		g.wasmStartPaused()
-		go func() {
-			if err := g.Renderer.Run(); err != nil && g.isRendererError(err) {
-				slog.Warn("renderer loop failed (browser)", "err", err)
-			}
-		}()
 		g.StartWasmRendererFrameLoop()
 		select {}
 	}
