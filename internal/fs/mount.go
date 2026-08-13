@@ -8,7 +8,6 @@
 package fs
 
 import (
-	"io/fs"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
@@ -45,7 +44,7 @@ func newRootFS(dir string) *rootFS {
 }
 
 // Open implements io/fs.FS.
-func (r *rootFS) Open(name string) (fs.File, error) {
+func (r *rootFS) Open(name string) (iofs.File, error) {
 	if r == nil || r.fs == nil {
 		return nil, iofs.ErrInvalid
 	}
@@ -61,7 +60,7 @@ func (r *rootFS) ReadFile(name string) ([]byte, error) {
 }
 
 // Stat implements io/fs.StatFS.
-func (r *rootFS) Stat(name string) (fs.FileInfo, error) {
+func (r *rootFS) Stat(name string) (iofs.FileInfo, error) {
 	if r == nil || r.fs == nil {
 		return nil, iofs.ErrInvalid
 	}
@@ -103,24 +102,4 @@ func (m *mount) Resolve(name string) *SearchResult {
 		return m.pak.Resolve(name)
 	}
 	return nil
-}
-
-// fs returns this mount's io/fs.FS surface (used by the OverlayFS).
-func (m *mount) fs() iofs.FS {
-	if m == nil {
-		return nil
-	}
-	if m.kind == mountLoose {
-		return m.loose
-	}
-	return m.pak
-}
-
-// isDir returns whether a name refers to a directory within this mount.
-func (m *mount) isDir(name string) bool {
-	if s, ok := m.fs().(iofs.StatFS); ok {
-		fi, err := s.Stat(name)
-		return err == nil && fi.IsDir()
-	}
-	return false
 }

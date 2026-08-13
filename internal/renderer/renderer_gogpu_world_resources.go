@@ -77,9 +77,7 @@ func (r *Renderer) createWorldRenderTarget() error {
 }
 
 
-func (r *Renderer) createWorldSolidTextureArray(device *wgpu.Device, queue *wgpu.Queue, label string, pixel [4]byte, layers int) (*wgpu.Texture, *wgpu.TextureView, error) {
-	return worldgogpu.CreateWorldSolidTextureArray(device, queue, label, pixel, layers)
-}
+
 
 func (r *Renderer) createWorldSolidTexture(device *wgpu.Device, queue *wgpu.Queue, label string, pixel [4]byte) (*wgpu.Texture, *wgpu.TextureView, error) {
 	return worldgogpu.CreateWorldSolidTexture(device, queue, label, pixel)

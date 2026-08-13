@@ -79,17 +79,19 @@ func TestStepFrameInterleaveInvariants(t *testing.T) {
 			pusher.SetVelocity(h, v)
 		}
 		// Occasionally the rider falls off (groundentity cleared -> not riding).
-		if frame%97 == 0 {
+		switch frame % 97 {
+		case 0:
 			rider.SetFlags(h, 0)
 			rider.SetGroundEntity(h, 0)
-		} else if frame%97 == 1 {
+		case 1:
 			rider.SetFlags(h, srvtypes.FlagOnGround)
 			rider.SetGroundEntity(h, 1)
 		}
 		// Occasionally the toss item is linking (corpse-like).
-		if frame%41 == 0 {
+		switch frame % 41 {
+		case 0:
 			toss.SetSolid(h, float32(srvtypes.SolidTrigger))
-		} else if frame%41 == 1 {
+		case 1:
 			toss.SetSolid(h, float32(srvtypes.SolidNot))
 		}
 

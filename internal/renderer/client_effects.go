@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"math"
 	"math/rand"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
@@ -222,16 +221,7 @@ func muzzleFlashLightOrigin(entity EntityEffectSource) [3]float32 {
 	return origin
 }
 
-// randomMarkRotation picks a random decal rotation to reduce repetition in impact marks.
-// Currently unused — kept for future parity work if a decal system is reintroduced.
-//
-//nolint:unused // retained intentionally
-func randomMarkRotation(rng *rand.Rand) float32 {
-	if rng == nil {
-		return 0
-	}
-	return float32(rng.Float64() * 2.0 * math.Pi)
-}
+
 
 func dynamicLightsEnabled() bool {
 	if pkgCVars == nil {

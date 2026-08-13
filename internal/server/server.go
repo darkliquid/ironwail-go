@@ -433,10 +433,6 @@ func NewServer() *Server {
 				return 0
 			}
 			self := int(vm.GInt(qc.OFSSelf))
-			if self > 0 && self < vm.NumEdicts {
-				if selfEnt := s.EdictNum(self); selfEnt != nil && !selfEnt.Free {
-				}
-			}
 			if s.checkClientSlot == 0 || s.Time-s.checkClientTime >= 0.1 {
 				_ = s.newCheckClient()
 				s.checkClientTime = s.Time
@@ -932,10 +928,6 @@ func NewServer() *Server {
 			ent := s.EdictNum(entNum)
 			if ent == nil || ent.Free {
 				return
-			}
-			if goalNum := int(ent.GoalEntity(s)); goalNum > 0 {
-				if goal := s.EdictNum(goalNum); goal != nil && !goal.Free {
-				}
 			}
 			oldSelf := vm.GInt(qc.OFSSelf)
 			oldOther := vm.GInt(qc.OFSOther)

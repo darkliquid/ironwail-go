@@ -632,8 +632,6 @@ func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.
 	if spawn == nil {
 		t.Fatal("AllocEdict returned nil")
 	}
-	if spawn == nil {
-	}
 	spawn.SetClassName(s, s.QCVM.AllocString("info_player_start"))
 	spawn.SetOrigin(s, [3]float32{480, -320, 64})
 	spawn.SetAngles(s, [3]float32{0, 90, 0})

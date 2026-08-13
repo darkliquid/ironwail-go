@@ -3,10 +3,8 @@ package camera
 
 // System encapsulates camera positioning, chase view, and scope zoom state.
 type System struct {
-	Zoom               float32
-	ZoomDir            float32
-	CameraInLiquid     bool
-	CameraLeafContents int32
+	Zoom    float32
+	ZoomDir float32
 }
 
 // NewSystem creates a new camera system instance with default zoom parameters.

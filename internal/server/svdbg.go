@@ -37,9 +37,8 @@ var (
 )
 
 // svdbg level checker functions — thin wrappers for internal use.
-func svDebugMultiplayerLevel() int { return srvdebug.SvDebugMultiplayerLevel() }
-func svDebugMoveLevel() int        { return srvdebug.SvDebugMoveLevel() }
-func svDebugPushLevel() int        { return srvdebug.SvDebugPushLevel() }
+func svDebugMoveLevel() int { return srvdebug.SvDebugMoveLevel() }
+func svDebugPushLevel() int { return srvdebug.SvDebugPushLevel() }
 
 // svDebugPushDumpTriggersOnce dumps all SOLID_TRIGGER entities once per
 // session so we can see what triggers exist and where they are positioned.

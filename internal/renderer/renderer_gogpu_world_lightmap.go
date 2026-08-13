@@ -100,13 +100,7 @@ func (r *Renderer) setGoGPUWorldLightStyleValues(values [256]float32) {
 	r.mu.Unlock()
 }
 
-// Helper functions to convert Go types to byte slices
-func float32ToBytes(f []float32) []byte {
-	if len(f) == 0 {
-		return nil
-	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(f))), len(f)*4)
-}
+
 
 func uint32SliceToBytes(values []uint32) []byte {
 	if len(values) == 0 {

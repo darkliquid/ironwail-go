@@ -7,8 +7,12 @@ import "testing"
 // boxing in SetGlobal calls made every frame).
 func TestSetGlobalTypedNoAlloc(t *testing.T) {
 	vm := NewVM()
-	if ofs := vm.FindGlobal("time"); ofs >= 0 {
-		// ensure both globals resolve so the benchmark exercises the write
+	vm.Globals = make([]float32, 64)
+	timeName := vm.AllocString("time")
+	serverflagsName := vm.AllocString("serverflags")
+	vm.GlobalDefs = []DDef{
+		{Type: uint16(EvFloat), Ofs: 10, Name: timeName},
+		{Type: uint16(EvFloat), Ofs: 11, Name: serverflagsName},
 	}
 	if got := testing.AllocsPerRun(1000, func() {
 		vm.SetGlobalFloat("time", 1.5)
@@ -24,6 +28,7 @@ func TestSetGlobalTypedNoAlloc(t *testing.T) {
 
 func BenchmarkSetGlobalTyped(b *testing.B) {
 	vm := NewVM()
+	vm.Globals = make([]float32, 64)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

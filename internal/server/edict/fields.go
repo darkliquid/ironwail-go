@@ -2,7 +2,6 @@ package edict
 
 import (
 	"fmt"
-	"hash/fnv"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,19 +15,7 @@ type fieldDefInfo struct {
 	eType qc.EType
 }
 
-// fieldType looks up a field's QuakeC type (EvString, EvEntity, EvFunction,
-// etc.) from the VM's compiled field definitions. It normalises keyName and
-// scans the VM's FieldDefs slice for a matching name. The returned EType
-// tells parseEdictFieldValue how to interpret the raw string value — for
-// instance, EvString values must be allocated via AllocString, EvFunction
-// values are resolved to function indices, and EvEntity values are parsed
-// as plain integers. The DefSaveGlobal flag is masked off because it only
-// matters for save/load, not for type dispatch. Returns false if no
-// matching field definition exists in the loaded progs.
-func (em *Manager) fieldType(keyName string) (qc.EType, bool) {
-	_, etype, ok := em.fieldDef(keyName)
-	return etype, ok
-}
+
 
 // fieldDef looks up a QC field definition by name and returns both its
 // offset in the VM edict data and its declared type. Matching is
@@ -179,18 +166,7 @@ func parseInt32(raw string) (int32, error) {
 	return int32(v), nil
 }
 
-// parseStringFallbackInt32 computes an FNV-1a hash of the input string and
-// returns it as an int32. This is used as a deterministic fallback when a
-// field value cannot be parsed as a plain integer — it guarantees a
-// consistent int32 from any arbitrary string. The hash is not
-// cryptographic; its purpose is to produce a stable, reproducible numeric
-// key that can be stored in an int32 field without losing the identity of
-// the original string (at the cost of possible hash collisions).
-func parseStringFallbackInt32(raw string) int32 {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(raw))
-	return int32(h.Sum32())
-}
+
 
 // parseEdictFieldValue sets a single field on an edict's EntVars from a
 // key-value pair read from map entity data. It normalises the key, looks up

@@ -10,18 +10,7 @@ import (
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 )
 
-// mockCVarReader implements CVarReader for the mover tests.
-type mockCVarReader struct{}
 
-func (mockCVarReader) BoolValue(name string) bool { return false }
-func (mockCVarReader) Get(name string) srvtypes.CvarHandle {
-	return mockCvar{}
-}
-
-type mockCvar struct{}
-
-func (mockCvar) Bool() bool            { return false }
-func (mockCvar) Float32() float32      { return 0 }
 
 // mockFacade implements the PhysicsFacade surface used by the mover and the
 // migrated leaf tests. Unused seams return zero values so tests can construct

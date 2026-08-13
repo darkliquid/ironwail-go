@@ -17,7 +17,7 @@ func BenchmarkEntitySendSortOnManyCandidates(b *testing.B) {
 	type cand struct {
 		key     int
 		entNum  int
-		payload [32]byte // mimic padding so the struct is representative
+		_       [32]byte // mimic padding so the struct is representative
 	}
 	cands := make([]cand, numCandidates)
 	for i := range cands {

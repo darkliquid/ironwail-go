@@ -77,6 +77,4 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-type styleWriter interface {
-	http.ResponseWriter
-}
+

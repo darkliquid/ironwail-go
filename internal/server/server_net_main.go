@@ -687,15 +687,7 @@ func populateWorldModelCollision(m *model.Model, tree *bsp.Tree, file *bsp.File)
 	srvcollision.PopulateWorldModelCollision(m, tree, file)
 }
 
-// buildNodeHull converts BSP nodes/leaves into a hull clipnode graph for player/world collision tracing.
-func buildNodeHull(tree *bsp.Tree, planes []model.MPlane, headNode int) model.Hull {
-	return srvcollision.BuildNodeHull(tree, planes, headNode)
-}
 
-// bspClipNodesToModel normalizes BSP clipnode lump variants into model.MClipNode runtime format.
-func bspClipNodesToModel(file *bsp.File) []model.MClipNode {
-	return srvcollision.BSPClipNodesToModel(file)
-}
 
 // modelBounds resolves bounding boxes for world and inline BSP models for SetModel/LinkEdict updates.
 func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) {

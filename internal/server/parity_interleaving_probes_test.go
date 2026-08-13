@@ -189,7 +189,7 @@ func TestParitySoundNotDroppedNearWatermark(t *testing.T) {
 	// At exactly the boundary, the write must still succeed.
 	target := MaxDatagram - 21
 	// We need a byte that isn't svc_sound so the scan below is unambiguous.
-	var fillByte byte = byte(inet.SVCSignOnNum)
+	fillByte := byte(inet.SVCSignOnNum)
 	written := 0
 	for written < target {
 		s.Datagram.PutByte(fillByte)

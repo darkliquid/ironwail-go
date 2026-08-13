@@ -131,7 +131,7 @@ func BuildMaterialTextureRGBA(pixels, palette []byte, textureType model.TextureT
 			continue
 		}
 		r, g, b := paletteColor(idx, palette)
-		if idx >= 224 && idx <= 255 {
+		if idx >= 224 {
 			switch {
 			case cutout:
 				fullbright[base+0] = r

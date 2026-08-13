@@ -311,7 +311,7 @@ func runParityTest(t *testing.T, quakeDir string, config ParityConfig) {
 		}
 
 		// 2. Camera leaf index comparison
-		var leafIndex int = -1
+		leafIndex := -1
 		if g.Renderer != nil {
 			if r, ok := g.Renderer.(*renderer.Renderer); ok && r.WorldData() != nil && r.WorldData().Geometry != nil {
 				tree := r.WorldData().Geometry.Tree

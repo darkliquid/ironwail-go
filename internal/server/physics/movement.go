@@ -70,7 +70,6 @@ func checkBottom(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *s
 				start[1] = maxs[1]
 			}
 			if col.PointContents(start) != bsp.ContentsSolid {
-				allSolid = false
 				goto realcheck
 			}
 		}

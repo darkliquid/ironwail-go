@@ -180,7 +180,9 @@ func TestGlobalReturnsSingleton(t *testing.T) {
 		t.Fatal("console.Global() returned nil")
 	}
 	// Same instance across calls (singleton).
-	if Global() != Global() {
+	first := Global()
+	second := Global()
+	if first != second {
 		t.Fatal("console.Global() returned different instances")
 	}
 }

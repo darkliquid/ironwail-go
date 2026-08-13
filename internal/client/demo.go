@@ -18,8 +18,6 @@ import (
 
 type DemoFrame struct {
 	FileOffset       int64
-	Intermission     int
-	ForceUnderwater  bool
 	SerializedEvents int
 }
 

@@ -68,7 +68,6 @@ type AliasModelEntity struct {
 	SkinNum     int
 	ColorMap    uint32
 	IsPlayer    bool
-	FrameTime   float64 // Legacy per-frame animation time; world alias rendering uses TimeSeconds.
 	TimeSeconds float64 // Absolute client/render time for persistent alias interpolation.
 	LerpFlags   int
 	LerpFinish  float64

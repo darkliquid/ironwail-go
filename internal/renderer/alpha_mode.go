@@ -52,3 +52,8 @@ func SetAlphaMode(mode AlphaMode) {
 		pkgCVars.SetBool(CvarRAlphaSort, mode == AlphaModeSorted)
 	}
 }
+
+// shouldSortTranslucentCalls reports whether translucent surfaces should be depth-sorted.
+func shouldSortTranslucentCalls(mode AlphaMode) bool {
+	return mode == AlphaModeSorted
+}

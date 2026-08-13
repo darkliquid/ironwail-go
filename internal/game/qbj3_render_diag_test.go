@@ -125,7 +125,7 @@ func TestQbj3RenderLayerCollectsWeaponAndKeycard(t *testing.T) {
 	if state.ViewModel.ModelID != "progs/v_wrench.mdl" {
 		t.Fatalf("buildRuntimeRenderFrameState ViewModel.ModelID = %q", state.ViewModel.ModelID)
 	}
-	if state.AliasEntities == nil || len(state.AliasEntities) == 0 {
+	if len(state.AliasEntities) == 0 {
 		t.Fatal("buildRuntimeRenderFrameState: AliasEntities empty with active session, pickups would not render")
 	}
 	keyInState := false

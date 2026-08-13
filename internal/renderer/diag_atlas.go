@@ -257,17 +257,7 @@ func diagMaterialIDFaceAudit(geom *WorldGeometry, maxFaces int, materialCount in
 // Phase 3: Atlas Layer Distribution Telemetry
 // ============================================================================
 
-// diagAtlasLayerSummary records per-layer texture placement statistics.
-type diagAtlasLayerSummary struct {
-	LayerIndex      int
-	TextureCount    int
-	PixelsUsed      int
-	PixelsAvailable int
-	MinTextureW     int
-	MinTextureH     int
-	MaxTextureW     int
-	MaxTextureH     int
-}
+
 
 // diagAtlasLayerDistribution logs per-layer utilization and validates that
 // all material atlas bounds and layer indices are within valid ranges.
@@ -283,20 +273,9 @@ func diagAtlasLayerDistribution(atlas *WorldTextureAtlas, baseMaterials []WorldM
 		layerCounts[layer]++
 	}
 
-	summaries := make([]diagAtlasLayerSummary, 0, len(atlas.layers))
 	for i, layer := range atlas.layers {
 		count := layerCounts[i]
 		pixelsAvail := layer.width * layer.height
-		summary := diagAtlasLayerSummary{
-			LayerIndex:      i,
-			TextureCount:    count,
-			PixelsAvailable: pixelsAvail,
-			MinTextureW:     0,
-			MinTextureH:     0,
-			MaxTextureW:     0,
-			MaxTextureH:     0,
-		}
-		summaries = append(summaries, summary)
 		slog.Debug("Atlas layer distribution",
 			"layer", i,
 			"texture_count", count,

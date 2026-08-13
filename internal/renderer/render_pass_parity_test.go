@@ -86,7 +86,6 @@ func TestWorldBrushPassSelector(t *testing.T) {
 		selector                 worldBrushPassSelector
 		wantIncludesLiquidOpaque bool
 		wantIncludesLiquidTrans  bool
-		wantIncludesOther        bool
 		wantIncludesSky          bool
 	}{
 		{
@@ -94,7 +93,6 @@ func TestWorldBrushPassSelector(t *testing.T) {
 			selector:                 worldBrushPassAll,
 			wantIncludesLiquidOpaque: true,
 			wantIncludesLiquidTrans:  true,
-			wantIncludesOther:        true,
 			wantIncludesSky:          true,
 		},
 		{
@@ -102,7 +100,6 @@ func TestWorldBrushPassSelector(t *testing.T) {
 			selector:                 worldBrushPassNonLiquid,
 			wantIncludesLiquidOpaque: false,
 			wantIncludesLiquidTrans:  false,
-			wantIncludesOther:        true,
 			wantIncludesSky:          false,
 		},
 		{
@@ -110,7 +107,6 @@ func TestWorldBrushPassSelector(t *testing.T) {
 			selector:                 worldBrushPassLiquidOnly,
 			wantIncludesLiquidOpaque: true,
 			wantIncludesLiquidTrans:  true,
-			wantIncludesOther:        false,
 			wantIncludesSky:          false,
 		},
 		{
@@ -118,7 +114,6 @@ func TestWorldBrushPassSelector(t *testing.T) {
 			selector:                 worldBrushPassLiquidOpaqueOnly,
 			wantIncludesLiquidOpaque: true,
 			wantIncludesLiquidTrans:  false,
-			wantIncludesOther:        false,
 			wantIncludesSky:          false,
 		},
 		{
@@ -126,7 +121,6 @@ func TestWorldBrushPassSelector(t *testing.T) {
 			selector:                 worldBrushPassLiquidTranslucentOnly,
 			wantIncludesLiquidOpaque: false,
 			wantIncludesLiquidTrans:  true,
-			wantIncludesOther:        false,
 			wantIncludesSky:          false,
 		},
 		{
@@ -134,7 +128,6 @@ func TestWorldBrushPassSelector(t *testing.T) {
 			selector:                 worldBrushPassSkyOnly,
 			wantIncludesLiquidOpaque: false,
 			wantIncludesLiquidTrans:  false,
-			wantIncludesOther:        false,
 			wantIncludesSky:          true,
 		},
 		{
@@ -142,7 +135,6 @@ func TestWorldBrushPassSelector(t *testing.T) {
 			selector:                 worldBrushPassSelector(99),
 			wantIncludesLiquidOpaque: true,
 			wantIncludesLiquidTrans:  true,
-			wantIncludesOther:        true,
 			wantIncludesSky:          true,
 		},
 	}
@@ -154,9 +146,6 @@ func TestWorldBrushPassSelector(t *testing.T) {
 			}
 			if got := tc.selector.includesLiquidTranslucent(); got != tc.wantIncludesLiquidTrans {
 				t.Fatalf("includesLiquidTranslucent() = %v, want %v", got, tc.wantIncludesLiquidTrans)
-			}
-			if got := tc.selector.includesNonLiquid(); got != tc.wantIncludesOther {
-				t.Fatalf("includesNonLiquid() = %v, want %v", got, tc.wantIncludesOther)
 			}
 			if got := tc.selector.includesSky(); got != tc.wantIncludesSky {
 				t.Fatalf("includesSky() = %v, want %v", got, tc.wantIncludesSky)
@@ -450,23 +439,7 @@ func TestPlanGoGPUEntityDrawOrderAddsWorldLiquidLatePhaseWithoutEntities(t *test
 	}
 }
 
-func TestWorldLiquidFaceTypeMask(t *testing.T) {
-	faces := []WorldFace{
-		{Flags: model.SurfDrawWater},                       // non-turbulent should not count
-		{Flags: model.SurfDrawTurb | model.SurfDrawWater},  // turbulent water counts
-		{Flags: model.SurfDrawTurb | model.SurfDrawLava},   // turbulent lava counts
-		{Flags: model.SurfDrawTurb | model.SurfDrawSky},    // non-liquid
-		{Flags: model.SurfDrawTurb | model.SurfDrawSlime},  // turbulent slime counts
-		{Flags: model.SurfDrawTurb | model.SurfDrawTele},   // turbulent tele counts
-		{Flags: model.SurfDrawTurb | model.SurfDrawFence},  // non-liquid
-		{Flags: model.SurfDrawWater | model.SurfDrawFence}, // still non-turbulent
-	}
-	got := worldLiquidFaceTypeMask(faces)
-	want := int32(model.SurfDrawWater | model.SurfDrawLava | model.SurfDrawSlime | model.SurfDrawTele)
-	if got != want {
-		t.Fatalf("worldLiquidFaceTypeMask() = %#x, want %#x", got, want)
-	}
-}
+
 
 func TestHasTranslucentWorldLiquidFaceType(t *testing.T) {
 	mask := int32(model.SurfDrawWater | model.SurfDrawLava | model.SurfDrawSlime | model.SurfDrawTele)

@@ -154,32 +154,29 @@ func main() {
 	var lastSize int64 = 0
 	lastSizeChange := time.Now()
 
-	for {
-		select {
-		case <-ticker.C:
-			finishedMu.Lock()
-			done := demoFinished
-			finishedMu.Unlock()
+	for range ticker.C {
+		finishedMu.Lock()
+		done := demoFinished
+		finishedMu.Unlock()
 
-			if done {
-				fmt.Println("\nTimedemo report detected. Waiting briefly before terminating process...")
-				time.Sleep(500 * time.Millisecond)
-				_ = cmd.Process.Kill()
-				goto ProcessTerminated
-			}
+		if done {
+			fmt.Println("\nTimedemo report detected. Waiting briefly before terminating process...")
+			time.Sleep(500 * time.Millisecond)
+			_ = cmd.Process.Kill()
+			goto ProcessTerminated
+		}
 
-			// Watchdog: check if state file has stopped growing
-			if info, err := os.Stat(outputPath); err == nil {
-				size := info.Size()
-				if size > 0 {
-					if size != lastSize {
-						lastSize = size
-						lastSizeChange = time.Now()
-					} else if time.Since(lastSizeChange) > 1500*time.Millisecond {
-						fmt.Println("\nWatchdog: State dump file size has not changed for 1.5 seconds. Terminating process...")
-						_ = cmd.Process.Kill()
-						goto ProcessTerminated
-					}
+		// Watchdog: check if state file has stopped growing
+		if info, err := os.Stat(outputPath); err == nil {
+			size := info.Size()
+			if size > 0 {
+				if size != lastSize {
+					lastSize = size
+					lastSizeChange = time.Now()
+				} else if time.Since(lastSizeChange) > 1500*time.Millisecond {
+					fmt.Println("\nWatchdog: State dump file size has not changed for 1.5 seconds. Terminating process...")
+					_ = cmd.Process.Kill()
+					goto ProcessTerminated
 				}
 			}
 		}
