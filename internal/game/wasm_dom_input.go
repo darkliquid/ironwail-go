@@ -12,13 +12,9 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/input"
 )
 
-// InstallWasmDOMInput ensures the input system has a working DOM backend. It
-// is a no-op when the renderer already installed its gogpu adapter.
+// InstallWasmDOMInput ensures the input system has a working DOM backend.
 func (g *Game) InstallWasmDOMInput() {
 	if g.Input == nil {
-		return
-	}
-	if g.Input.Backend() != nil {
 		return
 	}
 	dom := input.NewWASMBackend()

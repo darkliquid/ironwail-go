@@ -244,6 +244,18 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
+function setupCanvasInput() {
+  const canvas = document.getElementById("canvas");
+  if (!canvas) return;
+  canvas.addEventListener("click", () => {
+    if (document.pointerLockElement !== canvas) {
+      canvas.requestPointerLock();
+    }
+    const resume = window.__ironwailAudioResume;
+    if (resume) resume();
+  });
+}
+
 window.addEventListener("load", async () => {
   try {
     const r = await fetch("anchors.json");
@@ -253,6 +265,7 @@ window.addEventListener("load", async () => {
   }
   renderRail();
   setupControls();
+  setupCanvasInput();
   renderState();
   // Poll the inspector after the wasm boot installs it.
   setTimeout(tick, 500);

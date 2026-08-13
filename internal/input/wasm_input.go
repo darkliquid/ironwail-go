@@ -57,6 +57,11 @@ func (b *WASMBackend) Init() error {
 		if len(args) == 0 {
 			return nil
 		}
+		resumeAudio := js.Global().Get("__ironwailAudioResume")
+		if !resumeAudio.IsUndefined() && !resumeAudio.IsNull() {
+			_ = resumeAudio.Invoke()
+		}
+
 		event := args[0]
 		code := event.Get("code").String()
 		key := mapDOMCodeToQuakeKey(code)
@@ -113,6 +118,11 @@ func (b *WASMBackend) Init() error {
 		if len(args) == 0 {
 			return nil
 		}
+		resumeAudio := js.Global().Get("__ironwailAudioResume")
+		if !resumeAudio.IsUndefined() && !resumeAudio.IsNull() {
+			_ = resumeAudio.Invoke()
+		}
+
 		event := args[0]
 		button := event.Get("button").Int()
 		key := mapDOMMouseButton(button)
