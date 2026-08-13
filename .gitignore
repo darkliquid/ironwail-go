@@ -44,6 +44,14 @@ tasks/perf_gate_reference.csv
 !/web/walkthrough/*.css
 !/web/walkthrough/*.json
 
+# Deno wasm-walkthrough test suite + pollable harness wasm
+!/web/deno-tests/
+!/web/deno-tests/*.ts
+!/web/deno-tests/*.md
+!/web/deno-tests/deno.json
+!/web/bin/
+!/web/bin/ironwail-harness.wasm
+
 # bv (beads viewer) local config and caches
 .bv/
 

@@ -365,18 +365,106 @@ func (r *Renderer) SetConfig(cfg Config) {
 	r.mu.Unlock()
 }
 
-// CaptureScreenshot reads back the current rendered scene texture and exports a PNG image.
-func (r *Renderer) CaptureScreenshot(filename string) error {
+// ReadbackWorldTexture copies the current rendered world scene texture back
+// to CPU memory. Returns the pixel bytes in the texture's native channel
+// order (typically BGRA8 on browser/Deno, RGBA8 elsewhere), plus dimensions.
+// It returns all-zero bytes when no WebGPU device/texture is present (e.g.
+// headless) so callers can distinguish "no renderer" from a real readback.
+//
+// The harness uses this to expose a deterministic pixels_poll export for
+// Deno tests; CaptureScreenshot wraps it for PNG output.
+func (r *Renderer) ReadbackWorldTexture() ([]byte, int, int, bool) {
 	r.mu.RLock()
 	device := r.getWGPUDevice()
 	queue := r.getWGPUQueue()
 	texture := r.resources.WorldRenderTexture
 	width := r.resources.WorldRenderWidth
 	height := r.resources.WorldRenderHeight
-	format := r.sceneSurfaceFormat()
 	r.mu.RUnlock()
 
 	if device == nil || queue == nil || texture == nil || width <= 0 || height <= 0 {
+		return nil, 0, 0, false
+	}
+
+	bytesPerRow := (width*4 + 255) &^ 255
+	bufferSize := uint64(bytesPerRow * height)
+
+	readbackBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Harness Readback Buffer",
+		Size:             bufferSize,
+		Usage:            gputypes.BufferUsageCopyDst | gputypes.BufferUsageMapRead,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		slog.Warn("readback: create buffer failed", "err", err)
+		return nil, 0, 0, false
+	}
+	defer readbackBuffer.Release()
+
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Harness Readback Encoder"})
+	if err != nil {
+		slog.Warn("readback: create encoder failed", "err", err)
+		return nil, 0, 0, false
+	}
+
+	encoder.CopyTextureToBuffer(texture, readbackBuffer, []wgpu.BufferTextureCopy{{
+		BufferLayout: wgpu.ImageDataLayout{
+			Offset:       0,
+			BytesPerRow:  uint32(bytesPerRow),
+			RowsPerImage: uint32(height),
+		},
+		TextureBase: wgpu.ImageCopyTexture{
+			Aspect:   gputypes.TextureAspectAll,
+			MipLevel: 0,
+			Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: 0},
+		},
+		Size: wgpu.Extent3D{
+			Width:              uint32(width),
+			Height:             uint32(height),
+			DepthOrArrayLayers: 1,
+		},
+	}})
+
+	cmdBuffer, err := encoder.Finish()
+	if err != nil {
+		slog.Warn("readback: finish encoder failed", "err", err)
+		return nil, 0, 0, false
+	}
+
+	if _, err := queue.Submit(cmdBuffer); err != nil {
+		slog.Warn("readback: submit copy failed", "err", err)
+		return nil, 0, 0, false
+	}
+
+	if err := readbackBuffer.Map(context.Background(), wgpu.MapModeRead, 0, bufferSize); err != nil {
+		slog.Warn("readback: map buffer failed", "err", err)
+		return nil, 0, 0, false
+	}
+	defer readbackBuffer.Unmap()
+
+	mappedRange, err := readbackBuffer.MappedRange(0, bufferSize)
+	if err != nil {
+		slog.Warn("readback: mapped range failed", "err", err)
+		return nil, 0, 0, false
+	}
+	defer mappedRange.Release()
+
+	mapped := mappedRange.Bytes()
+	out := make([]byte, bufferSize)
+	copy(out, mapped)
+	return out, width, height, true
+}
+
+// CaptureScreenshot reads back the current rendered scene texture and exports a PNG image.
+func (r *Renderer) CaptureScreenshot(filename string) error {
+	// width/height feed the headless fallback image; format decodes the
+	// readback channel order.
+	width := r.resources.WorldRenderWidth
+	height := r.resources.WorldRenderHeight
+	format := r.sceneSurfaceFormat()
+
+	data, rbWidth, rbHeight, ok := r.ReadbackWorldTexture()
+	if !ok {
 		width, height = r.Size()
 		if width <= 0 {
 			width = r.config.Width
@@ -412,64 +500,8 @@ func (r *Renderer) CaptureScreenshot(filename string) error {
 		return png.Encode(f, img)
 	}
 
+	width, height = rbWidth, rbHeight
 	bytesPerRow := (width*4 + 255) &^ 255
-	bufferSize := uint64(bytesPerRow * height)
-
-	readbackBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
-		Label:            "Screenshot Readback Buffer",
-		Size:             bufferSize,
-		Usage:            gputypes.BufferUsageCopyDst | gputypes.BufferUsageMapRead,
-		MappedAtCreation: false,
-	})
-	if err != nil {
-		return fmt.Errorf("capture screenshot: create readback buffer: %w", err)
-	}
-	defer readbackBuffer.Release()
-
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Screenshot Copy Encoder"})
-	if err != nil {
-		return fmt.Errorf("capture screenshot: create command encoder: %w", err)
-	}
-
-	encoder.CopyTextureToBuffer(texture, readbackBuffer, []wgpu.BufferTextureCopy{{
-		BufferLayout: wgpu.ImageDataLayout{
-			Offset:       0,
-			BytesPerRow:  uint32(bytesPerRow),
-			RowsPerImage: uint32(height),
-		},
-		TextureBase: wgpu.ImageCopyTexture{
-			Aspect:   gputypes.TextureAspectAll,
-			MipLevel: 0,
-			Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: 0},
-		},
-		Size: wgpu.Extent3D{
-			Width:              uint32(width),
-			Height:             uint32(height),
-			DepthOrArrayLayers: 1,
-		},
-	}})
-
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		return fmt.Errorf("capture screenshot: finish command encoder: %w", err)
-	}
-
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		return fmt.Errorf("capture screenshot: submit copy command: %w", err)
-	}
-
-	if err := readbackBuffer.Map(context.Background(), wgpu.MapModeRead, 0, bufferSize); err != nil {
-		return fmt.Errorf("capture screenshot: map readback buffer: %w", err)
-	}
-	defer readbackBuffer.Unmap()
-
-	mappedRange, err := readbackBuffer.MappedRange(0, bufferSize)
-	if err != nil {
-		return fmt.Errorf("capture screenshot: mapped range: %w", err)
-	}
-	defer mappedRange.Release()
-
-	data := mappedRange.Bytes()
 	img := stdimage.NewNRGBA(stdimage.Rect(0, 0, width, height))
 
 	isBGRA := format == gputypes.TextureFormatBGRA8Unorm || format == gputypes.TextureFormatBGRA8UnormSrgb

@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false
+  },
+  "imports": {
+    "jsr:@std/assert": "jsr:@std/assert@^1.0.0"
+  }
+}

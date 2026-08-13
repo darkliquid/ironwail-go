@@ -114,6 +114,16 @@ depends = ["build-wasm"]
 description = "Serve WebAssembly deployment harness at http://localhost:8080"
 run = "cd web && go run server.go"
 
+[tasks.build-wasm-harness]
+depends = ["go-generate"]
+description = "Build pollable engine wasm for Deno tests (ironwail-harness.wasm) + copy wasm_exec.js"
+run = "mkdir -p web/bin && GOOS=js GOARCH=wasm go build -o web/bin/ironwail-harness.wasm ./cmd/ironwailgo-harness && cp \"$(go env GOROOT)/lib/wasm/wasm_exec.js\" web/"
+
+[tasks.test-deno]
+depends = ["build-wasm-harness"]
+description = "Run the Deno wasm-walkthrough test suite (webgpu_smoke + harness). Needs a pak; tries .tmp/pak0.pak then $PAK0_PATH"
+run = "deno test -A --no-check web/deno-tests/"
+
 
 
 [tasks.run]
