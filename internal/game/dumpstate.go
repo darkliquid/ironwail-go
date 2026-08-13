@@ -61,7 +61,7 @@ func (g *Game) CaptureDumpState(frameIndex int) DumpFrameState {
 	viewOrg, viewAngles := g.runtimeViewState()
 	var camera renderer.CameraState
 	var matView, matProj [16]float32
-	var viewLeaf int = -1
+	viewLeaf := -1
 
 	if g.Renderer != nil {
 		camera = g.runtimeCameraState(viewOrg, viewAngles)

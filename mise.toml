@@ -1,6 +1,7 @@
 [env]
 TIMEOUT = "5"
 CGO_ENABLED = "0"
+TMPDIR = "{{config_root}}/.tmp"
 [tools]
 deno = "latest"
 go = "1.26"
