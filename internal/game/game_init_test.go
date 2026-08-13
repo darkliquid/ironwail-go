@@ -455,6 +455,8 @@ type reloadTestRenderer struct{}
 
 func (reloadTestRenderer) OnDraw(func(renderer.RenderContext))                    {}
 func (reloadTestRenderer) OnUpdate(func(float64))                                 {}
+func (reloadTestRenderer) RequestRedraw()                                         {}
+func (reloadTestRenderer) StepWasmFrame(float64)                                  {}
 func (reloadTestRenderer) Size() (int, int)                                       { return 320, 200 }
 func (reloadTestRenderer) SetConfig(renderer.Config)                              {}
 func (reloadTestRenderer) Run() error                                             { return nil }

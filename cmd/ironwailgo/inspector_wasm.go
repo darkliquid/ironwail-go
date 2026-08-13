@@ -15,6 +15,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/game"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 // inspectorLayers is the ordered set of engine layers the walkthrough tours.
@@ -24,58 +25,19 @@ var inspectorLayers = []string{
 	"boot", "console", "host", "server", "quakec", "client", "renderer",
 }
 
-// toJSValue recursively converts a Go value into the shapes syscall/js.ValueOf
-// accepts: map[string]any (objects), []any (arrays), string/float64/int/bool,
-// and nil. Go slices of any other element type ([]float32, []string,
-// []map[string]any, []int ...) are NOT convertible by ValueOf and panic —
-// the inspector's return maps would crash the wasm program otherwise.
+// toJSValue converts any Go value into standard shapes syscall/js.ValueOf
+// accepts (map[string]any, []any, float64, string, bool, nil) via JSON round-trip.
+// This prevents reflection panics or timeouts when returning structs, typed maps,
+// or custom slices across the JS bridge.
 func toJSValue(v any) any {
-	switch x := v.(type) {
-	case map[string]any:
-		out := make(map[string]any, len(x))
-		for k, val := range x {
-			out[k] = toJSValue(val)
-		}
-		return out
-	case []any:
-		out := make([]any, len(x))
-		for i, val := range x {
-			out[i] = toJSValue(val)
-		}
-		return out
-	case []map[string]any:
-		out := make([]any, len(x))
-		for i, val := range x {
-			out[i] = toJSValue(val)
-		}
-		return out
-	case []string:
-		out := make([]any, len(x))
-		for i, val := range x {
-			out[i] = val
-		}
-		return out
-	case []float32:
-		out := make([]any, len(x))
-		for i, val := range x {
-			out[i] = val
-		}
-		return out
-	case []int:
-		out := make([]any, len(x))
-		for i, val := range x {
-			out[i] = val
-		}
-		return out
-	case [32]int:
-		out := make([]any, len(x))
-		for i, val := range x {
-			out[i] = val
-		}
-		return out
-	default:
-		return v
+	if v == nil {
+		return js.Null()
 	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return js.Null()
+	}
+	return js.Global().Get("JSON").Call("parse", string(data))
 }
 
 // installInspector registers window.ironwailInspector. js.Func values must be
@@ -286,6 +248,19 @@ func inspectorRendererState(g *game.Game) any {
 	}
 	if g.Renderer != nil {
 		out["rendererActive"] = true
+	}
+	// Live per-frame pass activity (monotonic counters; the UI diffs across
+	// frames to show what the renderer actually executed).
+	stats := renderer.WasmFramePassStatsSnapshot()
+	out["passStats"] = map[string]any{
+		"worldDraws":      stats.WorldDraws,
+		"overlayDraws":    stats.OverlayDraws,
+		"worldUploads":    stats.WorldUploads,
+		"sceneDraws":      stats.SceneDraws,
+		"particlesDrawn":  stats.ParticlesDrawn,
+		"aliasDraws":      stats.AliasDraws,
+		"spriteDraws":     stats.SpriteDraws,
+		"lightmapUploads": stats.LightmapUploads,
 	}
 	return out
 }

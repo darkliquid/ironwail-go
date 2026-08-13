@@ -182,6 +182,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// HAL renders to dc.ctx.SurfaceView() which is the current frame's swapchain texture.
 	// Then gogpu draws 2D overlay on top with LoadOpLoad to preserve the world.
 	if state.DrawWorld {
+		slog.Info("debug_frame_state", "draw_world", state.DrawWorld, "draw_entities", state.DrawEntities, "scene_target_active", sceneTargetActive, "has_world_data", dc.renderer.HasWorldData())
 		dc.renderer.setGoGPUWorldLightStyleValues(state.LightStyles)
 		slog.Debug("RenderFrame: rendering world to surface")
 		phaseBegin()
@@ -250,6 +251,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		phaseEnd(&viewModelMS)
 	}
 	if sceneTargetActive {
+		incrementSceneDraws()
 		phaseBegin()
 		if dc.compositeSceneRenderTarget(state.WaterWarp, state.WaterWarpTime, state.ClearColor) {
 			if dc.markGoGPUFrameContentForOverlay() {
@@ -279,6 +281,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 			dc.renderWorldFallbackTopDown()
 		}
 		slog.Debug("Drawing 2D overlay on top of world", "menu_active", state.MenuActive)
+		incrementOverlayDraws()
 		phaseBegin()
 		draw2DOverlay(dc)
 		dc.flush2DOverlay()
@@ -623,6 +626,7 @@ func (dc *DrawContext) renderWorldFallbackTopDown() {
 // renderWorld draws the 3D world geometry (BSP surfaces).
 // Implementation delegates to renderWorldInternal in world.go.
 func (dc *DrawContext) renderWorld(state *RenderFrameState) {
+	incrementWorldDraws()
 	// Render world directly to the current surface view (zero-copy approach)
 	// The surface view is available from dc.ctx.SurfaceView() per gogpu's design
 	dc.renderWorldInternal(state)

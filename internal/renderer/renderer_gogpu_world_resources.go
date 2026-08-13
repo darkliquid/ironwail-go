@@ -355,7 +355,7 @@ func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.
 			continue
 		}
 		textureType := classifyWorldTextureName(miptex.Name)
-		materialRGBA := worldimpl.BuildMaterialTextureRGBA(pixels, r.palette, textureType)
+		materialRGBA := worldimpl.BuildMaterialTextureRGBA(pixels, r.effectivePalette(), textureType)
 
 		// Apply alpha edge fix for cutout textures (matching the old
 		// createWorldDiffuseTexture path that called AlphaEdgeFix).
@@ -564,7 +564,7 @@ func (r *Renderer) uploadWorldEmbeddedSkyTextures(device *wgpu.Device, queue *wg
 		if err != nil {
 			continue
 		}
-		solidRGBA, alphaRGBA, layerWidth, layerHeight, ok := extractEmbeddedSkyLayers(pixels, width, height, r.palette, shouldSplitAsQuake64Sky(tree.Version, width, height))
+		solidRGBA, alphaRGBA, layerWidth, layerHeight, ok := extractEmbeddedSkyLayers(pixels, width, height, r.effectivePalette(), shouldSplitAsQuake64Sky(tree.Version, width, height))
 		if !ok {
 			continue
 		}

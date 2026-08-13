@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +57,24 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 	g.prepareRuntimeRendererScreenshot(state.screenshotMode)
 
 	slog.Debug("frame loop started")
+
+	// Browser (js/wasm): the renderer must stay alive via App.Run, but its
+	// WaitEvents is a no-op in the browser and continuous render hot-loops.
+	// We disable continuous render at init (see NewWithConfig) so frames are
+	// paced by RequestRedraw; run App.Run in a goroutine so the page event
+	// loop stays responsive, and let the rAF driver issue RequestRedraw.
+	// The engine starts paused so the synthetic room loads frozen; the user
+	// steps frame-by-frame with the walkthrough's Play/Step controls.
+	if runtime.GOOS == "js" {
+		g.wasmStartPaused()
+		go func() {
+			if err := g.Renderer.Run(); err != nil && g.isRendererError(err) {
+				slog.Warn("renderer loop failed (browser)", "err", err)
+			}
+		}()
+		g.StartWasmRendererFrameLoop()
+		select {}
+	}
 	runErr := g.Renderer.Run()
 	if runErr != nil {
 		if g.Renderer != nil {

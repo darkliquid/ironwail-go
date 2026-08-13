@@ -57,11 +57,6 @@ type Server struct {
 	WorldModel CollisionModel
 	WorldTree  *bsp.Tree // BSP tree retained for rendering
 
-	// SyntheticMap is true when the active world is the built-in demo room
-	// (plan 22 no-assets fallback) rather than a maps/*.bsp from the VFS.
-	// Renderer/HUD paths may use it to adapt demo-mode behavior.
-	SyntheticMap bool
-
 	// Physics settings
 	Gravity      float32
 	MaxVelocity  float32

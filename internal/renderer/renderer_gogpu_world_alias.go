@@ -161,12 +161,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 		return fmt.Errorf("create alias sampler: %w", err)
 	}
 
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
+	surfaceFormat := r.sceneSurfaceFormat()
 
 	pipeline, err := createAliasRenderPipeline(device, vertexShader, fragmentShader, pipelineLayout, surfaceFormat, "Alias Render Pipeline", true)
 	if err != nil {
@@ -378,7 +373,7 @@ func (r *Renderer) createAliasSkinLocked(device *wgpu.Device, queue *wgpu.Queue,
 	if len(pixels) != width*height {
 		pixels = make([]byte, width*height)
 	}
-	baseRGBA, fullbrightRGBA := aliasSkinVariantRGBA(pixels, r.palette, 0, false)
+	baseRGBA, fullbrightRGBA := aliasSkinVariantRGBA(pixels, r.effectivePalette(), 0, false)
 	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "Alias Skin Texture",
 		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
@@ -580,6 +575,7 @@ func (dc *DrawContext) renderAliasEntitiesHAL(entities []AliasModelEntity, fogCo
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
+	incrementAliasDraws()
 	draws := dc.collectAliasDraws(entities, false)
 	if len(draws) == 0 {
 		return

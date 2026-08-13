@@ -1,25 +1,32 @@
 package server
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
 
-// newQCTraceTestServer boots the no-assets synthetic map + in-memory progs
+// newQCTraceTestServer boots the server with pak0.pak start map + in-memory progs
 // and returns a server ready to execute QC (the inspector's observer is wired
 // into executeQCFunction).
 func newQCTraceTestServer(t *testing.T) *Server {
 	t.Helper()
+	pakPath := testutil.SkipIfNoPak0(t)
 	vfs := fs.NewFileSystem()
+	baseDir := filepath.Dir(filepath.Dir(pakPath))
+	if err := vfs.AddGameDirectory(filepath.Join(baseDir, "id1")); err != nil {
+		t.Fatalf("AddGameDirectory(%q): %v", baseDir, err)
+	}
 	srv := NewServer()
 	qc.RegisterBuiltins(srv.QCVM)
 	if err := srv.Init(1); err != nil {
 		t.Fatalf("Init server: %v", err)
 	}
-	if err := srv.SpawnServer(SyntheticMapName, vfs); err != nil {
-		t.Fatalf("SpawnServer(%q): %v", SyntheticMapName, err)
+	if err := srv.SpawnServer("start", vfs); err != nil {
+		t.Fatalf("SpawnServer(\"start\"): %v", err)
 	}
 	t.Cleanup(func() { vfs.Close() })
 	return srv

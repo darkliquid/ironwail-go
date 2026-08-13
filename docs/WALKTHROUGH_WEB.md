@@ -30,8 +30,7 @@ panel consumes it each animation frame.
 
 ## Try this (per-layer experiments)
 
-1. **Boot/FS**: check `gamedir` + whether the synthetic map fell back
-   (`server.active`, `map` = "synthetic" on a no-assets boot).
+1. **Boot/FS**: check `gamedir` and map state (`server.active`, `map` = "start" when testing pak0 is loaded).
 2. **Console**: open the panel and run `sv_debug_qc_trace 1` from the console;
    the dline shows QC enter/leave.
 3. **Host frame**: watch `frameCount` advance one per click while paused=false;

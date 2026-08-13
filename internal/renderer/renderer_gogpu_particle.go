@@ -237,12 +237,7 @@ func (r *Renderer) ensureParticleResourcesLocked(device *wgpu.Device) error {
 		return fmt.Errorf("create particle scratch buffer: %w", err)
 	}
 
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
+	surfaceFormat := r.sceneSurfaceFormat()
 	vertexState := wgpu.VertexState{
 		Module:     vertexShader,
 		EntryPoint: "vs_main",
@@ -355,6 +350,7 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 	if dc == nil || dc.renderer == nil || state == nil || state.Particles == nil || state.Particles.ActiveCount() == 0 {
 		return
 	}
+	incrementParticlesDrawn()
 	mode := readGoGPUParticleModeCvar()
 	particles := state.Particles.ActiveParticles()
 	if len(particles) == 0 {

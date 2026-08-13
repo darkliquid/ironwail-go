@@ -6,6 +6,7 @@ package game
 
 import (
 	"log/slog"
+	"syscall/js"
 	"time"
 )
 
@@ -51,3 +52,53 @@ func (g *Game) RunWasmHeadlessLoop() {
 		time.Sleep(time.Second / 60)
 	}
 }
+
+// wasmStartPaused sets the walkthrough frame loop to start paused. It is
+// called from the shared runtime loop before the browser rAF driver takes
+// over, so the synthetic room loads frozen; the user steps frame-by-frame
+// with the walkthrough's Play/Step controls (WasmSetPaused/WasmStepFrames).
+func (g *Game) wasmStartPaused() { g.WasmSetPaused(true) }
+
+// StartWasmRendererFrameLoop is the browser frame driver. gogpu's App.Run
+// main loop must NOT run in wasm (its WaitEvents no-ops and ContinuousRender
+// becomes a hot loop with no rAF — that starves the page event loop and locks
+// the tab). This rAF loop is the sole driver: per animation frame it runs the
+// engine update through StepWasmFrame (which calls the registered OnUpdate
+// and requests a redraw), keeping the browser responsive.
+func (g *Game) StartWasmRendererFrameLoop() {
+	slog.Info("starting continuous WASM WebGPU frame loop (requestAnimationFrame); engine paused at boot — use Play/Step to advance")
+	window := js.Global().Get("window")
+	if window.IsUndefined() || window.IsNull() {
+		slog.Warn("WASM renderer loop: window object unavailable")
+		return
+	}
+
+	last := time.Now()
+	var frameFunc js.Func
+
+	frameFunc = js.FuncOf(func(this js.Value, args []js.Value) any {
+		if g.Host != nil && g.Host.IsAborted() {
+			frameFunc.Release()
+			return nil
+		}
+
+		now := time.Now()
+		dt := now.Sub(last).Seconds()
+		if dt > 0.1 {
+			dt = 0.1
+		}
+		last = now
+
+		// Step update callback (runs input, physics, srvTime, and stores
+		// frame state) and request WebGPU redraw.
+		if g.Renderer != nil {
+			g.Renderer.StepWasmFrame(dt)
+		}
+
+		window.Call("requestAnimationFrame", frameFunc)
+		return nil
+	})
+
+	window.Call("requestAnimationFrame", frameFunc)
+}
+

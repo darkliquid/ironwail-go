@@ -170,6 +170,21 @@ func (m *Manager) InitFromDir(baseDir string) error {
 	return nil
 }
 
+// InitSyntheticFallback initializes the draw manager with a fallback 768-byte
+// palette when no game data or WAD files are available on disk (no-assets boot).
+func (m *Manager) InitSyntheticFallback() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.initialized {
+		return
+	}
+
+	m.palette = DefaultQuakePalette()
+	m.initialized = true
+	slog.Info("Draw manager initialized with synthetic fallback Quake palette")
+}
+
 // Pic retrieves a QPic by name, loading and caching it if necessary.
 // Returns nil if the pic cannot be found.
 //
@@ -272,6 +287,9 @@ func (m *Manager) loadPic(name string) *image.QPic {
 // valid 2D picture assets; other lump types (e.g. TypMipTex for conchars) are
 // rejected here and handled by dedicated accessors like ConcharsData.
 func (m *Manager) loadFromWad(name string) *image.QPic {
+	if m.wad == nil || m.wad.Lumps == nil {
+		return nil
+	}
 	lump, ok := m.wad.Lumps[name]
 	if !ok {
 		// Try bare name without path prefix or extension
@@ -377,7 +395,21 @@ func (m *Manager) CustomConchars() bool {
 func (m *Manager) Palette() []byte {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.palette == nil {
+		return DefaultQuakePalette()
+	}
 	return m.palette
+}
+
+// SetPalette installs an explicit 768-byte RGB palette (used by the wasm
+// walkthrough boot where no WAD/pak provides palette.lmp).
+func (m *Manager) SetPalette(pal []byte) {
+	if len(pal) != 768 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.palette = append([]byte(nil), pal...)
 }
 
 func detectCustomConchars(wad *image.Wad) bool {

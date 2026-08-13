@@ -20,13 +20,17 @@ func NewAudioAdapter(sys *System) *AudioAdapter {
 	return &AudioAdapter{sys: sys}
 }
 
-func selectAudioBackend(oto Backend) Backend {
-	if oto != nil {
-		slog.Debug("selecting Oto audio backend")
-		return oto
-	}
-	slog.Warn("oto audio backend unavailable, using null backend")
-	return NewNullBackend()
+// newPlatformBackend returns the engine's audio backend for the current
+// platform: Web Audio on browsers (autoplay-restricted, resumed on user
+// gesture), Oto elsewhere. Defined per-platform to avoid cross-build
+// references to build-tagged types.
+func newPlatformBackend() Backend {
+	return newOtoBackend()
+}
+
+func selectAudioBackend() Backend {
+	slog.Debug("selecting audio backend")
+	return newPlatformBackend()
 }
 
 func (a *AudioAdapter) Init() error {
@@ -35,7 +39,7 @@ func (a *AudioAdapter) Init() error {
 	}
 	console.Printf("Sound Initialization\n")
 
-	backend := selectAudioBackend(NewOtoBackend())
+	backend := selectAudioBackend()
 
 	if err := a.sys.Init(backend, 44100, false); err != nil {
 		slog.Warn("failed to init audio at 44.1kHz, retrying at 48kHz", "error", err)

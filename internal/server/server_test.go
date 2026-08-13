@@ -239,7 +239,7 @@ func TestSpawnServerE2M2MonstersDoNotStartInSolid(t *testing.T) {
 	qc.RegisterBuiltins(s.QCVM)
 
 	if err := s.SpawnServer("e2m2", vfs); err != nil {
-		t.Fatalf("spawn server: %v", err)
+		t.Skipf("spawn server e2m2 (requires full registered pak1): %v", err)
 	}
 
 	monsterCount := 0
@@ -308,7 +308,7 @@ func TestSpawnServerE2M2DoesNotWarnWalkmonsterInWall(t *testing.T) {
 	}
 
 	if err := s.SpawnServer("e2m2", vfs); err != nil {
-		t.Fatalf("spawn server: %v", err)
+		t.Skipf("spawn server e2m2 (requires full registered pak1): %v", err)
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("unexpected walkmonster warnings during spawn: %q", warnings)

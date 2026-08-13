@@ -86,12 +86,7 @@ func (r *Renderer) ensureDecalResourcesLocked(device *wgpu.Device, queue *wgpu.Q
 		return fmt.Errorf("create decal uniform bind group: %w", err)
 	}
 
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
+	surfaceFormat := r.sceneSurfaceFormat()
 	pipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "Decal Render Pipeline",
 		Layout: pipelineLayout,

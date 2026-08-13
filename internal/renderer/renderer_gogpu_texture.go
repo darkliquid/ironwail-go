@@ -5,9 +5,37 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/darkliquid/ironwail-go/internal/draw"
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/gogpu/gogpu"
 )
+
+func (r *Renderer) effectivePalette() []byte {
+	if r == nil {
+		return draw.DefaultQuakePalette()
+	}
+	// Lock-free snapshot. Callers may already hold r.mu (e.g. alias skin
+	// creation runs under the renderer write lock during a browser draw), so
+	// taking the RWMutex here would self-deadlock. The palette is 768 bytes
+	// and only replaced wholesale under the same lock; the atomic snapshot
+	// is either the old or the new buffer, both complete.
+	if p := r.paletteAtomic.Load(); p != nil {
+		pal := *p
+		if len(pal) >= 768 && !isAllZeros(pal) {
+			return pal
+		}
+	}
+	return draw.DefaultQuakePalette()
+}
+
+func isAllZeros(b []byte) bool {
+	for _, v := range b {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
+}
 
 // gogpuTextureUploadUnavailableWarned gates the one-time WARN for wasm
 // texture upload unavailability, so the per-frame HUD upload attempts do not
@@ -67,8 +95,8 @@ func (r *Renderer) getOrCreateCharTexture(ctx *gogpu.Context, num int, pic *imag
 	}
 	r.mu.RLock()
 	tex := r.charTextures[num]
-	palette := r.palette
 	r.mu.RUnlock()
+	palette := r.effectivePalette()
 
 	if tex != nil {
 		return tex
@@ -100,6 +128,7 @@ func (r *Renderer) SetPalette(palette []byte) {
 
 	r.palette = make([]byte, len(palette))
 	copy(r.palette, palette)
+	r.paletteAtomic.Store(&r.palette)
 
 	// Destroy and invalidate texture cache entries to prevent GPU memory leaks
 	for _, entry := range r.textureCache {
@@ -130,8 +159,8 @@ func (r *Renderer) SetPalette(palette []byte) {
 func (r *Renderer) getOrCreateTexture(ctx *gogpu.Context, pic *image.QPic) *gogpu.Texture {
 	r.mu.RLock()
 	cached, ok := r.textureCache[cacheKey{pic: pic}]
-	palette := r.palette
 	r.mu.RUnlock()
+	palette := r.effectivePalette()
 
 	if ok && cached != nil {
 		return cached.texture
@@ -161,8 +190,8 @@ func (r *Renderer) getOrCreateTexture(ctx *gogpu.Context, pic *image.QPic) *gogp
 func (r *Renderer) getOrCreateColorTexture(ctx *gogpu.Context, color byte) *gogpu.Texture {
 	r.mu.RLock()
 	tex := r.colorTextures[color]
-	palette := r.palette
 	r.mu.RUnlock()
+	palette := r.effectivePalette()
 
 	if tex != nil {
 		return tex

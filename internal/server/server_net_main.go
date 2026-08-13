@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -295,49 +296,27 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	var tree *bsp.Tree
 	bspData, litData, err := vfs.LoadMapBSPAndLit(s.ModelName)
 	if err != nil {
-		// No map data for this name. Fall back to the deterministic synthetic
-		// box room ONLY when the map is explicitly the synthetic demo map
-		// (runStartupMap's no-assets auto-start uses SyntheticMapName). An
-		// explicitly named but missing map (e.g. a savegame referencing a map
-		// not installed, or a typo) must still report load failure.
-		// Where in C: SV_SpawnServer would fail to load maps/*.bsp.
-		if mapName != SyntheticMapName {
-			return fmt.Errorf("load map %q: %w", s.ModelName, err)
-		}
-		slog.Warn("map not found in filesystem — using synthetic demo room", "map", s.ModelName, "error", err)
-		syntheticTree, bspFile, synErr := BuildSyntheticMap()
-		if synErr != nil {
-			return fmt.Errorf("build synthetic map: %w", synErr)
-		}
-		tree = syntheticTree
-		worldModel := worldModelFromBSPTree(s.ModelName, tree)
-		populateWorldModelCollision(worldModel, tree, bspFile)
-		s.WorldModel = worldModel
-		s.WorldTree = tree
-		s.SkyboxName = parseWorldspawnSkyboxName(string(tree.Entities))
-		s.SyntheticMap = true
-		slog.Info("synthetic demo room active", "map", mapName)
-	} else {
-		parsedTree, err := bsp.LoadTree(bytes.NewReader(bspData))
-		if err != nil {
-			return fmt.Errorf("parse map %q: %w", s.ModelName, err)
-		}
-		if err := bsp.ApplyLitFile(parsedTree, litData); err != nil {
-			slog.Warn("ignoring invalid .lit sidecar", "map", s.ModelName, "error", err)
-		}
-		bspFile, err := bsp.Load(bytes.NewReader(bspData))
-		if err != nil {
-			return fmt.Errorf("parse collision bsp %q: %w", s.ModelName, err)
-		}
-		tree = parsedTree
-
-		worldModel := worldModelFromBSPTree(s.ModelName, tree)
-		populateWorldModelCollision(worldModel, tree, bspFile)
-		s.WorldModel = worldModel
-		s.WorldTree = tree
-		s.SkyboxName = parseWorldspawnSkyboxName(string(tree.Entities))
-		s.SyntheticMap = false
+		return fmt.Errorf("load map %q: %w", s.ModelName, err)
 	}
+
+	parsedTree, err := bsp.LoadTree(bytes.NewReader(bspData))
+	if err != nil {
+		return fmt.Errorf("parse map %q: %w", s.ModelName, err)
+	}
+	if err := bsp.ApplyLitFile(parsedTree, litData); err != nil {
+		slog.Warn("ignoring invalid .lit sidecar", "map", s.ModelName, "error", err)
+	}
+	bspFile, err := bsp.Load(bytes.NewReader(bspData))
+	if err != nil {
+		return fmt.Errorf("parse collision bsp %q: %w", s.ModelName, err)
+	}
+	tree = parsedTree
+
+	worldModel := worldModelFromBSPTree(s.ModelName, tree)
+	populateWorldModelCollision(worldModel, tree, bspFile)
+	s.WorldModel = worldModel
+	s.WorldTree = tree
+	s.SkyboxName = parseWorldspawnSkyboxName(string(tree.Entities))
 
 	if s.Static != nil {
 		keep := s.Static.MaxClients + 1
@@ -456,11 +435,6 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	return nil
 }
 
-// EmbeddedProgsData holds the precompiled QuakeGo progs.dat for wasm boots
-// (set by cmd/ironwailgo main_wasm from the build-time embed). Nil on
-// desktop, where reloadProgs falls back to the source compile.
-var EmbeddedProgsData []byte
-
 // reloadProgs reloads progs.dat into the QCVM, resetting all QC globals to
 // their initial values. This matches C Ironwail's PR_LoadProgs call within
 // SV_SpawnServer. Without this, QC globals like intermission_running persist
@@ -468,22 +442,16 @@ var EmbeddedProgsData []byte
 func (s *Server) reloadProgs(vfs *fs.FileSystem) error {
 	progsData, err := vfs.LoadFile("progs.dat")
 	if err != nil {
-		// No progs.dat on disk (wasm/no-assets demo mode). On wasm the
-		// precompiled bytes are embedded (main_wasm sets EmbeddedProgsData);
-		// otherwise fall back to the same deterministic in-memory compile
-		// loadRuntimePrograms uses, so a map change inside the synthetic demo
-		// world still has QC available.
-		if len(EmbeddedProgsData) > 0 {
-			slog.Info("progs.dat not in filesystem — using wasm-embedded progs bytes")
-			progsData = EmbeddedProgsData
-		} else {
-			slog.Info("progs.dat not in filesystem — recompiling from QuakeGo sources")
-			progsData, err = testutil.CompileProgsDataFromSource()
-			if err != nil {
-				return fmt.Errorf("recompile progs.dat from sources: %w", err)
-			}
-			slog.Debug("recompiled progs", "bytes", len(progsData))
+		if runtime.GOOS == "js" {
+			slog.Info("progs.dat not in filesystem (wasm)")
+			return nil
 		}
+		slog.Info("progs.dat not in filesystem — recompiling from QuakeGo sources")
+		progsData, err = testutil.CompileProgsDataFromSource()
+		if err != nil {
+			return fmt.Errorf("recompile progs.dat from sources: %w", err)
+		}
+		slog.Debug("recompiled progs", "bytes", len(progsData))
 	}
 	if err := s.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
 		return fmt.Errorf("parse progs.dat: %w", err)

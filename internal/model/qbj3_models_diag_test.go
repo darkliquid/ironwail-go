@@ -30,6 +30,9 @@ func TestQbj3AliasModelsLoad(t *testing.T) {
 	}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
+			if !vfs.FileExists(name) {
+				t.Skipf("mod file %s not found in qbj3 dir", name)
+			}
 			data, err := vfs.LoadFile(name)
 			if err != nil {
 				t.Fatalf("LoadFile: %v", err)

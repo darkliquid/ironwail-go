@@ -1,6 +1,8 @@
 package audio
 
-import "testing"
+import (
+	"testing"
+)
 
 type fakeBackend struct{}
 
@@ -14,17 +16,8 @@ func (fakeBackend) Position() int { return 0 }
 func (fakeBackend) Block()        {}
 func (fakeBackend) Unblock()      {}
 
-func TestSelectAudioBackendPrefersProvidedBackend(t *testing.T) {
-	backend := fakeBackend{}
-	if got := selectAudioBackend(backend); got != backend {
-		t.Fatalf("selectAudioBackend(fakeBackend) = %T, want fakeBackend passthrough", got)
-	}
-}
-
-func TestSelectAudioBackendFallsBackToNull(t *testing.T) {
-	if got := selectAudioBackend(nil); got == nil {
-		t.Fatal("selectAudioBackend(nil) returned nil, want fallback backend")
-	} else if _, ok := got.(*NullBackend); !ok {
-		t.Fatalf("selectAudioBackend(nil) = %T, want *NullBackend", got)
+func TestSelectAudioBackendReturnsPlatformBackend(t *testing.T) {
+	if got := selectAudioBackend(); got == nil {
+		t.Fatal("selectAudioBackend() returned nil")
 	}
 }

@@ -141,8 +141,11 @@ type Renderer struct {
 	// colorTextures stores 1x1 textures for solid colors
 	colorTextures [256]*gogpu.Texture
 
-	// palette is the current Quake palette (768 bytes)
+	// palette is the current Quake palette (768 bytes).
 	palette []byte
+	// paletteAtomic is a lock-free snapshot of palette for readers that must
+	// not take r.mu (browser draw paths already holding the write lock).
+	paletteAtomic atomic.Pointer[[]byte]
 
 	// concharsData is the raw 128×128 indexed-pixel data for the console font.
 	concharsData []byte

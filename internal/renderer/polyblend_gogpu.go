@@ -160,12 +160,7 @@ func (r *Renderer) ensurePolyBlendResourcesLocked(device *wgpu.Device) error {
 		return fmt.Errorf("create polyblend bind group: %w", err)
 	}
 
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
+	surfaceFormat := r.sceneSurfaceFormat()
 
 	pipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "PolyBlend Render Pipeline",

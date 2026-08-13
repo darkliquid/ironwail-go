@@ -516,6 +516,10 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		}
 	}
 	worldLightmapArray := r.uploadWorldLightmapArray(device, queue, worldLightmapSampler, geom.Lightmaps, lightstyleValues)
+	if worldLightmapArray != nil {
+		incrementLightmapUploads()
+	}
+	incrementWorldUploads()
 
 	// Create offscreen render target for world rendering
 	if err := r.createWorldRenderTarget(); err != nil {

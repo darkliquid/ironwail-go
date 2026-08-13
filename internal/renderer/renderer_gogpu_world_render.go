@@ -400,6 +400,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		_ = renderPass.End()
 		return
 	}
+	slog.Info("renderWorldInternal_stats", "drawn_indices", drawnIndices, "visible_faces", visibleFaceCount, "opaque_batches", len(opaqueBatches))
 	opaqueDrawMS = float64(time.Since(opaqueDrawStart)) / float64(time.Millisecond)
 
 	if drawnIndices > 0 {

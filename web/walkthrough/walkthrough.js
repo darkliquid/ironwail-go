@@ -19,6 +19,11 @@ let activeLayer = "host";
 let paused = false;   // UI mirror of the engine's wasm pause state
 let anchors = {};
 
+// Per-frame pass activity on the renderer layer: the engine exposes monotonic
+// pass counters; we diff successive snapshots to show what ran since last tick.
+let lastPassStats = null;
+let passTicker = 0;
+
 function el(tag, cls, text) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -97,6 +102,45 @@ function renderState() {
   pre.textContent = JSON.stringify(state, null, 2);
   snap.appendChild(pre);
   panel.appendChild(snap);
+
+  // Renderer layer: per-frame pass activity card (diffs the engine's
+  // monotonic counters so a paused frame shows zeros; a playing frame shows
+  // how many world/overlay/particle passes ran since the last tick).
+  if (activeLayer === "renderer" && state.passStats) {
+    passTicker++;
+    const now = state.passStats;
+    let deltas = null;
+    if (lastPassStats) {
+      deltas = {
+        world: now.worldDraws - lastPassStats.worldDraws,
+        overlay: now.overlayDraws - lastPassStats.overlayDraws,
+        worldUploads: now.worldUploads - lastPassStats.worldUploads,
+        scene: now.sceneDraws - lastPassStats.sceneDraws,
+        particles: now.particlesDrawn - lastPassStats.particlesDrawn,
+        alias: now.aliasDraws - lastPassStats.aliasDraws,
+        sprites: now.spriteDraws - lastPassStats.spriteDraws,
+        lightmaps: now.lightmapUploads - lastPassStats.lightmapUploads,
+      };
+    }
+    lastPassStats = now;
+    if (deltas) {
+      const passCard = el("div", "card");
+      passCard.appendChild(el("div", "card-title", "Pass activity (since last tick, t=" + passTicker + ")"));
+      const passPre = el("pre", "mono");
+      passPre.textContent = [
+        "world           " + deltas.world,
+        "overlay         " + deltas.overlay,
+        "scene composite " + deltas.scene,
+        "particles       " + deltas.particles,
+        "alias models    " + deltas.alias,
+        "sprites         " + deltas.sprites,
+        "world uploads   " + deltas.worldUploads,
+        "lightmap upload " + deltas.lightmaps,
+      ].join("\n");
+      passCard.appendChild(passPre);
+      panel.appendChild(passCard);
+    }
+  }
 }
 
 function renderTimeline() {
@@ -105,7 +149,7 @@ function renderTimeline() {
   if (!insp || !insp.getTimeline) return;
   const t = insp.getTimeline();
   if (!t) return;
-  const text = "frame " + t.frameCount + " · srvTime " + (t.srvTime !== undefined ? t.srvTime.toFixed(2) : "?") + " · dt " + (t.frameTimeMs !== undefined ? t.frameTimeMs.toFixed(1) + "ms" : "?");
+  const text = "frame " + t.frameCount + " · srvTime " + (t.srvTime !== undefined ? t.srvTime.toFixed(2) : "?") + " · dt " + (t.frameTimeMs !== undefined ? t.frameTimeMs.toFixed(1) + "ms" : "?") + (paused ? " · PAUSED" : "");
   if (text === lastTimelineText) return;
   lastTimelineText = text;
   tl.textContent = text;

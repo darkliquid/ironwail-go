@@ -89,6 +89,10 @@ func (cb gameCallbacks) ProcessConsoleCommands() {
 		g.Subs.Commands.Execute()
 	}
 	host.DispatchLoopbackStuffText(g.Subs)
+	g.syncHostClientState()
+	if g.Client != nil && g.Client.State == cl.StateActive {
+		g.ApplyStartupGameplayInputMode()
+	}
 }
 
 func (cb gameCallbacks) ProcessServer() {
@@ -113,8 +117,8 @@ func (cb gameCallbacks) ProcessClient() {
 	if g.Subs == nil || g.Subs.Client == nil {
 		return
 	}
-	g.syncHostClientState()
 	prevState, prevSignon := g.currentRuntimeClientActivation()
+	g.syncHostClientState()
 
 	// Handle demo playback
 	if g.Host != nil && g.Host.DemoState() != nil && g.Host.DemoState().Playback {

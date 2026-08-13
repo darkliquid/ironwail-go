@@ -105,9 +105,9 @@ description = "Build game binary"
 run = "go build -o ironwailgo ./cmd/ironwailgo"
 
 [tasks.build-wasm]
-depends = ["build-progs", "go-generate"]
+depends = ["go-generate"]
 description = "Build WebAssembly binary (ironwail.wasm) + copy wasm_exec.js loader"
-run = "go run ./cmd/ironwailgo/gen_wasm_progs && mkdir -p web/bin && GOOS=js GOARCH=wasm go build -o web/bin/ironwail.wasm ./cmd/ironwailgo && cp \"$(go env GOROOT)/lib/wasm/wasm_exec.js\" web/"
+run = "mkdir -p web/bin && GOOS=js GOARCH=wasm go build -o web/bin/ironwail.wasm ./cmd/ironwailgo && cp \"$(go env GOROOT)/lib/wasm/wasm_exec.js\" web/"
 
 [tasks.serve-wasm]
 depends = ["build-wasm"]

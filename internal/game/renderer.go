@@ -10,6 +10,8 @@ import (
 type RendererFrameLoop interface {
 	OnDraw(func(renderer.RenderContext))
 	OnUpdate(func(dt float64))
+	RequestRedraw()
+	StepWasmFrame(dt float64)
 	Size() (width, height int)
 	SetConfig(renderer.Config)
 	Run() error

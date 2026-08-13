@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 
 	"github.com/darkliquid/ironwail-go/internal/renderer/pipeline"
@@ -47,6 +48,15 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	// Configure continuous rendering for game loop
 	// Quake engines typically run at max FPS, not event-driven
 	gpuCfg = gpuCfg.WithContinuousRender(true)
+
+	// Browser/wasm: render is driven by the rAF loop (StepWasmFrame →
+	// RequestRedraw), not by a continuous main loop — the browser's WaitEvents
+	// no-ops, so continuous render would hot-loop and starve the page event
+	// loop, locking the tab. WithContinuousRender(false) renders only on
+	// RequestRedraw, letting the rAF loop pace frames.
+	if runtime.GOOS == "js" {
+		gpuCfg = gpuCfg.WithContinuousRender(false)
+	}
 
 	// Apply VSync setting from engine config
 	gpuCfg = gpuCfg.WithVSync(cfg.VSync)
@@ -215,7 +225,33 @@ func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 	})
 }
 
-// OnUpdate sets the callback for game logic updates.
+// RequestRedraw requests a frame redraw from the underlying app backend.
+func (r *Renderer) RequestRedraw() {
+	if r != nil && r.app != nil {
+		r.app.RequestRedraw()
+	}
+}
+
+// StepWasmFrame executes the registered update callback and requests a redraw
+// for browser WebAssembly animation frames.
+func (r *Renderer) StepWasmFrame(dt float64) {
+	if r == nil {
+		return
+	}
+	r.mu.RLock()
+	updateCb := r.updateCallback
+	r.mu.RUnlock()
+
+	if updateCb != nil {
+		updateCb(dt)
+	}
+
+	if r.app != nil {
+		r.app.RequestRedraw()
+	}
+}
+
+
 // The callback is called each frame with the delta time in seconds.
 // This is where physics, AI, and game state updates should occur.
 //
@@ -230,13 +266,21 @@ func (r *Renderer) OnUpdate(callback func(dt float64)) {
 	r.updateCallback = callback
 	r.mu.Unlock()
 
+	// Browser/wasm: the App.Run main loop must not advance the game — the
+	// wasm rAF driver (StepWasmFrame) is the single driver, which calls
+	// updateCallback directly. Without this, App.Run's runFrame would run
+	// onUpdate a second time, double-stepping physics/input.
+	if runtime.GOOS == "js" {
+		r.app.OnUpdate(func(float64) {})
+		return
+	}
 	r.app.OnUpdate(func(dt float64) {
 		r.mu.RLock()
-		callback := r.updateCallback
+		cb := r.updateCallback
 		r.mu.RUnlock()
 
-		if callback != nil {
-			callback(dt)
+		if cb != nil {
+			cb(dt)
 		}
 	})
 }

@@ -34,6 +34,8 @@ github.com/gogpu/gpucontext v0.21.0 h1:O1SnXBiednIyVP4Zx5SASh0svYiG6g/wF1igNZVo1
 github.com/gogpu/gpucontext v0.21.0/go.mod h1:6zwdmYXH5GQltoiHbb3WXVS/UJ5bFsCux0mXCVqGlzY=
 github.com/gogpu/gpucontext v0.27.0 h1:iTEN2xcjcEivk6kIwX1mnAvEK2rGCjzGRlfnnn8Uphg=
 github.com/gogpu/gpucontext v0.27.0/go.mod h1:OrT137boh5yPhqBEhF4UQKIOu1Jq74SLQzYa/m6JbNo=
+github.com/gogpu/gpucontext v0.28.0 h1:W27+0PRnHLVRscDJ2L6r4B1JlaKjlV/EmL0Wxx8vGIc=
+github.com/gogpu/gpucontext v0.28.0/go.mod h1:5rpKj+DpixgAFm8ArBXFXOZQRbeJSFncVMsqyyA9Rhc=
 github.com/gogpu/gputypes v0.4.0 h1:nPFn77na71K4gkyObbXgpYywy9lIKz/U1x/2+4EAZ3Y=
 github.com/gogpu/gputypes v0.4.0/go.mod h1:cnXrDMwTpWTvJLW1Vreop3PcT6a2YP/i3s91rPaOavw=
 github.com/gogpu/gputypes v0.5.0 h1:i2ED/9w6m6yLxf8XJT69/NIMSNTLO2y5F1LqvugCKIE=
@@ -58,6 +60,8 @@ github.com/gogpu/wgpu v0.30.10 h1:KWQOo2RR8d+uNFYYD5WGCG0f4AiX8IOHH8kWi2w6Eec=
 github.com/gogpu/wgpu v0.30.10/go.mod h1:9TDtAhJmIhh1RfxcLySWEtkwfFMVf0Y7X7TLtVqvTBE=
 github.com/gogpu/wgpu v0.31.2 h1:AyduRrne97tnIxdvEf0MqB8p2p1n9jjhanQI1FdeS7M=
 github.com/gogpu/wgpu v0.31.2/go.mod h1:S1QSiS+iAH7Gio4EdQVnH04An5cSQyogdwisit1+Q6Y=
+github.com/gogpu/wgpu v0.31.4 h1:xSwVJuew9RyJsA9cjdw2plzCGyFjCcpq5MstCM+S1N0=
+github.com/gogpu/wgpu v0.31.4/go.mod h1:r8z3uZOyjl95KXN1eyMxFnwwPMZ0yuBFrLFi8v37QGY=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/gotracker/goaudiofile v1.0.16 h1:+QlrDbZluWs01NZdg3JOuM+Zm98o1NNFVbtts2Fkw2M=

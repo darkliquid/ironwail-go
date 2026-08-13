@@ -9,6 +9,11 @@ import (
 	"syscall/js"
 )
 
+type wasmListenerPair struct {
+	eventType string
+	fn        js.Func
+}
+
 // WASMBackend implements input.Backend for WebAssembly browser DOM environments.
 type WASMBackend struct {
 	mu           sync.Mutex
@@ -22,7 +27,7 @@ type WASMBackend struct {
 	mouseDeltaY  float64
 	mouseX       float64
 	mouseY       float64
-	listeners    []js.Func
+	listeners    []wasmListenerPair
 }
 
 // NewWASMBackend creates an input backend connected to the browser DOM.
@@ -38,6 +43,14 @@ func (b *WASMBackend) Init() error {
 	if window.IsUndefined() || window.IsNull() {
 		slog.Warn("WASM input: window object unavailable")
 		return nil
+	}
+
+	// Browser autoplay policy: the Web Audio AudioContext is created
+	// suspended until a user gesture. Resume it here so the first gesture
+	// (keydown/click on the canvas) unlocks audio.
+	resumeAudio := js.Global().Get("__ironwailAudioResume")
+	if !resumeAudio.IsUndefined() && !resumeAudio.IsNull() {
+		_ = resumeAudio.Invoke()
 	}
 
 	keydownFunc := js.FuncOf(func(this js.Value, args []js.Value) any {
@@ -126,13 +139,19 @@ func (b *WASMBackend) Init() error {
 		return nil
 	})
 
-	window.Call("addEventListener", "keydown", keydownFunc)
-	window.Call("addEventListener", "keyup", keyupFunc)
-	window.Call("addEventListener", "mousemove", mousemoveFunc)
-	window.Call("addEventListener", "mousedown", mousedownFunc)
-	window.Call("addEventListener", "mouseup", mouseupFunc)
+	listeners := []wasmListenerPair{
+		{"keydown", keydownFunc},
+		{"keyup", keyupFunc},
+		{"mousemove", mousemoveFunc},
+		{"mousedown", mousedownFunc},
+		{"mouseup", mouseupFunc},
+	}
 
-	b.listeners = []js.Func{keydownFunc, keyupFunc, mousemoveFunc, mousedownFunc, mouseupFunc}
+	for _, l := range listeners {
+		window.Call("addEventListener", l.eventType, l.fn)
+	}
+
+	b.listeners = listeners
 	slog.Info("WASM DOM input backend registered")
 	return nil
 }
@@ -142,20 +161,30 @@ func (b *WASMBackend) Shutdown() {
 	defer b.mu.Unlock()
 	window := js.Global().Get("window")
 	if !window.IsUndefined() && !window.IsNull() {
-		for _, fn := range b.listeners {
-			window.Call("removeEventListener", "keydown", fn)
-			fn.Release()
+		for _, l := range b.listeners {
+			window.Call("removeEventListener", l.eventType, l.fn)
+			l.fn.Release()
 		}
 	}
 	b.listeners = nil
 }
 
-func (b *WASMBackend) PollEvents(sys *System) bool {
+// PollEvents implements the Backend interface. The engine also drains DOM
+// events via PollEventsSys each frame; this keeps the interface satisfied
+// for callers that only use the standard cycle.
+func (b *WASMBackend) PollEvents() bool { return true }
+
+// PollEventsSys drains the DOM listener queues into the System each frame.
+func (b *WASMBackend) PollEventsSys(sys *System) bool {
 	b.mu.Lock()
 	keys := b.pendingKeys
 	chars := b.pendingChars
+	dx := b.mouseDeltaX
+	dy := b.mouseDeltaY
 	b.pendingKeys = nil
 	b.pendingChars = nil
+	b.mouseDeltaX = 0
+	b.mouseDeltaY = 0
 	b.mu.Unlock()
 
 	for _, k := range keys {
@@ -164,6 +193,9 @@ func (b *WASMBackend) PollEvents(sys *System) bool {
 	for _, c := range chars {
 		sys.HandleCharEvent(c)
 	}
+	// Apply the DOM mouse deltas directly so mouse-look works even when the
+	// backend is polled out-of-band from System.State (wasm walkthrough loop).
+	sys.ApplyMouseDelta(int32(dx), int32(dy))
 	return true
 }
 
@@ -213,6 +245,24 @@ func (b *WASMBackend) SetMouseGrab(grabbed bool) {
 	b.mu.Lock()
 	b.mouseGrabbed = grabbed
 	b.mu.Unlock()
+
+	// Browser pointer lock: the walkthrough viewport needs relative mouse
+	// deltas (movementX/Y) which only arrive while the canvas has pointer
+	// lock. Engines grab on click; browsers require the request from a user
+	// gesture, so the DOM backend applies it here directly.
+	doc := js.Global().Get("document")
+	if doc.IsUndefined() || doc.IsNull() {
+		return
+	}
+	canvas := doc.Call("querySelector", "canvas")
+	if canvas.IsNull() || canvas.IsUndefined() {
+		return
+	}
+	if grabbed {
+		canvas.Call("requestPointerLock")
+	} else {
+		_ = doc.Call("exitPointerLock")
+	}
 }
 
 func (b *WASMBackend) SetWindow(win any) {}

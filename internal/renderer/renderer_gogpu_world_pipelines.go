@@ -72,11 +72,5 @@ func (r *Renderer) createWorldTranslucentTurbulentPipeline(device *wgpu.Device, 
 // surfaceFormat returns the GPU swapchain surface format, defaulting to
 // BGRA8Unorm when no app/device provider is available.
 func (r *Renderer) surfaceFormat() gputypes.TextureFormat {
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
-	return surfaceFormat
+	return r.sceneSurfaceFormat()
 }

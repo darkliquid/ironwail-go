@@ -89,12 +89,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 		return fmt.Errorf("create sprite fragment shader: %w", err)
 	}
 
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
+	surfaceFormat := r.sceneSurfaceFormat()
 
 	pipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "Sprite Render Pipeline",
@@ -213,7 +208,7 @@ func (r *Renderer) createSpriteFrameLocked(device *wgpu.Device, queue *wgpu.Queu
 	if len(pixels) != width*height {
 		pixels = make([]byte, width*height)
 	}
-	rgba := ConvertPaletteToRGBA(pixels, r.palette)
+	rgba := ConvertPaletteToRGBA(pixels, r.effectivePalette())
 	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "Sprite Frame Texture",
 		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
@@ -376,6 +371,7 @@ func (dc *DrawContext) renderSpriteEntitiesHAL(entities []SpriteEntity, fogColor
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
+	incrementSpriteDraws()
 	draws := dc.collectSpriteDraws(entities)
 	if len(draws) == 0 {
 		return

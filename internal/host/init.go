@@ -546,6 +546,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		if err := h.execUserConfig(subs); err != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("Warning: couldn't exec %s: %v\n", configFileName, err))
 		}
+		h.CmdStuffCmds(subs)
 	}
 
 	h.initialized = true

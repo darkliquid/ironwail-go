@@ -28,10 +28,6 @@ import (
 
 type globalConsoleAdapter struct{}
 
-// WasmEmbeddedProgsData holds the precompiled QuakeGo progs.dat for wasm
-// boots (set by cmd/ironwailgo main_wasm from the build-time embed). Nil on
-// desktop, where loadRuntimePrograms compiles from sources on demand.
-var WasmEmbeddedProgsData []byte
 
 var (
 	startupVidWidth              = 1280
@@ -547,25 +543,14 @@ func (g *Game) loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error
 
 	progsData, err := fileSys.LoadFile("progs.dat")
 	if err != nil {
-		// No progs.dat in the runtime filesystem. On a normal desktop this is
-		// handled by EnsureRuntimeProgsData writing to <basedir>/id1, but that
-		// needs a writeable disk — wasm/no-assets boots do not have one.
-		// Where in C: progs.dat ships alongside the game; here the engine's
-		// own QuakeGo sources ARE the mod and are compiled on demand.
-		//
-		// wasm has no `go` binary or disk, so the build embeds the precompiled
-		// progs.dat (cmd/ironwailgo/gen_wasm_progs → progs_data.go) and the
-		// wasm main sets WasmEmbeddedProgsData; use those bytes directly
-		// instead of the subprocess compile.
-		if len(WasmEmbeddedProgsData) == 0 {
-			slog.Info("progs.dat not in filesystem — compiling from QuakeGo sources")
-			progsData, err = testutil.CompileProgsDataFromSource()
-			if err != nil {
-				return fmt.Errorf("failed to compile progs.dat from sources: %w", err)
-			}
-		} else {
-			slog.Info("progs.dat not in filesystem — using wasm-embedded progs bytes")
-			progsData = WasmEmbeddedProgsData
+		if runtime.GOOS == "js" {
+			slog.Info("progs.dat not in filesystem (wasm)")
+			return nil
+		}
+		slog.Info("progs.dat not in filesystem — compiling from QuakeGo sources")
+		progsData, err = testutil.CompileProgsDataFromSource()
+		if err != nil {
+			return fmt.Errorf("failed to compile progs.dat from sources: %w", err)
 		}
 	}
 	if err := g.QC.LoadProgs(bytes.NewReader(progsData)); err != nil {
@@ -736,7 +721,7 @@ func (g *Game) reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *f
 	return nil
 }
 
-func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir string, args []string) error {
+func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir string, args []string, preMountedPaks ...*fs.Pack) error {
 	g.ModDir = strings.ToLower(strings.TrimSpace(gamedir))
 	g.Input = nil
 	g.Draw = nil
@@ -772,6 +757,11 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 	fileSys := fs.NewFileSystem()
 	if err := fileSys.Init(basedir, gamedir); err != nil {
 		return fmt.Errorf("failed to init filesystem: %w", err)
+	}
+	for _, pack := range preMountedPaks {
+		if pack != nil {
+			fileSys.MountPack(pack)
+		}
 	}
 	if err := g.configureRegistrationMode(fileSys, gamedir); err != nil {
 		return err
@@ -917,8 +907,10 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 			drawErr = g.Draw.InitFromDir("data")
 		}
 		if drawErr != nil {
-			slog.Warn("Failed to initialize draw manager", "error", drawErr)
-		} else if g.Renderer != nil {
+			slog.Warn("Failed to initialize draw manager from filesys or data/, using synthetic fallback", "error", drawErr)
+			g.Draw.InitSyntheticFallback()
+		}
+		if g.Renderer != nil {
 			if pal := g.Draw.Palette(); len(pal) >= 768 {
 				g.Renderer.SetPalette(pal)
 			}

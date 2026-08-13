@@ -1,17 +1,18 @@
-//go:build js && wasm
-
 package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
+	"net/http"
 	"runtime/debug"
 	"syscall/js"
 
+	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/game"
-	"github.com/darkliquid/ironwail-go/internal/server"
 )
+
 const (
 	VersionMajor = 0
 	VersionMinor = 2
@@ -20,22 +21,55 @@ const (
 
 var g *game.Game
 
+func fetchWasmPak0() ([]byte, error) {
+	urls := []string{
+		"/testdata/id1/pak0.pak",
+		"/id1/pak0.pak",
+		"id1/pak0.pak",
+	}
+	for _, u := range urls {
+		resp, err := http.Get(u)
+		if err != nil {
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			continue
+		}
+		data, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err == nil && len(data) > 0 {
+			slog.Info("successfully fetched pak0.pak over HTTP", "url", u, "bytes", len(data))
+			return data, nil
+		}
+	}
+	return nil, fmt.Errorf("could not fetch pak0.pak from any URL")
+}
+
 func main() {
 	fmt.Printf("Ironwail-Go WASM v%d.%d.%d\n", VersionMajor, VersionMinor, VersionPatch)
 	fmt.Println("A Go WebAssembly port of Ironwail Quake engine")
 
 	g = game.New()
 
-	// The no-assets wasm boot has no `go` binary or disk: feed the QC VM the
-	// build-time embedded progs.dat (see gen_wasm_progs + progs_data.go).
-	game.WasmEmbeddedProgsData = embeddedProgsData
-	server.EmbeddedProgsData = embeddedProgsData
+	// Fetch testing pak0.pak over HTTP before initializing subsystems. This
+	// lets the browser boot with real map data (the walkthrough's viewport
+	// renders Quake's start map instead of a plain synthetic room).
+	var mountedPak *fs.Pack
+	if pakData, err := fetchWasmPak0(); err == nil {
+		if pack, err := fs.LoadPackFromBytes("pak0.pak", pakData); err == nil {
+			mountedPak = pack
+		} else {
+			slog.Warn("failed to parse fetched pak0.pak", "err", err)
+		}
+	} else {
+		slog.Warn("failed to fetch pak0.pak over HTTP", "err", err)
+	}
 
 	// Non-headless so the WebGPU renderer constructs and binds the <canvas>
 	// (gogpu browser platform). basedir "/" + gamedir "id1" keeps the
-	// registration check on the shareware path; the synthetic map provides
-	// the world without Quake data.
-	if err := g.InitSubsystems(false, false, 4, "/", "id1", nil); err != nil {
+	// registration check on the shareware path; testing pak0 supplies map data.
+	if err := g.InitSubsystems(false, false, 4, "/", "id1", nil, mountedPak); err != nil {
 		log.Fatalf("WASM initialization failed: %v", err)
 	}
 
@@ -43,12 +77,16 @@ func main() {
 	// (window.ironwailInspector). The walkthrough UI consumes it.
 	installInspector(g)
 
-	// Auto-start the synthetic no-assets map so the walkthrough has a live
-	// world to inspect even with no Quake data (mirrors runStartupMap).
-	if g.Subs != nil && g.Subs.Files != nil && !g.Subs.Files.FileExists("maps/start.bsp") {
-		slog.Info("no map assets found — auto-starting synthetic demo room (wasm)")
-		if err := g.Host.CmdMap(server.SyntheticMapName, g.Subs); err != nil {
-			log.Printf("Failed to spawn synthetic map: %v", err)
+	// Browser input: ensure a DOM input backend is present so keyboard/mouse
+	// move the player in the walkthrough (the renderer's gogpu adapter may be
+	// absent when WebGPU is unavailable).
+	g.InstallWasmDOMInput()
+
+	// Auto-start the testing pak0 start map if present.
+	if g.Subs != nil && g.Subs.Files != nil && g.Subs.Files.FileExists("maps/start.bsp") {
+		slog.Info("auto-starting start map from testing pak0 (wasm)")
+		if err := g.Host.CmdMap("start", g.Subs); err != nil {
+			log.Printf("Failed to spawn start map: %v", err)
 		}
 	}
 
@@ -71,6 +109,11 @@ func main() {
 		MaxClients: 4,
 	}
 	runRendererSafe(g, startup)
+
+	// Keep the Go WebAssembly runtime alive so browser requestAnimationFrame
+	// callbacks (OnUpdate / OnDraw) continue executing. Returning from main()
+	// terminates the Go WASM instance and freezes frame execution at frame 0.
+	select {}
 }
 
 // runRendererSafe runs the WebGPU renderer loop, degrading to the headless

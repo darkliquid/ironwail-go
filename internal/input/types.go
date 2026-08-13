@@ -555,9 +555,22 @@ func (s *System) PollEvents() bool {
 		// No backend: nothing to poll, continue running
 		return true
 	}
+	// The wasm backend exposes the DOM listener pump directly (it implements
+	// the legacy System-taking signature); drain it before the interface
+	// polling so pending DOM events are not lost.
+	if wb, ok := s.backend.(interface{ PollEventsSys(*System) bool }); ok {
+		wb.PollEventsSys(s)
+	}
 	return s.backend.PollEvents()
 }
 
+// ApplyMouseDelta adds raw platform mouse movement to the per-frame
+// accumulator. It lets DOM-backed backends (wasm) apply deltas out-of-band
+// from the standard State() fetch path.
+func (s *System) ApplyMouseDelta(dx, dy int32) {
+	s.state.MouseDX += dx
+	s.state.MouseDY += dy
+}
 // State returns the accumulated input state for this frame. The mouse
 // deltas are fetched from the backend and written into the returned struct.
 // Call this once per frame after PollEvents — calling it multiple times will

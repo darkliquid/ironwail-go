@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/fs"
@@ -187,7 +188,7 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 		executeConfigText(subs, string(data))
 		return
 	}
-	if !os.IsNotExist(err) {
+	if !os.IsNotExist(err) && runtime.GOOS != "js" {
 		slog.Warn("config exec failed", "file", filename, "path", absolutePathOrOriginal(configProbePath(h.userDir, filename)), "error", err)
 		if subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("couldn't exec %s: %v\n", filename, err))

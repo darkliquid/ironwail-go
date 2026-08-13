@@ -127,6 +127,15 @@ func (b *WASMAudioBackend) Init(sampleRate, sampleBits, channels, bufferSize int
 	scriptNode.Set("onaudioprocess", processFunc)
 	scriptNode.Call("connect", audioCtx.Get("destination"))
 
+	// Browser autoplay policy starts an AudioContext suspended; expose a
+	// global resume hook that the DOM input backend invokes on the first
+	// user gesture (keydown/click). The hook is idempotent: calling resume()
+	// on a running context is a no-op.
+	js.Global().Set("__ironwailAudioResume", js.FuncOf(func(this js.Value, args []js.Value) any {
+		_ = audioCtx.Call("resume")
+		return nil
+	}))
+
 	slog.Info("Web Audio API audio backend initialized", "sampleRate", sampleRate, "channels", channels)
 	return dma, nil
 }
@@ -139,7 +148,10 @@ func (b *WASMAudioBackend) Shutdown() {
 		b.scriptNode.Call("disconnect")
 		b.scriptNode.Set("onaudioprocess", js.Null())
 	}
-	b.jsCallback.Release()
+	if b.jsCallback.Value.Truthy() {
+		b.jsCallback.Release()
+		b.jsCallback = js.Func{}
+	}
 	if !b.audioCtx.IsUndefined() && !b.audioCtx.IsNull() {
 		_ = b.audioCtx.Call("close")
 	}

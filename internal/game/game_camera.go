@@ -108,7 +108,11 @@ func (g *Game) runtimeViewState() (origin, angles [3]float32) {
 	if g.Client != nil {
 		if clientOrigin, ok := g.runtimeSmoothedLocalPlayerBaseOrigin(); ok {
 			// Keep the first-person camera anchored to the smoothed eye origin.
-			clientOrigin[2] += g.Client.ViewHeight
+			viewHeight := g.Client.ViewHeight
+			if viewHeight == 0 {
+				viewHeight = 22
+			}
+			clientOrigin[2] += viewHeight
 
 			var viewAngles [3]float32
 			if g.Client.Intermission != 0 {
@@ -291,13 +295,13 @@ func (g *Game) runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 	}
 
 	if g.Client.ViewEntity != 0 {
-		if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
+		if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok && state.Origin != [3]float32{} {
 			return state.Origin, true
 		}
 	}
 
 	if g.Client.ViewEntity == 0 {
-		if state, ok := g.Client.Entities[0]; ok {
+		if state, ok := g.Client.Entities[0]; ok && state.Origin != [3]float32{} {
 			return state.Origin, true
 		}
 	}

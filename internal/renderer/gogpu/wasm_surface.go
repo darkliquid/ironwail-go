@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"syscall/js"
 
+	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
 
@@ -31,4 +32,33 @@ func GetCanvasSurface(instance *wgpu.Instance, canvasID string) (*wgpu.Surface, 
 	}
 
 	return surface, nil
+}
+
+// GetBrowserPreferredCanvasFormat queries navigator.gpu.getPreferredCanvasFormat().
+func GetBrowserPreferredCanvasFormat() gputypes.TextureFormat {
+	nav := js.Global().Get("navigator")
+	if nav.IsUndefined() || nav.IsNull() {
+		return gputypes.TextureFormatBGRA8Unorm
+	}
+	gpu := nav.Get("gpu")
+	if gpu.IsUndefined() || gpu.IsNull() {
+		return gputypes.TextureFormatBGRA8Unorm
+	}
+	getPreferred := gpu.Get("getPreferredCanvasFormat")
+	if getPreferred.IsUndefined() || getPreferred.IsNull() {
+		return gputypes.TextureFormatBGRA8Unorm
+	}
+	fmtStr := gpu.Call("getPreferredCanvasFormat").String()
+	switch fmtStr {
+	case "rgba8unorm":
+		return gputypes.TextureFormatRGBA8Unorm
+	case "bgra8unorm":
+		return gputypes.TextureFormatBGRA8Unorm
+	case "rgba8unorm-srgb":
+		return gputypes.TextureFormatRGBA8UnormSrgb
+	case "bgra8unorm-srgb":
+		return gputypes.TextureFormatBGRA8UnormSrgb
+	default:
+		return gputypes.TextureFormatBGRA8Unorm
+	}
 }

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"os"
 
+	"github.com/darkliquid/ironwail-go/internal/renderer/gogpu"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -68,22 +68,29 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let warpAmp = uniforms.uvScaleWarpTime.z;
     let warpTime = uniforms.uvScaleWarpTime.w;
 
-    // Sinusoidal underwater warp (mirrors C warpscale fragment shader).
-    // When warpAmp == 0 the math degenerates to uv unchanged.
-    let aspect = dpdy(uv.y) / dpdx(uv.x);
-    let warpV = vec2<f32>(warpAmp, warpAmp * aspect);
-    let remapped = warpV + uv * (1.0 - 2.0 * warpV);
-    uv = remapped + warpV * sin(vec2<f32>(remapped.y / aspect, remapped.x) * (3.14159265 * 8.0) + warpTime);
+    if (warpAmp > 0.0) {
+        let dx = max(abs(dpdx(uv.x)), 0.00001);
+        let dy = max(abs(dpdy(uv.y)), 0.00001);
+        let aspect = dy / dx;
+        let warpV = vec2<f32>(warpAmp, warpAmp * aspect);
+        let remapped = warpV + uv * (1.0 - 2.0 * warpV);
+        uv = remapped + warpV * sin(vec2<f32>(remapped.y / aspect, remapped.x) * (3.14159265 * 8.0) + warpTime);
+    }
 
     return textureSample(sceneTexture, sceneSampler, uv * uvScale);
 }
 `
 
 func (r *Renderer) sceneSurfaceFormat() gputypes.TextureFormat {
+	if fmt := gogpu.GetBrowserPreferredCanvasFormat(); fmt != gputypes.TextureFormatUndefined && fmt != gputypes.TextureFormatBGRA8Unorm {
+		return fmt
+	}
 	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
 	if r != nil && r.app != nil {
 		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
+			if fmt := provider.SurfaceFormat(); fmt != gputypes.TextureFormatUndefined {
+				return fmt
+			}
 		}
 	}
 	return surfaceFormat
@@ -384,16 +391,7 @@ func shouldUseSceneRenderTarget(state *RenderFrameState) bool {
 	if state == nil {
 		return false
 	}
-	if os.Getenv("PARITY_RUN") == "1" {
-		return state.DrawWorld || state.DrawEntities
-	}
-	if !state.WaterWarp {
-		return false
-	}
-	if state.DrawWorld || state.DrawEntities || len(state.DecalMarks) > 0 || state.ViewModel != nil {
-		return true
-	}
-	return state.DrawParticles && state.Particles != nil
+	return state.DrawWorld || state.DrawEntities || len(state.DecalMarks) > 0 || state.ViewModel != nil || (state.DrawParticles && state.Particles != nil)
 }
 
 func (dc *DrawContext) clearCurrentHALRenderTarget(clearColor [4]float32) {

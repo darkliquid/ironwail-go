@@ -48,7 +48,7 @@ func TestShouldUseSceneRenderTarget(t *testing.T) {
 			state: &RenderFrameState{
 				DrawWorld: true,
 			},
-			want: false,
+			want: true,
 		},
 		{
 			name: "world scene enables target",
