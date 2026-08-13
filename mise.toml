@@ -350,3 +350,14 @@ run = "go run ./cmd/qcmod test ./cmd/qcmod/examplemod"
 [tasks.qcmod-sim]
 description = "Build the qcmod CLI (plan 25)"
 run = "go build -o bin/qcmod ./cmd/qcmod"
+
+[tasks.build-site]
+description = "Build the GitHub Pages static site from the article markdown"
+depends = ["go-generate"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+CGO_ENABLED=0 go build -o bin/sitegen ./tools/sitegen
+./bin/sitegen
+echo "Site built in site/"
+"""

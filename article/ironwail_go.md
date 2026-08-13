@@ -11,6 +11,9 @@
 - [Chapter 6: GoGPU — Pure-Go WebGPU in Practice](#chapter-6)
 - [Chapter 7: Synthesis — What Was Learned, and Where It Goes](#chapter-7)
 - [Chapter 8: The Hardening Days — Parity, Harness, and Developer Tooling](#chapter-8)
+- [Chapter 9: The Browser Frontier — WASM, WebGPU Validation, and the Interactive Walkthrough](#chapter-9)
+- [Chapter 10: Closing the Parity Gap — Dumpstate, Hash Gates, and Bit-Level Verification](#chapter-10)
+- [Chapter 11: The Compiler Grows Up — QGo Function Values, Global Cells, and In-VM Debugging](#chapter-11)
 - [Consolidated References and Sources](#ref-consolidated)
 
 ---
@@ -3528,6 +3531,568 @@ to survive the move to Go; the practices around it are proving durable too.
 
 ---
 
+<a id="chapter-9"></a>
+# Chapter 9: The Browser Frontier — WASM, WebGPU Validation, and the Interactive Walkthrough
+
+Chapter 8 closed with the browser walkthrough as the capstone plan — the
+thing that wanted *everything else* first. What happened next was not a
+clean ascent. It was a three-week collision between Go's WASM runtime,
+WebGPU's strict browser validation, and the assumption that "it compiles to
+WASM" means "it runs in a browser." The engine did compile. It did not run.
+Getting it to run — and then getting it to be *useful* as an interactive
+educational artifact — required solving problems that no amount of parity
+testing could have predicted, because they existed only in the gap between
+native and web.
+
+This chapter is the story of that gap.
+
+---
+
+## 9.1 Booting in the browser: the easy part that wasn't
+
+The WASM build itself was straightforward. `GOOS=js GOARCH=wasm go build
+./cmd/ironwailgo` produces a binary; `wasm_exec.js` (from Go's standard
+library) provides the runtime glue. A minimal `main_wasm.go` entry point
+(`cmd/ironwailgo/main_wasm.go`) replaces the native `main`: it fetches
+`pak0.pak` over HTTP instead of reading from disk, installs the inspector
+bridge, and blocks forever with `select{}` (returning from `main()`
+terminates the Go WASM runtime). The engine boots, mounts its filesystem,
+loads QC bytecode, and reaches the menu state — all without CGO, all in a
+browser tab.
+
+That was the easy part. Then came the renderer.
+
+## 9.2 WebGPU's two faces: native leniency vs. browser strictness
+
+The gogpu library targets both native Vulkan/Metal and browser WebGPU. In
+practice, native drivers are forgiving: they accept pipeline layouts with
+more bind groups than the spec allows, tolerate missing barriers before
+conditional texture sampling, and silently promote depth formats. Browsers
+are not. The WebGPU specification is enforced literally by Chrome, Firefox, and
+Deno's GPU implementation, and every deviation from the spec is a hard error.
+
+The port hit four categories of browser-only rejection:
+
+**Depth format mismatch.** The native renderer used `depth32float-stencil8`,
+which requires an optional feature browsers don't expose by default. The fix
+was runtime feature detection with fallback to `Depth24PlusStencil8`
+(`internal/renderer/world/gogpu/worldstate.go:330-354`). This also required
+a test (`world_depth_format_test.go`) asserting the fallback path produces
+valid pipelines.
+
+**Bind group limit.** WebGPU caps pipeline layouts at 4 bind groups. The
+native renderer had been using 5. The fix consolidated dynamic lights into
+group 0 and merged sky lightmaps into group 2
+(`internal/renderer/pipeline/world_pipelines.go:20-34,136-139`), verified by
+`world_bind_groups_test.go`.
+
+**WGSL uniformity violations.** WebGPU's shader validation requires
+`workgroupBarrier()` before conditional texture sampling in compute shaders.
+Native naga/Vulkan accepted the code without barriers; browsers rejected it.
+The fix added explicit barriers in the world compute shaders
+(`internal/renderer/world/gogpu/shaders.go:677`,
+`compute_shaders.go:41`).
+
+**External sky sampler.** The sky dome shader used a sampler binding that
+browsers flagged as incompatible with the texture view dimension. Tracing
+the panic through the WASM stack (no source maps, just offset numbers) led
+to the external-sky pipeline setup, where the sampler type needed to match
+the cubemap view. [GogpuIssues](#ref-gogpuissues)
+
+Each fix was invisible on native. Each was a blocker on web. The pattern
+was consistent: **the browser is the stricter oracle**, and the native
+renderer had been accumulating spec-violating shortcuts that only the web
+target caught.
+
+## 9.3 The frame loop problem: gogpu's App.Run doesn't work on WASM
+
+The deeper problem was structural. gogpu's `App.Run` uses an event-wait
+loop designed for native windowing: block on events, process, present,
+repeat. On WASM, there is no blocking — `WaitEvents` returns immediately,
+creating a hot busy-loop that locks the browser tab and burns CPU. The
+engine appeared to boot (console logs flowed), but the page became
+unresponsive within seconds.
+
+The fix was to replace `App.Run` entirely on WASM with a custom
+`requestAnimationFrame` driver (`internal/game/wasm_frameloop.go:68-136`).
+`StartWasmRendererFrameLoop` schedules one frame per rAF tick, calls the
+renderer's frame method, and presents. An idle watchdog counts frames
+without GPU output; after 120 consecutive idle frames, it degrades to a
+headless 60Hz loop (`RunWasmHeadlessLoop`, lines 40-54) that keeps the
+simulation alive without burning GPU resources. This means the engine can
+boot headlessly in environments without WebGPU (CI, Deno tests, older
+browsers) and upgrade to GPU rendering when the device becomes available.
+
+A related memory leak emerged from the spinning renderer: the busy-loop
+allocated per-frame GPU resources without ever presenting them, exhausting
+memory within minutes. The idle watchdog solved this as a side effect — by
+stopping the renderer when it isn't producing output, the allocation churn
+stops.
+
+## 9.4 The CPU blit path: BGRA, RGBA, and the cost of putImageData
+
+WebGPU render targets produce BGRA textures. The browser's `putImageData`
+expects RGBA. On native, the swap happens in the presentation layer or is
+handled by the compositor. On WASM, there is no compositor — the engine
+must read back the GPU texture, swap channels per-pixel, and blit to the
+canvas manually.
+
+`WasmBlitPresent` (`internal/renderer/wasm_blit.go:29-89`) implements this
+path. It reads back the world render target, converts BGRA to RGBA in a
+tight loop (lines 63-75), and writes to the canvas via `putImageData`. The
+key optimization is reusing the JS `Uint8ClampedArray` and `ImageData`
+objects across frames rather than allocating new ones — Go's WASM bridge
+allocates on every `js.ValueOf` call for byte slices, and the GC pressure
+from per-frame allocations was measurable.
+
+## 9.5 The inspector bridge: crossing the Go-JS boundary safely
+
+The walkthrough's value proposition is live inspection of engine state from
+JavaScript. This requires a bridge between Go structs and JS objects, and
+the boundary is hostile: `syscall/js.ValueOf` panics on Go structs, typed
+maps, and most non-primitive types. Reflection-based serialization fails
+silently or loudly depending on the type.
+
+The solution is a JSON round-trip (`cmd/ironwailgo/inspector_wasm.go:32-41`).
+`toJSValue` marshals any Go value to JSON, then parses it back via
+`JSON.parse` on the JS side. It is not fast, but it is safe — every type
+that `encoding/json` handles crosses the bridge correctly. The inspector
+exposes methods on `window.ironwailInspector`: `getState`, `getStateJSON`,
+`getTimeline`, `setPaused`, `getPaused`, `stepFrames`, `getGoroutines`,
+`getTelemetryLog`, `getGpuStatus`.
+
+A subtler problem was non-deterministic map key ordering. Go maps iterate
+in random order, so the JSON representation of engine state changed on every
+call even when nothing had changed. The walkthrough's change-detection cache
+keyed on the JSON string, causing every panel to rebuild every frame. The
+fix was to sort keys in `getStateJSON` (lines 53-63) so identical states
+produce identical strings, making the cache effective.
+
+## 9.6 Pause, step, and the playback control protocol
+
+An interactive walkthrough needs frame-level control. The engine's normal
+frame loop runs at full speed with no external throttle. Adding pause/step
+required a coordination mechanism between the JS UI and the Go frame loop.
+
+`internal/game/playback_control.go` implements this with atomic gates:
+`playbackPaused` and `playbackSteps` (lines 15-19).
+`RunRuntimeFrameUnlessPaused` (lines 23-33) checks the pause flag before
+each frame; if paused, it consumes one step token (if any) or skips. The JS
+side calls `setPaused(true)` to freeze, `stepFrames(1)` to advance one
+frame, `setPaused(false)` to resume. This is deliberately simple — no
+message queues, no async channels, just atomics that the rAF loop polls.
+
+## 9.7 UserFS: localStorage as a config directory
+
+On native, the engine reads and writes config files from `~/.ironwail/`. On
+WASM, there is no home directory. The engine needs somewhere to store cvar
+configs, key bindings, and save games.
+
+`internal/host/user_fs_wasm.go` implements `UserFS` as an in-memory map
+backed by `localStorage`. Every write persists to `localStorage` under the
+`ironwail:` key prefix with base64 encoding for binary data (lines 88-96).
+Every read checks the in-memory cache first, then falls back to
+`localStorage`. The native counterpart (`user_fs_native.go`) is a thin OS
+passthrough. The interface (`user_fs.go:15-21`) keeps the engine code
+identical across targets.
+
+## 9.8 The Deno harness: testing WASM without a browser
+
+Browser testing is slow and manual. For automated verification, the project
+built a pollable-engine harness (`cmd/ironwailgo-harness/main.go`) that
+compiles to a separate WASM binary with `//go:wasmexport` functions:
+`state_poll`, `input_inject`, `engine_advance`. These expose a shared-memory
+struct layout (lines 27-56) that Deno tests can read directly from linear
+memory without JSON serialization.
+
+The Deno test suite (`web/deno-tests/`) includes a WebGPU smoke test
+(proving Deno's GPU can create a device, draw, and read back pixels), a
+harness integration test (boot, map load, frame advance, input injection),
+and a browser-environment polyfill for DOM/canvas APIs. Tests run via
+`deno test -A --no-check web/deno-tests/` or `mise run test-deno`.
+
+## 9.9 The walkthrough UI: seven layers of engine state
+
+The frontend (`web/walkthrough/`) presents a seven-layer tour of the
+engine's architecture: Boot/FS, Console, Host Frame, Server Physics,
+QuakeC VM, Client Parse, and Renderer. Each layer shows live state from
+the corresponding subsystem, updated via the inspector bridge. The user
+can pause at any point, step forward one frame, and watch state propagate
+through the layers — seeing, for example, how a keypress becomes a usercmd,
+becomes a server physics update, becomes a QCVM callback, becomes a client
+entity delta, becomes a rendered frame.
+
+The CSS uses a dark terminal aesthetic. Panels are rebuilt only when their
+JSON-keyed cache detects a change (§9.5). Anchor points
+(`walkthrough/anchors.json`) define named camera positions for guided tours.
+
+## 9.10 What the browser port taught
+
+The browser walkthrough validated a hypothesis from Chapter 7: that WebGPU's
+portability would make the Go→WASM transition smoother than an OpenGL port
+would have been. The hypothesis was correct in direction but wrong in
+magnitude. The *API* ported cleanly — the same pipeline descriptors, shader
+modules, and buffer layouts work on both targets. The *runtime environment*
+did not. Frame loops, filesystem access, config persistence, texture
+readback, and the JS-Go bridge were all web-specific problems that no
+amount of API compatibility could prevent.
+
+The deeper lesson is about **validation strictness as a design tool**. The
+browser's unforgiving enforcement of the WebGPU spec caught real bugs in
+the native renderer — bind group overflows, missing barriers, format
+assumptions — that had been silently tolerated by native drivers. The
+browser port didn't just add a new target; it improved the native target by
+forcing spec compliance. This is the inverse of the usual porting narrative,
+where the secondary target is a compromise. Here, the secondary target was
+an audit.
+
+---
+
+<a id="chapter-10"></a>
+# Chapter 10: Closing the Parity Gap — Dumpstate, Hash Gates, and Bit-Level Verification
+
+Chapters 8 and 9 brought the engine to a functional milestone: modular
+packages, deterministic parity tests, a browser walkthrough, and a working
+QC dev kit. But "functional parity" and "provable parity" are different
+things. The engine ran qbj3, rendered it, and simulated it — but nobody
+could prove the simulation was *bit-identical* to C Ironwail without
+manually comparing screenshots. Screenshots are lossy (compositor gamma,
+window decorations, timing-dependent animation frames), expensive (two
+engine boots per comparison), and fragile (a desktop theme change invalidates
+the baseline).
+
+This chapter is about replacing screenshots with hashes, replacing visual
+inspection with stream diffs, and building the infrastructure to make parity
+a CI gate rather than a manual ritual.
+
+---
+
+## 10.1 H1: Extending the dumpstate schema
+
+The first step was giving both engines something comparable. C Ironwail
+already had a `-dumpstate` flag that emitted per-frame JSON, but it only
+captured origin, angles, and model index per visible edict — enough for
+rough visual comparison, useless for behavioral verification. Entity-slot
+reuse, think-cadence drift, velocity divergence, and groundentity changes
+were invisible.
+
+The fix was a coordinated extension on both sides. A patch to
+`ironwail/Quake/gl_rmain.c` (`tools/parity_generator/c_patch/dumpstate.patch`)
+added per-edict fields: `modelindex`, `frame`, `skin`, `colormap`,
+`effects`, `velocity`, `solid`, `movetype`, `flags`, `groundentity`,
+`ltime`, `nextthink`, `enemy`, `goalentity`. Plus per-frame globals:
+`sv_time`, `gravity`, `maxclients`, `force_retouch`. View matrices,
+viewleaf, and dynamic lights were added to capture the full render-input
+state.
+
+The Go side mirrors this schema exactly in `DumpFrameState`
+(`internal/game/dumpstate.go`). Both engines now produce structurally
+identical JSON for the same demo playback, making field-by-field comparison
+possible. The test `dumpstate_test.go` verifies the Go schema's
+serialization stability.
+
+## 10.2 H3: Render-record hashing — parity without pixels
+
+With full-state dumps available, the next step was eliminating screenshots
+entirely. `ComputeRenderRecordFromDump` (`internal/game/render_record.go`)
+takes a dumpstate frame and produces a deterministic SHA-256 hash of what
+the renderer *would* draw, without drawing anything.
+
+The algorithm quantizes entity origins and angles (×8 precision), sorts
+entities by `(modelindex, frame, skin, origin, angles)` to be invariant to
+draw-list traversal order, and hashes the sorted list alongside `viewleaf`
+and `vieworg`. Two frames with identical render inputs produce identical
+hashes regardless of which engine produced them, what order the entities
+were visited in, or what GPU was used.
+
+This catches bugs that image diffs miss: entity-slot shuffles (same visual
+result, different internal state), ordering-dependent lighting, and
+sub-pixel position drift. It also runs in milliseconds, headlessly, with no
+GPU — making it viable as a CI gate. The test `parity_record_test.go`
+verifies both determinism (same input → same hash) and sensitivity
+(perturbed input → different hash).
+
+## 10.3 H6: Message-stream recording — bit-level net codec parity
+
+The network protocol is the third parity surface. Server messages
+(`svc_time`, `svc_clientdata`, `svc_sound`, `svc_entity`, ...) are encoded
+by `MessageBuffer` on the Go side and by `SZ_Write` / `MSG_Write*` on the
+C side. Any encoding divergence — a float truncated differently, a byte
+order swapped, a delta threshold off by epsilon — produces a different bit
+stream that may or may not cause visible artifacts.
+
+`MessageRecorder` (`internal/server/message_recorder.go`) captures every
+outgoing server datagram per frame and client. It provides `Hash()` for
+whole-stream SHA-256 fingerprinting and `DiffStreams()` for byte-level
+first-difference detection between two recorded streams. The diff reports
+the exact byte offset and surrounding context, making encoding divergences
+debuggable without packet captures.
+
+This complements H1/H3 by verifying the *wire format*, not just game state
+or render output. A stream hash match proves the Go net codec is bit-exact
+with C for the recorded scenario. A mismatch pinpoints the exact message
+type and field that diverged.
+
+## 10.4 Closing the intermittent anomalies
+
+Chapter 8 documented four stochastic symptoms (texture misalignment,
+double-door misfire, AI visibility, sound delay) that couldn't be
+reproduced deterministically. The probes written during the hardening days
+proved individual code paths healthy but couldn't prove *ordering*. With
+the pusher think-gate fix (§8.3) landed and the parity infrastructure in
+place, the investigation was formally closed (commit `24f38594`).
+
+Six regression probes now guard the previously-stochastic behaviors:
+`TestParityDoubleDoorPairAdvancesBothHalves`,
+`TestParityAITracelineReportsClearLOS`,
+`TestParitySoundEmittedSameFrame`,
+`TestParityDoorChainFiresBothHalves`,
+`TestParityAITraceThroughWaterStillVisible`, and
+`TestParitySoundNotDroppedNearWatermark`. All pass. The diagnosis document
+(`docs/diagnoses/intermittent_anomalies.md`) was updated to CLOSED status
+with the root causes identified and the regression guards cited.
+
+The closure is significant not because the bugs were fixed (they were, in
+§8.3), but because the *category* was eliminated. "Sometimes fails" became
+"always tested." The probes run in `go test ./internal/server/...` with
+zero assets, in milliseconds, on every CI run.
+
+## 10.5 The parity verification stack
+
+The three H-gates form a layered verification strategy:
+
+| Layer | Gate | What it proves | Cost |
+|-------|------|----------------|------|
+| Game state | H1 dumpstate | Full entity/frame state matches C | Requires C binary + assets |
+| Render output | H3 render-record | Deterministic render-input hash | Headless, no GPU, milliseconds |
+| Wire format | H6 message-stream | Bit-exact net codec | Headless, no GPU, milliseconds |
+| Behavior | Probes (H2/H4/H5) | Ordering, invariants, round-trips | Asset-free, sub-second |
+
+Layers 2-4 run in CI on every commit. Layer 1 runs opt-in behind
+`PARITY_GENERATOR=1` when the C binary and Quake data are available. The
+stack replaces the previous parity workflow (boot both engines, take
+screenshots, compare with SSIM) with something faster, more precise, and
+automatable.
+
+## 10.6 Renderer photometric progress: D5 audit
+
+The visual parity gap (qbj3 mean channel delta ~7) got a systematic audit.
+The headline finding was palette index 255: C Ironwail treats indices
+224-255 as fullbright (unlit), while Go had hardcoded 224-254, excluding
+index 255 — a brownish skin color `(159,91,83)` used extensively in qbj3's
+leather/metal textures. The fix was a one-line range change in
+`BuildMaterialTextureRGBA`
+(`internal/renderer/world/texture.go:152-158`).
+
+The parity capture methodology also changed: switching from X11 window grab
+to engine readback (`PARITY_GO_CAPTURE=engine`) eliminated compositor gamma
+interference, which had been adding ~2-3 mean delta of noise to every
+comparison. With both fixes, median luma ratio improved from ~0.78 to 0.90.
+The residual gap is parked pending per-surface GPU instrumentation — the
+infrastructure exists (§8.4 O6 diagnostics), but the remaining divergence
+appears to be lightmap-related rather than texture-related.
+
+A related fix addressed redundant UV clamping in the world fragment shader
+(commit `8f9f8b8e`), a D5 residual where the shader was double-clamping
+texture coordinates that were already clamped at upload time. Removing the
+redundant clamp improved visual fidelity on high-frequency textures.
+
+## 10.7 Performance receipts: O3-O6
+
+Chapter 8's O1 optimization (QCVM field accessors, ~15-18% improvement) set
+a pattern: benchmark first, change second, verify both parity and
+performance. Three more optimizations followed:
+
+**O3 — Entity-send scratch reuse** (`perf(server): reuse entity-send scratch
+and skip no-op sort`, commit `0939b3ca`). The per-client entity encoding
+pass allocated scratch buffers every frame. Pre-allocating and reusing them
+eliminated the allocation, and a no-op sort guard skipped the sort when the
+entity list hadn't changed.
+
+**O4 — Allocation-free QC context capture** (`perf(server): make QC
+execution-context capture allocation-free`, commit `1490447e`). The
+`executeQCFunction` wrapper captured `self`/`other`/depth for debugging.
+Hoisting the capture struct to a reusable per-server instance eliminated
+per-call heap allocation.
+
+**O5 — Preallocated QCVM edict storage** (`perf(server): preallocate QCVM
+edict storage to the full cap`, commit `2e4786f8`). Incremental growth of
+the edict backing array caused mid-game relocations and risked dangling
+pointers cached by `SightEntity`. Preallocating to `MaxEdicts` capacity on
+first touch eliminates both. Test: `TestEnsureQCVMEdictStorageStableCap`.
+
+**O6 — World upload optimization** (commit `abd0b30f`). Added comprehensive
+diagnostics (`diagWorldUploadSummary`) to verify GPU texture array
+dimensions, layer count matching, and material buffer sizing. Actual batch
+consolidation remains gated on D5 photometric completion — optimizing
+upload order before the render output is stable risks hiding bugs.
+
+Each optimization carries benchmarks committed beside the change, and the
+full server suite (including every parity test) stayed green.
+
+---
+
+<a id="chapter-11"></a>
+# Chapter 11: The Compiler Grows Up — QGo Function Values, Global Cells, and In-VM Debugging
+
+Chapter 8 introduced the QC dev kit: `sim.World` for testing QuakeGo
+functions without the engine, and `qcmod` as the CLI wrapper. The dev kit
+worked for simple cases — spawn an entity, fire a think function, assert
+field values. But it couldn't handle real QuakeGo programs, because the
+compiler had three defects that made function values, cross-package entity
+fields, and plain package variables silently broken. Fixing those defects,
+and then building the In-VM debugger on top of the corrected compiler,
+turned the dev kit from a toy into a tool.
+
+This chapter covers the compiler corrections (plan 28 and adjacent fixes)
+and the debugger evolution (plans 25 phases B-D), ending with the headless
+REPL that will eventually power the browser walkthrough's QuakeC panel.
+
+---
+
+## 11.1 Three compiler defects: function values, global collisions, and field stores
+
+QuakeGo function values (assigning a function to an entity's `.think` field,
+passing functions as parameters) require the compiler to emit references to
+entries in the QCVM function table. Three defects prevented this from
+working:
+
+**D1 — Uninitialized cells.** `resolveObject(*types.Func)` created virtual
+VRegs with no backing global cell. When `OP_CALL` tried to read the function
+index from `Globals[st.A]`, it read garbage. Functions assigned to `.think`
+appeared to work (the assignment compiled) but crashed at runtime when the
+VM tried to call through the uninitialized slot.
+
+**D2 — Global/parameter collision.** Free globals started at offset 82,
+overlapping the QCVM parameter region (`parm1..parm16` at offsets 43-91).
+Function-value constants collided with call parameters, meaning a function
+assigned to `.think` could be overwritten by the next `PR_ExecuteProgram`
+call's arguments. This was a silent corruption — the function worked until
+something else was called, then it didn't.
+
+**D3 — Func-field stores.** Assignments like `Self.Think = player_stand1`
+emitted `STOREP` with float conversion instead of `OPStorePFNC`, writing the
+IEEE 754 representation of the function index (e.g., `0x41F00000`) into the
+field instead of the raw integer. The VM read back a nonsense function
+index.
+
+The fix (`cmd/qgo/compiler/globals.go`, `lowering_helpers.go`, `codegen.go`)
+introduced `FreeGlobalBase = OFSParmStart + 16*3` (offset 91) as the single
+source of truth for global allocation, added a `systemParamWindow()` bounds
+guard rejecting allocations in the 43-91 range, gave function objects real
+global cells at lowering time (keyed by `pkgpath.Name` to avoid
+cross-package collisions), and added a post-pass that resolves function
+table indices by name and patches them into the global data slots.
+`lowerFieldStore` now emits `OPStorePFNC` for `EvFunction` fields.
+
+## 11.2 Plain package vars and dependency entity fields
+
+Two adjacent defects compounded the function-value problem:
+
+**Plain package vars** (commit `20f0a5ea`). Non-tagged, non-function package
+variables in the target package fell through to `resolveObject`'s
+virtual-local fallback, making them per-function locals instead of globals.
+Cross-function access (e.g., `NextMap` written by `NextLevel`, read by
+`GotoNextMap`) read uninitialized memory. The fix: `lowerGenDecl` now calls
+`allocGlobalOfs(slotsForType(g.Type))` for plain vars in the target package
+and records the offset in `l.globalVarOfs[obj]`
+(`cmd/qgo/compiler/lowering_decls.go:86-109`).
+
+**Dependency entity fields** (commit `c990111f`). `checkEntityType` +
+`collectEntityFields` only registered entity fields from the target package,
+ignoring embedded structs from imported packages. This produced
+`num_entityfields=0`, causing `OPAddress pointer out of bounds` errors at
+runtime. The fix recursively walks embedded structs from imported packages,
+registering all entity fields with correct offsets. After: `EntityFields=201`,
+`NumFieldDefs=157` (`cmd/qgo/compiler/lowering_decls.go:128-211`).
+
+## 11.3 The dead sync stub: removing the last per-callback copy
+
+With the zero-sync QCVM story complete (§8.2), the surviving
+`SyncEdictFromQCVM` stub was a no-op that blindly copied all QCVM edict
+bytes back to Go edicts after every QC call. It was harmless but wasteful,
+and its existence confused readers who assumed the sync was still active.
+
+Commit `f969ae58` removed it. The surviving sync mechanism is
+`SyncSpawnedEdictsFromQCVM(startEntNum)`
+(`internal/server/server_qc_sync.go:69`), which only re-links newly spawned
+edicts. The test `TestSyncEdictFromQCVM_EmptyModelClearsStaleModelIndex`
+documents the new explicit-clear contract: when QC clears a model field,
+the caller must explicitly clear `modelindex` too — there is no automatic
+full-sync pass anymore.
+
+## 11.4 In-VM bytecode runner: plan 25 phase B
+
+`sim.World` (§8.4) runs QuakeGo *functions* as native Go code. The In-VM
+runner (`cmd/qcmod/vmrunner.go`) runs real *bytecode* — the same
+`internal/qc.VM` the engine ships — without the full engine. `newVMWorld`
+loads compiled `progs.dat` bytes, registers builtins, pre-allocates edict
+storage (world + 8 slots), and exposes `fire(funcIdx, self, other, time)`
+for invoking QC functions by index.
+
+This is the authoritative counterpart to `sim.World`: the mode-parity suite
+asserts both agree on the same test scenarios. Where `sim.World` is fast
+(no compilation, no VM overhead), the In-VM runner is *correct* (it
+exercises the actual bytecode interpreter, catching compiler bugs that
+`sim.World` would mask).
+
+## 11.5 Resumable breakpoints: plan 25 phase C
+
+A debugger needs to stop execution without destroying state. The QCVM's
+`ExecuteProgram` was designed as a run-to-completion call: enter function,
+execute statements, return. There was no mechanism to pause mid-execution
+and resume later.
+
+The fix adds `BreakHook func(vm *VM, stmtIdx int) bool` to the VM
+(`internal/qc/vm.go:300-309`). The hook is called before each statement;
+returning true aborts the execution loop with `ErrBreak` **without unwinding
+the stack**. The VM's statement pointer, local variables, and call stack
+remain intact. `ExecuteFrom(fidx int)` resumes from the current
+`XStatement` using the live stack, skipping `EnterFunction` and the
+statement reset (`internal/qc/exec.go:121-127`). Zero overhead when the
+hook is nil.
+
+The debugger state machine (`cmd/qcmod/debugger.go`) tracks four modes:
+`dbgContinue`, `dbgStepInto`, `dbgStepOver`, `dbgStepOut`. Breakpoints are
+sets of function-entry or (function, statement) pairs. Watches are field
+expressions re-evaluated every statement via `WatchEval`. The `hook()`
+method returns a `BreakHook` closure that calls `statement()` and returns
+`d.paused`; nil-safe when no breakpoints or watches are active.
+
+## 11.6 The headless REPL: plan 25 phase D
+
+`runREPL(r, w)` (`cmd/qcmod/repl.go`) implements the `qcmod sim` command
+over the In-VM debugger. Commands: `run <fn> [self [other [time]]]`,
+`break <fn>`, `step`, `cont`, `watch <n>.<field>`, `inspect <n>`,
+`globals`, `functions [prefix]`, `reset`, `quit`. When `run` hits
+`ErrBreak`, the prompt shows `(paused: <message>) qc>` and `step`/`cont`
+resume via `ExecuteFrom`. `inspect` dumps key edict fields (origin,
+velocity, health, nextthink, etc.) via `vm.EFloat`.
+
+The REPL shares the same state machine as the future wasm walkthrough
+QuakeC panel. The design intent is that the browser walkthrough's
+"QuakeC VM" layer will expose the same breakpoint/watch/step interface
+through the inspector bridge, letting users debug QuakeC gameplay logic
+in a browser tab with the same tooling they'd use from the command line.
+
+## 11.7 The compiler-devkit feedback loop
+
+The QGo evolution illustrates a development pattern that recurs throughout
+the project: **the tool and the thing it builds improve each other**. The
+compiler defects were found by trying to write real QuakeGo programs
+(`pkg/qgo/quakego`). The debugger was built to test the compiler's output.
+The REPL was built to make the debugger usable. Each layer exposed bugs in
+the layer below it, and fixing those bugs made the next layer possible.
+
+This is the same feedback loop that the browser walkthrough creates for
+the engine itself: the walkthrough exposed WebGPU validation bugs that
+improved the native renderer (§9.10), and the parity tools exposed
+simulation bugs that improved the walkthrough's accuracy. The project's
+educational mandate isn't just about the output being readable; it's about
+the development process being self-correcting.
+
+---
+
 <a id="ref-consolidated"></a>
 
 ## Consolidated References and Sources
@@ -3561,6 +4126,17 @@ to survive the move to Go; the practices around it are proving durable too.
 - <a id="ref-waterdiag"></a>**[WaterDiag]** [`docs/diagnoses/qbj2_water.md`](../docs/diagnoses/qbj2_water.md), ironwail-go repository.
 - <a id="ref-materialsdiag"></a>**[MaterialsDiag]** [`docs/diagnoses/qbj2_materials.md`](../docs/diagnoses/qbj2_materials.md), ironwail-go repository.
 - <a id="ref-gogpuissues"></a>**[GogpuIssues]** [`article/gogpu_issues.md`](gogpu_issues.md) (transcript of fetched `gogpu/gogpu` issues).
+- <a id="ref-dumpstate"></a>**[Dumpstate]** [`internal/game/dumpstate.go`](../internal/game/dumpstate.go), ironwail-go repository.
+- <a id="ref-renderrecord"></a>**[RenderRecord]** [`internal/game/render_record.go`](../internal/game/render_record.go), ironwail-go repository.
+- <a id="ref-msgrecorder"></a>**[MsgRecorder]** [`internal/server/message_recorder.go`](../internal/server/message_recorder.go), ironwail-go repository.
+- <a id="ref-wasmframeloop"></a>**[WasmFrameLoop]** [`internal/game/wasm_frameloop.go`](../internal/game/wasm_frameloop.go), ironwail-go repository.
+- <a id="ref-inspector"></a>**[Inspector]** [`cmd/ironwailgo/inspector_wasm.go`](../cmd/ironwailgo/inspector_wasm.go), ironwail-go repository.
+- <a id="ref-playbackctrl"></a>**[PlaybackCtrl]** [`internal/game/playback_control.go`](../internal/game/playback_control.go), ironwail-go repository.
+- <a id="ref-userfs"></a>**[UserFS]** [`internal/host/user_fs_wasm.go`](../internal/host/user_fs_wasm.go), ironwail-go repository.
+- <a id="ref-wasmblit"></a>**[WasmBlit]** [`internal/renderer/wasm_blit.go`](../internal/renderer/wasm_blit.go), ironwail-go repository.
+- <a id="ref-qcmodrepl"></a>**[QcmodREPL]** [`cmd/qcmod/repl.go`](../cmd/qcmod/repl.go), ironwail-go repository.
+- <a id="ref-vmrunner"></a>**[VMRunner]** [`cmd/qcmod/vmrunner.go`](../cmd/qcmod/vmrunner.go), ironwail-go repository.
+- <a id="ref-anomalies"></a>**[Anomalies]** [`docs/diagnoses/intermittent_anomalies.md`](../docs/diagnoses/intermittent_anomalies.md), ironwail-go repository.
 
 [ironwail]: https://github.com/andrei-drexler/ironwail
 [gogpu]: https://github.com/gogpu/gogpu
