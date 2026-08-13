@@ -103,6 +103,7 @@ type Server struct {
 	// Network messaging
 	Datagram         *MessageBuffer
 	ReliableDatagram *MessageBuffer
+	MessageRecorder  *MessageStreamRecorder
 
 	// Signon buffer system - shared initial game state sent to connecting clients.
 	// Populated during SpawnServer with precache lists, static entities, and sounds.
