@@ -217,7 +217,20 @@ func headingToID(heading string) string {
 }
 
 func inlineMarkdown(s string) string {
+	// Preserve raw HTML anchor tags through escaping
+	var htmlTags []string
+	s = regexp.MustCompile(`<a\s[^>]*>[^<]*</a>|<a\s[^>]*/?>`).ReplaceAllStringFunc(s, func(match string) string {
+		idx := len(htmlTags)
+		htmlTags = append(htmlTags, match)
+		return fmt.Sprintf("%%HTMLTAG%d%%", idx)
+	})
+
 	s = template.HTMLEscapeString(s)
+
+	// Restore preserved HTML tags
+	for i, tag := range htmlTags {
+		s = strings.Replace(s, fmt.Sprintf("%%HTMLTAG%d%%", i), tag, 1)
+	}
 
 	// Inline code (must come before bold/italic to avoid conflicts)
 	s = regexp.MustCompile("`([^`]+)`").ReplaceAllString(s, `<code>$1</code>`)
