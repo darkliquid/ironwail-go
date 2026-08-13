@@ -35,6 +35,8 @@ tasks/perf_gate_reference.csv
 !/testdata/
 !/testdata/parity/
 !/testdata/parity/*.json
+!/tools/parity_generator/c_patch/
+!/tools/parity_generator/c_patch/*.patch
 
 # Browser walkthrough static app (plan 22 Phase C)
 !/web/

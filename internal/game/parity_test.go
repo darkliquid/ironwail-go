@@ -15,10 +15,25 @@ import (
 )
 
 type RefEdict struct {
-	Number int        `json:"number"`
-	Origin [3]float32 `json:"origin"`
-	Angles [3]float32 `json:"angles"`
-	Model  string     `json:"model"`
+	Number       int        `json:"number"`
+	Origin       [3]float32 `json:"origin"`
+	Angles       [3]float32 `json:"angles"`
+	Velocity     [3]float32 `json:"velocity,omitempty"`
+	Model        string     `json:"model,omitempty"`
+	ModelIndex   int        `json:"modelindex,omitempty"`
+	Frame        int        `json:"frame,omitempty"`
+	Skin         int        `json:"skin,omitempty"`
+	Colormap     int        `json:"colormap,omitempty"`
+	Effects      int        `json:"effects,omitempty"`
+	Solid        int        `json:"solid,omitempty"`
+	Movetype     int        `json:"movetype,omitempty"`
+	Flags        int        `json:"flags,omitempty"`
+	GroundEntity int        `json:"groundentity,omitempty"`
+	LTime        float32    `json:"ltime,omitempty"`
+	Think        string     `json:"think,omitempty"`
+	NextThink    float32    `json:"nextthink,omitempty"`
+	Enemy        int        `json:"enemy,omitempty"`
+	GoalEntity   int        `json:"goalentity,omitempty"`
 }
 
 type RefLight struct {
@@ -29,14 +44,18 @@ type RefLight struct {
 }
 
 type RefFrameState struct {
-	Frame      int         `json:"frame"`
-	ViewOrg    [3]float32  `json:"vieworg"`
-	ViewAngles [3]float32  `json:"viewangles"`
-	ViewLeaf   int         `json:"viewleaf"`
-	MatView    [16]float32 `json:"r_matview"`
-	MatProj    [16]float32 `json:"r_matproj"`
-	Visedicts  []RefEdict  `json:"visedicts"`
-	Lights     []RefLight  `json:"lights"`
+	Frame        int         `json:"frame"`
+	ViewOrg      [3]float32  `json:"vieworg"`
+	ViewAngles   [3]float32  `json:"viewangles"`
+	ViewLeaf     int         `json:"viewleaf"`
+	MatView      [16]float32 `json:"r_matview"`
+	MatProj      [16]float32 `json:"r_matproj"`
+	SvTime       float32     `json:"sv_time,omitempty"`
+	Gravity      float32     `json:"gravity,omitempty"`
+	MaxClients   int         `json:"maxclients,omitempty"`
+	ForceRetouch int         `json:"force_retouch,omitempty"`
+	Visedicts    []RefEdict  `json:"visedicts"`
+	Lights       []RefLight  `json:"lights"`
 }
 
 // ParityTolerances defines the configurable thresholds for verifying frame-state match.

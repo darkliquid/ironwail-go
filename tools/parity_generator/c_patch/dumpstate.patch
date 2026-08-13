@@ -1,0 +1,41 @@
+--- a/Quake/gl_rmain.c
++++ b/Quake/gl_rmain.c
+@@ -20,6 +20,7 @@
+ #include "gl_model.h"
+ #include "image.h"
+ #include "view.h"
++#include "server.h"
+ 
+ #define	MAX_DRAWSKY		1024
+ 
+@@ -340,6 +341,20 @@ void R_DumpState (int frame, const char *dumpfile)
+ 			fprintf (f, "{\"number\":%i,\"origin\":[%f,%f,%f],\"angles\":[%f,%f,%f],\"model\":\"%s\"",
+ 				ent->number, ent->origin[0], ent->origin[1], ent->origin[2],
+ 				ent->angles[0], ent->angles[1], ent->angles[2], ent->model ? ent->model->name : "");
++			fprintf (f, ",\"modelindex\":%i,\"frame\":%i,\"skin\":%i,\"colormap\":%i,\"effects\":%i",
++				ent->modelindex, ent->frame, ent->skinnum, ent->colormap, ent->effects);
++			if (sv.active && ent->number > 0 && ent->number < sv.num_edicts) {
++				edict_t *e = EDICT_NUM(ent->number);
++				if (e && !e->free) {
++					fprintf(f, ",\"velocity\":[%f,%f,%f],\"solid\":%i,\"movetype\":%i,\"flags\":%i,\"groundentity\":%i,\"ltime\":%f,\"nextthink\":%f,\"enemy\":%i,\"goalentity\":%i",
++						e->v.velocity[0], e->v.velocity[1], e->v.velocity[2],
++						(int)e->v.solid, (int)e->v.movetype, (int)e->v.flags,
++						NUM_FOR_EDICT(PROG_TO_EDICT(e->v.groundentity)),
++						e->v.ltime, e->v.nextthink,
++						NUM_FOR_EDICT(PROG_TO_EDICT(e->v.enemy)),
++						NUM_FOR_EDICT(PROG_TO_EDICT(e->v.goalentity)));
++				}
++			}
+ 			fprintf (f, "}");
+ 		}
+ 	}
+@@ -361,6 +376,9 @@ void R_DumpState (int frame, const char *dumpfile)
+ 		}
+ 	}
+ 	fprintf (f, "]");
++	if (sv.active) {
++		fprintf (f, ",\"sv_time\":%f,\"gravity\":%f,\"maxclients\":%i", sv.time, sv.gravity, svs.maxclients);
++	}
+ 	fprintf (f, "}\n");
+ 	fclose (f);
+ }
