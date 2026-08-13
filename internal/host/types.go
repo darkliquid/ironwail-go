@@ -70,6 +70,7 @@ type Host struct {
 	dedicated bool
 	gameDir   string
 	userDir   string
+	userFS    UserFS
 	lastSave  string
 	spawnArgs string
 

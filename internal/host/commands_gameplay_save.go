@@ -453,7 +453,7 @@ func (h *Host) readSaveFile(name string, options loadSaveOptions) (string, []byt
 	}
 
 	for _, path := range searchPaths {
-		data, err := os.ReadFile(path)
+		data, err := h.readUserFile(path)
 		if err == nil {
 			return path, data, nil
 		}

@@ -5,11 +5,11 @@ package host
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -463,14 +463,10 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	}
 	h.userDir = resolvedUserDir
 
-	// Create the user configuration directory (e.g. ~/.ironwail). Skip on
-	// js/wasm: there is no persistent filesystem or home dir, and mkdir is
-	// not implemented by the browser shim — the engine boots with a
-	// non-persistent config instead.
-	if runtime.GOOS != "js" {
-		if err := os.MkdirAll(h.userDir, 0755); err != nil {
-			return fmt.Errorf("failed to create user directory: %w", err)
-		}
+	// Create the user configuration directory (e.g. ~/.ironwail on native,
+	// virtual/localStorage root on js/wasm).
+	if err := h.mkdirUserDir(h.userDir); err != nil {
+		return fmt.Errorf("failed to create user directory: %w", err)
 	}
 
 	if subs.Files != nil {
@@ -667,7 +663,7 @@ func (h *Host) execUserConfig(subs *Subsystems) error {
 	for _, dir := range configUserDirs(h.userDir, h.gameDir) {
 		for _, name := range []string{configFileName, legacyConfigName} {
 			configPath := filepath.Join(dir, name)
-			data, err := os.ReadFile(configPath)
+			data, err := h.readUserFile(configPath)
 			if err == nil {
 				executeConfigText(subs, string(data))
 				return nil
@@ -747,20 +743,8 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 	if h.gameDir != "" {
 		configDir = filepath.Join(h.userDir, h.gameDir)
 	}
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-	configPath := filepath.Join(configDir, configName)
-	f, err := os.Create(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to create config file: %w", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			slog.Warn("host: failed to close config file", "path", configPath, "err", err)
-		}
-	}()
 
+	var buf bytes.Buffer
 	wroteBindings := false
 	if subs != nil && subs.Input != nil {
 		for key := 0; key < input.NumKeycode; key++ {
@@ -773,7 +757,7 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 			if keyName == "" {
 				keyName = strconv.Itoa(key)
 			}
-			if _, err := fmt.Fprintf(f, "bind \"%s\" \"%s\"\n", escapeConfigQuotedString(keyName), escapeConfigQuotedString(binding)); err != nil {
+			if _, err := fmt.Fprintf(&buf, "bind \"%s\" \"%s\"\n", escapeConfigQuotedString(keyName), escapeConfigQuotedString(binding)); err != nil {
 				return fmt.Errorf("failed to write binding: %w", err)
 			}
 		}
@@ -784,23 +768,31 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 		archivedVars = h.CVar.ArchiveVars()
 	}
 	if wroteBindings && len(archivedVars) > 0 {
-		if _, err := fmt.Fprintln(f); err != nil {
+		if _, err := fmt.Fprintln(&buf); err != nil {
 			return fmt.Errorf("failed to write config separator: %w", err)
 		}
 	}
 	for _, line := range archivedVars {
-		if _, err := fmt.Fprintf(f, "%s\n", line); err != nil {
+		if _, err := fmt.Fprintf(&buf, "%s\n", line); err != nil {
 			return fmt.Errorf("failed to write archived cvar: %w", err)
 		}
 	}
-	if _, err := fmt.Fprintln(f, "vid_restart"); err != nil {
+	if _, err := fmt.Fprintln(&buf, "vid_restart"); err != nil {
 		return fmt.Errorf("failed to write vid_restart state: %w", err)
 	}
 
 	if clientState := ActiveClientState(subs); clientState != nil && (clientState.InputMLook.State&1) != 0 {
-		if _, err := fmt.Fprintln(f, "+mlook"); err != nil {
+		if _, err := fmt.Fprintln(&buf, "+mlook"); err != nil {
 			return fmt.Errorf("failed to write +mlook state: %w", err)
 		}
+	}
+
+	if err := h.mkdirUserDir(configDir); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	configPath := filepath.Join(configDir, configName)
+	if err := h.writeUserFile(configPath, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	if subs != nil && subs.Console != nil {

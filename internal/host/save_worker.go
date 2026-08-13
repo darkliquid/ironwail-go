@@ -11,7 +11,6 @@ package host
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -104,9 +103,9 @@ func (h *Host) writeSaveInBackground(relName, path, displayName string, data []b
 	go func() {
 		defer h.saveWorker.end(relName)
 		var writeErr error
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := h.mkdirUserDir(filepath.Dir(path)); err != nil {
 			writeErr = err
-		} else if err := os.WriteFile(path, data, 0o644); err != nil {
+		} else if err := h.writeUserFile(path, data, 0o644); err != nil {
 			writeErr = err
 		}
 		elapsed := time.Since(start)
