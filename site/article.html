@@ -235,12 +235,12 @@ footer {
 
 <p>This is the story of re-implementing that engine in Go.</p>
 
-<p><code>ironwail-go</code> is a pure-Go port of [Ironwail][ironwail], a high-performance</p>
+<p><code>ironwail-go</code> is a pure-Go port of <a href="https://github.com/andrei-drexler/ironwail">Ironwail</a>, a high-performance</p>
 <p>modern fork of QuakeSpasm, which is itself a maintained fork of the original</p>
 <p>GPL-Quake source. The port is not a line-for-line transliteration. It is a</p>
 <p>deliberate re-architecture: garbage collection instead of a manual memory</p>
 <p>hunk, Go packages instead of a flat <code>Quake/*.c</code> tree, goroutines instead of</p>
-<p>SDL threads, and — most ambitiously — [WebGPU][gogpu] via the pure-Go</p>
+<p>SDL threads, and — most ambitiously — <a href="https://github.com/gogpu/gogpu">WebGPU</a> via the pure-Go</p>
 <p><code>gogpu</code> library instead of OpenGL. The project compiles with</p>
 <p><code>CGO_ENABLED=0</code>. There is no C in the runtime path.</p>
 
@@ -313,8 +313,8 @@ footer {
 <li><strong><code>docs/RENDERER_LEARNING_PLAN.md</code></strong> — a 14-stage curriculum that walks a</li>
 <p>  reader who knows Go but <em>not</em> graphics programming from &#34;what is a GPU?&#34;</p>
 <p>  all the way to &#34;read <code>RenderFrame()</code> top to bottom and explain every</p>
-<p>  line,&#34; citing [Scratchapixel][scratchapixel] for theory and</p>
-<p>  [webgpufundamentals][webgpufundamentals] for API practice, with</p>
+<p>  line,&#34; citing <a href="https://www.scratchapixel.com/">Scratchapixel</a> for theory and</p>
+<p>  <a href="https://webgpufundamentals.org/">webgpufundamentals</a> for API practice, with</p>
 <p>  build-it-yourself milestones at each stage. <a href="#ref-learningplan">LearningPlan</a></p>
 <li><strong>The <code>// Where in C:</code> citation convention</strong> in tests, e.g.</li>
 <p>  <code>// Where in C: SV_WalkMove in sv_phys.c</code>, anchoring every behavioral</p>
@@ -956,7 +956,7 @@ footer {
 <p><strong>spatialized</strong>: volume decreases with distance (attenuation), and panning</p>
 <p>is calculated using the dot product between the listener&#39;s right vector and</p>
 <p>the vector to the sound source. <a href="#ref-spec">Spec</a> The Go port uses the</p>
-<p>[Oto][oto] library for audio output, replacing the C DMA/sound-card</p>
+<p><a href="https://github.com/ebitengine/oto">Oto</a> library for audio output, replacing the C DMA/sound-card</p>
 <p>drivers.</p>
 
 <hr>
@@ -4314,11 +4314,6 @@ both 0 B/op, 0 allocs/op</code></pre>
 <li><a id="ref-vmrunner"></a><strong>[VMRunner]</strong> <a href="../cmd/qcmod/vmrunner.go"><code>cmd/qcmod/vmrunner.go</code></a>, ironwail-go repository.</li>
 <li><a id="ref-anomalies"></a><strong>[Anomalies]</strong> <a href="../docs/diagnoses/intermittent_anomalies.md"><code>docs/diagnoses/intermittent_anomalies.md</code></a>, ironwail-go repository.</li>
 
-<p>[ironwail]: https://github.com/andrei-drexler/ironwail</p>
-<p>[gogpu]: https://github.com/gogpu/gogpu</p>
-<p>[scratchapixel]: https://www.scratchapixel.com/</p>
-<p>[webgpufundamentals]: https://webgpufundamentals.org/</p>
-<p>[oto]: https://github.com/ebitengine/oto</p>
 
     </main>
   </div>

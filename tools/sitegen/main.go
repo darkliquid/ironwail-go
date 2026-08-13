@@ -93,8 +93,18 @@ func findRepoRoot() string {
 // tables, links, bold/italic, lists, horizontal rules, anchor tags, and
 // blockquotes.
 func markdownToHTML(md string) string {
-	var b strings.Builder
+	// First pass: collect reference-style link definitions [label]: url
+	refLinks := map[string]string{}
+	refLinkRe := regexp.MustCompile(`^\[([^\]]+)\]:\s+(.+)$`)
 	scanner := bufio.NewScanner(strings.NewReader(md))
+	for scanner.Scan() {
+		if m := refLinkRe.FindStringSubmatch(scanner.Text()); m != nil {
+			refLinks[strings.ToLower(m[1])] = strings.TrimSpace(m[2])
+		}
+	}
+
+	var b strings.Builder
+	scanner = bufio.NewScanner(strings.NewReader(md))
 
 	inCodeBlock := false
 	codeLang := ""
@@ -106,13 +116,18 @@ func markdownToHTML(md string) string {
 		if !inTable || len(tableRows) == 0 {
 			return
 		}
-		b.WriteString(renderTable(tableRows))
+		b.WriteString(renderTable(tableRows, refLinks))
 		tableRows = nil
 		inTable = false
 	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
+
+		// Skip reference-style link definitions (already collected)
+		if refLinkRe.MatchString(line) {
+			continue
+		}
 
 		// Fenced code blocks
 		if strings.HasPrefix(line, "```") {
@@ -156,7 +171,7 @@ func markdownToHTML(md string) string {
 		// Headings
 		if heading, level := parseHeading(line); heading != "" {
 			id := headingToID(heading)
-			b.WriteString(fmt.Sprintf(`<h%d id="%s">%s</h%d>`+"\n", level, id, inlineMarkdown(heading), level))
+			b.WriteString(fmt.Sprintf(`<h%d id="%s">%s</h%d>`+"\n", level, id, inlineMarkdown(heading, refLinks), level))
 			continue
 		}
 
@@ -169,19 +184,19 @@ func markdownToHTML(md string) string {
 		// Blockquotes
 		if strings.HasPrefix(line, "> ") {
 			content := strings.TrimPrefix(line, "> ")
-			b.WriteString("<blockquote>" + inlineMarkdown(content) + "</blockquote>\n")
+			b.WriteString("<blockquote>" + inlineMarkdown(content, refLinks) + "</blockquote>\n")
 			continue
 		}
 
 		// Unordered list items
 		if ulMatch := regexp.MustCompile(`^(\s*)[-*]\s+(.*)$`).FindStringSubmatch(line); ulMatch != nil {
-			b.WriteString("<li>" + inlineMarkdown(ulMatch[2]) + "</li>\n")
+			b.WriteString("<li>" + inlineMarkdown(ulMatch[2], refLinks) + "</li>\n")
 			continue
 		}
 
 		// Ordered list items
 		if olMatch := regexp.MustCompile(`^(\s*)\d+\.\s+(.*)$`).FindStringSubmatch(line); olMatch != nil {
-			b.WriteString("<li>" + inlineMarkdown(olMatch[2]) + "</li>\n")
+			b.WriteString("<li>" + inlineMarkdown(olMatch[2], refLinks) + "</li>\n")
 			continue
 		}
 
@@ -192,7 +207,7 @@ func markdownToHTML(md string) string {
 		}
 
 		// Paragraphs
-		b.WriteString("<p>" + inlineMarkdown(line) + "</p>\n")
+		b.WriteString("<p>" + inlineMarkdown(line, refLinks) + "</p>\n")
 	}
 
 	flushTable()
@@ -216,7 +231,7 @@ func headingToID(heading string) string {
 	return s
 }
 
-func inlineMarkdown(s string) string {
+func inlineMarkdown(s string, refLinks map[string]string) string {
 	// Preserve raw HTML anchor tags through escaping
 	var htmlTags []string
 	s = regexp.MustCompile(`<a\s[^>]*>[^<]*</a>|<a\s[^>]*/?>`).ReplaceAllStringFunc(s, func(match string) string {
@@ -245,10 +260,26 @@ func inlineMarkdown(s string) string {
 	// Links [text](url)
 	s = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).ReplaceAllString(s, `<a href="$2">$1</a>`)
 
+	// Reference-style links [text][label]
+	if refLinks != nil {
+		s = regexp.MustCompile(`\[([^\]]+)\]\[([^\]]*)\]`).ReplaceAllStringFunc(s, func(match string) string {
+			parts := regexp.MustCompile(`\[([^\]]+)\]\[([^\]]*)\]`).FindStringSubmatch(match)
+			text := parts[1]
+			label := strings.ToLower(parts[2])
+			if label == "" {
+				label = strings.ToLower(text)
+			}
+			if url, ok := refLinks[label]; ok {
+				return `<a href="` + url + `">` + text + `</a>`
+			}
+			return match
+		})
+	}
+
 	return s
 }
 
-func renderTable(rows []string) string {
+func renderTable(rows []string, refLinks map[string]string) string {
 	if len(rows) < 2 {
 		return ""
 	}
@@ -273,7 +304,7 @@ func renderTable(rows []string) string {
 	headerCells := parseRow(rows[0])
 	b.WriteString("<thead><tr>")
 	for _, cell := range headerCells {
-		b.WriteString("<th>" + inlineMarkdown(cell) + "</th>")
+		b.WriteString("<th>" + inlineMarkdown(cell, refLinks) + "</th>")
 	}
 	b.WriteString("</tr></thead>\n<tbody>\n")
 
@@ -284,7 +315,7 @@ func renderTable(rows []string) string {
 		cells := parseRow(row)
 		b.WriteString("<tr>")
 		for _, cell := range cells {
-			b.WriteString("<td>" + inlineMarkdown(cell) + "</td>")
+			b.WriteString("<td>" + inlineMarkdown(cell, refLinks) + "</td>")
 		}
 		b.WriteString("</tr>\n")
 	}
