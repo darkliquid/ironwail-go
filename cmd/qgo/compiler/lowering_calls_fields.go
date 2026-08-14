@@ -36,47 +36,122 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 					recvType := l.goTypeToQC(sig.Recv().Type())
 					if recvType == EvVector {
 						// It's a method on Vec3.
-						var op qc.Opcode
-						var resType qc.EType
+						recvVReg := l.lowerExpr(fn, f.X)
+
 						switch fnObj.Name() {
 						case "Add":
-							op = qc.OPAddV
-							resType = EvVector
+							if len(call.Args) != 1 {
+								l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for Add: got %d args, want 1", len(call.Args))
+								return VRegInvalid
+							}
+							argVReg := l.lowerExpr(fn, call.Args[0])
+							result := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPAddV, A: recvVReg, B: argVReg, C: result, Type: EvVector})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvVector, VReg: result})
+							return result
+
 						case "Sub":
-							op = qc.OPSubV
-							resType = EvVector
-						case "Mul":
-							op = qc.OPMulVF
-							resType = EvVector
-						case "Scale":
-							op = qc.OPMulVF
-							resType = EvVector
+							if len(call.Args) != 1 {
+								l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for Sub: got %d args, want 1", len(call.Args))
+								return VRegInvalid
+							}
+							argVReg := l.lowerExpr(fn, call.Args[0])
+							result := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPSubV, A: recvVReg, B: argVReg, C: result, Type: EvVector})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvVector, VReg: result})
+							return result
+
+						case "Mul", "Scale":
+							if len(call.Args) != 1 {
+								l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for %s: got %d args, want 1", fnObj.Name(), len(call.Args))
+								return VRegInvalid
+							}
+							argVReg := l.lowerExpr(fn, call.Args[0])
+							result := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPMulVF, A: recvVReg, B: argVReg, C: result, Type: EvVector})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvVector, VReg: result})
+							return result
+
+						case "Div":
+							if len(call.Args) != 1 {
+								l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for Div: got %d args, want 1", len(call.Args))
+								return VRegInvalid
+							}
+							argVReg := l.lowerExpr(fn, call.Args[0])
+							oneVReg := l.constFloat(fn, 1.0)
+							invVReg := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPDivF, A: oneVReg, B: argVReg, C: invVReg, Type: EvFloat})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvFloat, VReg: invVReg})
+
+							result := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPMulVF, A: recvVReg, B: invVReg, C: result, Type: EvVector})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvVector, VReg: result})
+							return result
+
 						case "Dot":
-							op = qc.OPMulV
-							resType = EvFloat
+							if len(call.Args) != 1 {
+								l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for Dot: got %d args, want 1", len(call.Args))
+								return VRegInvalid
+							}
+							argVReg := l.lowerExpr(fn, call.Args[0])
+							result := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPMulV, A: recvVReg, B: argVReg, C: result, Type: EvFloat})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvFloat, VReg: result})
+							return result
+
+						case "Neg", "Negate":
+							if len(call.Args) != 0 {
+								l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for %s: got %d args, want 0", fnObj.Name(), len(call.Args))
+								return VRegInvalid
+							}
+							negOne := l.constFloat(fn, -1.0)
+							result := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPMulVF, A: recvVReg, B: negOne, C: result, Type: EvVector})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvVector, VReg: result})
+							return result
+
+						case "LenSq", "LengthSq":
+							if len(call.Args) != 0 {
+								l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for %s: got %d args, want 0", fnObj.Name(), len(call.Args))
+								return VRegInvalid
+							}
+							result := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPMulV, A: recvVReg, B: recvVReg, C: result, Type: EvFloat})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvFloat, VReg: result})
+							return result
+
+						case "Equals":
+							if len(call.Args) != 1 {
+								l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for Equals: got %d args, want 1", len(call.Args))
+								return VRegInvalid
+							}
+							argVReg := l.lowerExpr(fn, call.Args[0])
+							result := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPEqV, A: recvVReg, B: argVReg, C: result, Type: EvFloat})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvFloat, VReg: result})
+							return result
+
+						case "MA", "MultiplyAdd":
+							if len(call.Args) != 2 {
+								l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for %s: got %d args, want 2", fnObj.Name(), len(call.Args))
+								return VRegInvalid
+							}
+							scaleVReg := l.lowerExpr(fn, call.Args[0])
+							bVReg := l.lowerExpr(fn, call.Args[1])
+
+							scaledVReg := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPMulVF, A: bVReg, B: scaleVReg, C: scaledVReg, Type: EvVector})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvVector, VReg: scaledVReg})
+
+							result := l.allocVReg()
+							fn.Body = append(fn.Body, IRInst{Op: qc.OPAddV, A: recvVReg, B: scaledVReg, C: result, Type: EvVector})
+							fn.Locals = append(fn.Locals, IRLocal{Type: EvVector, VReg: result})
+							return result
+
 						default:
 							l.errors.Addf(l.pos(call), "unsupported Vec3 method: %s", fnObj.Name())
 							return VRegInvalid
 						}
-
-						if len(call.Args) != 1 {
-							l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for %s: got %d args, want 1", fnObj.Name(), len(call.Args))
-							return VRegInvalid
-						}
-
-						recvVReg := l.lowerExpr(fn, f.X)
-						argVReg := l.lowerExpr(fn, call.Args[0])
-						result := l.allocVReg()
-
-						fn.Body = append(fn.Body, IRInst{
-							Op:   op,
-							A:    recvVReg,
-							B:    argVReg,
-							C:    result,
-							Type: resType,
-						})
-						fn.Locals = append(fn.Locals, IRLocal{Type: resType, VReg: result})
-						return result
 					}
 				}
 				funcObj = fnObj

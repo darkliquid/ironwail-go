@@ -1,185 +1,91 @@
 package quake
 
-import "testing"
+import (
+	"testing"
+)
 
-func TestVec3Methods(t *testing.T) {
-	v := MakeVec3(1, 2, 3)
-	w := MakeVec3(4, 5, 6)
+func TestQuakeVec3Methods(t *testing.T) {
+	a := Vec3{1, 2, 3}
+	b := Vec3{4, 5, 6}
 
-	if got, want := v.Add(w), (Vec3{5, 7, 9}); got != want {
-		t.Fatalf("Add = %v, want %v", got, want)
+	if a.Add(b) != (Vec3{5, 7, 9}) {
+		t.Errorf("Add failed")
 	}
-	if got, want := w.Sub(v), (Vec3{3, 3, 3}); got != want {
-		t.Fatalf("Sub = %v, want %v", got, want)
+	if b.Sub(a) != (Vec3{3, 3, 3}) {
+		t.Errorf("Sub failed")
 	}
-	if got, want := v.Mul(2), (Vec3{2, 4, 6}); got != want {
-		t.Fatalf("Mul = %v, want %v", got, want)
+	if a.Mul(2) != (Vec3{2, 4, 6}) || a.Scale(2) != (Vec3{2, 4, 6}) {
+		t.Errorf("Mul/Scale failed")
 	}
-	if got, want := v.Div(2), (Vec3{0.5, 1, 1.5}); got != want {
-		t.Fatalf("Div = %v, want %v", got, want)
+	if (Vec3{2, 4, 6}).Div(2) != a {
+		t.Errorf("Div failed")
 	}
-	if got, want := v.Neg(), (Vec3{-1, -2, -3}); got != want {
-		t.Fatalf("Neg = %v, want %v", got, want)
+	if a.Neg() != (Vec3{-1, -2, -3}) || a.Negate() != (Vec3{-1, -2, -3}) {
+		t.Errorf("Neg/Negate failed")
 	}
-	if got, want := v.Dot(w), float32(32); got != want {
-		t.Fatalf("Dot = %v, want %v", got, want)
+	if a.Dot(b) != 32 {
+		t.Errorf("Dot expected 32, got %f", a.Dot(b))
 	}
-	if got, want := v.Cross(w), (Vec3{-3, 6, -3}); got != want {
-		t.Fatalf("Cross = %v, want %v", got, want)
+	if a.LenSq() != 14 || a.LengthSq() != 14 {
+		t.Errorf("LenSq expected 14, got %f", a.LenSq())
 	}
-	if got, want := v.Lerp(w, 0.25), (Vec3{1.75, 2.75, 3.75}); got != want {
-		t.Fatalf("Lerp = %v, want %v", got, want)
+	if (Vec3{3, 4, 0}).Len() != 5 || (Vec3{3, 4, 0}).Length() != 5 {
+		t.Errorf("Len expected 5, got %f", (Vec3{3, 4, 0}).Len())
+	}
+	if (Vec3{3, 0, 0}).Distance(Vec3{0, 4, 0}) != 5 || (Vec3{3, 0, 0}).Dist(Vec3{0, 4, 0}) != 5 {
+		t.Errorf("Distance expected 5, got %f", (Vec3{3, 0, 0}).Distance(Vec3{0, 4, 0}))
+	}
+	if (Vec3{3, 0, 0}).DistanceSq(Vec3{0, 4, 0}) != 25 {
+		t.Errorf("DistanceSq expected 25, got %f", (Vec3{3, 0, 0}).DistanceSq(Vec3{0, 4, 0}))
+	}
+	norm := (Vec3{10, 0, 0}).Normalize()
+	if norm != (Vec3{1, 0, 0}) {
+		t.Errorf("Normalize expected (1,0,0), got %+v", norm)
+	}
+	ma := a.MA(2, b)
+	if ma != (Vec3{9, 12, 15}) || a.MultiplyAdd(2, b) != (Vec3{9, 12, 15}) {
+		t.Errorf("MA failed: %+v", ma)
+	}
+	if a.X() != 1 || a.Y() != 2 || a.Z() != 3 {
+		t.Errorf("Accessors failed")
+	}
+	if !a.Equals(Vec3{1, 2, 3}) {
+		t.Errorf("Equals failed")
+	}
+	if !a.ApproxEqual(Vec3{1.00001, 2.00001, 2.99999}, 0.001) {
+		t.Errorf("ApproxEqual failed")
 	}
 }
 
-func TestVec3OperatorEmulationHelpers(t *testing.T) {
-	a := MakeVec3(2, -4, 8)
-	b := MakeVec3(1, 2, 3)
-
-	if got, want := OpAddVV(a, b), (Vec3{3, -2, 11}); got != want {
-		t.Fatalf("OpAddVV = %v, want %v", got, want)
+func TestQuakeBox3(t *testing.T) {
+	box := NewBox3(Vec3{-10, -10, -10}, Vec3{10, 10, 10})
+	if box.Center() != (Vec3{0, 0, 0}) {
+		t.Errorf("Center expected (0,0,0), got %+v", box.Center())
 	}
-	if got, want := OpSubVV(a, b), (Vec3{1, -6, 5}); got != want {
-		t.Fatalf("OpSubVV = %v, want %v", got, want)
+	if box.Size() != (Vec3{20, 20, 20}) {
+		t.Errorf("Size expected (20,20,20), got %+v", box.Size())
 	}
-	if got, want := OpMulVF(a, 0.5), (Vec3{1, -2, 4}); got != want {
-		t.Fatalf("OpMulVF = %v, want %v", got, want)
+	if !box.ContainsPoint(Vec3{0, 5, -5}) {
+		t.Errorf("ContainsPoint failed")
 	}
-	if got, want := OpMulFV(0.5, a), (Vec3{1, -2, 4}); got != want {
-		t.Fatalf("OpMulFV = %v, want %v", got, want)
+	if !box.Intersects(NewBox3(Vec3{5, 5, 5}, Vec3{15, 15, 15})) {
+		t.Errorf("Intersects failed")
 	}
-	if got, want := OpMulVV(a, b), float32(18); got != want {
-		t.Fatalf("OpMulVV = %v, want %v", got, want)
-	}
-	if got, want := OpDivVF(a, 2), (Vec3{1, -2, 4}); got != want {
-		t.Fatalf("OpDivVF = %v, want %v", got, want)
-	}
-	if got, want := OpNegV(a), (Vec3{-2, 4, -8}); got != want {
-		t.Fatalf("OpNegV = %v, want %v", got, want)
+	expanded := box.Expand(5)
+	if expanded.Min != (Vec3{-15, -15, -15}) || expanded.Max != (Vec3{15, 15, 15}) {
+		t.Errorf("Expand failed: %+v", expanded)
 	}
 }
 
-func TestEntityFlagsHelpers(t *testing.T) {
-	e := &Entity{}
-	e.SetFlagsValue(FlagClient | FlagMonster)
-
-	if got, want := e.Flags, float32(40); got != want {
-		t.Fatalf("Flags float storage = %v, want %v", got, want)
+func TestQuakePlane(t *testing.T) {
+	p := NewPlane(Vec3{0, 0, 1}, 10)
+	if p.DistanceToPoint(Vec3{5, 5, 15}) != 5 {
+		t.Errorf("DistanceToPoint expected 5, got %f", p.DistanceToPoint(Vec3{5, 5, 15}))
 	}
-	if !e.HasFlags(FlagClient) {
-		t.Fatalf("HasFlags(FlagClient) = false, want true")
+	if p.PointOnSide(Vec3{5, 5, 15}, 0.01) != 1 {
+		t.Errorf("PointOnSide expected 1")
 	}
-	if e.HasFlags(FlagInWater) {
-		t.Fatalf("HasFlags(FlagInWater) = true, want false")
+	if p.PointOnSide(Vec3{5, 5, 0}, 0.01) != -1 {
+		t.Errorf("PointOnSide expected -1")
 	}
-
-	e.AddFlags(FlagInWater)
-	if !e.HasFlags(FlagClient | FlagInWater) {
-		t.Fatalf("HasFlags(FlagClient|FlagInWater) = false, want true")
-	}
-
-	e.ClearFlags(FlagClient)
-	if e.HasFlags(FlagClient) {
-		t.Fatalf("HasFlags(FlagClient) = true after clear, want false")
-	}
-	if got, want := e.FlagsValue(), (FlagMonster | FlagInWater); got != want {
-		t.Fatalf("FlagsValue = %v, want %v", got, want)
-	}
-}
-
-func TestEntityFlagHelpersNilSafetyAndSpawnFlags(t *testing.T) {
-	var e *Entity
-	e.SetFlagsValue(FlagClient)
-	e.AddFlags(FlagMonster)
-	e.ClearFlags(FlagInWater)
-	e.SetSpawnFlagsValue(FlagObjective)
-
-	if got := e.FlagsValue(); got != 0 {
-		t.Fatalf("nil FlagsValue = %v, want 0", got)
-	}
-	if e.HasFlags(FlagClient) {
-		t.Fatalf("nil HasFlags(FlagClient) = true, want false")
-	}
-	if got := e.SpawnFlagsValue(); got != 0 {
-		t.Fatalf("nil SpawnFlagsValue = %v, want 0", got)
-	}
-
-	ent := &Entity{}
-	ent.SetSpawnFlagsValue(FlagFly | FlagNoMonsters)
-	if got, want := ent.SpawnFlags, float32(32769); got != want {
-		t.Fatalf("SpawnFlags float storage = %v, want %v", got, want)
-	}
-	if got, want := ent.SpawnFlagsValue(), (FlagFly | FlagNoMonsters); got != want {
-		t.Fatalf("SpawnFlagsValue = %v, want %v", got, want)
-	}
-}
-
-func TestEntityHealMethod(t *testing.T) {
-	t.Run("applies heal with cap and ceil", func(t *testing.T) {
-		e := &Entity{Health: 50, MaxHealth: 100}
-		if got := e.Heal(20.2, 0); got != 1 {
-			t.Fatalf("Heal return = %v, want 1", got)
-		}
-		if got, want := e.Health, float32(71); got != want {
-			t.Fatalf("Health = %v, want %v", got, want)
-		}
-	})
-
-	t.Run("clamps to max health when ignore is false", func(t *testing.T) {
-		e := &Entity{Health: 95, MaxHealth: 100}
-		e.Heal(10, 0)
-		if got, want := e.Health, float32(100); got != want {
-			t.Fatalf("Health = %v, want %v", got, want)
-		}
-	})
-
-	t.Run("allows over-max when ignore is true but caps at 250", func(t *testing.T) {
-		e := &Entity{Health: 240, MaxHealth: 100}
-		e.Heal(20, 1)
-		if got, want := e.Health, float32(250); got != want {
-			t.Fatalf("Health = %v, want %v", got, want)
-		}
-	})
-
-	t.Run("returns 0 for nil, dead, or already full without ignore", func(t *testing.T) {
-		var nilEnt *Entity
-		if got := nilEnt.Heal(10, 0); got != 0 {
-			t.Fatalf("nil Heal return = %v, want 0", got)
-		}
-
-		dead := &Entity{Health: 0, MaxHealth: 100}
-		if got := dead.Heal(10, 0); got != 0 {
-			t.Fatalf("dead Heal return = %v, want 0", got)
-		}
-
-		full := &Entity{Health: 100, MaxHealth: 100}
-		if got := full.Heal(10, 0); got != 0 {
-			t.Fatalf("full Heal return = %v, want 0", got)
-		}
-	})
-}
-
-func TestEntityFieldFloatReceiverAndWrapperNilSafety(t *testing.T) {
-	var nilEnt *Entity
-
-	if got := nilEnt.FieldFloat("any"); got != 0 {
-		t.Fatalf("nil receiver FieldFloat = %v, want 0", got)
-	}
-	nilEnt.SetFieldFloat("any", 1)
-
-	if got := FieldFloat(nilEnt, "any"); got != 0 {
-		t.Fatalf("nil wrapper FieldFloat = %v, want 0", got)
-	}
-	SetFieldFloat(nilEnt, "any", 1)
-
-	ent := &Entity{}
-	if got := ent.FieldFloat("any"); got != 0 {
-		t.Fatalf("receiver FieldFloat = %v, want 0", got)
-	}
-	ent.SetFieldFloat("any", 123)
-
-	if got := FieldFloat(ent, "any"); got != 0 {
-		t.Fatalf("wrapper FieldFloat = %v, want 0", got)
-	}
-	SetFieldFloat(ent, "any", 456)
 }

@@ -493,14 +493,134 @@ func (v Vec3) Cross(other Vec3) Vec3 {
 	return Vec3Cross(v, other)
 }
 
+// Mul returns v * s. Alias for Scale for fluent chaining.
+func (v Vec3) Mul(s float32) Vec3 {
+	return Vec3Scale(v, s)
+}
+
+// Div returns v / s.
+func (v Vec3) Div(s float32) Vec3 {
+	inv := 1.0 / s
+	return Vec3{
+		X: v.X * inv,
+		Y: v.Y * inv,
+		Z: v.Z * inv,
+	}
+}
+
+// Neg returns -v.
+func (v Vec3) Neg() Vec3 {
+	return Vec3{X: -v.X, Y: -v.Y, Z: -v.Z}
+}
+
+// Negate returns -v. Alias for Neg.
+func (v Vec3) Negate() Vec3 {
+	return Vec3{X: -v.X, Y: -v.Y, Z: -v.Z}
+}
+
 // Len returns the Euclidean length (magnitude) of the vector.
 // Method form of Vec3Len.
 func (v Vec3) Len() float32 {
 	return Vec3Len(v)
 }
 
+// Length returns the Euclidean length of the vector. Alias for Len.
+func (v Vec3) Length() float32 {
+	return Vec3Len(v)
+}
+
+// LenSq returns the squared length of the vector (X² + Y² + Z²).
+// Avoids the square root operation for distance comparisons.
+func (v Vec3) LenSq() float32 {
+	return v.X*v.X + v.Y*v.Y + v.Z*v.Z
+}
+
+// LengthSq returns the squared length of the vector. Alias for LenSq.
+func (v Vec3) LengthSq() float32 {
+	return v.LenSq()
+}
+
+// Distance returns the Euclidean distance between v and other.
+func (v Vec3) Distance(other Vec3) float32 {
+	return v.Sub(other).Len()
+}
+
+// Dist returns the Euclidean distance between v and other. Alias for Distance.
+func (v Vec3) Dist(other Vec3) float32 {
+	return v.Distance(other)
+}
+
+// DistanceSq returns the squared Euclidean distance between v and other.
+func (v Vec3) DistanceSq(other Vec3) float32 {
+	return v.Sub(other).LenSq()
+}
+
 // Normalize returns a unit-length vector in the same direction.
 // Method form of Vec3Normalize.
 func (v Vec3) Normalize() Vec3 {
 	return Vec3Normalize(v)
+}
+
+// MA performs fused Multiply-Add: v + scale*b.
+func (v Vec3) MA(scale float32, b Vec3) Vec3 {
+	return Vec3MA(v, scale, b)
+}
+
+// MultiplyAdd performs fused Multiply-Add: v + scale*b. Alias for MA.
+func (v Vec3) MultiplyAdd(scale float32, b Vec3) Vec3 {
+	return Vec3MA(v, scale, b)
+}
+
+// Lerp linearly interpolates between v and other by factor t ∈ [0, 1].
+func (v Vec3) Lerp(other Vec3, t float32) Vec3 {
+	return Vec3Lerp(v, other, t)
+}
+
+// Angles converts this direction vector into Euler angles (pitch, yaw, 0).
+func (v Vec3) Angles() Vec3 {
+	return VectorAngles(v)
+}
+
+// AngleVectors calculates forward, right, and up basis vectors from this Euler angle vector.
+func (v Vec3) AngleVectors() (forward, right, up Vec3) {
+	return AngleVectors(v)
+}
+
+// Array converts Vec3 to a [3]float32 array.
+func (v Vec3) Array() [3]float32 {
+	return [3]float32{v.X, v.Y, v.Z}
+}
+
+// Slice converts Vec3 to a 3-element float32 slice.
+func (v Vec3) Slice() []float32 {
+	return []float32{v.X, v.Y, v.Z}
+}
+
+// Set mutates the vector components in-place.
+func (v *Vec3) Set(x, y, z float32) {
+	v.X = x
+	v.Y = y
+	v.Z = z
+}
+
+// Equals returns true if all components of v and other match exactly.
+func (v Vec3) Equals(other Vec3) bool {
+	return v.X == other.X && v.Y == other.Y && v.Z == other.Z
+}
+
+// ApproxEqual returns true if all components are within epsilon of each other.
+func (v Vec3) ApproxEqual(other Vec3, eps float32) bool {
+	return float32(math.Abs(float64(v.X-other.X))) <= eps &&
+		float32(math.Abs(float64(v.Y-other.Y))) <= eps &&
+		float32(math.Abs(float64(v.Z-other.Z))) <= eps
+}
+
+// Vec3FromArray constructs a Vec3 from a [3]float32 array.
+func Vec3FromArray(arr [3]float32) Vec3 {
+	return Vec3{X: arr[0], Y: arr[1], Z: arr[2]}
+}
+
+// Vec3FromSlice constructs a Vec3 from a slice. Panics if slice length < 3.
+func Vec3FromSlice(s []float32) Vec3 {
+	return Vec3{X: s[0], Y: s[1], Z: s[2]}
 }

@@ -500,6 +500,199 @@ func (v Vec3) Lerp(o Vec3, t float32) Vec3 {
 	return v.Add(o.Sub(v).Mul(t))
 }
 
+// Scale returns the vector scaled by s. Alias for Mul.
+func (v Vec3) Scale(s float32) Vec3 {
+	return v.Mul(s)
+}
+
+// Negate returns the negated vector. Alias for Neg.
+func (v Vec3) Negate() Vec3 {
+	return v.Neg()
+}
+
+// Len returns the Euclidean length of the vector.
+func (v Vec3) Len() float32 {
+	return float32(math.Sqrt(float64(v.Dot(v))))
+}
+
+// Length returns the Euclidean length of the vector. Alias for Len.
+func (v Vec3) Length() float32 {
+	return v.Len()
+}
+
+// LenSq returns the squared length of the vector (v[0]² + v[1]² + v[2]²).
+func (v Vec3) LenSq() float32 {
+	return v.Dot(v)
+}
+
+// LengthSq returns the squared length of the vector. Alias for LenSq.
+func (v Vec3) LengthSq() float32 {
+	return v.LenSq()
+}
+
+// Distance returns the Euclidean distance between v and other.
+func (v Vec3) Distance(other Vec3) float32 {
+	return other.Sub(v).Len()
+}
+
+// Dist returns the Euclidean distance between v and other. Alias for Distance.
+func (v Vec3) Dist(other Vec3) float32 {
+	return v.Distance(other)
+}
+
+// DistanceSq returns the squared Euclidean distance between v and other.
+func (v Vec3) DistanceSq(other Vec3) float32 {
+	return other.Sub(v).LenSq()
+}
+
+// Normalize returns a unit-length vector pointing in the same direction.
+func (v Vec3) Normalize() Vec3 {
+	l := v.Len()
+	if l > 0 {
+		return v.Mul(1.0 / l)
+	}
+	return v
+}
+
+// MA performs fused Multiply-Add: v + b * scale.
+func (v Vec3) MA(scale float32, b Vec3) Vec3 {
+	return v.Add(b.Mul(scale))
+}
+
+// MultiplyAdd performs fused Multiply-Add: v + b * scale. Alias for MA.
+func (v Vec3) MultiplyAdd(scale float32, b Vec3) Vec3 {
+	return v.MA(scale, b)
+}
+
+// X returns the first component of the vector.
+func (v Vec3) X() float32 { return v[0] }
+
+// Y returns the second component of the vector.
+func (v Vec3) Y() float32 { return v[1] }
+
+// Z returns the third component of the vector.
+func (v Vec3) Z() float32 { return v[2] }
+
+// Set mutates the vector components in-place.
+func (v *Vec3) Set(x, y, z float32) {
+	v[0] = x
+	v[1] = y
+	v[2] = z
+}
+
+// Equals returns true if all vector components match exactly.
+func (v Vec3) Equals(other Vec3) bool {
+	return v[0] == other[0] && v[1] == other[1] && v[2] == other[2]
+}
+
+// ApproxEqual returns true if all components are within epsilon.
+func (v Vec3) ApproxEqual(other Vec3, eps float32) bool {
+	return float32(math.Abs(float64(v[0]-other[0]))) <= eps &&
+		float32(math.Abs(float64(v[1]-other[1]))) <= eps &&
+		float32(math.Abs(float64(v[2]-other[2]))) <= eps
+}
+
+// Box3 represents an axis-aligned bounding box defined by Min and Max bounds.
+type Box3 struct {
+	Min Vec3
+	Max Vec3
+}
+
+// NewBox3 creates a Box3 from minimum and maximum bounds.
+func NewBox3(min, max Vec3) Box3 {
+	return Box3{Min: min, Max: max}
+}
+
+// Center returns the center of the bounding box.
+func (b Box3) Center() Vec3 {
+	return Vec3{
+		(b.Min[0] + b.Max[0]) * 0.5,
+		(b.Min[1] + b.Max[1]) * 0.5,
+		(b.Min[2] + b.Max[2]) * 0.5,
+	}
+}
+
+// Size returns the width, depth, height dimensions of the box.
+func (b Box3) Size() Vec3 {
+	return Vec3{
+		b.Max[0] - b.Min[0],
+		b.Max[1] - b.Min[1],
+		b.Max[2] - b.Min[2],
+	}
+}
+
+// ContainsPoint returns true if point p is inside or on the box bounds.
+func (b Box3) ContainsPoint(p Vec3) bool {
+	return p[0] >= b.Min[0] && p[0] <= b.Max[0] &&
+		p[1] >= b.Min[1] && p[1] <= b.Max[1] &&
+		p[2] >= b.Min[2] && p[2] <= b.Max[2]
+}
+
+// Intersects returns true if b and other overlap.
+func (b Box3) Intersects(other Box3) bool {
+	if b.Max[0] < other.Min[0] || b.Min[0] > other.Max[0] {
+		return false
+	}
+	if b.Max[1] < other.Min[1] || b.Min[1] > other.Max[1] {
+		return false
+	}
+	if b.Max[2] < other.Min[2] || b.Min[2] > other.Max[2] {
+		return false
+	}
+	return true
+}
+
+// Expand returns a box expanded uniformly by delta in all directions.
+func (b Box3) Expand(delta float32) Box3 {
+	return Box3{
+		Min: Vec3{b.Min[0] - delta, b.Min[1] - delta, b.Min[2] - delta},
+		Max: Vec3{b.Max[0] + delta, b.Max[1] + delta, b.Max[2] + delta},
+	}
+}
+
+// Plane represents an infinite 2D plane in 3D space: Normal · P - Dist = 0.
+type Plane struct {
+	Normal Vec3
+	Dist   float32
+}
+
+// NewPlane creates a Plane with a unit normal and distance.
+func NewPlane(normal Vec3, dist float32) Plane {
+	return Plane{
+		Normal: normal.Normalize(),
+		Dist:   dist,
+	}
+}
+
+// DistanceToPoint returns the signed distance from the plane to point p.
+func (pl Plane) DistanceToPoint(p Vec3) float32 {
+	return pl.Normal.Dot(p) - pl.Dist
+}
+
+// PointOnSide classifies point p relative to the plane (+1 front, -1 back, 0 on plane).
+func (pl Plane) PointOnSide(p Vec3, epsilon float32) int {
+	d := pl.DistanceToPoint(p)
+	if d > epsilon {
+		return 1
+	}
+	if d < -epsilon {
+		return -1
+	}
+	return 0
+}
+
+// Angles represents Euler angles (pitch, yaw, roll) in degrees.
+type Angles struct {
+	Pitch float32
+	Yaw   float32
+	Roll  float32
+}
+
+// ToVec3 converts Angles to a Vec3 (X=Pitch, Y=Yaw, Z=Roll).
+func (a Angles) ToVec3() Vec3 {
+	return Vec3{a.Pitch, a.Yaw, a.Roll}
+}
+
 // OpAddVV emulates QC vector addition: a + b.
 func OpAddVV(a, b Vec3) Vec3 {
 	return a.Add(b)

@@ -35,10 +35,10 @@ type Lowerer struct {
 	// allocated at lowering time with REAL global offsets (>= FreeGlobalBase)
 	// so that sub-vregBase VRegs passed to OPAddress/OPCall/OPStorePFNC
 	// resolve to int-holding global slots (the VM reads GInt there).
-	funcCells    map[types.Object]VReg // func-valued object -> cell VReg (offset)
-	constInts    map[int64]VReg        // int literal pool (cell VRegs)
-	nextGlobalOfs uint16               // free-global cursor, mirrors GlobalAllocator
-	globalVarOfs map[types.Object]uint16 // package-level var -> real global offset
+	funcCells     map[types.Object]VReg   // func-valued object -> cell VReg (offset)
+	constInts     map[int64]VReg          // int literal pool (cell VRegs)
+	nextGlobalOfs uint16                  // free-global cursor, mirrors GlobalAllocator
+	globalVarOfs  map[types.Object]uint16 // package-level var -> real global offset
 
 	// inTargetPackage is true while lowering the requested target package
 	// (vs a transitively imported dependency). Plain-var global cells are
