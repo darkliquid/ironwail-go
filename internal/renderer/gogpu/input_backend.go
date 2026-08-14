@@ -24,7 +24,6 @@ type InputBackend struct {
 	lastMouseY      float64
 	accumMouseDX    int32
 	accumMouseDY    int32
-	callbackInputOK bool
 	callbackSeen    bool
 	pollPrevPressed []bool
 	pollPrevMouse   []bool
@@ -66,7 +65,29 @@ func (b *InputBackend) PollEvents() bool {
 		}
 		return true
 	}
-	if b.hasCallbackInput() {
+
+	// The EventSource callbacks (OnKeyPress/OnKeyRelease/OnMousePress/
+	// OnMouseRelease/OnScroll) are the authoritative key/button delivery path
+	// and are registered at Init. Polling the raw pressed state would deliver
+	// the same physical press/release a second time (the app feeds both the
+	// EventSource callbacks and the Input() polling state from one platform
+	// event), which double-advances menu pages and corrupts edge tracking.
+	// The polling path below therefore only feeds mouse DELTA/POSITION, which
+	// the callbacks also deliver — see the OnPointer/OnMouseMove wiring above.
+	//
+	// The gate uses hasCallbackSeen (ANY callback fired — including mouse
+	// moves, the usual first event after grabbing the pointer) rather than
+	// key/mouse press specifically. A window-focus or pointer-grab mouse-move
+	// is often the first callback, and trusting the callback path from that
+	// point prevents the following key press from being double-delivered by
+	// the still-armed polling path.
+	if b.hasCallbackSeen() {
+		// Mouse movement is delivered exclusively by the OnPointer/OnMouseMove
+		// callback in this path; reading the raw Mouse().Delta() here as well
+		// would accumulate every move a second time (the app feeds both the
+		// EventSource callbacks and the Input() polling state from one
+		// platform event), doubling the camera yaw/pitch change per physical
+		// mouse move — visible as a rapid angle snap while firing.
 		if time.Since(b.lastPollLog) > time.Second {
 			slog.Debug("INPUT poll early", "reason", "callbacks active", "poll_count", b.pollCounter)
 			b.lastPollLog = time.Now()
@@ -134,15 +155,23 @@ func (b *InputBackend) PollEvents() bool {
 
 	dx, dy := mouse.Delta()
 	x, y := mouse.Position()
-	b.mu.Lock()
-	b.accumMouseDX += int32(dx)
-	b.accumMouseDY += int32(dy)
-	b.lastMouseX = float64(x)
-	b.lastMouseY = float64(y)
-	b.hasMousePos = true
-	b.mu.Unlock()
+	b.accumulateMousePosition(int32(dx), int32(dy), float64(x), float64(y))
 
 	return true
+}
+
+// accumulateMousePosition folds a new mouse delta/position sample into the
+// backend's accumulator, shared by the polling and callback paths so mouse
+// look is fed exactly once regardless of whether key/button events are
+// delivered via EventSource callbacks or raw polling.
+func (b *InputBackend) accumulateMousePosition(dx, dy int32, x, y float64) {
+	b.mu.Lock()
+	b.accumMouseDX += dx
+	b.accumMouseDY += dy
+	b.lastMouseX = x
+	b.lastMouseY = y
+	b.hasMousePos = true
+	b.mu.Unlock()
 }
 
 func (b *InputBackend) initCallbacks() {
@@ -162,7 +191,6 @@ func (b *InputBackend) initCallbacks() {
 		b.modifiers = iinput.ModifierState{Shift: mods.HasShift(), Ctrl: mods.HasControl(), Alt: mods.HasAlt()}
 		b.mu.Unlock()
 		if mapped >= 0 {
-			b.markCallbackInput()
 			b.logInputEvent("callback-key", mapped, true)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: true, Device: iinput.DeviceKeyboard})
 		}
@@ -175,7 +203,6 @@ func (b *InputBackend) initCallbacks() {
 		b.modifiers = iinput.ModifierState{Shift: mods.HasShift(), Ctrl: mods.HasControl(), Alt: mods.HasAlt()}
 		b.mu.Unlock()
 		if mapped >= 0 {
-			b.markCallbackInput()
 			b.logInputEvent("callback-key", mapped, false)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: false, Device: iinput.DeviceKeyboard})
 		}
@@ -226,6 +253,10 @@ func (b *InputBackend) initCallbacks() {
 	es.OnMousePress(func(button gpucontext.MouseButton, x, y float64) {
 		b.markCallbackSeen()
 		if key := MapGPUContextMouseButton(button); key >= 0 {
+			// Mouse buttons are callback-delivered like keys: marking
+			// Marking the seen flag here prevents the raw polling path from
+			// delivering the same click a second time (which would advance
+			// menu pages twice per physical click).
 			b.logInputEvent("callback-mouse", key, true)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: key, Down: true, Device: iinput.DeviceMouse})
 		}
@@ -280,22 +311,10 @@ func (b *InputBackend) logInputEvent(source string, key int, down bool) {
 	slog.Debug("input event observed", "source", source, "key", keyName, "key_code", key, "down", down, "event_index", b.eventLogCount)
 }
 
-func (b *InputBackend) markCallbackInput() {
-	b.mu.Lock()
-	b.callbackInputOK = true
-	b.mu.Unlock()
-}
-
 func (b *InputBackend) markCallbackSeen() {
 	b.mu.Lock()
 	b.callbackSeen = true
 	b.mu.Unlock()
-}
-
-func (b *InputBackend) hasCallbackInput() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.callbackInputOK
 }
 
 func (b *InputBackend) hasCallbackSeen() bool {

@@ -215,3 +215,44 @@ func TestHandleKeyEventIgnoresStrayKeyUp(t *testing.T) {
 		t.Fatalf("expected down/up callbacks after valid press, got %d", len(events))
 	}
 }
+
+// TestClearKeyStatesUnsticksAutorepeatFilter guards the menu-flow regression
+// where a key held when the menu opened leaves the physical key state set, so
+// re-pressing the key after the menu closes would be filtered as OS key-repeat
+// and never reach the game. ClearKeyStates must reset that state so the key
+// works again.
+func TestClearKeyStatesUnsticksAutorepeatFilter(t *testing.T) {
+	sys := NewSystem(nil)
+	sys.SetKeyDest(KeyGame)
+
+	var events []KeyEvent
+	sys.OnKey = func(event KeyEvent) { events = append(events, event) }
+
+	// Physical key goes down while in game.
+	sys.HandleKeyEvent(KeyEvent{Key: int('w'), Down: true})
+	if !sys.IsKeyDown(int('w')) {
+		t.Fatal("key should be marked down after press")
+	}
+
+	// Menu opens; game-mode button release consumes the button latch, and the
+	// engine clears physical key state so the (now menu-routed) physical
+	// key-up cannot corrupt the tracking and re-press is not filtered.
+	sys.SetKeyDest(KeyMenu)
+	sys.ClearKeyStates()
+	if sys.IsKeyDown(int('w')) {
+		t.Fatal("ClearKeyStates must clear the physical key state")
+	}
+
+	// Menu closes; re-pressing the key must dispatch, not be filtered as a
+	// repeat of the pre-menu press (events went 0 -> 1 on the first press).
+	sys.SetKeyDest(KeyGame)
+	sys.HandleKeyEvent(KeyEvent{Key: int('w'), Down: true})
+	if len(events) != 2 {
+		t.Fatalf("key-down callbacks after re-press = %d, want 2 (re-press filtered as repeat)", len(events))
+	}
+
+	sys.HandleKeyEvent(KeyEvent{Key: int('w'), Down: false})
+	if len(events) != 3 {
+		t.Fatalf("key-up callbacks after re-press = %d, want 3", len(events))
+	}
+}

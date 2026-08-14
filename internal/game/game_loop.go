@@ -90,8 +90,15 @@ func (cb gameCallbacks) ProcessConsoleCommands() {
 		g.Subs.Commands.Execute()
 	}
 	host.DispatchLoopbackStuffText(g.Subs)
+	prevState, prevSignon := g.currentRuntimeClientActivation()
 	g.syncHostClientState()
-	if g.Client != nil && g.Client.State == cl.StateActive {
+	// Apply the startup gameplay input mode only on the transition INTO an
+	// active client (new map / signon completed), not every frame. Calling it
+	// per-frame would reset all physical key states every frame — a held key's
+	// release would then be dropped as a stray key-up, leaving the button
+	// latched until escape resets it (C only clears key states on input-grab
+	// begin/end).
+	if g.Client != nil && g.Client.State == cl.StateActive && (prevState != cl.StateActive || prevSignon < cl.Signons) {
 		g.ApplyStartupGameplayInputMode()
 	}
 }

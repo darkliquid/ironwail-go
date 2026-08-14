@@ -412,6 +412,21 @@ func (g *Game) syncGameplayInputMode() {
 		slog.Debug("input mode updated", "key_dest", g.keyDestName(wantDest), "menu_active", menuActive)
 	}
 
+	// Leaving active gameplay (menu/console/message mode, or a fresh start in a
+	// non-game dest) must always release latched gameplay buttons and forget the
+	// physical key states, since the matching key-up events will be routed to
+	// (and swallowed by) the menu/console handler. Doing this only when the
+	// cursor-grab state changes is not enough: if the cursor was never grabbed
+	// (or grab state is unchanged) the early return below would otherwise leave
+	// +forward/+attack/etc. latched, and re-pressing the key after closing the
+	// menu would be filtered as a key-repeat.
+	if wantDest != input.KeyGame {
+		if g.Client != nil {
+			g.releaseGameplayButtons()
+		}
+		g.Input.ClearKeyStates()
+	}
+
 	shouldGrab := !menuActive && wantDest == input.KeyGame
 	if shouldGrab == g.MouseGrabbed {
 		return
@@ -621,6 +636,7 @@ func (g *Game) ApplyStartupGameplayInputMode() {
 	// behind an open menu_main overlay; hiding the menu here would diverge
 	// from C's behavior and cause the parity harness to desync. Only hide
 	// the menu when we are NOT playing back an attract-mode demo.
+	wasMenuActive := g.Menu != nil && g.Menu.IsActive()
 	if g.Menu != nil {
 		demo := g.Host.DemoState()
 		attract := demo != nil && demo.Playback && g.Host.DemoNum() >= 0
@@ -628,8 +644,14 @@ func (g *Game) ApplyStartupGameplayInputMode() {
 			g.Menu.HideMenu()
 		}
 	}
+	wasConsole := g.Input != nil && (g.Input.KeyDest() == input.KeyConsole || g.Input.KeyDest() == input.KeyMessage)
 	g.syncGameplayInputMode()
-	if g.Input != nil {
+	// Reset the physical key state only when this call actually lifted the
+	// game out of a menu/console/message mode. Calling ClearKeyStates on an
+	// already-active frame drops the release of any key held during gameplay,
+	// latching the button until escape resets it (C only clears key states on
+	// input-grab begin/end, not every frame).
+	if g.Input != nil && (wasMenuActive || wasConsole) {
 		g.Input.ClearKeyStates()
 	}
 }
