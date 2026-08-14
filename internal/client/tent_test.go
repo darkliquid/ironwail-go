@@ -11,6 +11,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestParseTempEntityBeamStoresBeamState verifies that lightning beams are correctly parsed and stored in the client state.
@@ -44,10 +45,10 @@ func TestParseTempEntityBeamStoresBeamState(t *testing.T) {
 	if beam.model != "progs/bolt.mdl" {
 		t.Fatalf("beam model = %q, want progs/bolt.mdl", beam.model)
 	}
-	if beam.start != [3]float32{1, 2, 3} {
+	if beam.start != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("beam start = %v, want [1 2 3]", beam.start)
 	}
-	if beam.end != [3]float32{31, 32, 33} {
+	if beam.end != (types.Vec3{X: 31, Y: 32, Z: 33}) {
 		t.Fatalf("beam end = %v, want [31 32 33]", beam.end)
 	}
 	if beam.endTime != 5.2 {
@@ -66,8 +67,8 @@ func TestUpdateTempEntitiesSkipsExpiredBeams(t *testing.T) {
 		typ:     inet.TE_LIGHTNING1,
 		model:   "progs/bolt.mdl",
 		endTime: 9,
-		start:   [3]float32{0, 0, 0},
-		end:     [3]float32{90, 0, 0},
+		start:   types.Vec3{X: 0, Y: 0, Z: 0},
+		end:     types.Vec3{X: 90, Y: 0, Z: 0},
 	}
 
 	c.UpdateTempEntities()
@@ -87,30 +88,30 @@ func TestUpdateTempEntitiesGeneratesBeamSegments(t *testing.T) {
 		typ:     inet.TE_LIGHTNING2,
 		model:   "progs/bolt2.mdl",
 		endTime: 1.2,
-		start:   [3]float32{0, 0, 0},
-		end:     [3]float32{90, 0, 0},
+		start:   types.Vec3{X: 0, Y: 0, Z: 0},
+		end:     types.Vec3{X: 90, Y: 0, Z: 0},
 	}
 
 	c.UpdateTempEntities()
 	if got := len(c.BeamSegments); got != 3 {
 		t.Fatalf("BeamSegments len = %d, want 3", got)
 	}
-	if got := c.BeamSegments[0].Origin; got != [3]float32{0, 0, 0} {
+	if got := c.BeamSegments[0].Origin; got != (types.Vec3{X: 0, Y: 0, Z: 0}) {
 		t.Fatalf("segment 0 origin = %v, want [0 0 0]", got)
 	}
-	if got := c.BeamSegments[1].Origin; got != [3]float32{30, 0, 0} {
+	if got := c.BeamSegments[1].Origin; got != (types.Vec3{X: 30, Y: 0, Z: 0}) {
 		t.Fatalf("segment 1 origin = %v, want [30 0 0]", got)
 	}
-	if got := c.BeamSegments[2].Origin; got != [3]float32{60, 0, 0} {
+	if got := c.BeamSegments[2].Origin; got != (types.Vec3{X: 60, Y: 0, Z: 0}) {
 		t.Fatalf("segment 2 origin = %v, want [60 0 0]", got)
 	}
-	if got := c.BeamSegments[0].Angles[2]; got != 190 {
+	if got := c.BeamSegments[0].Angles.Z; got != 190 {
 		t.Fatalf("segment 0 roll = %v, want 190", got)
 	}
-	if got := c.BeamSegments[1].Angles[2]; got != 139 {
+	if got := c.BeamSegments[1].Angles.Z; got != 139 {
 		t.Fatalf("segment 1 roll = %v, want 139", got)
 	}
-	if got := c.BeamSegments[2].Angles[2]; got != 273 {
+	if got := c.BeamSegments[2].Angles.Z; got != 273 {
 		t.Fatalf("segment 2 roll = %v, want 273", got)
 	}
 }
@@ -123,32 +124,32 @@ func TestUpdateTempEntitiesBeamRollJitterConsumesOneRollPerSegmentAcrossBeams(t 
 		typ:     inet.TE_LIGHTNING2,
 		model:   "progs/bolt2.mdl",
 		endTime: 1.2,
-		start:   [3]float32{0, 0, 0},
-		end:     [3]float32{90, 0, 0},
+		start:   types.Vec3{X: 0, Y: 0, Z: 0},
+		end:     types.Vec3{X: 90, Y: 0, Z: 0},
 	}
 	c.beams[1] = beamState{
 		entity:  8,
 		typ:     inet.TE_LIGHTNING1,
 		model:   "progs/bolt.mdl",
 		endTime: 1.2,
-		start:   [3]float32{0, 50, 0},
-		end:     [3]float32{30, 50, 0},
+		start:   types.Vec3{X: 0, Y: 50, Z: 0},
+		end:     types.Vec3{X: 30, Y: 50, Z: 0},
 	}
 
 	c.UpdateTempEntities()
 	if got := len(c.BeamSegments); got != 4 {
 		t.Fatalf("BeamSegments len = %d, want 4", got)
 	}
-	if got := c.BeamSegments[0].Angles[2]; got != 190 {
+	if got := c.BeamSegments[0].Angles.Z; got != 190 {
 		t.Fatalf("segment 0 roll = %v, want 190", got)
 	}
-	if got := c.BeamSegments[1].Angles[2]; got != 139 {
+	if got := c.BeamSegments[1].Angles.Z; got != 139 {
 		t.Fatalf("segment 1 roll = %v, want 139", got)
 	}
-	if got := c.BeamSegments[2].Angles[2]; got != 273 {
+	if got := c.BeamSegments[2].Angles.Z; got != 273 {
 		t.Fatalf("segment 2 roll = %v, want 273", got)
 	}
-	if got := c.BeamSegments[3].Angles[2]; got != 158 {
+	if got := c.BeamSegments[3].Angles.Z; got != 158 {
 		t.Fatalf("segment 3 roll = %v, want 158", got)
 	}
 }
@@ -164,8 +165,8 @@ func TestUpdateTempEntitiesMutatesSharedCompatRandStream(t *testing.T) {
 		typ:     inet.TE_LIGHTNING2,
 		model:   "progs/bolt2.mdl",
 		endTime: 1.2,
-		start:   [3]float32{0, 0, 0},
-		end:     [3]float32{90, 0, 0},
+		start:   types.Vec3{X: 0, Y: 0, Z: 0},
+		end:     types.Vec3{X: 90, Y: 0, Z: 0},
 	}
 	c.UpdateTempEntities()
 	after := compatrand.Int()
@@ -226,10 +227,10 @@ func TestParseTempEntityBeamUsesProtocolFlagCoords(t *testing.T) {
 	if !ok {
 		t.Fatal("expected beam slot for entity 42")
 	}
-	if beam.start != [3]float32{1.25, 2.5, 3.75} {
+	if beam.start != (types.Vec3{X: 1.25, Y: 2.5, Z: 3.75}) {
 		t.Fatalf("beam start = %v, want [1.25 2.5 3.75]", beam.start)
 	}
-	if beam.end != [3]float32{31.5, 32.25, 33.125} {
+	if beam.end != (types.Vec3{X: 31.5, Y: 32.25, Z: 33.125}) {
 		t.Fatalf("beam end = %v, want [31.5 32.25 33.125]", beam.end)
 	}
 }

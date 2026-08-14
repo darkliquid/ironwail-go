@@ -6,6 +6,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -302,7 +303,6 @@ func (r *Renderer) ensureSpriteModelLocked(device *wgpu.Device, queue *wgpu.Queu
 		frames:     frames,
 		maxWidth:   meta.maxWidth,
 		maxHeight:  meta.maxHeight,
-		bounds:     meta.bounds,
 	}
 	r.spriteModels[modelID] = model
 	return model
@@ -367,7 +367,7 @@ func (dc *DrawContext) collectSpriteDraws(entities []SpriteEntity) []gpuSpriteDr
 	return draws
 }
 
-func (dc *DrawContext) renderSpriteEntitiesHAL(entities []SpriteEntity, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderSpriteEntitiesHAL(entities []SpriteEntity, fogColor types.Vec3, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
@@ -379,7 +379,7 @@ func (dc *DrawContext) renderSpriteEntitiesHAL(entities []SpriteEntity, fogColor
 	dc.renderSpriteDrawsHAL(draws, fogColor, fogDensity)
 }
 
-func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor types.Vec3, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(draws) == 0 {
 		return
 	}
@@ -442,8 +442,8 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
 	// Preallocate contiguous slices for bulk upload
 	vpMatrix := r.ViewProjectionMatrix()
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
+	cameraOrigin := camera.Origin
+	cameraAngles := camera.Angles
 	cameraForward, cameraRight, cameraUp := spriteCameraBasis(cameraAngles)
 	currentPipeline := pipeline
 
@@ -469,7 +469,6 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 			frames:     []spriteRenderFrame{draw.sprite.frames[draw.frame].meta},
 			maxWidth:   draw.sprite.maxWidth,
 			maxHeight:  draw.sprite.maxHeight,
-			bounds:     draw.sprite.bounds,
 		}, 0, cameraOrigin, draw.origin, draw.angles, cameraForward, cameraRight, cameraUp, draw.scale)
 		if len(vertices) == 0 {
 			continue

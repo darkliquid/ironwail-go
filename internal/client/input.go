@@ -48,7 +48,7 @@ func (c *Client) DriftPitch(frametime float32, forwardMove float32) {
 		return
 	}
 
-	delta := c.IdealPitch - c.ViewAngles[0]
+	delta := c.IdealPitch - c.ViewAngles.X
 	if delta == 0 {
 		c.PitchVel = 0
 		return
@@ -61,13 +61,13 @@ func (c *Client) DriftPitch(frametime float32, forwardMove float32) {
 			c.PitchVel = 0
 			move = delta
 		}
-		c.ViewAngles[0] += move
+		c.ViewAngles.X += move
 	} else {
 		if move > -delta {
 			c.PitchVel = 0
 			move = -delta
 		}
-		c.ViewAngles[0] -= move
+		c.ViewAngles.X -= move
 	}
 }
 
@@ -177,9 +177,9 @@ func (c *Client) AdjustAngles(frametime float32) {
 	}
 
 	if c.InputStrafe.State&1 == 0 {
-		c.ViewAngles[1] -= speed * c.YawSpeed * c.KeyState(&c.InputRight)
-		c.ViewAngles[1] += speed * c.YawSpeed * c.KeyState(&c.InputLeft)
-		c.ViewAngles[1] = types.AngleMod(c.ViewAngles[1])
+		c.ViewAngles.Y -= speed * c.YawSpeed * c.KeyState(&c.InputRight)
+		c.ViewAngles.Y += speed * c.YawSpeed * c.KeyState(&c.InputLeft)
+		c.ViewAngles.Y = types.AngleMod(c.ViewAngles.Y)
 	}
 
 	if c.InputKLook.State&1 != 0 {
@@ -188,15 +188,15 @@ func (c *Client) AdjustAngles(frametime float32) {
 		c.StopPitchDrift()
 		forward := c.KeyState(&c.InputForward)
 		back := c.KeyState(&c.InputBack)
-		c.ViewAngles[0] -= speed * c.PitchSpeed * forward
-		c.ViewAngles[0] += speed * c.PitchSpeed * back
+		c.ViewAngles.X -= speed * c.PitchSpeed * forward
+		c.ViewAngles.X += speed * c.PitchSpeed * back
 	}
 
 	up := c.KeyState(&c.InputLookUp)
 	down := c.KeyState(&c.InputLookDown)
 
-	c.ViewAngles[0] -= speed * c.PitchSpeed * up
-	c.ViewAngles[0] += speed * c.PitchSpeed * down
+	c.ViewAngles.X -= speed * c.PitchSpeed * up
+	c.ViewAngles.X += speed * c.PitchSpeed * down
 
 	// C: if (up || down || cl.wheel_pitch) V_StopPitchDrift();
 	if up != 0 || down != 0 || c.WheelPitchAccum != 0 {
@@ -211,7 +211,7 @@ func (c *Client) AdjustAngles(frametime float32) {
 			if apply > c.WheelPitchAccum {
 				apply = c.WheelPitchAccum
 			}
-			c.ViewAngles[0] += apply
+			c.ViewAngles.X += apply
 			c.WheelPitchAccum -= delta
 			if c.WheelPitchAccum < 0 {
 				c.WheelPitchAccum = 0
@@ -221,7 +221,7 @@ func (c *Client) AdjustAngles(frametime float32) {
 			if apply > -c.WheelPitchAccum {
 				apply = -c.WheelPitchAccum
 			}
-			c.ViewAngles[0] -= apply
+			c.ViewAngles.X -= apply
 			c.WheelPitchAccum += delta
 			if c.WheelPitchAccum > 0 {
 				c.WheelPitchAccum = 0
@@ -229,20 +229,20 @@ func (c *Client) AdjustAngles(frametime float32) {
 		}
 	}
 
-	if c.ViewAngles[0] > c.MaxPitch {
-		c.ViewAngles[0] = c.MaxPitch
+	if c.ViewAngles.X > c.MaxPitch {
+		c.ViewAngles.X = c.MaxPitch
 	}
-	if c.ViewAngles[0] < c.MinPitch {
-		c.ViewAngles[0] = c.MinPitch
+	if c.ViewAngles.X < c.MinPitch {
+		c.ViewAngles.X = c.MinPitch
 	}
-	if c.ViewAngles[2] > 50 {
-		c.ViewAngles[2] = 50
+	if c.ViewAngles.Z > 50 {
+		c.ViewAngles.Z = 50
 	}
-	if c.ViewAngles[2] < -50 {
-		c.ViewAngles[2] = -50
+	if c.ViewAngles.Z < -50 {
+		c.ViewAngles.Z = -50
 	}
 	InpdbgLogfAt(2, "adjust pitch=%.3f yaw=%.3f roll=%.3f wheel=%.3f",
-		c.ViewAngles[0], c.ViewAngles[1], c.ViewAngles[2], c.WheelPitchAccum)
+		c.ViewAngles.X, c.ViewAngles.Y, c.ViewAngles.Z, c.WheelPitchAccum)
 }
 
 // AccumMWheelPitch accumulates mouse wheel pitch input, matching C

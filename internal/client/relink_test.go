@@ -10,6 +10,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestRelinkEntities_DemoViewAngleInterpolation verifies that view angles are interpolated during demo playback.
@@ -26,16 +27,18 @@ func TestRelinkEntities_DemoViewAngleInterpolation(t *testing.T) {
 	c.DemoPlayback = true
 
 	// Set double-buffered view angles: old=[0,0,0], new=[90,180,45]
-	c.MViewAngles[1] = [3]float32{0, 0, 0}     // old frame
-	c.MViewAngles[0] = [3]float32{90, 180, 45} // new frame
+	c.MViewAngles[1] = types.Vec3{X: 0, Y: 0, Z: 0}     // old frame
+	c.MViewAngles[0] = types.Vec3{X: 90, Y: 180, Z: 45} // new frame
 
 	c.RelinkEntities()
 
 	// At frac=0.5, expect midpoint: [45, 90, 22.5]
-	want := [3]float32{45, 90, 22.5}
+	want := types.Vec3{X: 45, Y: 90, Z: 22.5}
+	angles := [3]float32{c.ViewAngles.X, c.ViewAngles.Y, c.ViewAngles.Z}
+	wantArr := [3]float32{want.X, want.Y, want.Z}
 	for j := 0; j < 3; j++ {
-		if math.Abs(float64(c.ViewAngles[j]-want[j])) > 0.01 {
-			t.Errorf("ViewAngles[%d] = %v, want %v", j, c.ViewAngles[j], want[j])
+		if math.Abs(float64(angles[j]-wantArr[j])) > 0.01 {
+			t.Errorf("ViewAngles[%d] = %v, want %v", j, angles[j], wantArr[j])
 		}
 	}
 }
@@ -50,16 +53,16 @@ func TestRelinkEntities_DemoViewAngleWraparound(t *testing.T) {
 	c.DemoPlayback = true
 
 	// Test wraparound: old=350°, new=10° → delta should be +20° (not -340°)
-	c.MViewAngles[1] = [3]float32{0, 350, 0}
-	c.MViewAngles[0] = [3]float32{0, 10, 0}
+	c.MViewAngles[1] = types.Vec3{X: 0, Y: 350, Z: 0}
+	c.MViewAngles[0] = types.Vec3{X: 0, Y: 10, Z: 0}
 
 	c.RelinkEntities()
 
 	// At frac=0.5: 350 + 0.5*20 = 360 → should be 360 (or wrapped)
 	// C doesn't wrap the result, so 360 is fine.
 	want := float32(360)
-	if math.Abs(float64(c.ViewAngles[1]-want)) > 0.01 {
-		t.Errorf("ViewAngles[1] = %v, want %v (wraparound interpolation)", c.ViewAngles[1], want)
+	if math.Abs(float64(c.ViewAngles.Y-want)) > 0.01 {
+		t.Errorf("ViewAngles.Y = %v, want %v (wraparound interpolation)", c.ViewAngles.Y, want)
 	}
 }
 
@@ -73,14 +76,14 @@ func TestRelinkEntities_NoDemoNoViewAngleChange(t *testing.T) {
 	c.DemoPlayback = false
 
 	// Set view angles manually.
-	c.ViewAngles = [3]float32{10, 20, 30}
-	c.MViewAngles[1] = [3]float32{0, 0, 0}
-	c.MViewAngles[0] = [3]float32{90, 180, 45}
+	c.ViewAngles = types.Vec3{X: 10, Y: 20, Z: 30}
+	c.MViewAngles[1] = types.Vec3{X: 0, Y: 0, Z: 0}
+	c.MViewAngles[0] = types.Vec3{X: 90, Y: 180, Z: 45}
 
 	c.RelinkEntities()
 
 	// Without demo playback, view angles should not be modified.
-	want := [3]float32{10, 20, 30}
+	want := types.Vec3{X: 10, Y: 20, Z: 30}
 	if c.ViewAngles != want {
 		t.Errorf("ViewAngles = %v, want %v (should be unchanged without demo)", c.ViewAngles, want)
 	}
@@ -94,10 +97,10 @@ func TestRelinkEntities_LocalTeleportPreservesResetAndSnapsPrediction(t *testing
 	c.MTime = [2]float64{1.0, 0.9}
 	c.Time = 1.0
 	c.ViewEntity = 1
-	c.LastServerOrigin = [3]float32{16, 0, 0}
-	c.PredictedOrigin = [3]float32{40, 5, 0}
-	c.PredictionError = [3]float32{24, 5, 0}
-	c.Velocity = [3]float32{1, 2, 3}
+	c.LastServerOrigin = types.Vec3{X: 16, Y: 0, Z: 0}
+	c.PredictedOrigin = types.Vec3{X: 40, Y: 5, Z: 0}
+	c.PredictionError = types.Vec3{X: 24, Y: 5, Z: 0}
+	c.Velocity = types.Vec3{X: 1, Y: 2, Z: 3}
 	c.CommandSequence = 2
 	c.CommandCount = 2
 	c.CommandBuffer[0] = UserCmd{Forward: 200, Msec: 16}
@@ -106,15 +109,15 @@ func TestRelinkEntities_LocalTeleportPreservesResetAndSnapsPrediction(t *testing
 		1: {
 			ModelIndex: 1,
 			MsgTime:    1.0,
-			MsgOrigins: [2][3]float32{{512, 256, 128}, {16, 0, 0}},
-			MsgAngles:  [2][3]float32{{0, 90, 0}, {0, 0, 0}},
+			MsgOrigins: [2]types.Vec3{{X: 512, Y: 256, Z: 128}, {X: 16, Y: 0, Z: 0}},
+			MsgAngles:  [2]types.Vec3{{X: 0, Y: 90, Z: 0}, {X: 0, Y: 0, Z: 0}},
 		},
 	}
 
 	c.RelinkEntities()
 
 	ent := c.Entities[1]
-	if ent.Origin != [3]float32{512, 256, 128} {
+	if ent.Origin != (types.Vec3{X: 512, Y: 256, Z: 128}) {
 		t.Fatalf("Origin = %v, want teleported origin", ent.Origin)
 	}
 	if ent.LerpFlags&inet.LerpResetMove == 0 {
@@ -129,16 +132,16 @@ func TestRelinkEntities_LocalTeleportPreservesResetAndSnapsPrediction(t *testing
 	if c.LastServerOrigin != ent.Origin {
 		t.Fatalf("LastServerOrigin = %v, want snapped origin %v", c.LastServerOrigin, ent.Origin)
 	}
-	if c.PredictionError != [3]float32{} {
+	if c.PredictionError != (types.Vec3{}) {
 		t.Fatalf("PredictionError = %v, want cleared", c.PredictionError)
 	}
-	if c.Velocity != [3]float32{} {
+	if c.Velocity != (types.Vec3{}) {
 		t.Fatalf("Velocity = %v, want cleared", c.Velocity)
 	}
-	if c.MVelocity != [2][3]float32{} {
+	if c.MVelocity != ([2]types.Vec3{}) {
 		t.Fatalf("MVelocity = %v, want cleared", c.MVelocity)
 	}
-	if c.PredictedVelocity != [3]float32{} {
+	if c.PredictedVelocity != (types.Vec3{}) {
 		t.Fatalf("PredictedVelocity = %v, want cleared", c.PredictedVelocity)
 	}
 	if c.CommandCount != 0 {
@@ -147,8 +150,8 @@ func TestRelinkEntities_LocalTeleportPreservesResetAndSnapsPrediction(t *testing
 
 	c.MTime = [2]float64{1.1, 1.0}
 	ent.MsgTime = 1.1
-	ent.MsgOrigins = [2][3]float32{{520, 260, 128}, {512, 256, 128}}
-	ent.MsgAngles = [2][3]float32{{0, 100, 0}, {0, 90, 0}}
+	ent.MsgOrigins = [2]types.Vec3{{X: 520, Y: 260, Z: 128}, {X: 512, Y: 256, Z: 128}}
+	ent.MsgAngles = [2]types.Vec3{{X: 0, Y: 100, Z: 0}, {X: 0, Y: 90, Z: 0}}
 	c.Entities[1] = ent
 	c.RelinkEntities()
 
@@ -173,22 +176,22 @@ func TestRelinkEntities_TrailEvents(t *testing.T) {
 		1: {
 			ModelIndex:  1,
 			MsgTime:     1.0,
-			MsgOrigins:  [2][3]float32{{100, 200, 300}, {100, 200, 300}},
-			TrailOrigin: [3]float32{90, 190, 290},
+			MsgOrigins:  [2]types.Vec3{{X: 100, Y: 200, Z: 300}, {X: 100, Y: 200, Z: 300}},
+			TrailOrigin: types.Vec3{X: 90, Y: 190, Z: 290},
 			ForceLink:   false,
 		},
 		2: {
 			ModelIndex:  2,
 			MsgTime:     1.0,
-			MsgOrigins:  [2][3]float32{{50, 60, 70}, {50, 60, 70}},
-			TrailOrigin: [3]float32{40, 50, 60},
+			MsgOrigins:  [2]types.Vec3{{X: 50, Y: 60, Z: 70}, {X: 50, Y: 60, Z: 70}},
+			TrailOrigin: types.Vec3{X: 40, Y: 50, Z: 60},
 			ForceLink:   false,
 		},
 		3: {
 			ModelIndex:  3,
 			MsgTime:     1.0,
-			MsgOrigins:  [2][3]float32{{10, 20, 30}, {10, 20, 30}},
-			TrailOrigin: [3]float32{5, 15, 25},
+			MsgOrigins:  [2]types.Vec3{{X: 10, Y: 20, Z: 30}, {X: 10, Y: 20, Z: 30}},
+			TrailOrigin: types.Vec3{X: 5, Y: 15, Z: 25},
 			ForceLink:   false,
 		},
 	}
@@ -217,12 +220,12 @@ func TestRelinkEntities_TrailEvents(t *testing.T) {
 		switch te.Type {
 		case 0: // rocket
 			gotRocket = true
-			if te.Start != [3]float32{90, 190, 290} {
+			if te.Start != (types.Vec3{X: 90, Y: 190, Z: 290}) {
 				t.Errorf("rocket trail start = %v, want [90 190 290]", te.Start)
 			}
 		case 1: // grenade
 			gotGrenade = true
-			if te.Start != [3]float32{40, 50, 60} {
+			if te.Start != (types.Vec3{X: 40, Y: 50, Z: 60}) {
 				t.Errorf("grenade trail start = %v, want [40 50 60]", te.Start)
 			}
 		default:
@@ -255,14 +258,14 @@ func TestRelinkEntities_TrailEventsUseModelIndexMinusOne(t *testing.T) {
 		1: {
 			ModelIndex:  1,
 			MsgTime:     1.0,
-			MsgOrigins:  [2][3]float32{{100, 200, 300}, {100, 200, 300}},
-			TrailOrigin: [3]float32{90, 190, 290},
+			MsgOrigins:  [2]types.Vec3{{X: 100, Y: 200, Z: 300}, {X: 100, Y: 200, Z: 300}},
+			TrailOrigin: types.Vec3{X: 90, Y: 190, Z: 290},
 		},
 		2: {
 			ModelIndex:  2,
 			MsgTime:     1.0,
-			MsgOrigins:  [2][3]float32{{50, 60, 70}, {50, 60, 70}},
-			TrailOrigin: [3]float32{40, 50, 60},
+			MsgOrigins:  [2]types.Vec3{{X: 50, Y: 60, Z: 70}, {X: 50, Y: 60, Z: 70}},
+			TrailOrigin: types.Vec3{X: 40, Y: 50, Z: 60},
 		},
 	}
 	c.ModelPrecache = []string{"progs/missile.mdl", "progs/grenade.mdl"}
@@ -296,8 +299,8 @@ func TestRelinkEntities_RocketTrailIsRateLimited(t *testing.T) {
 		1: {
 			ModelIndex: 1,
 			MsgTime:    1.0,
-			MsgOrigins: [2][3]float32{{10, 0, 0}, {0, 0, 0}},
-			MsgAngles:  [2][3]float32{},
+			MsgOrigins: [2]types.Vec3{{X: 10, Y: 0, Z: 0}, {X: 0, Y: 0, Z: 0}},
+			MsgAngles:  [2]types.Vec3{},
 			ForceLink:  true,
 		},
 	}
@@ -314,7 +317,7 @@ func TestRelinkEntities_RocketTrailIsRateLimited(t *testing.T) {
 	c.Time = 1.002
 	ent := c.Entities[1]
 	ent.MsgTime = 1.002
-	ent.MsgOrigins = [2][3]float32{{20, 0, 0}, {10, 0, 0}}
+	ent.MsgOrigins = [2]types.Vec3{{X: 20, Y: 0, Z: 0}, {X: 10, Y: 0, Z: 0}}
 	c.Entities[1] = ent
 	c.MTime = [2]float64{1.002, 1.0}
 	c.RelinkEntities()
@@ -327,7 +330,7 @@ func TestRelinkEntities_RocketTrailIsRateLimited(t *testing.T) {
 	c.Time = 1.03
 	ent = c.Entities[1]
 	ent.MsgTime = 1.03
-	ent.MsgOrigins = [2][3]float32{{30, 0, 0}, {20, 0, 0}}
+	ent.MsgOrigins = [2]types.Vec3{{X: 30, Y: 0, Z: 0}, {X: 20, Y: 0, Z: 0}}
 	c.Entities[1] = ent
 	c.MTime = [2]float64{1.03, 1.002}
 	c.RelinkEntities()
@@ -348,7 +351,7 @@ func TestRelinkEntities_StaleEntityClearsModelAndResetsLerp(t *testing.T) {
 			ModelIndex: 2,
 			MsgTime:    0.9,
 			LerpFlags:  0,
-			Origin:     [3]float32{10, 20, 30},
+			Origin:     types.Vec3{X: 10, Y: 20, Z: 30},
 		},
 	}
 
@@ -377,16 +380,16 @@ func TestRelinkEntities_StepMoveSnapsRenderStateWithoutTeleportReset(t *testing.
 		1: {
 			ModelIndex: 1,
 			MsgTime:    1.0,
-			MsgOrigins: [2][3]float32{
-				{24, 20, 30},
-				{10, 20, 30},
+			MsgOrigins: [2]types.Vec3{
+				{X: 24, Y: 20, Z: 30},
+				{X: 10, Y: 20, Z: 30},
 			},
-			MsgAngles: [2][3]float32{
-				{0, 45, 0},
-				{0, 30, 0},
+			MsgAngles: [2]types.Vec3{
+				{X: 0, Y: 45, Z: 0},
+				{X: 0, Y: 30, Z: 0},
 			},
-			Origin:    [3]float32{10, 20, 30},
-			Angles:    [3]float32{0, 30, 0},
+			Origin:    types.Vec3{X: 10, Y: 20, Z: 30},
+			Angles:    types.Vec3{X: 0, Y: 30, Z: 0},
 			LerpFlags: inet.LerpMoveStep,
 		},
 	}
@@ -394,10 +397,10 @@ func TestRelinkEntities_StepMoveSnapsRenderStateWithoutTeleportReset(t *testing.
 	c.RelinkEntities()
 
 	ent := c.Entities[1]
-	if ent.Origin != [3]float32{24, 20, 30} {
+	if ent.Origin != (types.Vec3{X: 24, Y: 20, Z: 30}) {
 		t.Fatalf("Origin = %v, want step-move entity snapped to latest network origin", ent.Origin)
 	}
-	if ent.Angles != [3]float32{0, 45, 0} {
+	if ent.Angles != (types.Vec3{X: 0, Y: 45, Z: 0}) {
 		t.Fatalf("Angles = %v, want step-move entity snapped to latest network angles", ent.Angles)
 	}
 	if ent.LerpFlags&inet.LerpMoveStep == 0 {
@@ -420,7 +423,7 @@ func TestRelinkEntities_ExplicitRetireKeepsZeroModel(t *testing.T) {
 			ModelIndex: 0,
 			MsgTime:    1.0,
 			LerpFlags:  0,
-			Origin:     [3]float32{10, 20, 30},
+			Origin:     types.Vec3{X: 10, Y: 20, Z: 30},
 			ForceLink:  true,
 		},
 	}

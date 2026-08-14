@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestAddSignonBuffer(t *testing.T) {
@@ -310,12 +311,12 @@ func TestBuildSignonBuffersWritesBaselineForDelayedPrecacheModel(t *testing.T) {
 	// exactly the qbj3 case where the old skip incorrectly dropped baselines.
 	s.AllocEdict()        // Num 1
 	ent := s.AllocEdict() // Num 2
-	ent.SetOrigin(s, [3]float32{1024, 0, 504})
+	ent.SetOrigin(s, qtypes.Vec3{X: 1024, Y: 0, Z: 504})
 	// Engine v.modelindex nonzero (visible model), but Baseline.ModelIndex 0
 	// (model string not yet in the precache list at baseline time).
 	ent.SetModelIndex(s, 174)
 	ent.Baseline.ModelIndex = 0
-	ent.Baseline.Origin = [3]float32{1024, 0, 504}
+	ent.Baseline.Origin = qtypes.Vec3{X: 1024, Y: 0, Z: 504}
 	if ent.Num <= s.Static.MaxClients {
 		t.Fatalf("precondition: pickup ent Num=%d must exceed MaxClients=%d", ent.Num, s.Static.MaxClients)
 	}

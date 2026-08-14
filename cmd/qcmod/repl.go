@@ -31,24 +31,24 @@ import (
 func runREPL(r io.Reader, w io.Writer) int {
 	vm, err := newVMWorld(nil)
 	if err != nil {
-		fmt.Fprintf(w, "qcmod sim: %v\n", err)
+		_, _ = fmt.Fprintf(w, "qcmod sim: %v\n", err)
 		return 1
 	}
 	dbg := NewDebugger(vm.vm)
 	dbg.Continue()
 	vm.vm.BreakHook = dbg.hook()
 
-	fmt.Fprintf(w, "qcmod sim — plan 25 REPL. Type 'help' for commands.\n")
+	_, _ = fmt.Fprintf(w, "qcmod sim — plan 25 REPL. Type 'help' for commands.\n")
 	sc := bufio.NewScanner(r)
 	for {
 		if dbg.Paused() {
-			fmt.Fprintf(w, "(%s) qc> ", dbg.Message())
+			_, _ = fmt.Fprintf(w, "(%s) qc> ", dbg.Message())
 		} else {
-			fmt.Fprintf(w, "qc> ")
+			_, _ = fmt.Fprintf(w, "qc> ")
 		}
 		if !sc.Scan() {
 			if err := sc.Err(); err != nil && err != io.EOF {
-				fmt.Fprintf(w, "read error: %v\n", err)
+				_, _ = fmt.Fprintf(w, "read error: %v\n", err)
 			}
 			break // EOF
 		}
@@ -60,21 +60,21 @@ func runREPL(r io.Reader, w io.Writer) int {
 		cmd, rest := fields[0], fields[1:]
 		switch cmd {
 		case "help", "?":
-			fmt.Fprintf(w, "commands: run <fn> [self [other [time]]], break <fn>, step, cont, watch <n>.<field>, inspect <n>, globals, functions [prefix], reset, quit\n")
+			_, _ = fmt.Fprintf(w, "commands: run <fn> [self [other [time]]], break <fn>, step, cont, watch <n>.<field>, inspect <n>, globals, functions [prefix], reset, quit\n")
 		case "quit", "exit":
 			return 0
 		case "reset":
 			dbg.Reset()
 			vm.vm.BreakHook = dbg.hook()
-			fmt.Fprintf(w, "debugger reset\n")
+			_, _ = fmt.Fprintf(w, "debugger reset\n")
 		case "run":
 			if len(rest) < 1 {
-				fmt.Fprintf(w, "usage: run <fn> [self [other [time]]]\n")
+				_, _ = fmt.Fprintf(w, "usage: run <fn> [self [other [time]]]\n")
 				continue
 			}
 			fnIdx := vm.vm.FindFunction(rest[0])
 			if fnIdx < 0 {
-				fmt.Fprintf(w, "no function %q\n", rest[0])
+				_, _ = fmt.Fprintf(w, "no function %q\n", rest[0])
 				continue
 			}
 			self, other := 0, 0
@@ -94,79 +94,79 @@ func runREPL(r io.Reader, w io.Writer) int {
 			vm.vm.SetGInt(qc.OFSTime, int32(math.Float32bits(t)))
 			err := vm.vm.ExecuteFunction(fnIdx)
 			if err == qc.ErrBreak {
-				fmt.Fprintf(w, "paused: %s (depth %d)\n", dbg.Message(), vm.vm.Depth)
+				_, _ = fmt.Fprintf(w, "paused: %s (depth %d)\n", dbg.Message(), vm.vm.Depth)
 				continue
 			}
 			if err != nil {
-				fmt.Fprintf(w, "error: %v\n", err)
+				_, _ = fmt.Fprintf(w, "error: %v\n", err)
 				continue
 			}
-			fmt.Fprintf(w, "ok: %s completed (depth %d)\n", rest[0], vm.vm.Depth)
+			_, _ = fmt.Fprintf(w, "ok: %s completed (depth %d)\n", rest[0], vm.vm.Depth)
 		case "break":
 			if len(rest) < 1 {
-				fmt.Fprintf(w, "usage: break <fn>\n")
+				_, _ = fmt.Fprintf(w, "usage: break <fn>\n")
 				continue
 			}
 			fnIdx := vm.vm.FindFunction(rest[0])
 			if fnIdx < 0 {
-				fmt.Fprintf(w, "no function %q\n", rest[0])
+				_, _ = fmt.Fprintf(w, "no function %q\n", rest[0])
 				continue
 			}
 			if dbg.BreakFuncs[fnIdx] {
 				delete(dbg.BreakFuncs, fnIdx)
-				fmt.Fprintf(w, "break removed: %s\n", rest[0])
+				_, _ = fmt.Fprintf(w, "break removed: %s\n", rest[0])
 			} else {
 				dbg.SetBreakFunc(fnIdx)
-				fmt.Fprintf(w, "break set: %s (%d)\n", rest[0], fnIdx)
+				_, _ = fmt.Fprintf(w, "break set: %s (%d)\n", rest[0], fnIdx)
 			}
 			vm.vm.BreakHook = dbg.hook()
 		case "step":
 			if vm.vm.Depth <= 0 {
-				fmt.Fprintf(w, "nothing to step (no active frame)\n")
+				_, _ = fmt.Fprintf(w, "nothing to step (no active frame)\n")
 				continue
 			}
 			dbg.StepOver(vm.vm.Depth)
 			vm.vm.BreakHook = dbg.hook()
 			err := vm.vm.ExecuteFrom(currentFnIdx(vm.vm))
 			if err == qc.ErrBreak {
-				fmt.Fprintf(w, "step: %s (depth %d)\n", dbg.Message(), vm.vm.Depth)
+				_, _ = fmt.Fprintf(w, "step: %s (depth %d)\n", dbg.Message(), vm.vm.Depth)
 			} else if err != nil {
-				fmt.Fprintf(w, "error: %v\n", err)
+				_, _ = fmt.Fprintf(w, "error: %v\n", err)
 			} else {
-				fmt.Fprintf(w, "step completed (frame returned)\n")
+				_, _ = fmt.Fprintf(w, "step completed (frame returned)\n")
 				dbg.paused = false
 			}
 		case "cont":
 			if vm.vm.Depth <= 0 {
-				fmt.Fprintf(w, "nothing to continue (no paused frame)\n")
+				_, _ = fmt.Fprintf(w, "nothing to continue (no paused frame)\n")
 				continue
 			}
 			dbg.Continue()
 			vm.vm.BreakHook = dbg.hook()
 			err := vm.vm.ExecuteFrom(currentFnIdx(vm.vm))
 			if err == qc.ErrBreak {
-				fmt.Fprintf(w, "paused: %s\n", dbg.Message())
+				_, _ = fmt.Fprintf(w, "paused: %s\n", dbg.Message())
 			} else if err != nil {
-				fmt.Fprintf(w, "error: %v\n", err)
+				_, _ = fmt.Fprintf(w, "error: %v\n", err)
 			} else {
-				fmt.Fprintf(w, "completed\n")
+				_, _ = fmt.Fprintf(w, "completed\n")
 				dbg.paused = false
 			}
 		case "watch":
 			if len(rest) < 1 {
-				fmt.Fprintf(w, "usage: watch <n>.<field>\n")
+				_, _ = fmt.Fprintf(w, "usage: watch <n>.<field>\n")
 				continue
 			}
 			dbg.Watches = append(dbg.Watches, rest[0])
 			vm.vm.BreakHook = dbg.hook()
-			fmt.Fprintf(w, "watch set: %s\n", rest[0])
+			_, _ = fmt.Fprintf(w, "watch set: %s\n", rest[0])
 		case "inspect":
 			if len(rest) < 1 {
-				fmt.Fprintf(w, "usage: inspect <n>\n")
+				_, _ = fmt.Fprintf(w, "usage: inspect <n>\n")
 				continue
 			}
 			n, _ := strconv.Atoi(rest[0])
-			fmt.Fprintf(w, "edict %d:\n", n)
+			_, _ = fmt.Fprintf(w, "edict %d:\n", n)
 			for name, ofs := range map[string]int{
 				"origin": qc.EntFieldOrigin, "velocity": qc.EntFieldVelocity,
 				"angles": qc.EntFieldAngles, "health": qc.EntFieldHealth,
@@ -174,12 +174,12 @@ func runREPL(r io.Reader, w io.Writer) int {
 				"frame": qc.EntFieldFrame, "solid": qc.EntFieldSolid,
 				"movetype": qc.EntFieldMoveType,
 			} {
-				fmt.Fprintf(w, "  %s = %v\n", name, vm.vm.EFloat(n, ofs))
+				_, _ = fmt.Fprintf(w, "  %s = %v\n", name, vm.vm.EFloat(n, ofs))
 			}
 		case "globals":
 			for _, g := range []string{"self", "other", "time", "world"} {
 				if ofs := vm.vm.FindGlobal(g); ofs >= 0 {
-					fmt.Fprintf(w, "  %s = %v\n", g, vm.vm.Globals[ofs])
+					_, _ = fmt.Fprintf(w, "  %s = %v\n", g, vm.vm.Globals[ofs])
 				}
 			}
 		case "functions":
@@ -191,19 +191,19 @@ func runREPL(r io.Reader, w io.Writer) int {
 			for i, f := range vm.vm.Functions {
 				name := vm.vm.String(f.Name)
 				if strings.HasPrefix(name, prefix) {
-					fmt.Fprintf(w, "%4d %s\n", i, name)
+					_, _ = fmt.Fprintf(w, "%4d %s\n", i, name)
 					n++
 					if n >= 40 {
-						fmt.Fprintf(w, "...\n")
+						_, _ = fmt.Fprintf(w, "...\n")
 						break
 					}
 				}
 			}
 			if n == 0 {
-				fmt.Fprintf(w, "no functions matching %q\n", prefix)
+				_, _ = fmt.Fprintf(w, "no functions matching %q\n", prefix)
 			}
 		default:
-			fmt.Fprintf(w, "unknown command %q (try 'help')\n", cmd)
+			_, _ = fmt.Fprintf(w, "unknown command %q (try 'help')\n", cmd)
 		}
 	}
 	return 0

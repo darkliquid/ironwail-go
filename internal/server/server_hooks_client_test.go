@@ -14,6 +14,7 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
@@ -48,16 +49,16 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	}
 
 	e := s.AllocEdict()
-	e.SetOrigin(s, [3]float32{0, 0, 24})
-	e.SetMins(s, [3]float32{-16, -16, -24})
-	e.SetMaxs(s, [3]float32{16, 16, 32})
+	e.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	e.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	e.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	e.SetSolid(s, float32(SolidSlideBox))
 	vm.NumEdicts = s.NumEdicts
 
 	// traceline: from above ground into the floor.
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(e)))
-	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, 32})
-	vm.SetGVector(qc.OFSParm1, [3]float32{0, 0, -32})
+	vm.SetGVector(qc.OFSParm0, qtypes.Vec3{X: 0, Y: 0, Z: 32})
+	vm.SetGVector(qc.OFSParm1, qtypes.Vec3{X: 0, Y: 0, Z: -32})
 	vm.SetGFloat(qc.OFSParm2, 0)
 	vm.SetGInt(qc.OFSParm3, 0)
 	if fn := vm.Builtins[16]; fn == nil {
@@ -68,23 +69,23 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	if got := vm.GFloat(qc.OFSTraceFraction); got >= 1 {
 		t.Fatalf("trace_fraction = %v, want < 1", got)
 	}
-	if got := vm.GVector(qc.OFSTraceEndPos); got[2] > DistEpsilon || got[2] < -DistEpsilon {
-		t.Fatalf("trace_endpos.z = %v, want approximately 0", got[2])
+	if got := vm.GVector(qc.OFSTraceEndPos); got.Z > DistEpsilon || got.Z < -DistEpsilon {
+		t.Fatalf("trace_endpos.z = %v, want approximately 0", got.Z)
 	}
 	if got := vm.GFloat(qc.OFSTracePlaneDist); got != 0 {
 		t.Fatalf("trace_plane_dist = %v, want 0 for synthetic floor plane", got)
 	}
 
 	other := s.AllocEdict()
-	other.SetOrigin(s, [3]float32{0, 0, 24})
-	other.SetMins(s, [3]float32{-16, -16, -24})
-	other.SetMaxs(s, [3]float32{16, 16, 32})
+	other.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	other.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	other.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	other.SetSolid(s, float32(SolidSlideBox))
 	s.LinkEdict(other, false)
 	vm.NumEdicts = s.NumEdicts
 
-	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, 48})
-	vm.SetGVector(qc.OFSParm1, [3]float32{0, 0, 0})
+	vm.SetGVector(qc.OFSParm0, qtypes.Vec3{X: 0, Y: 0, Z: 48})
+	vm.SetGVector(qc.OFSParm1, qtypes.Vec3{})
 	vm.SetGFloat(qc.OFSParm2, 0)
 	vm.SetGInt(qc.OFSParm3, int32(s.NumForEdict(other)))
 	if fn := vm.Builtins[16]; fn == nil {
@@ -108,7 +109,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	}
 
 	// pointcontents below the plane should be solid.
-	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, -1})
+	vm.SetGVector(qc.OFSParm0, qtypes.Vec3{X: 0, Y: 0, Z: -1})
 	if fn := vm.Builtins[41]; fn == nil {
 		t.Fatal("pointcontents builtin not registered")
 	} else {
@@ -149,8 +150,8 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	}
 
 	datagramBefore = s.Datagram.Len()
-	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, 10})
-	vm.SetGVector(qc.OFSParm1, [3]float32{0, 0, 1})
+	vm.SetGVector(qc.OFSParm0, qtypes.Vec3{X: 0, Y: 0, Z: 10})
+	vm.SetGVector(qc.OFSParm1, qtypes.Vec3{X: 0, Y: 0, Z: 1})
 	vm.SetGFloat(qc.OFSParm2, 5)
 	vm.SetGFloat(qc.OFSParm3, 8)
 	vm.Builtins[48](vm)
@@ -297,12 +298,12 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 
 	self := s.AllocEdict()
 	target := s.AllocEdict()
-	self.SetOrigin(s, [3]float32{0, 0, 0})
-	self.SetViewOfs(s, [3]float32{0, 0, 16})
+	self.SetOrigin(s, qtypes.Vec3{})
+	self.SetViewOfs(s, qtypes.Vec3{X: 0, Y: 0, Z: 16})
 	target.SetHealth(s, 100)
-	target.SetOrigin(s, [3]float32{0, 100, 64})
-	target.SetMins(s, [3]float32{-16, -16, -24})
-	target.SetMaxs(s, [3]float32{16, 16, 32})
+	target.SetOrigin(s, qtypes.Vec3{X: 0, Y: 100, Z: 64})
+	target.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	target.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	target.SetSolid(s, float32(SolidSlideBox))
 	target.SetTakeDamage(s, float32(DamageAim))
 	s.LinkEdict(self, false)
@@ -318,7 +319,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	vm := s.QCVM
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
-	vm.SetGVector(qc.OFSGlobalVForward, [3]float32{0, 1, 0})
+	vm.SetGVector(qc.OFSGlobalVForward, qtypes.Vec3{X: 0, Y: 1, Z: 0})
 
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
 	if fn := vm.Builtins[17]; fn == nil {
@@ -338,7 +339,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 		fn(vm)
 	}
 	aim := vm.GVector(qc.OFSReturn)
-	if aim[1] <= 0.8 {
+	if aim.Y <= 0.8 {
 		t.Fatalf("aim vector = %v, want mostly +Y", aim)
 	}
 
@@ -348,13 +349,13 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 		s.CVar.Set("sv_aim", "0.93")
 		s.CVar.Set("teamplay", "0")
 	})
-	target.SetOrigin(s, [3]float32{40, 100, 64})
+	target.SetOrigin(s, qtypes.Vec3{X: 40, Y: 100, Z: 64})
 	s.LinkEdict(target, false)
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
 	vm.SetGFloat(qc.OFSParm1, 0)
 	vm.Builtins[44](vm)
 	aim = vm.GVector(qc.OFSReturn)
-	if aim != [3]float32{0, 1, 0} {
+	if aim != (qtypes.Vec3{X: 0, Y: 1, Z: 0}) {
 		t.Fatalf("high sv_aim should keep forward aim, got %v", aim)
 	}
 
@@ -362,9 +363,9 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	s.CVar.Set("teamplay", "1")
 	teammate := s.AllocEdict()
 	teammate.SetHealth(s, 100)
-	teammate.SetOrigin(s, [3]float32{10, 100, 24})
-	teammate.SetMins(s, [3]float32{-16, -16, -24})
-	teammate.SetMaxs(s, [3]float32{16, 16, 32})
+	teammate.SetOrigin(s, qtypes.Vec3{X: 10, Y: 100, Z: 24})
+	teammate.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	teammate.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	teammate.SetSolid(s, float32(SolidSlideBox))
 	teammate.SetTakeDamage(s, float32(DamageAim))
 	teammate.SetTeam(s, 1)
@@ -377,7 +378,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	vm.SetGFloat(qc.OFSParm1, 0)
 	vm.Builtins[44](vm)
 	aim = vm.GVector(qc.OFSReturn)
-	if aim[1] <= 0.8 || aim[2] <= 0 {
+	if aim.Y <= 0.8 || aim.Z <= 0 {
 		t.Fatalf("teamplay/sv_aim filtered aim = %v, want elevated enemy aim", aim)
 	}
 
@@ -402,10 +403,10 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 
 	self := s.AllocEdict()
 	target := s.AllocEdict()
-	self.SetOrigin(s, [3]float32{-64, 0, 0})
-	self.SetViewOfs(s, [3]float32{})
-	target.SetOrigin(s, [3]float32{64, 0, 0})
-	target.SetViewOfs(s, [3]float32{})
+	self.SetOrigin(s, qtypes.Vec3{X: -64, Y: 0, Z: 0})
+	self.SetViewOfs(s, qtypes.Vec3{})
+	target.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
+	target.SetViewOfs(s, qtypes.Vec3{})
 	target.SetHealth(s, 100)
 
 	s.Static = &ServerStatic{
@@ -416,7 +417,7 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 		},
 	}
 	s.WorldTree = &bsp.Tree{
-		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
+		Planes: []bsp.DPlane{{Normal: qtypes.Vec3{X: 1, Y: 0, Z: 0}, Dist: 0, Type: 0}},
 		Nodes: []bsp.TreeNode{{
 			PlaneNum: 0,
 			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 2}},
@@ -445,7 +446,7 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 		t.Fatalf("checkclient with self outside target PVS = %d, want 0", got)
 	}
 
-	self.SetOrigin(s, [3]float32{64, 0, 0})
+	self.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
 	s.Time = 0.25
 	if fn := vm.Builtins[17]; fn == nil {
 		t.Fatal("checkclient builtin not registered")
@@ -464,8 +465,8 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 
 	self := s.AllocEdict()
 	target := s.AllocEdict()
-	self.SetViewOfs(s, [3]float32{})
-	target.SetViewOfs(s, [3]float32{})
+	self.SetViewOfs(s, qtypes.Vec3{})
+	target.SetViewOfs(s, qtypes.Vec3{})
 	target.SetHealth(s, 100)
 
 	s.Static = &ServerStatic{
@@ -476,7 +477,7 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 		},
 	}
 	s.WorldTree = &bsp.Tree{
-		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
+		Planes: []bsp.DPlane{{Normal: qtypes.Vec3{X: 1, Y: 0, Z: 0}, Dist: 0, Type: 0}},
 		Nodes: []bsp.TreeNode{{
 			PlaneNum: 0,
 			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 0}},
@@ -491,8 +492,8 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 	qc.RegisterBuiltins(vm)
 
 	// Both entities resolve to BSP leaf index 1, which must map to visleaf 0.
-	self.SetOrigin(s, [3]float32{1, 0, 0})
-	target.SetOrigin(s, [3]float32{1, 0, 0})
+	self.SetOrigin(s, qtypes.Vec3{X: 1, Y: 0, Z: 0})
+	target.SetOrigin(s, qtypes.Vec3{X: 1, Y: 0, Z: 0})
 
 	s.Time = 0.2
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
@@ -513,10 +514,10 @@ func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
 
 	self := s.AllocEdict()
 	target := s.AllocEdict()
-	self.SetOrigin(s, [3]float32{-64, 0, 0})
-	self.SetViewOfs(s, [3]float32{})
-	target.SetOrigin(s, [3]float32{64, 0, 0})
-	target.SetViewOfs(s, [3]float32{})
+	self.SetOrigin(s, qtypes.Vec3{X: -64, Y: 0, Z: 0})
+	self.SetViewOfs(s, qtypes.Vec3{})
+	target.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
+	target.SetViewOfs(s, qtypes.Vec3{})
 	target.SetHealth(s, 100)
 
 	s.Static = &ServerStatic{
@@ -527,7 +528,7 @@ func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
 		},
 	}
 	s.WorldTree = &bsp.Tree{
-		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
+		Planes: []bsp.DPlane{{Normal: qtypes.Vec3{X: 1, Y: 0, Z: 0}, Dist: 0, Type: 0}},
 		Nodes: []bsp.TreeNode{{
 			PlaneNum: 0,
 			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 2}},
@@ -547,7 +548,7 @@ func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
 
 	selfNum := s.NumForEdict(self)
 	targetNum := s.NumForEdict(target)
-	vm.SetEVector(selfNum, qc.EntFieldOrigin, [3]float32{64, 0, 0})
+	vm.SetEVector(selfNum, qc.EntFieldOrigin, qtypes.Vec3{X: 64, Y: 0, Z: 0})
 
 	s.Time = 0.2
 	vm.SetGInt(qc.OFSSelf, int32(selfNum))
@@ -559,7 +560,7 @@ func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
 	if got := int(vm.GInt(qc.OFSReturn)); got != targetNum {
 		t.Fatalf("checkclient with QC-only self origin = %d, want %d", got, targetNum)
 	}
-	if got := self.Origin(s); got != [3]float32{64, 0, 0} {
+	if got := self.Origin(s); got != (qtypes.Vec3{X: 64, Y: 0, Z: 0}) {
 		t.Fatalf("server self origin not synchronized from QC state: got %v", got)
 	}
 }

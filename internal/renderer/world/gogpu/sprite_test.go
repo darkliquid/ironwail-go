@@ -18,9 +18,9 @@ func TestSpriteUniformBytes(t *testing.T) {
 		9, 10, 11, 12,
 		13, 14, 15, 16,
 	}
-	cameraOrigin := [3]float32{10, 20, 30}
+	cameraOrigin := types.Vec3{X: 10, Y: 20, Z: 30}
 	alpha := float32(0.25)
-	fogColor := [3]float32{0.1, 0.2, 0.3}
+	fogColor := types.Vec3{X: 0.1, Y: 0.2, Z: 0.3}
 	fogDensity := float32(0.4)
 
 	data := SpriteUniformBytes(vp, cameraOrigin, alpha, fogColor, fogDensity)
@@ -33,7 +33,8 @@ func TestSpriteUniformBytes(t *testing.T) {
 		t.Fatalf("viewProjection matrix bytes mismatch")
 	}
 
-	for i, want := range cameraOrigin {
+	camArr := [3]float32{cameraOrigin.X, cameraOrigin.Y, cameraOrigin.Z}
+	for i, want := range camArr {
 		got := math.Float32frombits(binary.LittleEndian.Uint32(data[64+i*4:]))
 		if got != want {
 			t.Fatalf("cameraOrigin[%d] = %v, want %v", i, got, want)
@@ -44,7 +45,8 @@ func TestSpriteUniformBytes(t *testing.T) {
 		t.Fatalf("fogDensity = %v, want %v", got, worldimpl.FogUniformDensity(fogDensity))
 	}
 
-	for i, want := range fogColor {
+	fogArr := [3]float32{fogColor.X, fogColor.Y, fogColor.Z}
+	for i, want := range fogArr {
 		got := math.Float32frombits(binary.LittleEndian.Uint32(data[80+i*4:]))
 		if got != want {
 			t.Fatalf("fogColor[%d] = %v, want %v", i, got, want)
@@ -58,8 +60,8 @@ func TestSpriteUniformBytes(t *testing.T) {
 
 func TestSpriteQuadVerticesToWorldVertices(t *testing.T) {
 	input := []SpriteQuadVertex{
-		{Position: [3]float32{1, 2, 3}, TexCoord: [2]float32{0.25, 0.5}},
-		{Position: [3]float32{-4, 5, -6}, TexCoord: [2]float32{0.75, 1}},
+		{Position: types.Vec3{X: 1, Y: 2, Z: 3}, TexCoord: [2]float32{0.25, 0.5}},
+		{Position: types.Vec3{X: -4, Y: 5, Z: -6}, TexCoord: [2]float32{0.75, 1}},
 	}
 
 	got := SpriteQuadVerticesToWorldVertices(input)
@@ -77,7 +79,7 @@ func TestSpriteQuadVerticesToWorldVertices(t *testing.T) {
 		if got[i].LightmapCoord != ([2]float32{}) {
 			t.Fatalf("LightmapCoord[%d] = %v, want zero", i, got[i].LightmapCoord)
 		}
-		if got[i].Normal != ([3]float32{0, 0, 1}) {
+		if got[i].Normal != (types.Vec3{X: 0, Y: 0, Z: 1}) {
 			t.Fatalf("Normal[%d] = %v, want [0 0 1]", i, got[i].Normal)
 		}
 	}
@@ -85,12 +87,12 @@ func TestSpriteQuadVerticesToWorldVertices(t *testing.T) {
 
 func TestProjectSpriteQuadVerticesToWorldVertices(t *testing.T) {
 	type rootQuadVertex struct {
-		pos [3]float32
+		pos types.Vec3
 		uv  [2]float32
 	}
 	input := []rootQuadVertex{
-		{pos: [3]float32{7, 8, 9}, uv: [2]float32{0.1, 0.2}},
-		{pos: [3]float32{-1, -2, -3}, uv: [2]float32{0.3, 0.4}},
+		{pos: types.Vec3{X: 7, Y: 8, Z: 9}, uv: [2]float32{0.1, 0.2}},
+		{pos: types.Vec3{X: -1, Y: -2, Z: -3}, uv: [2]float32{0.3, 0.4}},
 	}
 
 	got := ProjectSpriteQuadVerticesToWorldVertices(input, func(vertex rootQuadVertex) SpriteQuadVertex {
@@ -119,8 +121,8 @@ func TestBuildSpriteDrawClampsFrameAndAlpha(t *testing.T) {
 		ModelID:    "progs/flame.spr",
 		SpriteData: spriteData,
 		Frame:      7,
-		Origin:     [3]float32{1, 2, 3},
-		Angles:     [3]float32{4, 5, 6},
+		Origin:     types.Vec3{X: 1, Y: 2, Z: 3},
+		Angles:     types.Vec3{X: 4, Y: 5, Z: 6},
 		Alpha:      2,
 		Scale:      1.5,
 	}, func(modelID string, resolved *model.MSprite) (ResolvedSpriteModel[*struct{ name string }], bool) {
@@ -146,10 +148,10 @@ func TestBuildSpriteDrawClampsFrameAndAlpha(t *testing.T) {
 	if draw.Alpha != 1 {
 		t.Fatalf("Alpha = %v, want 1", draw.Alpha)
 	}
-	if draw.Origin != ([3]float32{1, 2, 3}) {
+	if draw.Origin != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("Origin = %v", draw.Origin)
 	}
-	if draw.Angles != ([3]float32{4, 5, 6}) {
+	if draw.Angles != (types.Vec3{X: 4, Y: 5, Z: 6}) {
 		t.Fatalf("Angles = %v", draw.Angles)
 	}
 	if draw.Scale != 1.5 {

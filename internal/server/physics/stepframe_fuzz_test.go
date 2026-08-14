@@ -7,6 +7,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestStepFrameInterleaveInvariants fuzzes StepFrame with random pusher
@@ -46,24 +47,24 @@ func TestStepFrameInterleaveInvariants(t *testing.T) {
 	pusher := store.edicts[1]
 	pusher.SetMoveType(h, float32(srvtypes.MoveTypePush))
 	pusher.SetSolid(h, float32(srvtypes.SolidBSP))
-	pusher.SetOrigin(h, [3]float32{0, 0, 0})
-	pusher.SetMins(h, [3]float32{-32, -32, -16})
-	pusher.SetMaxs(h, [3]float32{32, 32, 16})
+	pusher.SetOrigin(h, qtypes.Vec3{})
+	pusher.SetMins(h, qtypes.Vec3{X: -32, Y: -32, Z: -16})
+	pusher.SetMaxs(h, qtypes.Vec3{X: 32, Y: 32, Z: 16})
 	pusher.SetLTime(h, 0)
 
 	rider := store.edicts[2]
 	rider.SetMoveType(h, float32(srvtypes.MoveTypeWalk))
 	rider.SetSolid(h, float32(srvtypes.SolidSlideBox))
-	rider.SetOrigin(h, [3]float32{0, 0, 24})
-	rider.SetMins(h, [3]float32{-16, -16, -24})
-	rider.SetMaxs(h, [3]float32{16, 16, 32})
+	rider.SetOrigin(h, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	rider.SetMins(h, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	rider.SetMaxs(h, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	rider.SetFlags(h, srvtypes.FlagOnGround)
 	rider.SetGroundEntity(h, 1)
 
 	toss := store.edicts[3]
 	toss.SetMoveType(h, float32(srvtypes.MoveTypeToss))
 	toss.SetSolid(h, float32(srvtypes.SolidNot))
-	toss.SetOrigin(h, [3]float32{100, 100, 100})
+	toss.SetOrigin(h, qtypes.Vec3{X: 100, Y: 100, Z: 100})
 
 	facade := &mockFacade{frameTime: 0.1, gravity: 800, vm: vm, store: store, maxClients: 0}
 	facade.facadeHandle = h
@@ -75,7 +76,7 @@ func TestStepFrameInterleaveInvariants(t *testing.T) {
 		// Randomize the pusher velocity every few frames (pushers change
 		// direction all the time in real maps).
 		if frame%5 == 0 {
-			v := [3]float32{float32(rng.Intn(200) - 100), float32(rng.Intn(200) - 100), 0}
+			v := qtypes.Vec3{X: float32(rng.Intn(200) - 100), Y: float32(rng.Intn(200) - 100), Z: 0}
 			pusher.SetVelocity(h, v)
 		}
 		// Occasionally the rider falls off (groundentity cleared -> not riding).

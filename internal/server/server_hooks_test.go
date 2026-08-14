@@ -7,6 +7,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // newServerTestVM prepares the server's VM for tests with reasonable defaults.
@@ -44,20 +45,96 @@ func TestLoadMapEntitiesAllowsEmptyNumericQCFields(t *testing.T) {
 		{Op: uint16(qc.OPDone)},
 	}
 
-	raw := `{
+	entities := `
+{
 "classname" "worldspawn"
 }
 {
 "classname" "func_particlefield"
+"model" "*1"
 "count" ""
-}`
-
-	if err := s.loadMapEntities(raw); err != nil {
-		t.Fatalf("loadMapEntities() error = %v", err)
+}
+`
+	if err := s.loadMapEntities(entities); err != nil {
+		t.Fatalf("loadMapEntities unexpectedly failed on empty count field: %v", err)
 	}
 
+	if s.NumEdicts != 2 {
+		t.Fatalf("NumEdicts = %d, want 2", s.NumEdicts)
+	}
 	if got := vm.EFloat(1, 90); got != 0 {
-		t.Fatalf("QC count field = %v, want 0", got)
+		t.Fatalf("count field value = %v, want 0", got)
+	}
+}
+
+func TestLoadMapEntitiesPreservesWorldEdictFieldsAcrossReuse(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.ClearWorld()
+	vm.FieldDefs = []qc.DDef{
+		{Type: uint16(qc.EvString), Ofs: uint16(qc.EntFieldClassName), Name: vm.AllocString("classname")},
+		{Type: uint16(qc.EvFloat), Ofs: 90, Name: vm.AllocString("custom_field")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("worldspawn"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+	}
+
+	// First load sets a QC-only field on worldspawn
+	if err := s.loadMapEntities("{\n\"classname\" \"worldspawn\"\n\"custom_field\" \"42\"\n}\n"); err != nil {
+		t.Fatalf("first loadMapEntities failed: %v", err)
+	}
+	if got := vm.EFloat(0, 90); got != 42 {
+		t.Fatalf("world custom_field after first load = %v, want 42", got)
+	}
+
+	// Second load without custom_field must clear the field from worldspawn (edict 0)
+	clearQCVMEdictData(vm, 0)
+	if err := s.loadMapEntities("{\n\"classname\" \"worldspawn\"\n}\n"); err != nil {
+		t.Fatalf("second loadMapEntities failed: %v", err)
+	}
+	if got := vm.EFloat(0, 90); got != 0 {
+		t.Fatalf("world custom_field after second load = %v, want 0 (should be cleared)", got)
+	}
+}
+
+func TestLoadMapEntitiesReusesSpawnedEdictState(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.ClearWorld()
+	vm.FieldDefs = []qc.DDef{
+		{Type: uint16(qc.EvString), Ofs: uint16(qc.EntFieldClassName), Name: vm.AllocString("classname")},
+		{Type: uint16(qc.EvFloat), Ofs: 90, Name: vm.AllocString("custom_field")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("worldspawn"), FirstStatement: 0},
+		{Name: vm.AllocString("info_null"), FirstStatement: 1},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+
+	// Spawn an edict with a custom field
+	if err := s.loadMapEntities("{\n\"classname\" \"worldspawn\"\n}\n{\n\"classname\" \"info_null\"\n\"custom_field\" \"42\"\n}\n"); err != nil {
+		t.Fatalf("first loadMapEntities: %v", err)
+	}
+	if got := vm.EFloat(1, 90); got != 42 {
+		t.Fatalf("custom_field = %v, want 42", got)
+	}
+
+	// Next load without custom_field must clear the reused edict
+	s.Edicts = s.Edicts[:1]
+	s.NumEdicts = 1
+	if err := s.loadMapEntities("{\n\"classname\" \"worldspawn\"\n}\n{\n\"classname\" \"info_null\"\n}\n"); err != nil {
+		t.Fatalf("second loadMapEntities: %v", err)
+	}
+	if got := vm.EFloat(1, 90); got != 0 {
+		t.Fatalf("QC-only field on reused spawned edict = %v, want 0", got)
 	}
 }
 
@@ -137,13 +214,13 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = 4
 	vm.SetEInt(1, qc.EntFieldTargetName, vm.AllocString("door"))
-	vm.SetEVector(1, qc.EntFieldOrigin, [3]float32{100, 0, 0})
+	vm.SetEVector(1, qc.EntFieldOrigin, qtypes.Vec3{X: 100, Y: 0, Z: 0})
 	vm.SetEInt(2, qc.EntFieldTargetName, vm.AllocString("trigger"))
 	vm.SetEFloat(2, qc.EntFieldHealth, 100)
 	vm.SetEFloat(2, qc.EntFieldSolid, float32(SolidBBox))
-	vm.SetEVector(2, qc.EntFieldOrigin, [3]float32{10, 0, 0})
+	vm.SetEVector(2, qc.EntFieldOrigin, qtypes.Vec3{X: 10, Y: 0, Z: 0})
 	vm.SetEFloat(3, qc.EntFieldSolid, float32(SolidBBox))
-	vm.SetEVector(3, qc.EntFieldOrigin, [3]float32{40, 0, 0})
+	vm.SetEVector(3, qc.EntFieldOrigin, qtypes.Vec3{X: 40, Y: 0, Z: 0})
 
 	// find by string (canonical builtin 18)
 	vm.SetGInt(qc.OFSParm0, 0)
@@ -177,7 +254,7 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	}
 
 	// findradius (canonical builtin 22)
-	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, 0})
+	vm.SetGVector(qc.OFSParm0, qtypes.Vec3{})
 	vm.SetGFloat(qc.OFSParm1, 50)
 	if fn := vm.Builtins[22]; fn != nil {
 		fn(vm)
@@ -271,17 +348,17 @@ func TestServerHooksCheckBottomSyncsEntityFromQCVM(t *testing.T) {
 	if ent == nil {
 		t.Fatal("AllocEdict returned nil")
 	}
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
-	ent.SetOrigin(s, [3]float32{0, 0, 24})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
 	s.LinkEdict(ent, false)
 
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
-	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{0, 0, 128})
-	vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{-16, -16, 104})
-	vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{16, 16, 160})
+	vm.SetEVector(entNum, qc.EntFieldOrigin, qtypes.Vec3{X: 0, Y: 0, Z: 128})
+	vm.SetEVector(entNum, qc.EntFieldAbsMin, qtypes.Vec3{X: -16, Y: -16, Z: 104})
+	vm.SetEVector(entNum, qc.EntFieldAbsMax, qtypes.Vec3{X: 16, Y: 16, Z: 160})
 
 	vm.SetGInt(qc.OFSParm0, int32(entNum))
 	if fn := vm.Builtins[40]; fn == nil {
@@ -306,7 +383,7 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 		t.Fatal("failed to alloc edict")
 	}
 	vm.NumEdicts = s.NumEdicts
-	vm.SetEVector(s.NumForEdict(ent), qc.EntFieldOrigin, [3]float32{64, 32, 16})
+	vm.SetEVector(s.NumForEdict(ent), qc.EntFieldOrigin, qtypes.Vec3{X: 64, Y: 32, Z: 16})
 	s.ClearWorld()
 
 	s.ModelName = "maps/test.bsp"
@@ -314,8 +391,8 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 	s.ModelPrecache[1] = s.ModelName
 	s.ModelPrecache[2] = "*1"
 	s.WorldTree = &bsp.Tree{Models: []bsp.DModel{
-		{BoundsMin: [3]float32{-256, -256, -128}, BoundsMax: [3]float32{256, 256, 128}},
-		{BoundsMin: [3]float32{-16, -24, -32}, BoundsMax: [3]float32{48, 56, 72}},
+		{BoundsMin: qtypes.Vec3{X: -256, Y: -256, Z: -128}, BoundsMax: qtypes.Vec3{X: 256, Y: 256, Z: 128}},
+		{BoundsMin: qtypes.Vec3{X: -16, Y: -24, Z: -32}, BoundsMax: qtypes.Vec3{X: 48, Y: 56, Z: 72}},
 	}}
 	s.WorldModel = worldModelFromBSPTree(s.ModelName, s.WorldTree)
 
@@ -333,19 +410,19 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 	if got := vm.String(vm.EInt(1, qc.EntFieldModel)); got != "*1" {
 		t.Fatalf("model string = %q, want *1", got)
 	}
-	if got := vm.EVector(1, qc.EntFieldMins); got != [3]float32{-16, -24, -32} {
+	if got := vm.EVector(1, qc.EntFieldMins); got != (qtypes.Vec3{X: -16, Y: -24, Z: -32}) {
 		t.Fatalf("mins = %v", got)
 	}
-	if got := vm.EVector(1, qc.EntFieldMaxs); got != [3]float32{48, 56, 72} {
+	if got := vm.EVector(1, qc.EntFieldMaxs); got != (qtypes.Vec3{X: 48, Y: 56, Z: 72}) {
 		t.Fatalf("maxs = %v", got)
 	}
-	if got := vm.EVector(1, qc.EntFieldSize); got != [3]float32{64, 80, 104} {
+	if got := vm.EVector(1, qc.EntFieldSize); got != (qtypes.Vec3{X: 64, Y: 80, Z: 104}) {
 		t.Fatalf("size = %v", got)
 	}
-	if got := vm.EVector(1, qc.EntFieldAbsMin); got != [3]float32{47, 7, -17} {
+	if got := vm.EVector(1, qc.EntFieldAbsMin); got != (qtypes.Vec3{X: 47, Y: 7, Z: -17}) {
 		t.Fatalf("absmin = %v", got)
 	}
-	if got := vm.EVector(1, qc.EntFieldAbsMax); got != [3]float32{113, 89, 89} {
+	if got := vm.EVector(1, qc.EntFieldAbsMax); got != (qtypes.Vec3{X: 113, Y: 89, Z: 89}) {
 		t.Fatalf("absmax = %v", got)
 	}
 }
@@ -380,24 +457,24 @@ func TestServerHooksSetOriginImportsPendingQCBoundsForLink(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 	s.ClearWorld()
 
-	ent.SetOrigin(s, [3]float32{0, 0, 0})
-	ent.SetMins(s, [3]float32{-1, -1, -1})
-	ent.SetMaxs(s, [3]float32{1, 1, 1})
+	ent.SetOrigin(s, qtypes.Vec3{})
+	ent.SetMins(s, qtypes.Vec3{X: -1, Y: -1, Z: -1})
+	ent.SetMaxs(s, qtypes.Vec3{X: 1, Y: 1, Z: 1})
 
-	vm.SetEVector(entNum, qc.EntFieldMins, [3]float32{-16, -8, -4})
-	vm.SetEVector(entNum, qc.EntFieldMaxs, [3]float32{16, 8, 12})
+	vm.SetEVector(entNum, qc.EntFieldMins, qtypes.Vec3{X: -16, Y: -8, Z: -4})
+	vm.SetEVector(entNum, qc.EntFieldMaxs, qtypes.Vec3{X: 16, Y: 8, Z: 12})
 	vm.SetGInt(qc.OFSParm0, int32(entNum))
-	vm.SetGVector(qc.OFSParm1, [3]float32{100, 50, 25})
+	vm.SetGVector(qc.OFSParm1, qtypes.Vec3{X: 100, Y: 50, Z: 25})
 	if fn := vm.Builtins[2]; fn == nil {
 		t.Fatal("setorigin builtin not registered")
 	} else {
 		fn(vm)
 	}
 
-	if got := ent.AbsMin(s); got != [3]float32{83, 41, 20} {
+	if got := ent.AbsMin(s); got != (qtypes.Vec3{X: 83, Y: 41, Z: 20}) {
 		t.Fatalf("server absmin = %v, want bounds from QC mins with link expansion", got)
 	}
-	if got := ent.AbsMax(s); got != [3]float32{117, 59, 38} {
+	if got := ent.AbsMax(s); got != (qtypes.Vec3{X: 117, Y: 59, Z: 38}) {
 		t.Fatalf("server absmax = %v, want bounds from QC maxs with link expansion", got)
 	}
 }
@@ -416,24 +493,24 @@ func TestServerHooksSetSizeImportsPendingQCOriginForLink(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 	s.ClearWorld()
 
-	ent.SetOrigin(s, [3]float32{0, 0, 0})
-	ent.SetMins(s, [3]float32{-1, -1, -1})
-	ent.SetMaxs(s, [3]float32{1, 1, 1})
+	ent.SetOrigin(s, qtypes.Vec3{})
+	ent.SetMins(s, qtypes.Vec3{X: -1, Y: -1, Z: -1})
+	ent.SetMaxs(s, qtypes.Vec3{X: 1, Y: 1, Z: 1})
 
-	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{200, 20, 8})
+	vm.SetEVector(entNum, qc.EntFieldOrigin, qtypes.Vec3{X: 200, Y: 20, Z: 8})
 	vm.SetGInt(qc.OFSParm0, int32(entNum))
-	vm.SetGVector(qc.OFSParm1, [3]float32{-16, -16, -24})
-	vm.SetGVector(qc.OFSParm2, [3]float32{16, 16, 32})
+	vm.SetGVector(qc.OFSParm1, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	vm.SetGVector(qc.OFSParm2, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	if fn := vm.Builtins[4]; fn == nil {
 		t.Fatal("setsize builtin not registered")
 	} else {
 		fn(vm)
 	}
 
-	if got := ent.AbsMin(s); got != [3]float32{183, 3, -17} {
+	if got := ent.AbsMin(s); got != (qtypes.Vec3{X: 183, Y: 3, Z: -17}) {
 		t.Fatalf("server absmin = %v, want bounds from QC origin with link expansion", got)
 	}
-	if got := ent.AbsMax(s); got != [3]float32{217, 37, 41} {
+	if got := ent.AbsMax(s); got != (qtypes.Vec3{X: 217, Y: 37, Z: 41}) {
 		t.Fatalf("server absmax = %v, want bounds from QC origin with link expansion", got)
 	}
 }
@@ -452,16 +529,16 @@ func TestServerHooksSetModelImportsPendingQCOriginForLink(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 	s.ClearWorld()
 
-	ent.SetOrigin(s, [3]float32{0, 0, 0})
-	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{64, 32, 16})
+	ent.SetOrigin(s, qtypes.Vec3{})
+	vm.SetEVector(entNum, qc.EntFieldOrigin, qtypes.Vec3{X: 64, Y: 32, Z: 16})
 
 	s.ModelName = "maps/test.bsp"
 	s.ModelPrecache = make([]string, MaxModels)
 	s.ModelPrecache[1] = s.ModelName
 	s.ModelPrecache[2] = "*1"
 	s.WorldTree = &bsp.Tree{Models: []bsp.DModel{
-		{BoundsMin: [3]float32{-256, -256, -128}, BoundsMax: [3]float32{256, 256, 128}},
-		{BoundsMin: [3]float32{-16, -24, -32}, BoundsMax: [3]float32{48, 56, 72}},
+		{BoundsMin: qtypes.Vec3{X: -256, Y: -256, Z: -128}, BoundsMax: qtypes.Vec3{X: 256, Y: 256, Z: 128}},
+		{BoundsMin: qtypes.Vec3{X: -16, Y: -24, Z: -32}, BoundsMax: qtypes.Vec3{X: 48, Y: 56, Z: 72}},
 	}}
 	s.WorldModel = worldModelFromBSPTree(s.ModelName, s.WorldTree)
 
@@ -473,10 +550,10 @@ func TestServerHooksSetModelImportsPendingQCOriginForLink(t *testing.T) {
 		fn(vm)
 	}
 
-	if got := vm.EVector(entNum, qc.EntFieldAbsMin); got != [3]float32{47, 7, -17} {
+	if got := vm.EVector(entNum, qc.EntFieldAbsMin); got != (qtypes.Vec3{X: 47, Y: 7, Z: -17}) {
 		t.Fatalf("absmin = %v, want bounds linked from QC-pending origin", got)
 	}
-	if got := vm.EVector(entNum, qc.EntFieldAbsMax); got != [3]float32{113, 89, 89} {
+	if got := vm.EVector(entNum, qc.EntFieldAbsMax); got != (qtypes.Vec3{X: 113, Y: 89, Z: 89}) {
 		t.Fatalf("absmax = %v, want bounds linked from QC-pending origin", got)
 	}
 }
@@ -499,9 +576,9 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.SetOrigin(s, [3]float32{0, 0, 24})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	ent.SetFlags(s, float32(FlagOnGround))
 	s.LinkEdict(ent, false)
@@ -513,19 +590,19 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	if fn := vm.Builtins[32]; fn != nil {
 		fn(vm)
 	}
-	if got := vm.EVector(entNum, qc.EntFieldOrigin); got[0] == 0 && got[1] == 0 {
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got.X == 0 && got.Y == 0 {
 		t.Fatalf("walkmove did not change origin: %v", got)
 	}
 
-	ent.SetOrigin(s, [3]float32{0, 0, 96})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 96})
 	ent.SetFlags(s, 0)
 	ent.SetGroundEntity(s, 0)
 	s.LinkEdict(ent, false)
 	if fn := vm.Builtins[34]; fn != nil {
 		fn(vm)
 	}
-	if got := vm.EVector(entNum, qc.EntFieldOrigin); got[2] < 23.99 || got[2] > 24.05 {
-		t.Fatalf("droptofloor origin.z = %v, want ~24", got[2])
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got.Z < 23.99 || got.Z > 24.05 {
+		t.Fatalf("droptofloor origin.z = %v, want ~24", got.Z)
 	}
 	if got := uint32(vm.EFloat(entNum, qc.EntFieldFlags)); got&FlagOnGround == 0 {
 		t.Fatalf("droptofloor flags = %#x, want onground set", got)
@@ -553,16 +630,16 @@ func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *tes
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.SetOrigin(s, [3]float32{0, 0, 24})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	angles := ent.Angles(s)
-	angles[1] = 45
+	angles.Y = 45
 	ent.SetAngles(s, angles)
 	ent.SetIdealYaw(s, 123)
 	vm.SetEFloat(entNum, qc.EntFieldFlags, float32(FlagOnGround))
-	vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{0, 33, 0})
+	vm.SetEVector(entNum, qc.EntFieldAngles, qtypes.Vec3{X: 0, Y: 33, Z: 0})
 	vm.SetEFloat(entNum, qc.EntFieldIdealYaw, 77)
 	s.LinkEdict(ent, false)
 
@@ -575,14 +652,14 @@ func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *tes
 		fn(vm)
 	}
 
-	if got := vm.EVector(entNum, qc.EntFieldOrigin); got[0] <= 0 {
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got.X <= 0 {
 		t.Fatalf("walkmove did not use QC-only onground flag: origin=%v", got)
 	}
 	if got := vm.EFloat(entNum, qc.EntFieldIdealYaw); got != 77 {
 		t.Fatalf("ideal_yaw = %v, want QC-only value 77", got)
 	}
-	if got := vm.EVector(entNum, qc.EntFieldAngles); got[1] != 33 {
-		t.Fatalf("angles yaw = %v, want QC-only value 33 without StepDirection yaw mutation", got[1])
+	if got := vm.EVector(entNum, qc.EntFieldAngles); got.Y != 33 {
+		t.Fatalf("angles yaw = %v, want QC-only value 33 without StepDirection yaw mutation", got.Y)
 	}
 }
 
@@ -604,14 +681,14 @@ func TestServerHooksDropToFloorImportsPendingQCState(t *testing.T) {
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.SetOrigin(s, [3]float32{0, 0, 96})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 96})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	s.LinkEdict(ent, false)
 
-	vm.SetEVector(entNum, qc.EntFieldMins, [3]float32{-16, -16, -8})
-	vm.SetEVector(entNum, qc.EntFieldMaxs, [3]float32{16, 16, 8})
+	vm.SetEVector(entNum, qc.EntFieldMins, qtypes.Vec3{X: -16, Y: -16, Z: -8})
+	vm.SetEVector(entNum, qc.EntFieldMaxs, qtypes.Vec3{X: 16, Y: 16, Z: 8})
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
 
 	if fn := vm.Builtins[34]; fn == nil {
@@ -620,8 +697,8 @@ func TestServerHooksDropToFloorImportsPendingQCState(t *testing.T) {
 		fn(vm)
 	}
 
-	if got := vm.EVector(entNum, qc.EntFieldOrigin); got[2] < 7.99 || got[2] > 8.05 {
-		t.Fatalf("droptofloor origin.z = %v, want ~8 from QC-only mins", got[2])
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got.Z < 7.99 || got.Z > 8.05 {
+		t.Fatalf("droptofloor origin.z = %v, want ~8 from QC-only mins", got.Z)
 	}
 }
 
@@ -638,9 +715,9 @@ func TestServerHooksWalkMoveRequiresMovementFlags(t *testing.T) {
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.SetOrigin(s, [3]float32{0, 0, 0})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, qtypes.Vec3{})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
@@ -652,7 +729,7 @@ func TestServerHooksWalkMoveRequiresMovementFlags(t *testing.T) {
 		fn(vm)
 	}
 
-	if got := vm.EVector(entNum, qc.EntFieldOrigin); got != [3]float32{0, 0, 0} {
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got != (qtypes.Vec3{}) {
 		t.Fatalf("walkmove changed origin without movement flags: %v", got)
 	}
 }
@@ -690,15 +767,15 @@ func TestServerHooksWalkMoveRestoresQCContextAfterNestedTouch(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 
 	moverNum := s.NumForEdict(mover)
-	mover.SetOrigin(s, [3]float32{0, 0, 24})
-	mover.SetMins(s, [3]float32{-16, -16, -24})
-	mover.SetMaxs(s, [3]float32{16, 16, 32})
+	mover.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	mover.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	mover.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	mover.SetSolid(s, float32(SolidSlideBox))
 	mover.SetFlags(s, float32(FlagOnGround))
 
-	trigger.SetOrigin(s, [3]float32{24, 0, 24})
-	trigger.SetMins(s, [3]float32{-16, -16, -24})
-	trigger.SetMaxs(s, [3]float32{16, 16, 32})
+	trigger.SetOrigin(s, qtypes.Vec3{X: 24, Y: 0, Z: 24})
+	trigger.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	s.QCVM.SetEInt(trigger.Num, qc.EntFieldTouch, 1)
 

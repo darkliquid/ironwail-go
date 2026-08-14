@@ -51,7 +51,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		printUsage(stdout)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "qcmod: unknown command %q\n\n", args[0])
+		_, _ = fmt.Fprintf(stderr, "qcmod: unknown command %q\n\n", args[0])
 		printUsage(stdout)
 		return 2
 	}
@@ -64,7 +64,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 // will later build on.
 func runVM(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 1 {
-		fmt.Fprintln(stderr, "qcmod vm: missing <function>")
+		_, _ = fmt.Fprintln(stderr, "qcmod vm: missing <function>")
 		return 2
 	}
 	// Optional numeric args: self other time.
@@ -72,39 +72,39 @@ func runVM(args []string, stdout, stderr io.Writer) int {
 	var time float32
 	if len(args) > 1 {
 		if _, err := fmt.Sscanf(args[1], "%d", &self); err != nil {
-			fmt.Fprintf(stderr, "qcmod vm: bad self %q\n", args[1])
+			_, _ = fmt.Fprintf(stderr, "qcmod vm: bad self %q\n", args[1])
 			return 2
 		}
 	}
 	if len(args) > 2 {
 		if _, err := fmt.Sscanf(args[2], "%d", &other); err != nil {
-			fmt.Fprintf(stderr, "qcmod vm: bad other %q\n", args[2])
+			_, _ = fmt.Fprintf(stderr, "qcmod vm: bad other %q\n", args[2])
 			return 2
 		}
 	}
 	if len(args) > 3 {
 		if _, err := fmt.Sscanf(args[3], "%f", &time); err != nil {
-			fmt.Fprintf(stderr, "qcmod vm: bad time %q\n", args[3])
+			_, _ = fmt.Fprintf(stderr, "qcmod vm: bad time %q\n", args[3])
 			return 2
 		}
 	}
 
 	w, err := newVMWorld(nil)
 	if err != nil {
-		fmt.Fprintf(stderr, "qcmod vm: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "qcmod vm: %v\n", err)
 		return 1
 	}
 	fn := w.vm.FindFunction(args[0])
 	if fn < 0 {
-		fmt.Fprintf(stderr, "qcmod vm: no function %q in progs\n", args[0])
+		_, _ = fmt.Fprintf(stderr, "qcmod vm: no function %q in progs\n", args[0])
 		return 1
 	}
 	spawned, err := w.fire(fn, self, other, time)
 	if err != nil {
-		fmt.Fprintf(stderr, "qcmod vm: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "qcmod vm: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "ok %s self=%d other=%d time=%.3f spawned=%d\n", args[0], self, other, time, spawned)
+	_, _ = fmt.Fprintf(stdout, "ok %s self=%d other=%d time=%.3f spawned=%d\n", args[0], self, other, time, spawned)
 	return 0
 }
 
@@ -157,17 +157,17 @@ replace directive pointing at pkg/qgo/quake), like pkg/qgo/quakego does.
 
 func runTest(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 1 {
-		fmt.Fprintln(stderr, "qcmod test: missing <moddir>")
+	_, _ = fmt.Fprintln(stderr, "qcmod test: missing <moddir>")
 		return 2
 	}
 	dir := args[0]
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		fmt.Fprintf(stderr, "qcmod test: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "qcmod test: %v\n", err)
 		return 1
 	}
 	if _, err := os.Stat(filepath.Join(abs, "go.mod")); err != nil {
-		fmt.Fprintf(stderr, "qcmod test: %s has no go.mod (mod dirs are Go modules importing quake/quake/sim)\n", abs)
+		_, _ = fmt.Fprintf(stderr, "qcmod test: %s has no go.mod (mod dirs are Go modules importing quake/quake/sim)\n", abs)
 		return 1
 	}
 
@@ -183,6 +183,6 @@ func runTest(args []string, stdout, stderr io.Writer) int {
 	if err := cmd.Run(); err != nil {
 		return 1
 	}
-	fmt.Fprintf(stdout, "qcmod test: OK (%s)\n", abs)
+	_, _ = fmt.Fprintf(stdout, "qcmod test: OK (%s)\n", abs)
 	return 0
 }

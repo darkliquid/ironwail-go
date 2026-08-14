@@ -8,6 +8,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/common"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -59,7 +60,7 @@ type KButton struct {
 }
 
 type UserCmd struct {
-	ViewAngles [3]float32
+	ViewAngles types.Vec3
 	Forward    float32
 	Side       float32
 	Up         float32
@@ -76,7 +77,7 @@ type LightStyle struct {
 }
 
 type StaticSound struct {
-	Origin      [3]float32
+	Origin      types.Vec3
 	SoundIndex  int
 	Volume      int
 	Attenuation float32
@@ -85,7 +86,7 @@ type StaticSound struct {
 type SoundEvent struct {
 	Entity      int
 	Channel     int
-	Origin      [3]float32
+	Origin      types.Vec3
 	SoundIndex  int
 	SoundName   string
 	Volume      int
@@ -99,8 +100,8 @@ type StopSoundEvent struct {
 }
 
 type ParticleEvent struct {
-	Origin [3]float32
-	Dir    [3]float32
+	Origin types.Vec3
+	Dir    types.Vec3
 	Count  int
 	Color  int
 }
@@ -109,8 +110,8 @@ type ParticleEvent struct {
 // based on its model flags (EF_ROCKET, EF_GRENADE, etc.). The renderer
 // calls RocketTrail(Start, End, Type) for each event.
 type TrailEvent struct {
-	Start [3]float32 // Previous entity position (trail start)
-	End   [3]float32 // Current entity position (trail end)
+	Start types.Vec3 // Previous entity position (trail start)
+	End   types.Vec3 // Current entity position (trail end)
 	Type  int        // Trail type: 0=rocket, 1=grenade smoke, 2=blood, 3=tracer, 4=slight blood, 5=tracer2, 6=voor trail
 }
 
@@ -135,13 +136,13 @@ type Client struct {
 	Time    float64
 	OldTime float64
 
-	ViewAngles  [3]float32
-	MViewAngles [2][3]float32
-	PunchAngle  [3]float32
-	PunchAngles [2][3]float32
+	ViewAngles  types.Vec3
+	MViewAngles [2]types.Vec3
+	PunchAngle  types.Vec3
+	PunchAngles [2]types.Vec3
 	PunchTime   float64
-	MVelocity   [2][3]float32
-	Velocity    [3]float32
+	MVelocity   [2]types.Vec3
+	Velocity    types.Vec3
 	ViewHeight  float32
 	IdealPitch  float32
 	DriftMove   float32
@@ -193,11 +194,11 @@ type Client struct {
 	FogDensity    byte
 	FogColor      [3]byte
 	FogDensityVal float32
-	FogColorVal   [3]float32
+	FogColorVal   types.Vec3
 	fogFloatValid bool
 	FogTime       float32
 	fogOldDensity float32
-	fogOldColor   [3]float32
+	fogOldColor   types.Vec3
 	fogFadeDone   float64
 	fogFadeTime   float32
 	fogConfigured bool
@@ -218,7 +219,7 @@ type Client struct {
 	beams           [maxBeams]beamState
 	DamageTaken     int
 	DamageSaved     int
-	DamageOrigin    [3]float32
+	DamageOrigin    types.Vec3
 	// Damage kick state - roll/pitch angles and time remaining.
 	// Computed by CalculateDamageKick() and consumed by view calculation.
 	DamageKickRoll  float32
@@ -283,10 +284,10 @@ type Client struct {
 	LightStyles [256]LightStyle
 
 	// Movement prediction state
-	PredictedOrigin               [3]float32                // Predicted player position
-	PredictedVelocity             [3]float32                // Predicted player velocity
-	LastServerOrigin              [3]float32                // Last known server position
-	PredictionError               [3]float32                // Error to correct over time
+	PredictedOrigin               types.Vec3                // Predicted player position
+	PredictedVelocity             types.Vec3                // Predicted player velocity
+	LastServerOrigin              types.Vec3                // Last known server position
+	PredictionError               types.Vec3                // Error to correct over time
 	PredictionValid               bool                      // Current-frame prediction is valid for camera use
 	PredictionEntityNum           int                       // Entity number predicted on the current frame
 	PredictionFrameTime           float64                   // Client time for the current prediction snapshot
@@ -351,8 +352,8 @@ func (c *Client) ClearState() {
 	c.MTime = [2]float64{}
 	c.Time = 0
 	c.OldTime = 0
-	c.PunchAngle = [3]float32{}
-	c.PunchAngles = [2][3]float32{}
+	c.PunchAngle = types.Vec3{}
+	c.PunchAngles = [2]types.Vec3{}
 	c.PunchTime = 0
 	c.ViewHeight = inet.DEFAULT_VIEWHEIGHT
 	c.IdealPitch = 0
@@ -379,8 +380,8 @@ func (c *Client) ClearState() {
 	c.InImpulse = 0
 	c.PendingCmd = UserCmd{}
 	c.Cmd = UserCmd{}
-	c.ViewAngles = [3]float32{}
-	c.MViewAngles = [2][3]float32{}
+	c.ViewAngles = types.Vec3{}
+	c.MViewAngles = [2]types.Vec3{}
 	c.MouseSideMove = 0
 	c.MouseForwardMove = 0
 	c.MouseUpMove = 0
@@ -389,23 +390,23 @@ func (c *Client) ClearState() {
 	c.Items = 0
 	c.DamageTaken = 0
 	c.DamageSaved = 0
-	c.DamageOrigin = [3]float32{}
+	c.DamageOrigin = types.Vec3{}
 	c.CShifts = [numCShifts]ColorShift{}
 	c.OnGround = false
 	c.InWater = false
-	c.Velocity = [3]float32{}
-	c.MVelocity = [2][3]float32{}
+	c.Velocity = types.Vec3{}
+	c.MVelocity = [2]types.Vec3{}
 	c.KillCount = 0
 	c.SecretCount = 0
 	c.SkyboxName = ""
 	c.FogDensity = 0
 	c.FogColor = [3]byte{}
 	c.FogDensityVal = 0
-	c.FogColorVal = [3]float32{}
+	c.FogColorVal = types.Vec3{}
 	c.fogFloatValid = false
 	c.FogTime = 0
 	c.fogOldDensity = 0
-	c.fogOldColor = [3]float32{}
+	c.fogOldColor = types.Vec3{}
 	c.fogFadeDone = 0
 	c.fogFadeTime = 0
 	c.fogConfigured = false
@@ -444,10 +445,10 @@ func (c *Client) ClearState() {
 	}
 
 	// Reset prediction state
-	c.PredictedOrigin = [3]float32{}
-	c.PredictedVelocity = [3]float32{}
-	c.LastServerOrigin = [3]float32{}
-	c.PredictionError = [3]float32{}
+	c.PredictedOrigin = types.Vec3{}
+	c.PredictedVelocity = types.Vec3{}
+	c.LastServerOrigin = types.Vec3{}
+	c.PredictionError = types.Vec3{}
 	c.PredictionValid = false
 	c.PredictionEntityNum = 0
 	c.PredictionFrameTime = 0
@@ -830,15 +831,25 @@ func (c *Client) SendMove(cmd *UserCmd) ([]byte, error) {
 	// matching C Ironwail CL_SendMove behavior. Only NetQuake uses 8-bit.
 	useShortAngles := c.Protocol != inet.PROTOCOL_NETQUAKE
 
-	for i := 0; i < 3; i++ {
-		if useShortAngles {
-			if !buf.WriteAngle16(cmd.ViewAngles[i]) {
-				return nil, fmt.Errorf("failed to write view angle %d", i)
-			}
-		} else {
-			if !buf.WriteAngle(cmd.ViewAngles[i]) {
-				return nil, fmt.Errorf("failed to write view angle %d", i)
-			}
+	if useShortAngles {
+		if !buf.WriteAngle16(cmd.ViewAngles.X) {
+			return nil, fmt.Errorf("failed to write view angle pitch")
+		}
+		if !buf.WriteAngle16(cmd.ViewAngles.Y) {
+			return nil, fmt.Errorf("failed to write view angle yaw")
+		}
+		if !buf.WriteAngle16(cmd.ViewAngles.Z) {
+			return nil, fmt.Errorf("failed to write view angle roll")
+		}
+	} else {
+		if !buf.WriteAngle(cmd.ViewAngles.X) {
+			return nil, fmt.Errorf("failed to write view angle pitch")
+		}
+		if !buf.WriteAngle(cmd.ViewAngles.Y) {
+			return nil, fmt.Errorf("failed to write view angle yaw")
+		}
+		if !buf.WriteAngle(cmd.ViewAngles.Z) {
+			return nil, fmt.Errorf("failed to write view angle roll")
 		}
 	}
 

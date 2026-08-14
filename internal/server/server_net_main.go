@@ -19,6 +19,7 @@ import (
 	srvcollision "github.com/darkliquid/ironwail-go/internal/server/collision"
 	"github.com/darkliquid/ironwail-go/internal/server/edict"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func normalizeServerMapName(mapName string) string {
@@ -624,7 +625,7 @@ func (s *Server) loadMapEntities(raw string) error {
 				ent.TargetString(s),
 				ent.Touch(s),
 				int(ent.Solid(s)),
-				org[0], org[1], org[2],
+				org.X, org.Y, org.Z,
 			)
 		}
 		s.QCVM.SetGlobal("self", entNum)
@@ -649,8 +650,8 @@ func (s *Server) loadMapEntities(raw string) error {
 				ent.TargetString(s),
 				ent.Touch(s),
 				int(ent.Solid(s)),
-				absMin[0], absMin[1], absMin[2],
-				absMax[0], absMax[1], absMax[2],
+				absMin.X, absMin.Y, absMin.Z,
+				absMax.X, absMax.Y, absMax.Z,
 			)
 		}
 		s.LinkEdict(ent, false)
@@ -664,8 +665,8 @@ func (s *Server) loadMapEntities(raw string) error {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 				"spawn trigger relink classname=%q link=%s solid=%d touch=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
 				className, linkState, int(ent.Solid(s)), ent.Touch(s),
-				absMin[0], absMin[1], absMin[2],
-				absMax[0], absMax[1], absMax[2],
+				absMin.X, absMin.Y, absMin.Z,
+				absMax.X, absMax.Y, absMax.Z,
 			)
 		}
 	}
@@ -688,7 +689,7 @@ func populateWorldModelCollision(m *model.Model, tree *bsp.Tree, file *bsp.File)
 }
 
 // modelBounds resolves bounding boxes for world and inline BSP models for SetModel/LinkEdict updates.
-func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) {
+func (s *Server) modelBounds(modelName string) (mins, maxs qtypes.Vec3, ok bool) {
 	if modelName == "" {
 		return mins, maxs, true
 	}
@@ -697,7 +698,7 @@ func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) 
 		if modelName == s.ModelName {
 			clipMins := wm.CollisionClipMins()
 			clipMaxs := wm.CollisionClipMaxs()
-			if wm.ModelType() == int(model.ModBrush) && (wm.IsClipBox() || clipMins != [3]float32{} || clipMaxs != [3]float32{}) {
+			if wm.ModelType() == int(model.ModBrush) && (wm.IsClipBox() || clipMins != (qtypes.Vec3{}) || clipMaxs != (qtypes.Vec3{})) {
 				return clipMins, clipMaxs, true
 			}
 			if s.WorldTree != nil && len(s.WorldTree.Models) > 0 {
@@ -724,15 +725,15 @@ func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) 
 }
 
 type cachedModelInfo struct {
-	mins  [3]float32
-	maxs  [3]float32
+	mins  qtypes.Vec3
+	maxs  qtypes.Vec3
 	known bool
 }
 
-func spriteBounds(sprite *model.MSprite) ([3]float32, [3]float32) {
+func spriteBounds(sprite *model.MSprite) (qtypes.Vec3, qtypes.Vec3) {
 	halfWidth := float32(sprite.MaxWidth) * 0.5
 	halfHeight := float32(sprite.MaxHeight) * 0.5
-	return [3]float32{-halfWidth, -halfWidth, -halfHeight}, [3]float32{halfWidth, halfWidth, halfHeight}
+	return qtypes.Vec3{X: -halfWidth, Y: -halfWidth, Z: -halfHeight}, qtypes.Vec3{X: halfWidth, Y: halfWidth, Z: halfHeight}
 }
 
 func (s *Server) cacheModelInfo(modelName string) (cachedModelInfo, error) {

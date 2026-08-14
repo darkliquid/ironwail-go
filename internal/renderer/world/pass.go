@@ -3,6 +3,7 @@ package world
 import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type RenderPass int
@@ -18,19 +19,16 @@ func FaceAlpha(flags int32, liquidAlpha LiquidAlphaSettings) float32 {
 	if flags&model.SurfDrawTurb == 0 {
 		return 1
 	}
-	if flags&model.SurfDrawLava != 0 {
+	switch {
+	case flags&model.SurfDrawLava != 0:
 		return liquidAlpha.Lava
-	}
-	if flags&model.SurfDrawSlime != 0 {
+	case flags&model.SurfDrawSlime != 0:
 		return liquidAlpha.Slime
-	}
-	if flags&model.SurfDrawTele != 0 {
+	case flags&model.SurfDrawTele != 0:
 		return liquidAlpha.Tele
-	}
-	if flags&model.SurfDrawWater != 0 {
+	default:
 		return liquidAlpha.Water
 	}
-	return 1
 }
 
 func FaceUsesTurb(flags int32) bool {
@@ -54,10 +52,10 @@ func FacePass(flags int32, alpha float32) RenderPass {
 	}
 }
 
-func FaceDistanceSq(center [3]float32, cameraOrigin [3]float32) float32 {
-	dx := center[0] - cameraOrigin[0]
-	dy := center[1] - cameraOrigin[1]
-	dz := center[2] - cameraOrigin[2]
+func FaceDistanceSq(center types.Vec3, cameraOrigin types.Vec3) float32 {
+	dx := center.X - cameraOrigin.X
+	dy := center.Y - cameraOrigin.Y
+	dz := center.Z - cameraOrigin.Z
 	return dx*dx + dy*dy + dz*dz
 }
 

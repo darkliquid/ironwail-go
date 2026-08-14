@@ -104,8 +104,8 @@ func TestRendererCameraThreadSafety(t *testing.T) {
 
 // TestConvertClientStateToCameraIntegration verifies the conversion function.
 func TestConvertClientStateToCameraIntegration(t *testing.T) {
-	origin := [3]float32{50.5, 100.5, 150.5}
-	angles := [3]float32{30, 60, 0}
+	origin := types.Vec3{X: 50.5, Y: 100.5, Z: 150.5}
+	angles := types.Vec3{X: 30, Y: 60, Z: 0}
 	fov := float32(96.0)
 
 	camera := ConvertClientStateToCamera(origin, angles, fov)

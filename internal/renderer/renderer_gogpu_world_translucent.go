@@ -6,11 +6,11 @@ import (
 	"sort"
 
 	"github.com/darkliquid/ironwail-go/internal/model"
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
-
-	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 type gogpuLateTranslucentFaceResources struct {
@@ -183,7 +183,7 @@ func gogpuTranslucentFacesHaveLitWater(faces []gogpuTranslucentLiquidFaceDraw) b
 func appendGoGPUTranslucentBrushEntityFaceRenders(alphaTestDst, translucentDst []gogpuTranslucentBrushFaceRender, bufferPair [2]*wgpu.Buffer, vertexOffset, indexOffset uint64, draw gogpuTranslucentBrushEntityDraw) ([]gogpuTranslucentBrushFaceRender, []gogpuTranslucentBrushFaceRender) {
 	hasLitWater := gogpuTranslucentFacesHaveLitWater(draw.liquidFaces)
 	for faceIndex, face := range draw.alphaTestFaces {
-		center := [3]float32{}
+		center := types.Vec3{}
 		if faceIndex < len(draw.alphaTestCenters) {
 			center = draw.alphaTestCenters[faceIndex]
 		}
@@ -418,7 +418,7 @@ func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []
 	return alphaTestRenders, translucentRenders, owned
 }
 
-func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTranslucentBrushFaceRender, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTranslucentBrushFaceRender, fogColor types.Vec3, fogDensity float32) {
 	if len(renders) == 0 {
 		return
 	}
@@ -513,7 +513,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	}
 }
 
-func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogpuTranslucentBrushFaceRender, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogpuTranslucentBrushFaceRender, fogColor types.Vec3, fogDensity float32) {
 	if len(renders) == 0 {
 		return
 	}
@@ -644,7 +644,7 @@ type gogpuTranslucentBrushFaceRender struct {
 	face                   gogpuTranslucentLiquidFaceDraw
 	liquid                 bool
 	hasLitWater            bool
-	center                 [3]float32
+	center                 types.Vec3
 	lightmapArray          *gpuWorldTexture
 	textures               *gpuWorldTexture
 	fullbrightTextures     *gpuWorldTexture

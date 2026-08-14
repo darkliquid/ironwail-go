@@ -7,9 +7,9 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
-	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
-
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const worldLightmapPageSize = 1024
@@ -338,15 +338,12 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *surfacep
 	rawLightmapCoords := make([][2]float64, 0, numEdges)
 
 	// Get plane normal for this face
-	var normal [3]float32
+	var normal types.Vec3
 	if int(face.PlaneNum) < len(tree.Planes) {
-		planeNormal := tree.Planes[face.PlaneNum].Normal
-		normal = planeNormal
+		normal = tree.Planes[face.PlaneNum].Normal
 		// If face is on back side of plane, flip normal
 		if face.Side != 0 {
-			normal[0] = -normal[0]
-			normal[1] = -normal[1]
-			normal[2] = -normal[2]
+			normal = normal.Neg()
 		}
 	} else {
 		// Invalid plane number - log warning
@@ -356,7 +353,7 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *surfacep
 	}
 
 	// Check if normal is valid (not all zeros)
-	normalLen := float32(math.Sqrt(float64(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])))
+	normalLen := normal.Len()
 	if normalLen < 0.01 {
 		slog.Warn("Invalid normal for face",
 			"faceIdx", face,
@@ -502,20 +499,20 @@ func worldTextureDimensions(tree *bsp.Tree, texInfo *bsp.Texinfo) (float32, floa
 	return worldimpl.TextureDimensions(tree, texInfo)
 }
 
-func worldFaceCenter(vertices []WorldVertex) [3]float32 {
+func worldFaceCenter(vertices []WorldVertex) types.Vec3 {
 	if len(vertices) == 0 {
-		return [3]float32{}
+		return types.Vec3{}
 	}
-	var center [3]float32
+	var center types.Vec3
 	for _, vertex := range vertices {
-		center[0] += vertex.Position[0]
-		center[1] += vertex.Position[1]
-		center[2] += vertex.Position[2]
+		center.X += vertex.Position.X
+		center.Y += vertex.Position.Y
+		center.Z += vertex.Position.Z
 	}
 	scale := 1 / float32(len(vertices))
-	center[0] *= scale
-	center[1] *= scale
-	center[2] *= scale
+	center.X *= scale
+	center.Y *= scale
+	center.Z *= scale
 	return center
 }
 
@@ -656,6 +653,6 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bs
 	return &faceLightmapSurface{pageIndex: texNum}, nil
 }
 
-func worldTexCoordDouble(position [3]float32, vec [4]float32) float64 {
+func worldTexCoordDouble(position types.Vec3, vec [4]float32) float64 {
 	return worldimpl.TexCoordDouble(position, vec)
 }

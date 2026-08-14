@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -65,9 +66,9 @@ type WorldRenderData struct {
 	Geometry *WorldGeometry
 
 	// BoundsMin is the minimum XYZ world-space coordinate of uploaded geometry.
-	BoundsMin [3]float32
+	BoundsMin types.Vec3
 	// BoundsMax is the maximum XYZ world-space coordinate of uploaded geometry.
-	BoundsMax [3]float32
+	BoundsMax types.Vec3
 
 	// Backend resource status used for diagnostics and parity tracking.
 	VertexBufferUploaded bool
@@ -158,7 +159,7 @@ func gogpuBindGroupSortKey(bindGroup *wgpu.BindGroup) uintptr {
 	return uintptr(unsafe.Pointer(bindGroup))
 }
 
-func worldLeafIndex(tree *bsp.Tree, cameraOrigin [3]float32) int {
+func worldLeafIndex(tree *bsp.Tree, cameraOrigin types.Vec3) int {
 	if tree == nil || len(tree.Leafs) == 0 {
 		return -1
 	}
@@ -211,7 +212,7 @@ type gogpuWorldFaceBatch struct {
 type gogpuTranslucentLiquidFaceDraw struct {
 	face       WorldFace
 	alpha      float32
-	center     [3]float32
+	center     types.Vec3
 	distanceSq float32
 }
 
@@ -264,12 +265,12 @@ func encodeGoGPUWorldDynamicLights(lights []DynamicLight) (*[]byte, []byte) {
 			continue
 		}
 		base := gogpuWorldDynamicLightHeaderSize + count*gogpuWorldDynamicLightBufferStride
-		putFloat32s(data[base:base+12], light.Position[:])
+		putFloat32s(data[base:base+12], []float32{light.Position.X, light.Position.Y, light.Position.Z})
 		binary.LittleEndian.PutUint32(data[base+12:base+16], math.Float32bits(light.Radius))
 		color := [3]float32{
-			light.Color[0] * effectiveMul,
-			light.Color[1] * effectiveMul,
-			light.Color[2] * effectiveMul,
+			light.Color.X * effectiveMul,
+			light.Color.Y * effectiveMul,
+			light.Color.Z * effectiveMul,
 		}
 		putFloat32s(data[base+16:base+28], color[:])
 		binary.LittleEndian.PutUint32(data[base+28:base+32], math.Float32bits(light.MinLight))

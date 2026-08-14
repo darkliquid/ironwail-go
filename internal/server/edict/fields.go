@@ -8,6 +8,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	types "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type fieldDefInfo struct {
@@ -102,11 +103,11 @@ func normalizeFieldName(name string) string {
 var vec3Replacer = strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
 
 // parseVec3 parses a space-separated "x y z" string (as found in map entity
-// definitions) into a [3]float32 vector. Quake's entity parser is lenient
+// definitions) into a types.Vec3 vector. Quake's entity parser is lenient
 // here: missing or empty components decode as 0 and extra components are
 // ignored, matching the original C atof-based parsing.
-func parseVec3(raw string) ([3]float32, error) {
-	var out [3]float32
+func parseVec3(raw string) (qtypes.Vec3, error) {
+	var out qtypes.Vec3
 	normalized := vec3Replacer.Replace(strings.TrimSpace(raw))
 	if normalized == "" {
 		return out, nil
@@ -114,7 +115,7 @@ func parseVec3(raw string) ([3]float32, error) {
 	parts := strings.Split(normalized, " ")
 	component := 0
 	for _, part := range parts {
-		if component >= len(out) {
+		if component >= 3 {
 			break
 		}
 		if part == "" {
@@ -123,9 +124,16 @@ func parseVec3(raw string) ([3]float32, error) {
 		}
 		v, err := strconv.ParseFloat(part, 32)
 		if err != nil {
-			return [3]float32{}, err
+			return qtypes.Vec3{}, err
 		}
-		out[component] = float32(v)
+		switch component {
+		case 0:
+			out.X = float32(v)
+		case 1:
+			out.Y = float32(v)
+		case 2:
+			out.Z = float32(v)
+		}
 		component++
 	}
 	return out, nil
@@ -181,7 +189,7 @@ func parseInt32(raw string) (int32, error) {
 //     3. As a last resort, the value is parsed as a plain integer; if that
 //     also fails, parseStringFallbackInt32 produces a deterministic FNV-1a
 //     hash so the field is never left uninitialised.
-//   - [3]float32 arrays: parsed as "x y z" vec3 via parseVec3.
+//   - types.Vec3: parsed as "x y z" vec3 via parseVec3.
 //
 // After setting either the "mins" or "maxs" field, the entity's Size vector
 // is automatically recalculated as (Maxs - Mins) on each axis. This keeps
@@ -205,7 +213,7 @@ func (em *Manager) parseEdictFieldValue(edict *types.Edict, entNum int, keyName,
 		if em.vm != nil && em.vm.EdictSize > 28 {
 			mins := em.vm.EVector(edict.Num, qc.EntFieldMins)
 			maxs := em.vm.EVector(edict.Num, qc.EntFieldMaxs)
-			em.vm.SetEVector(edict.Num, qc.EntFieldSize, [3]float32{maxs[0] - mins[0], maxs[1] - mins[1], maxs[2] - mins[2]})
+			em.vm.SetEVector(edict.Num, qc.EntFieldSize, maxs.Sub(mins))
 		}
 	}
 

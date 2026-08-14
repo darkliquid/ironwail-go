@@ -3,6 +3,8 @@ package qc
 import (
 	"math"
 	"testing"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // BenchmarkEdictFieldAccess is the plan 27.1 baseline for the QCVM edict
@@ -39,9 +41,9 @@ func BenchmarkEdictFieldAccess(b *testing.B) {
 			flags := vm.EFloat(e, EntFieldFlags)
 			next := vm.EFloat(e, EntFieldNextThink)
 			health := vm.EFloat(e, EntFieldHealth)
-			_ = org[0] + vel[1] + flags + next + health
+			_ = org.X + vel.Y + flags + next + health
 			vm.SetEFloat(e, EntFieldHealth, 100)
-			vm.SetEVector(e, EntFieldOrigin, [3]float32{org[0] + 1, org[1], org[2]})
+			vm.SetEVector(e, EntFieldOrigin, types.Vec3{X: org.X + 1, Y: org.Y, Z: org.Z})
 		}
 	}
 }

@@ -9,7 +9,11 @@
 //   - PROTOCOL_RMQ (999): RMQ protocol
 package net
 
-import "math"
+import (
+	"math"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 // Protocol versions
 const (
@@ -318,8 +322,8 @@ const (
 // EntityState represents entity baseline state sent to clients.
 // Corresponds to entity_state_t in protocol.h
 type EntityState struct {
-	Origin     [3]float32 // Rendered entity position (set by RelinkEntities)
-	Angles     [3]float32 // Rendered entity orientation (set by RelinkEntities)
+	Origin     types.Vec3 // Rendered entity position (set by RelinkEntities)
+	Angles     types.Vec3 // Rendered entity orientation (set by RelinkEntities)
 	ModelIndex uint16     // Index into model cache (FitzQuake extension)
 	Frame      uint16     // Animation frame number (FitzQuake extension)
 	Colormap   uint8      // Player colormap
@@ -329,8 +333,8 @@ type EntityState struct {
 	Scale      uint8      // Model scale (FitzQuake extension)
 
 	// Interpolation state (mirrors C entity_t msg_origins/msg_angles)
-	MsgOrigins [2][3]float32 // [0]=current network pos, [1]=previous network pos
-	MsgAngles  [2][3]float32 // [0]=current network angles, [1]=previous network angles
+	MsgOrigins [2]types.Vec3 // [0]=current network pos, [1]=previous network pos
+	MsgAngles  [2]types.Vec3 // [0]=current network angles, [1]=previous network angles
 	MsgTime    float64       // Server time when this entity was last updated
 	ForceLink  bool          // Jump to MsgOrigins[0] without lerping (new or teleported)
 	LerpFlags  uint8         // LERP_* bits controlling interpolation behavior
@@ -339,7 +343,7 @@ type EntityState struct {
 	// Trail state: TrailOrigin tracks the entity's position from the
 	// previous frame so trail particle emitters (RocketTrail, etc.) know
 	// where each trail segment starts.
-	TrailOrigin [3]float32
+	TrailOrigin types.Vec3
 	TrailDelay  float64
 
 	// Sprite runtime animation state mirrors C's entity_t syncbase behavior.
@@ -352,7 +356,7 @@ type EntityState struct {
 // Contains movement, angles, and impulse values for a single frame.
 // Corresponds to usercmd_t in protocol.h
 type UserCmd struct {
-	ViewAngles  [3]float32 // Client view angles (pitch, yaw, roll)
+	ViewAngles  types.Vec3 // Client view angles (pitch, yaw, roll)
 	ForwardMove float32    // Forward/backward movement (-back, +forward)
 	SideMove    float32    // Strafe movement (-left, +right)
 	UpMove      float32    // Vertical movement (jump/swim)

@@ -1,5 +1,9 @@
 package qc
 
+import (
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
+
 // CSQCDrawHooks provides drawing operations for CSQC builtins.
 // The renderer implements this interface and registers it via SetCSQCDrawHooks.
 type CSQCDrawHooks struct {
@@ -111,11 +115,11 @@ func csqcPrecachePic(vm *VM) {
 // vector drawgetimagesize(string name)
 func csqcDrawGetImageSize(vm *VM) {
 	if csqcDrawHooks.GetImageSize == nil {
-		vm.SetGVector(OFSReturn, [3]float32{0, 0, 0})
+		vm.SetGVector(OFSReturn, types.Vec3{})
 		return
 	}
 	width, height := csqcDrawHooks.GetImageSize(vm.GString(OFSParm0))
-	vm.SetGVector(OFSReturn, [3]float32{width, height, 0})
+	vm.SetGVector(OFSReturn, types.Vec3{X: width, Y: height, Z: 0})
 }
 
 // csqcDrawCharacter implements CSQC builtin 320: drawcharacter.
@@ -131,7 +135,7 @@ func csqcDrawCharacter(vm *VM) {
 	rgb := vm.GVector(OFSParm3)
 	alpha := vm.GFloat(OFSParm4)
 	drawflag := int(vm.GFloat(OFSParm5))
-	csqcDrawHooks.DrawCharacter(pos[0], pos[1], ch, size[0], size[1], rgb[0], rgb[1], rgb[2], alpha, drawflag)
+	csqcDrawHooks.DrawCharacter(pos.X, pos.Y, ch, size.X, size.Y, rgb.X, rgb.Y, rgb.Z, alpha, drawflag)
 	vm.SetGFloat(OFSReturn, 1)
 }
 
@@ -148,7 +152,7 @@ func csqcDrawRawString(vm *VM) {
 	rgb := vm.GVector(OFSParm3)
 	alpha := vm.GFloat(OFSParm4)
 	drawflag := int(vm.GFloat(OFSParm5))
-	csqcDrawHooks.DrawString(pos[0], pos[1], text, size[0], size[1], rgb[0], rgb[1], rgb[2], alpha, drawflag, false)
+	csqcDrawHooks.DrawString(pos.X, pos.Y, text, size.X, size.Y, rgb.X, rgb.Y, rgb.Z, alpha, drawflag, false)
 	vm.SetGFloat(OFSReturn, 1)
 }
 
@@ -165,7 +169,7 @@ func csqcDrawPic(vm *VM) {
 	rgb := vm.GVector(OFSParm3)
 	alpha := vm.GFloat(OFSParm4)
 	drawflag := int(vm.GFloat(OFSParm5))
-	csqcDrawHooks.DrawPic(pos[0], pos[1], name, size[0], size[1], rgb[0], rgb[1], rgb[2], alpha, drawflag)
+	csqcDrawHooks.DrawPic(pos.X, pos.Y, name, size.X, size.Y, rgb.X, rgb.Y, rgb.Z, alpha, drawflag)
 	vm.SetGFloat(OFSReturn, 1)
 }
 
@@ -181,7 +185,7 @@ func csqcDrawFill(vm *VM) {
 	rgb := vm.GVector(OFSParm2)
 	alpha := vm.GFloat(OFSParm3)
 	drawflag := int(vm.GFloat(OFSParm4))
-	csqcDrawHooks.DrawFill(pos[0], pos[1], size[0], size[1], rgb[0], rgb[1], rgb[2], alpha, drawflag)
+	csqcDrawHooks.DrawFill(pos.X, pos.Y, size.X, size.Y, rgb.X, rgb.Y, rgb.Z, alpha, drawflag)
 	vm.SetGFloat(OFSReturn, 1)
 }
 
@@ -220,7 +224,7 @@ func csqcDrawString(vm *VM) {
 	rgb := vm.GVector(OFSParm3)
 	alpha := vm.GFloat(OFSParm4)
 	drawflag := int(vm.GFloat(OFSParm5))
-	csqcDrawHooks.DrawString(pos[0], pos[1], text, size[0], size[1], rgb[0], rgb[1], rgb[2], alpha, drawflag, true)
+	csqcDrawHooks.DrawString(pos.X, pos.Y, text, size.X, size.Y, rgb.X, rgb.Y, rgb.Z, alpha, drawflag, true)
 	vm.SetGFloat(OFSReturn, 1)
 }
 
@@ -234,7 +238,7 @@ func csqcStringWidth(vm *VM) {
 	text := vm.GString(OFSParm0)
 	useColors := vm.GFloat(OFSParm1) != 0
 	fontSize := vm.GVector(OFSParm2)
-	width := csqcDrawHooks.StringWidth(text, useColors, fontSize[0], fontSize[1])
+	width := csqcDrawHooks.StringWidth(text, useColors, fontSize.X, fontSize.Y)
 	vm.SetGFloat(OFSReturn, width)
 }
 
@@ -253,9 +257,9 @@ func csqcDrawSubPic(vm *VM) {
 	alpha := vm.GFloat(OFSParm6)
 	drawflag := int(vm.GFloat(OFSParm7))
 	csqcDrawHooks.DrawSubPic(
-		pos[0], pos[1], size[0], size[1], name,
-		srcPos[0], srcPos[1], srcSize[0], srcSize[1],
-		rgb[0], rgb[1], rgb[2], alpha, drawflag,
+		pos.X, pos.Y, size.X, size.Y, name,
+		srcPos.X, srcPos.Y, srcSize.X, srcSize.Y,
+		rgb.X, rgb.Y, rgb.Z, alpha, drawflag,
 	)
 }
 

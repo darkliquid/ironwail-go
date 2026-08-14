@@ -12,6 +12,7 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type runtimeSceneStateTestRenderer struct {
@@ -72,7 +73,7 @@ func TestSyncRuntimeStaticSoundsTracksClientStateAndSnapshotChanges(t *testing.T
 	g.Client.State = cl.StateActive
 	g.Client.SoundPrecache = []string{"ambience/drip.wav"}
 	g.Client.StaticSounds = []cl.StaticSound{
-		{Origin: [3]float32{10, 20, 30}, SoundIndex: 1, Volume: 255, Attenuation: 1},
+		{Origin: types.Vec3{X: 10, Y: 20, Z: 30}, SoundIndex: 1, Volume: 255, Attenuation: 1},
 	}
 
 	g.syncRuntimeStaticSounds()
@@ -87,7 +88,7 @@ func TestSyncRuntimeStaticSoundsTracksClientStateAndSnapshotChanges(t *testing.T
 	}
 
 	g.Client.StaticSounds = append(g.Client.StaticSounds, cl.StaticSound{
-		Origin: [3]float32{40, 50, 60}, SoundIndex: 2, Volume: 200, Attenuation: 0.5,
+		Origin: types.Vec3{X: 40, Y: 50, Z: 60}, SoundIndex: 2, Volume: 200, Attenuation: 0.5,
 	})
 	g.syncRuntimeStaticSounds()
 	secondKey := g.StaticSoundKey
@@ -134,10 +135,10 @@ func TestSyncRuntimeVisualEffectsEmitsParticlesAndNoDecals(t *testing.T) {
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateActive
 	g.Client.ParticleEvents = []cl.ParticleEvent{
-		{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 99},
+		{Origin: types.Vec3{X: 1, Y: 2, Z: 3}, Count: 12, Color: 99},
 	}
 	g.Client.TempEntities = []cl.TempEntityEvent{
-		{Type: inet.TE_GUNSHOT, Origin: [3]float32{4, 5, 6}},
+		{Type: inet.TE_GUNSHOT, Origin: types.Vec3{X: 4, Y: 5, Z: 6}},
 	}
 
 	transientEvents := g.Client.ConsumeTransientEvents()
@@ -187,7 +188,7 @@ func TestSyncRuntimeVisualEffectsEmitsBrightFieldParticles(t *testing.T) {
 	g.Client.State = cl.StateActive
 	g.Client.ModelPrecache = []string{"progs/player.mdl"}
 	g.Client.Entities = map[int]inet.EntityState{
-		1: {ModelIndex: 1, Origin: [3]float32{4, 5, 6}, Effects: inet.EF_BRIGHTFIELD},
+		1: {ModelIndex: 1, Origin: types.Vec3{X: 4, Y: 5, Z: 6}, Effects: inet.EF_BRIGHTFIELD},
 	}
 
 	g.syncRuntimeVisualEffects(0.1, cl.TransientEvents{})
@@ -220,14 +221,14 @@ func TestSyncRuntimeVisualEffectsResetsEffectsWhenClientInactive(t *testing.T) {
 	g.Renderer = &renderer.Renderer{}
 	g.resetRuntimeVisualState()
 	g.DecalMarks.AddMark(renderer.DecalMarkEntity{
-		Origin: [3]float32{0, 0, 0},
-		Normal: [3]float32{0, 0, 1},
+		Origin: types.Vec3{X: 0, Y: 0, Z: 0},
+		Normal: types.Vec3{X: 0, Y: 0, Z: 1},
 		Size:   8,
 		Alpha:  1,
 	}, 5, 0)
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateConnected
-	g.Client.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{1, 1, 1}}}
+	g.Client.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: types.Vec3{X: 1, Y: 1, Z: 1}}}
 
 	transientEvents := g.Client.ConsumeTransientEvents()
 	g.syncRuntimeVisualEffects(0.1, transientEvents)
@@ -271,8 +272,8 @@ func TestCollectAliasEntitiesIncludesBeamSegments(t *testing.T) {
 	}
 	g.RuntimeBeams = []cl.BeamSegment{{
 		Model:  "progs/bolt.mdl",
-		Origin: [3]float32{1, 2, 3},
-		Angles: [3]float32{4, 5, 6},
+		Origin: types.Vec3{X: 1, Y: 2, Z: 3},
+		Angles: types.Vec3{X: 4, Y: 5, Z: 6},
 	}}
 
 	entities := g.collectAliasEntities()
@@ -282,7 +283,7 @@ func TestCollectAliasEntitiesIncludesBeamSegments(t *testing.T) {
 	if got := entities[0].ModelID; got != "progs/bolt.mdl" {
 		t.Fatalf("beam model = %q, want progs/bolt.mdl", got)
 	}
-	if got := entities[0].Origin; got != [3]float32{1, 2, 3} {
+	if got := entities[0].Origin; got != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("beam origin = %v, want [1 2 3]", got)
 	}
 }
@@ -356,8 +357,8 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 	g.Particles = renderer.NewParticleSystem(renderer.MaxParticles)
 	g.DecalMarks = renderer.NewDecalMarkSystem()
 	g.DecalMarks.AddMark(renderer.DecalMarkEntity{
-		Origin: [3]float32{1, 2, 3},
-		Normal: [3]float32{0, 0, 1},
+		Origin: types.Vec3{X: 1, Y: 2, Z: 3},
+		Normal: types.Vec3{X: 0, Y: 0, Z: 1},
 		Size:   12,
 		Alpha:  1,
 	}, 5, 0)
@@ -382,7 +383,7 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 	if math.Abs(float64(state.FogDensity-float32(128)/255.0)) > 0.0001 {
 		t.Fatalf("FogDensity = %v, want %v", state.FogDensity, float32(128)/255.0)
 	}
-	if state.FogColor != [3]float32{64.0 / 255.0, 128.0 / 255.0, 1} {
+	if state.FogColor != (types.Vec3{X: 64.0 / 255.0, Y: 128.0 / 255.0, Z: 1}) {
 		t.Fatalf("FogColor = %v, want [64/255 128/255 1]", state.FogColor)
 	}
 }
@@ -417,7 +418,7 @@ func TestBuildRuntimeRenderFrameStateAppliesWorldspawnFogDefaults(t *testing.T) 
 	if math.Abs(float64(state.FogDensity-0.5)) > 0.0001 {
 		t.Fatalf("FogDensity = %v, want 0.5", state.FogDensity)
 	}
-	wantColor := [3]float32{64.0 / 255.0, 128.0 / 255.0, 191.0 / 255.0}
+	wantColor := types.Vec3{X: 64.0 / 255.0, Y: 128.0 / 255.0, Z: 191.0 / 255.0}
 	if state.FogColor != wantColor {
 		t.Fatalf("FogColor = %v, want %v", state.FogColor, wantColor)
 	}
@@ -484,8 +485,8 @@ func TestBuildRuntimeRenderFrameStateSuppressesStaleSceneWhenDisconnected(t *tes
 	g.Particles = renderer.NewParticleSystem(renderer.MaxParticles)
 	g.DecalMarks = renderer.NewDecalMarkSystem()
 	g.DecalMarks.AddMark(renderer.DecalMarkEntity{
-		Origin: [3]float32{1, 2, 3},
-		Normal: [3]float32{0, 0, 1},
+		Origin: types.Vec3{X: 1, Y: 2, Z: 3},
+		Normal: types.Vec3{X: 0, Y: 0, Z: 1},
 		Size:   12,
 		Alpha:  1,
 	}, 5, 0)

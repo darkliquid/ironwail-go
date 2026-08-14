@@ -6,6 +6,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type mockWorld struct {
@@ -74,7 +75,7 @@ func TestCollisionSystem_PointContents(t *testing.T) {
 	touch := &mockTouch{}
 
 	sys := NewSystem(world, store, touch, nil)
-	cont := sys.PointContents([3]float32{0, 0, 0})
+	cont := sys.PointContents(qtypes.Vec3{})
 	if cont != bsp.ContentsSolid {
 		t.Fatalf("PointContents without world model = %d, want ContentsSolid (%d)", cont, bsp.ContentsSolid)
 	}

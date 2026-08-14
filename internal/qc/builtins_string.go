@@ -7,6 +7,8 @@ package qc
 import (
 	"fmt"
 	"strings"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // etosBuiltin converts an entity number to a string "entity N".
@@ -72,8 +74,8 @@ func stovBuiltin(vm *VM) {
 	s := vm.GString(OFSParm0)
 	// Strip surrounding quotes/apostrophes that QuakeC vectors use.
 	s = strings.Trim(s, "' \"")
-	var v [3]float32
-	_, _ = fmt.Sscanf(s, "%f %f %f", &v[0], &v[1], &v[2])
+	var v types.Vec3
+	_, _ = fmt.Sscanf(s, "%f %f %f", &v.X, &v.Y, &v.Z)
 	vm.SetGVector(OFSReturn, v)
 }
 

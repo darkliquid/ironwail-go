@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 var serverSignOnMsg1 = []byte{
@@ -222,7 +223,7 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	if got := c.EntityBaselines[1].ModelIndex; got != 5 {
 		t.Fatalf("baseline model = %d, want 5", got)
 	}
-	if got := c.EntityBaselines[1].Origin; got != [3]float32{1, 2, 3} {
+	if got := c.EntityBaselines[1].Origin; got != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("baseline origin = %v, want [1 2 3]", got)
 	}
 	if got := c.Stats[statHealth]; got != 100 {
@@ -240,19 +241,19 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	if !c.OnGround || c.InWater {
 		t.Fatalf("onground/inwater = %v/%v, want true/false", c.OnGround, c.InWater)
 	}
-	if got := c.Velocity[0]; got != 64 {
+	if got := c.Velocity.X; got != 64 {
 		t.Fatalf("velocity[0] = %v, want 64", got)
 	}
 	if got := c.ViewHeight; got != 30 {
 		t.Fatalf("viewheight = %v, want 30", got)
 	}
-	if got := c.PunchAngle; got != [3]float32{7, 0, 0} {
+	if got := c.PunchAngle; got != (types.Vec3{X: 7, Y: 0, Z: 0}) {
 		t.Fatalf("punch angle = %v, want [7 0 0]", got)
 	}
-	if got := c.PunchAngles[0]; got != [3]float32{7, 0, 0} {
+	if got := c.PunchAngles[0]; got != (types.Vec3{X: 7, Y: 0, Z: 0}) {
 		t.Fatalf("current punch angles = %v, want [7 0 0]", got)
 	}
-	if got := c.PunchAngles[1]; got != [3]float32{} {
+	if got := c.PunchAngles[1]; got != (types.Vec3{}) {
 		t.Fatalf("previous punch angles = %v, want zero", got)
 	}
 	if got := c.PunchTime; got != 2.5 {
@@ -263,16 +264,16 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	if got := ent.Frame; got != 4 {
 		t.Fatalf("entity frame = %d, want 4", got)
 	}
-	if got := ent.MsgOrigins[0]; got != [3]float32{10, 20, 30} {
+	if got := ent.MsgOrigins[0]; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("entity MsgOrigins[0] = %v, want [10 20 30]", got)
 	}
-	if got := ent.Origin; got != [3]float32{10, 20, 30} {
+	if got := ent.Origin; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("entity origin = %v, want initial forced-link origin [10 20 30]", got)
 	}
-	if got := ent.MsgAngles[0][1]; got < 44.5 || got > 45.5 {
+	if got := ent.MsgAngles[0].Y; got < 44.5 || got > 45.5 {
 		t.Fatalf("entity raw yaw = %f, want ~45", got)
 	}
-	if got := ent.Angles[1]; got < 44.5 || got > 45.5 {
+	if got := ent.Angles.Y; got < 44.5 || got > 45.5 {
 		t.Fatalf("entity yaw = %f, want initial forced-link yaw ~45", got)
 	}
 
@@ -282,7 +283,7 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	if got := c.TempEntities[0].Type; got != inet.TE_EXPLOSION {
 		t.Fatalf("temp entity type = %d, want TE_EXPLOSION", got)
 	}
-	if got := c.TempEntities[0].Origin; got != [3]float32{100, 200, 300} {
+	if got := c.TempEntities[0].Origin; got != (types.Vec3{X: 100, Y: 200, Z: 300}) {
 		t.Fatalf("temp entity origin = %v, want [100 200 300]", got)
 	}
 }
@@ -335,13 +336,13 @@ func TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted(t *testing.T) {
 	if got := c.ViewHeight; got != inet.DEFAULT_VIEWHEIGHT {
 		t.Fatalf("viewheight = %v, want %d", got, inet.DEFAULT_VIEWHEIGHT)
 	}
-	if got := c.PunchAngle; got != [3]float32{} {
+	if got := c.PunchAngle; got != (types.Vec3{}) {
 		t.Fatalf("punch angle = %v, want zero", got)
 	}
-	if got := c.PunchAngles[0]; got != [3]float32{} {
+	if got := c.PunchAngles[0]; got != (types.Vec3{}) {
 		t.Fatalf("current punch angles = %v, want zero", got)
 	}
-	if got := c.PunchAngles[1]; got != [3]float32{7, 0, 0} {
+	if got := c.PunchAngles[1]; got != (types.Vec3{X: 7, Y: 0, Z: 0}) {
 		t.Fatalf("previous punch angles = %v, want [7 0 0]", got)
 	}
 	if got := c.PunchTime; got != 3.5 {
@@ -429,26 +430,26 @@ func TestParseClientDataZeroesMissingVelocityBitsAndAdvancesHistory(t *testing.T
 	if err := p.ParseServerMessage(buildClientDataMsg(inet.SU_VELOCITY1, [3]int8{4, 0, 0})); err != nil {
 		t.Fatalf("first ParseServerMessage() error = %v", err)
 	}
-	if got := c.Velocity; got != [3]float32{64, 0, 0} {
+	if got := c.Velocity; got != (types.Vec3{X: 64, Y: 0, Z: 0}) {
 		t.Fatalf("Velocity = %v, want [64 0 0]", got)
 	}
-	if got := c.MVelocity[0]; got != [3]float32{64, 0, 0} {
+	if got := c.MVelocity[0]; got != (types.Vec3{X: 64, Y: 0, Z: 0}) {
 		t.Fatalf("current velocity = %v, want [64 0 0]", got)
 	}
-	if got := c.MVelocity[1]; got != [3]float32{} {
+	if got := c.MVelocity[1]; got != (types.Vec3{}) {
 		t.Fatalf("previous velocity = %v, want zero", got)
 	}
 
 	if err := p.ParseServerMessage(buildClientDataMsg(0, [3]int8{})); err != nil {
 		t.Fatalf("second ParseServerMessage() error = %v", err)
 	}
-	if got := c.Velocity; got != [3]float32{} {
+	if got := c.Velocity; got != (types.Vec3{}) {
 		t.Fatalf("Velocity = %v, want zero when SU_VELOCITY bits are absent", got)
 	}
-	if got := c.MVelocity[0]; got != [3]float32{} {
+	if got := c.MVelocity[0]; got != (types.Vec3{}) {
 		t.Fatalf("current velocity = %v, want zeroed current sample", got)
 	}
-	if got := c.MVelocity[1]; got != [3]float32{64, 0, 0} {
+	if got := c.MVelocity[1]; got != (types.Vec3{X: 64, Y: 0, Z: 0}) {
 		t.Fatalf("previous velocity = %v, want prior sample [64 0 0]", got)
 	}
 }
@@ -461,22 +462,22 @@ func TestParseEntityUpdateUsesBaselineForOmittedPartialDeltaFields(t *testing.T)
 	c.MTime = [2]float64{2.0, 1.9}
 	c.EntityBaselines[1] = inet.EntityState{
 		ModelIndex: 1,
-		Origin:     [3]float32{1, 2, 3},
-		Angles:     [3]float32{11, 22, 33},
+		Origin:     types.Vec3{X: 1, Y: 2, Z: 3},
+		Angles:     types.Vec3{X: 11, Y: 22, Z: 33},
 		Alpha:      inet.ENTALPHA_DEFAULT,
 		Scale:      inet.ENTSCALE_DEFAULT,
 	}
 	c.Entities[1] = inet.EntityState{
 		ModelIndex: 1,
-		Origin:     [3]float32{999, 999, 999}, // rendered/interpolated value, not raw network snapshot
-		Angles:     [3]float32{90, 0, 0},
-		MsgOrigins: [2][3]float32{
-			{10, 20, 30},
-			{1, 2, 3},
+		Origin:     types.Vec3{X: 999, Y: 999, Z: 999}, // rendered/interpolated value, not raw network snapshot
+		Angles:     types.Vec3{X: 90, Y: 0, Z: 0},
+		MsgOrigins: [2]types.Vec3{
+			{X: 10, Y: 20, Z: 30},
+			{X: 1, Y: 2, Z: 3},
 		},
-		MsgAngles: [2][3]float32{
-			{5, 6, 7},
-			{8, 9, 10},
+		MsgAngles: [2]types.Vec3{
+			{X: 5, Y: 6, Z: 7},
+			{X: 8, Y: 9, Z: 10},
 		},
 		MsgTime: 1.9,
 	}
@@ -493,28 +494,28 @@ func TestParseEntityUpdateUsesBaselineForOmittedPartialDeltaFields(t *testing.T)
 	}
 
 	ent := c.Entities[1]
-	if got := ent.MsgOrigins[1]; got != [3]float32{10, 20, 30} {
+	if got := ent.MsgOrigins[1]; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("MsgOrigins[1] = %v, want prior raw snapshot [10 20 30]", got)
 	}
-	if got := ent.MsgOrigins[0]; got != [3]float32{1, 2, 3} {
+	if got := ent.MsgOrigins[0]; got != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("MsgOrigins[0] = %v, want baseline origin [1 2 3] for omitted fields", got)
 	}
-	if got := ent.MsgAngles[1]; got != [3]float32{5, 6, 7} {
+	if got := ent.MsgAngles[1]; got != (types.Vec3{X: 5, Y: 6, Z: 7}) {
 		t.Fatalf("MsgAngles[1] = %v, want prior raw snapshot [5 6 7]", got)
 	}
-	if got := ent.MsgAngles[0][0]; got != 11 {
-		t.Fatalf("MsgAngles[0][0] = %v, want baseline pitch 11", got)
+	if got := ent.MsgAngles[0].X; got != 11 {
+		t.Fatalf("MsgAngles[0].X = %v, want baseline pitch 11", got)
 	}
-	if got := ent.MsgAngles[0][1]; got < 44.5 || got > 45.5 {
-		t.Fatalf("MsgAngles[0][1] = %v, want updated yaw ~45", got)
+	if got := ent.MsgAngles[0].Y; got < 44.5 || got > 45.5 {
+		t.Fatalf("MsgAngles[0].Y = %v, want updated yaw ~45", got)
 	}
-	if got := ent.MsgAngles[0][2]; got != 33 {
-		t.Fatalf("MsgAngles[0][2] = %v, want baseline roll 33", got)
+	if got := ent.MsgAngles[0].Z; got != 33 {
+		t.Fatalf("MsgAngles[0].Z = %v, want baseline roll 33", got)
 	}
-	if got := ent.Origin; got != [3]float32{999, 999, 999} {
+	if got := ent.Origin; got != (types.Vec3{X: 999, Y: 999, Z: 999}) {
 		t.Fatalf("render Origin = %v, want preserved live origin [999 999 999] until relink", got)
 	}
-	if got := ent.Angles; got != [3]float32{90, 0, 0} {
+	if got := ent.Angles; got != (types.Vec3{X: 90, Y: 0, Z: 0}) {
 		t.Fatalf("render Angles = %v, want preserved live angles [90 0 0] until relink", got)
 	}
 }
@@ -524,8 +525,8 @@ func TestParseEntityUpdatePreservesSpriteRuntimeStateAcrossCarryForward(t *testi
 	c.MTime = [2]float64{2.0, 1.9}
 	c.EntityBaselines[1] = inet.EntityState{
 		ModelIndex: 1,
-		Origin:     [3]float32{1, 2, 3},
-		Angles:     [3]float32{11, 22, 33},
+		Origin:     types.Vec3{X: 1, Y: 2, Z: 3},
+		Angles:     types.Vec3{X: 11, Y: 22, Z: 33},
 		Alpha:      inet.ENTALPHA_DEFAULT,
 		Scale:      inet.ENTSCALE_DEFAULT,
 	}
@@ -535,15 +536,15 @@ func TestParseEntityUpdatePreservesSpriteRuntimeStateAcrossCarryForward(t *testi
 		SpriteSyncBase:       0.75,
 		SpriteSyncFrame:      4,
 		SpriteSyncModelIndex: 1,
-		Origin:               [3]float32{999, 999, 999},
-		Angles:               [3]float32{90, 0, 0},
-		MsgOrigins: [2][3]float32{
-			{10, 20, 30},
-			{1, 2, 3},
+		Origin:               types.Vec3{X: 999, Y: 999, Z: 999},
+		Angles:               types.Vec3{X: 90, Y: 0, Z: 0},
+		MsgOrigins: [2]types.Vec3{
+			{X: 10, Y: 20, Z: 30},
+			{X: 1, Y: 2, Z: 3},
 		},
-		MsgAngles: [2][3]float32{
-			{5, 6, 7},
-			{8, 9, 10},
+		MsgAngles: [2]types.Vec3{
+			{X: 5, Y: 6, Z: 7},
+			{X: 8, Y: 9, Z: 10},
 		},
 		MsgTime: 1.9,
 	}
@@ -581,15 +582,15 @@ func TestParseEntityUpdateKeepsLiveOriginUntilRelink(t *testing.T) {
 	}
 	c.Entities[1] = inet.EntityState{
 		ModelIndex: 1,
-		Origin:     [3]float32{999, 888, 777},
-		Angles:     [3]float32{10, 20, 30},
-		MsgOrigins: [2][3]float32{
-			{10, 20, 30},
-			{1, 2, 3},
+		Origin:     types.Vec3{X: 999, Y: 888, Z: 777},
+		Angles:     types.Vec3{X: 10, Y: 20, Z: 30},
+		MsgOrigins: [2]types.Vec3{
+			{X: 10, Y: 20, Z: 30},
+			{X: 1, Y: 2, Z: 3},
 		},
-		MsgAngles: [2][3]float32{
-			{4, 5, 6},
-			{7, 8, 9},
+		MsgAngles: [2]types.Vec3{
+			{X: 4, Y: 5, Z: 6},
+			{X: 7, Y: 8, Z: 9},
 		},
 		MsgTime: 1.9,
 	}
@@ -614,19 +615,19 @@ func TestParseEntityUpdateKeepsLiveOriginUntilRelink(t *testing.T) {
 	if ent.ForceLink {
 		t.Fatal("ForceLink = true, want false for normal delta with fresh previous frame")
 	}
-	if got := ent.MsgOrigins[0]; got != [3]float32{40, 50, 60} {
+	if got := ent.MsgOrigins[0]; got != (types.Vec3{X: 40, Y: 50, Z: 60}) {
 		t.Fatalf("MsgOrigins[0] = %v, want latest raw origin [40 50 60]", got)
 	}
-	if got := ent.MsgOrigins[1]; got != [3]float32{10, 20, 30} {
+	if got := ent.MsgOrigins[1]; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("MsgOrigins[1] = %v, want prior raw origin [10 20 30]", got)
 	}
-	if got := ent.MsgAngles[0]; got[0] < 13.5 || got[0] > 14.5 || got[1] < 23.5 || got[1] > 24.5 || got[2] != 0 {
+	if got := ent.MsgAngles[0]; got.X < 13.5 || got.X > 14.5 || got.Y < 23.5 || got.Y > 24.5 || got.Z != 0 {
 		t.Fatalf("MsgAngles[0] = %v, want updated raw angles [~14 ~24 0]", got)
 	}
-	if got := ent.Origin; got != [3]float32{999, 888, 777} {
+	if got := ent.Origin; got != (types.Vec3{X: 999, Y: 888, Z: 777}) {
 		t.Fatalf("Origin = %v, want preserved live origin [999 888 777] until relink", got)
 	}
-	if got := ent.Angles; got != [3]float32{10, 20, 30} {
+	if got := ent.Angles; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("Angles = %v, want preserved live angles [10 20 30] until relink", got)
 	}
 }
@@ -672,13 +673,13 @@ func TestParseEntityUpdateForceLinksFirstPartialDeltaWithoutPreviousFrame(t *tes
 	}
 
 	ent := c.Entities[1]
-	if got := ent.MsgOrigins[0]; got != [3]float32{11, wantBaselineOrigin[1], wantBaselineOrigin[2]} {
-		t.Fatalf("MsgOrigins[0] = %v, want partial delta over baseline [%v %v %v]", got, float32(11), wantBaselineOrigin[1], wantBaselineOrigin[2])
+	if got := ent.MsgOrigins[0]; got != (types.Vec3{X: 11, Y: wantBaselineOrigin.Y, Z: wantBaselineOrigin.Z}) {
+		t.Fatalf("MsgOrigins[0] = %v, want partial delta over baseline [%v %v %v]", got, float32(11), wantBaselineOrigin.Y, wantBaselineOrigin.Z)
 	}
 	if got := ent.MsgOrigins[1]; got != ent.MsgOrigins[0] {
 		t.Fatalf("MsgOrigins[1] = %v, want snapped previous origin %v", got, ent.MsgOrigins[0])
 	}
-	wantAngles := [3]float32{wantBaselineAngles[0], 45, wantBaselineAngles[2]}
+	wantAngles := types.Vec3{X: wantBaselineAngles.X, Y: 45, Z: wantBaselineAngles.Z}
 	if got := ent.MsgAngles[0]; got != wantAngles {
 		t.Fatalf("MsgAngles[0] = %v, want partial delta over baseline %v", got, wantAngles)
 	}
@@ -706,15 +707,15 @@ func TestParseEntityUpdateForceLinksWhenPreviousFrameMissing(t *testing.T) {
 	}
 	c.Entities[1] = inet.EntityState{
 		ModelIndex: 1,
-		Origin:     [3]float32{111, 222, 333},
-		Angles:     [3]float32{1, 2, 3},
-		MsgOrigins: [2][3]float32{
-			{10, 20, 30},
-			{1, 2, 3},
+		Origin:     types.Vec3{X: 111, Y: 222, Z: 333},
+		Angles:     types.Vec3{X: 1, Y: 2, Z: 3},
+		MsgOrigins: [2]types.Vec3{
+			{X: 10, Y: 20, Z: 30},
+			{X: 1, Y: 2, Z: 3},
 		},
-		MsgAngles: [2][3]float32{
-			{5, 6, 7},
-			{8, 9, 10},
+		MsgAngles: [2]types.Vec3{
+			{X: 5, Y: 6, Z: 7},
+			{X: 8, Y: 9, Z: 10},
 		},
 		MsgTime: 1.7,
 	}
@@ -736,7 +737,7 @@ func TestParseEntityUpdateForceLinksWhenPreviousFrameMissing(t *testing.T) {
 	if !ent.ForceLink {
 		t.Fatal("ForceLink = false, want true when previous message time is stale")
 	}
-	if got := ent.MsgOrigins[0]; got != [3]float32{40, 50, 60} {
+	if got := ent.MsgOrigins[0]; got != (types.Vec3{X: 40, Y: 50, Z: 60}) {
 		t.Fatalf("MsgOrigins[0] = %v, want latest raw origin [40 50 60]", got)
 	}
 	if got := ent.MsgOrigins[1]; got != ent.MsgOrigins[0] {
@@ -757,15 +758,15 @@ func TestParseEntityUpdateForceLinksWhenPreviousStateWasRetired(t *testing.T) {
 	}
 	c.Entities[1] = inet.EntityState{
 		ModelIndex: 0,
-		Origin:     [3]float32{111, 222, 333},
-		Angles:     [3]float32{1, 2, 3},
-		MsgOrigins: [2][3]float32{
-			{10, 20, 30},
-			{1, 2, 3},
+		Origin:     types.Vec3{X: 111, Y: 222, Z: 333},
+		Angles:     types.Vec3{X: 1, Y: 2, Z: 3},
+		MsgOrigins: [2]types.Vec3{
+			{X: 10, Y: 20, Z: 30},
+			{X: 1, Y: 2, Z: 3},
 		},
-		MsgAngles: [2][3]float32{
-			{5, 6, 7},
-			{8, 9, 10},
+		MsgAngles: [2]types.Vec3{
+			{X: 5, Y: 6, Z: 7},
+			{X: 8, Y: 9, Z: 10},
 		},
 		MsgTime: 1.9,
 	}
@@ -789,7 +790,7 @@ func TestParseEntityUpdateForceLinksWhenPreviousStateWasRetired(t *testing.T) {
 	if !ent.ForceLink {
 		t.Fatal("ForceLink = false, want true when previous state was retired with ModelIndex 0")
 	}
-	if got := ent.MsgOrigins[0]; got != [3]float32{40, 50, 60} {
+	if got := ent.MsgOrigins[0]; got != (types.Vec3{X: 40, Y: 50, Z: 60}) {
 		t.Fatalf("MsgOrigins[0] = %v, want latest raw origin [40 50 60]", got)
 	}
 	if got := ent.MsgOrigins[1]; got != ent.MsgOrigins[0] {
@@ -810,8 +811,8 @@ func TestParseEntityUpdateUsesBaselineForOmittedFitzFields(t *testing.T) {
 		Colormap:   3,
 		Skin:       4,
 		Effects:    5,
-		Origin:     [3]float32{1, 2, 3},
-		Angles:     [3]float32{10, 20, 30},
+		Origin:     types.Vec3{X: 1, Y: 2, Z: 3},
+		Angles:     types.Vec3{X: 10, Y: 20, Z: 30},
 		Alpha:      200,
 		Scale:      190,
 	}
@@ -821,15 +822,15 @@ func TestParseEntityUpdateUsesBaselineForOmittedFitzFields(t *testing.T) {
 		Colormap:   8,
 		Skin:       9,
 		Effects:    10,
-		Origin:     [3]float32{40, 50, 60},
-		Angles:     [3]float32{70, 80, 90},
-		MsgOrigins: [2][3]float32{
-			{40, 50, 60},
-			{1, 2, 3},
+		Origin:     types.Vec3{X: 40, Y: 50, Z: 60},
+		Angles:     types.Vec3{X: 70, Y: 80, Z: 90},
+		MsgOrigins: [2]types.Vec3{
+			{X: 40, Y: 50, Z: 60},
+			{X: 1, Y: 2, Z: 3},
 		},
-		MsgAngles: [2][3]float32{
-			{70, 80, 90},
-			{10, 20, 30},
+		MsgAngles: [2]types.Vec3{
+			{X: 70, Y: 80, Z: 90},
+			{X: 10, Y: 20, Z: 30},
 		},
 		MsgTime: 1.9,
 		Alpha:   111,
@@ -869,10 +870,10 @@ func TestParseEntityUpdateUsesBaselineForOmittedFitzFields(t *testing.T) {
 	if got := ent.Scale; got != 190 {
 		t.Fatalf("Scale = %d, want baseline 190", got)
 	}
-	if got := ent.MsgOrigins[0]; got != [3]float32{9, 2, 3} {
+	if got := ent.MsgOrigins[0]; got != (types.Vec3{X: 9, Y: 2, Z: 3}) {
 		t.Fatalf("MsgOrigins[0] = %v, want baseline-relative [9 2 3]", got)
 	}
-	if got := ent.MsgAngles[0]; got != [3]float32{10, 20, 30} {
+	if got := ent.MsgAngles[0]; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("MsgAngles[0] = %v, want baseline angles [10 20 30]", got)
 	}
 }
@@ -890,13 +891,13 @@ func TestParseEntityUpdateNetQuakeResetsAlphaAndScaleToBaselineWhenTransAbsent(t
 		ModelIndex: 1,
 		Alpha:      111,
 		Scale:      112,
-		MsgOrigins: [2][3]float32{
-			{10, 20, 30},
-			{1, 2, 3},
+		MsgOrigins: [2]types.Vec3{
+			{X: 10, Y: 20, Z: 30},
+			{X: 1, Y: 2, Z: 3},
 		},
-		MsgAngles: [2][3]float32{
-			{5, 6, 7},
-			{8, 9, 10},
+		MsgAngles: [2]types.Vec3{
+			{X: 5, Y: 6, Z: 7},
+			{X: 8, Y: 9, Z: 10},
 		},
 		MsgTime: 1.9,
 	}

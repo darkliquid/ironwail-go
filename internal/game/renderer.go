@@ -4,6 +4,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // RendererFrameLoop defines frame-level rendering callbacks.
@@ -32,7 +33,7 @@ type RendererWorld interface {
 	UpdateCamera(renderer.CameraState, float32, float32)
 	UploadWorld(*bsp.Tree) error
 	HasWorldData() bool
-	WorldBounds() (min [3]float32, max [3]float32, ok bool)
+	WorldBounds() (min types.Vec3, max types.Vec3, ok bool)
 	PreloadBrushEntities([]renderer.BrushEntity)
 }
 

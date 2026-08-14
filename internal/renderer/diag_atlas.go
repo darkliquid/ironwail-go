@@ -488,12 +488,12 @@ func diagMaterialIDHistogramDump(geom *WorldGeometry, mapName string, materialCo
 		slog.Warn("Failed to create materialID histogram CSV", "path", csvPath, "error", err)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
 
-	w.Write([]string{"material_id", "face_count", "total_indices", "over_capacity"})
+	_ = w.Write([]string{"material_id", "face_count", "total_indices", "over_capacity"})
 
 	histogram := make(map[uint32]struct {
 		faces   int
@@ -533,7 +533,7 @@ func diagMaterialIDHistogramDump(geom *WorldGeometry, mapName string, materialCo
 		if r.id >= uint32(materialCount) {
 			over = "true"
 		}
-		w.Write([]string{
+		_ = w.Write([]string{
 			fmt.Sprintf("%d", r.id),
 			fmt.Sprintf("%d", r.faces),
 			fmt.Sprintf("%d", r.indices),
@@ -549,12 +549,12 @@ func writeMaterialTableCSV(path string, baseMaterials []WorldMaterialData, textu
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
 
-	w.Write([]string{"index", "texture_name", "layer", "bounds_u", "bounds_v", "bounds_w", "bounds_h", "is_animated", "anim_chain_length", "over_capacity"})
+	_ = w.Write([]string{"index", "texture_name", "layer", "bounds_u", "bounds_v", "bounds_w", "bounds_h", "is_animated", "anim_chain_length", "over_capacity"})
 
 	for i, mat := range baseMaterials {
 		name := ""
@@ -581,7 +581,7 @@ func writeMaterialTableCSV(path string, baseMaterials []WorldMaterialData, textu
 		if i >= len(baseMaterials) {
 			over = "true"
 		}
-		w.Write([]string{
+		_ = w.Write([]string{
 			fmt.Sprintf("%d", i),
 			name,
 			fmt.Sprintf("%d", int(mat.Layer)),
@@ -660,7 +660,7 @@ func writeMaterialTableJSON(path string, baseMaterials []WorldMaterialData, text
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
@@ -672,7 +672,7 @@ func writeAtlasLayerPNG(path string, img *stdimage.RGBA) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return png.Encode(f, img)
 }
 

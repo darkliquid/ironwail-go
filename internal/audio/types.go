@@ -21,6 +21,8 @@ package audio
 
 import (
 	"sync"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // ============================================================================
@@ -243,11 +245,11 @@ type Channel struct {
 
 	// Origin is the world position of the sound source.
 	// Used for distance attenuation and stereo panning.
-	Origin [3]float32
+	Origin types.Vec3
 
 	// Velocity is the world velocity of the sound source.
 	// Used for Doppler effect calculation.
-	Velocity [3]float32
+	Velocity types.Vec3
 
 	// DistMult is the distance attenuation multiplier.
 	// Higher values make the sound fade faster with distance.
@@ -295,19 +297,19 @@ type WAVInfo struct {
 // and distance attenuation.
 type ListenerState struct {
 	// Origin is the listener's world position.
-	Origin [3]float32
+	Origin types.Vec3
 
 	// Velocity is the listener's world velocity.
-	Velocity [3]float32
+	Velocity types.Vec3
 
 	// Forward is the forward direction vector.
-	Forward [3]float32
+	Forward types.Vec3
 
 	// Right is the right direction vector.
-	Right [3]float32
+	Right types.Vec3
 
 	// Up is the up direction vector.
-	Up [3]float32
+	Up types.Vec3
 }
 
 // ============================================================================

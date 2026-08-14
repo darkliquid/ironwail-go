@@ -6,6 +6,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestParseDebugEventMask(t *testing.T) {
@@ -65,7 +66,7 @@ func TestDebugTelemetryLogEventHonorsFiltersAndFormatsSnapshot(t *testing.T) {
 	vm.SetEInt(7, qc.EntFieldTargetName, vm.AllocString("door1"))
 	vm.SetEInt(7, qc.EntFieldTarget, vm.AllocString("torch1"))
 	vm.SetEInt(7, qc.EntFieldModel, vm.AllocString("*3"))
-	vm.SetEVector(7, qc.EntFieldOrigin, [3]float32{128, 64, 32})
+	vm.SetEVector(7, qc.EntFieldOrigin, qtypes.Vec3{X: 128, Y: 64, Z: 32})
 
 	lines := make([]string, 0, 1)
 	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {

@@ -2,6 +2,8 @@ package server
 
 import (
 	"testing"
+
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestSaveLoadRoundTripPreservesFrameEvolution is the H5 save/load parity
@@ -30,20 +32,20 @@ func TestSaveLoadRoundTripPreservesFrameEvolution(t *testing.T) {
 		player := allocPhysicsTestEdict(s)
 		player.SetMoveType(s, float32(MoveTypeWalk))
 		player.SetSolid(s, float32(SolidSlideBox))
-		player.SetOrigin(s, [3]float32{0, 0, 24})
-		player.SetMins(s, [3]float32{-16, -16, -24})
-		player.SetMaxs(s, [3]float32{16, 16, 32})
-		player.SetSize(s, [3]float32{32, 32, 56})
-		player.SetVelocity(s, [3]float32{0, 0, 0})
+		player.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+		player.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+		player.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
+		player.SetSize(s, qtypes.Vec3{X: 32, Y: 32, Z: 56})
+		player.SetVelocity(s, qtypes.Vec3{})
 		player.SetFlags(s, float32(FlagOnGround))
 
 		pusher := allocPhysicsTestEdict(s)
 		pusher.SetMoveType(s, float32(MoveTypePush))
 		pusher.SetSolid(s, float32(SolidBSP))
-		pusher.SetOrigin(s, [3]float32{64, 0, 0})
-		pusher.SetMins(s, [3]float32{-16, -16, -8})
-		pusher.SetMaxs(s, [3]float32{16, 16, 8})
-		pusher.SetVelocity(s, [3]float32{0, 0, 20})
+		pusher.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
+		pusher.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -8})
+		pusher.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 8})
+		pusher.SetVelocity(s, qtypes.Vec3{X: 0, Y: 0, Z: 20})
 		s.LinkEdict(pusher, false)
 
 		return s

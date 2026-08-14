@@ -4,10 +4,11 @@ package server
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // SV_AddToFatPVS builds an expanded visibility set around a point to reduce pop-in during movement.
-func (s *Server) SV_AddToFatPVS(org [3]float32, client *Client) {
+func (s *Server) SV_AddToFatPVS(org types.Vec3, client *Client) {
 	if s.WorldTree == nil || len(s.WorldTree.Nodes) == 0 {
 		return
 	}
@@ -18,7 +19,7 @@ func (s *Server) SV_AddToFatPVS(org [3]float32, client *Client) {
 }
 
 // sv_AddToFatPVSRecursive walks BSP recursively and ORs visible leaves into the client's FatPVS mask.
-func (s *Server) sv_AddToFatPVSRecursive(org [3]float32, child bsp.TreeChild, client *Client) {
+func (s *Server) sv_AddToFatPVSRecursive(org types.Vec3, child bsp.TreeChild, client *Client) {
 	for {
 		if child.IsLeaf {
 			leaf := &s.WorldTree.Leafs[child.Index]
@@ -40,9 +41,16 @@ func (s *Server) sv_AddToFatPVSRecursive(org [3]float32, child bsp.TreeChild, cl
 		plane := &s.WorldTree.Planes[node.PlaneNum]
 		var d float32
 		if plane.Type < 3 {
-			d = org[plane.Type] - plane.Dist
+			switch plane.Type {
+			case 0:
+				d = org.X - plane.Dist
+			case 1:
+				d = org.Y - plane.Dist
+			case 2:
+				d = org.Z - plane.Dist
+			}
 		} else {
-			d = VecDot(org, plane.Normal) - plane.Dist
+			d = org.Dot(plane.Normal) - plane.Dist
 		}
 
 		if d > 8 {

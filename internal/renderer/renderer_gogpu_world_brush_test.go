@@ -5,21 +5,22 @@ import (
 	"testing"
 
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestAppendGoGPUWorldVertexBytesMatchesWorldGoGPUVertexBytes(t *testing.T) {
 	vertices := []WorldVertex{
 		{
-			Position:      [3]float32{1, 2, 3},
+			Position:      types.Vec3{X: 1, Y: 2, Z: 3},
 			TexCoord:      [2]float32{4, 5},
 			LightmapCoord: [2]float32{6, 7},
-			Normal:        [3]float32{8, 9, 10},
+			Normal:        types.Vec3{X: 8, Y: 9, Z: 10},
 		},
 		{
-			Position:      [3]float32{11, 12, 13},
+			Position:      types.Vec3{X: 11, Y: 12, Z: 13},
 			TexCoord:      [2]float32{14, 15},
 			LightmapCoord: [2]float32{16, 17},
-			Normal:        [3]float32{18, 19, 20},
+			Normal:        types.Vec3{X: 18, Y: 19, Z: 20},
 		},
 	}
 	prefix := []byte{0xaa, 0xbb}

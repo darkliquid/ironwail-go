@@ -8,6 +8,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // CVar names for debug telemetry.
@@ -167,7 +169,7 @@ type EntitySnapshot struct {
 	TargetName string
 	Target     string
 	Model      string
-	Origin     [3]float32
+	Origin     qtypes.Vec3
 }
 
 // ParseEventMask parses a debug event mask from a string.
@@ -322,8 +324,8 @@ func FormatEntitySnapshot(snapshot EntitySnapshot) string {
 		snapshot.TargetName,
 		snapshot.Target,
 		snapshot.Model,
-		snapshot.Origin[0],
-		snapshot.Origin[1],
-		snapshot.Origin[2],
+		snapshot.Origin.X,
+		snapshot.Origin.Y,
+		snapshot.Origin.Z,
 	)
 }

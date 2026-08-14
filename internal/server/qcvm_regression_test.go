@@ -132,7 +132,7 @@ func TestQCVMPlayerDoesNotFallThroughFloor(t *testing.T) {
 	// If the player fell through the floor, the Z coordinate will have
 	// decreased dramatically (gravity accelerates downward). A player
 	// resting on the ground should have a stable or near-stable Z.
-	zDrop := originBefore[2] - originAfter[2]
+	zDrop := originBefore.Z - originAfter.Z
 	if zDrop > 100 {
 		t.Errorf("player fell through floor: Z dropped %.1f units in 10 frames (before=%v, after=%v)",
 			zDrop, originBefore, originAfter)

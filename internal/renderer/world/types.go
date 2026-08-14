@@ -1,6 +1,9 @@
 package world
 
-import "github.com/darkliquid/ironwail-go/internal/bsp"
+import (
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 // WorldGeometry holds backend-neutral BSP world data prepared for rendering.
 type WorldGeometry struct {
@@ -34,10 +37,10 @@ type WorldGeometry struct {
 // offsets, causing textures, lighting, and geometry to appear scrambled.
 // See docs/VERTEX_LAYOUT.md for the full explanation and diagnostic guide.
 type WorldVertex struct {
-	Position      [3]float32 // offset 0,  12 bytes — XYZ world-space coordinates
+	Position      types.Vec3 // offset 0,  12 bytes — XYZ world-space coordinates
 	TexCoord      [2]float32 // offset 12,  8 bytes — UV into the texture atlas
 	LightmapCoord [2]float32 // offset 20,  8 bytes — UV into the lightmap texture array
-	Normal        [3]float32 // offset 28, 12 bytes — surface facing direction for lighting
+	Normal        types.Vec3 // offset 28, 12 bytes — surface facing direction for lighting
 	LightmapLayer float32    // offset 40,  4 bytes — which lightmap array layer (page) to sample
 	MaterialID    uint32     // offset 44,  4 bytes — index into the materials uniform array
 }
@@ -49,7 +52,7 @@ type WorldFace struct {
 	TextureIndex  int32
 	LightmapIndex int32
 	Flags         int32
-	Center        [3]float32
+	Center        types.Vec3
 }
 
 // WorldLightmapSurface describes a single face's lightmap data within an atlas page.

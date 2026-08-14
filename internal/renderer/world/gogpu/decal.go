@@ -11,15 +11,15 @@ const DecalUniformBufferSize = 80
 
 // DecalDrawParams captures the root-owned decal geometry/color policy inputs needed for GoGPU draw prep.
 type DecalDrawParams struct {
-	Corners [4][3]float32
+	Corners [4]types.Vec3
 	Color   [4]float32
 	Variant int
 }
 
 // DecalMarkParams captures the root-owned decal mark geometry needed immediately before quad construction.
 type DecalMarkParams struct {
-	Origin   [3]float32
-	Normal   [3]float32
+	Origin   types.Vec3
+	Normal   types.Vec3
 	Size     float32
 	Rotation float32
 	Variant  int
@@ -39,7 +39,7 @@ type DecalPreparedMark struct {
 
 // DecalVertex is the GoGPU-local packed decal vertex DTO.
 type DecalVertex struct {
-	Position [3]float32
+	Position types.Vec3
 	TexCoord [2]float32
 	Color    [4]float32
 }
@@ -54,7 +54,7 @@ func DecalUniformBytes(vp types.Mat4, alpha float32) []byte {
 }
 
 // BuildDecalVertices expands a validated decal quad into two triangles in GoGPU vertex form.
-func BuildDecalVertices(corners [4][3]float32, color [4]float32, variant int) []DecalVertex {
+func BuildDecalVertices(corners [4]types.Vec3, color [4]float32, variant int) []DecalVertex {
 	baseX := float32(variant%2) * 0.5
 	baseY := float32(variant/2) * 0.5
 	uv := [4][2]float32{{0, 0}, {1, 0}, {1, 1}, {0, 1}}
@@ -77,7 +77,7 @@ func DecalVertexBytes(vertices []DecalVertex) []byte {
 	data := make([]byte, len(vertices)*36)
 	for i, v := range vertices {
 		offset := i * 36
-		putFloat32Slice(data[offset:offset+12], v.Position[:])
+		putFloat32Slice(data[offset:offset+12], []float32{v.Position.X, v.Position.Y, v.Position.Z})
 		putFloat32Slice(data[offset+12:offset+20], v.TexCoord[:])
 		putFloat32Slice(data[offset+20:offset+36], v.Color[:])
 	}
@@ -97,7 +97,7 @@ func PrepareDecalDraw(params DecalDrawParams) PreparedDecalDraw {
 }
 
 // PrepareDecalDrawFromMark delegates quad construction to the caller while keeping packed draw shaping in the GoGPU subpackage.
-func PrepareDecalDrawFromMark(params DecalMarkParams, color [4]float32, buildQuad func(DecalMarkParams) ([4][3]float32, bool)) PreparedDecalDraw {
+func PrepareDecalDrawFromMark(params DecalMarkParams, color [4]float32, buildQuad func(DecalMarkParams) ([4]types.Vec3, bool)) PreparedDecalDraw {
 	if buildQuad == nil {
 		return PreparedDecalDraw{}
 	}
@@ -113,7 +113,7 @@ func PrepareDecalDrawFromMark(params DecalMarkParams, color [4]float32, buildQua
 }
 
 // PrepareDecalDraws batches mark-local GoGPU draw preparation while leaving policy, HAL, and quad building adapters to the caller.
-func PrepareDecalDraws(marks []DecalPreparedMark, buildQuad func(DecalMarkParams) ([4][3]float32, bool)) []PreparedDecalDraw {
+func PrepareDecalDraws(marks []DecalPreparedMark, buildQuad func(DecalMarkParams) ([4]types.Vec3, bool)) []PreparedDecalDraw {
 	if len(marks) == 0 || buildQuad == nil {
 		return nil
 	}
@@ -129,7 +129,7 @@ func PrepareDecalDraws(marks []DecalPreparedMark, buildQuad func(DecalMarkParams
 }
 
 // PrepareDecalDrawsWithAdapter batches caller-owned mark adaptation and packed GoGPU draw preparation while keeping policy and quad building in the caller.
-func PrepareDecalDrawsWithAdapter[Mark any](marks []Mark, adapt func(Mark) (DecalPreparedMark, bool), buildQuad func(DecalMarkParams) ([4][3]float32, bool)) []PreparedDecalDraw {
+func PrepareDecalDrawsWithAdapter[Mark any](marks []Mark, adapt func(Mark) (DecalPreparedMark, bool), buildQuad func(DecalMarkParams) ([4]types.Vec3, bool)) []PreparedDecalDraw {
 	if len(marks) == 0 || adapt == nil || buildQuad == nil {
 		return nil
 	}

@@ -1,6 +1,10 @@
 // This file belongs to the Entity/QC subsystem: entity state, user commands, static sounds, and server state types.
 package types
 
+import (
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
+)
+
 // ServerState defines the current state of the server's map/level lifecycle.
 //
 // The server transitions through these states during level loading:
@@ -59,8 +63,8 @@ const (
 //   - Scale: entity render scale (0 = use default 1.0). Added by extended
 //     protocols for size variation effects.
 type EntityState struct {
-	Origin     [3]float32
-	Angles     [3]float32
+	Origin     qtypes.Vec3
+	Angles     qtypes.Vec3
 	ModelIndex int
 	Frame      int
 	Colormap   int
@@ -90,7 +94,7 @@ type EntityState struct {
 //     (plays everywhere equally), 1 = normal, 2 = idle (short range),
 //     3 = static (very short range, e.g., a torch right next to the player).
 type StaticSound struct {
-	Origin      [3]float32
+	Origin      qtypes.Vec3
 	SoundIndex  int
 	Volume      int
 	Attenuation float32
@@ -118,7 +122,7 @@ type UserCmd struct {
 	//  [2] = roll (head tilt, usually 0 unless affected by damage kick)
 	// These are absolute angles, not deltas. The server stores them in the
 	// player entity's VAngle field.
-	ViewAngles [3]float32
+	ViewAngles qtypes.Vec3
 
 	// ForwardMove — forward/backward movement speed in units/second.
 	// Positive = forward, negative = backward. Determined by +forward/-back

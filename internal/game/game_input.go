@@ -521,7 +521,7 @@ func (g *Game) applyGameplayMouseLook() {
 		if g.Client.InputStrafe.State&1 != 0 || (lookStrafe && mouseLook) {
 			g.Client.MouseSideMove += float32(state.MouseDX) * sideScale
 		} else {
-			g.Client.ViewAngles[1] -= float32(state.MouseDX) * yawScale
+			g.Client.ViewAngles.Y -= float32(state.MouseDX) * yawScale
 		}
 	}
 	if mouseLook && (state.MouseDX != 0 || state.MouseDY != 0) {
@@ -529,12 +529,12 @@ func (g *Game) applyGameplayMouseLook() {
 	}
 	if state.MouseDY != 0 {
 		if mouseLook && g.Client.InputStrafe.State&1 == 0 {
-			g.Client.ViewAngles[0] += float32(state.MouseDY) * pitchScale
-			if g.Client.ViewAngles[0] > g.Client.MaxPitch {
-				g.Client.ViewAngles[0] = g.Client.MaxPitch
+			g.Client.ViewAngles.X += float32(state.MouseDY) * pitchScale
+			if g.Client.ViewAngles.X > g.Client.MaxPitch {
+				g.Client.ViewAngles.X = g.Client.MaxPitch
 			}
-			if g.Client.ViewAngles[0] < g.Client.MinPitch {
-				g.Client.ViewAngles[0] = g.Client.MinPitch
+			if g.Client.ViewAngles.X < g.Client.MinPitch {
+				g.Client.ViewAngles.X = g.Client.MinPitch
 			}
 		} else {
 			g.Client.MouseForwardMove -= float32(state.MouseDY) * forwardScale
@@ -557,15 +557,15 @@ func (g *Game) applyGameplayMouseLook() {
 			pitchDelta += gamepad.GyroPitchDelta * float32(g.Host.CVar.FloatValue("joy_gyro_pitch_scale"))
 		}
 		if yawDelta != 0 {
-			g.Client.ViewAngles[1] -= yawDelta
+			g.Client.ViewAngles.Y -= yawDelta
 		}
 		if pitchDelta != 0 && g.Client.InputStrafe.State&1 == 0 {
-			g.Client.ViewAngles[0] += pitchDelta
-			if g.Client.ViewAngles[0] > g.Client.MaxPitch {
-				g.Client.ViewAngles[0] = g.Client.MaxPitch
+			g.Client.ViewAngles.X += pitchDelta
+			if g.Client.ViewAngles.X > g.Client.MaxPitch {
+				g.Client.ViewAngles.X = g.Client.MaxPitch
 			}
-			if g.Client.ViewAngles[0] < g.Client.MinPitch {
-				g.Client.ViewAngles[0] = g.Client.MinPitch
+			if g.Client.ViewAngles.X < g.Client.MinPitch {
+				g.Client.ViewAngles.X = g.Client.MinPitch
 			}
 		}
 		if yawDelta != 0 || pitchDelta != 0 {

@@ -6,6 +6,8 @@ package host
 import (
 	"log/slog"
 	"time"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func elapsedMilliseconds(start time.Time) float64 {
@@ -27,7 +29,7 @@ type FrameCallbacks interface {
 	ProcessServer()
 	ProcessClient()
 	UpdateScreen()
-	UpdateAudio(origin, forward, right, up [3]float32)
+	UpdateAudio(origin, forward, right, up types.Vec3)
 }
 
 type processClientPhaseAware interface {
@@ -195,9 +197,9 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 		}
 
 		if h.signOns >= 4 {
-			cb.UpdateAudio([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
+			cb.UpdateAudio(types.Vec3{}, types.Vec3{}, types.Vec3{}, types.Vec3{})
 		} else {
-			cb.UpdateAudio([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
+			cb.UpdateAudio(types.Vec3{}, types.Vec3{}, types.Vec3{}, types.Vec3{})
 		}
 		if hostSpeeds {
 			frameStats.Audio = elapsedMilliseconds(phaseStart)

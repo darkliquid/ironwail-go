@@ -16,13 +16,14 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const maxWalkableFailureSamples = 8
 
 var (
-	walkablePlayerMins = [3]float32{-16, -16, -24}
-	walkablePlayerMaxs = [3]float32{16, 16, 32}
+	walkablePlayerMins = qtypes.Vec3{X: -16, Y: -16, Z: -24}
+	walkablePlayerMaxs = qtypes.Vec3{X: 16, Y: 16, Z: 32}
 )
 
 type walkableHullSummary struct {
@@ -31,14 +32,14 @@ type walkableHullSummary struct {
 	LastClipNode  int
 	ClipNodeCount int
 	PlaneCount    int
-	ClipMins      [3]float32
-	ClipMaxs      [3]float32
+	ClipMins      qtypes.Vec3
+	ClipMaxs      qtypes.Vec3
 }
 
 type walkableWorldSummary struct {
 	ModelName   string
-	BoundsMin   [3]float32
-	BoundsMax   [3]float32
+	BoundsMin   qtypes.Vec3
+	BoundsMax   qtypes.Vec3
 	TreeModels  int
 	TreeNodes   int
 	TreeLeafs   int
@@ -51,14 +52,14 @@ type walkableWorldSummary struct {
 type walkableSampleFailure struct {
 	XI              int
 	YI              int
-	Start           [3]float32
+	Start           qtypes.Vec3
 	StartContents   int
-	End             [3]float32
+	End             qtypes.Vec3
 	TraceFraction   float32
 	TraceStartSolid bool
 	TraceAllSolid   bool
-	TraceEndPos     [3]float32
-	Lifted          [3]float32
+	TraceEndPos     qtypes.Vec3
+	Lifted          qtypes.Vec3
 	LiftedContents  int
 	Reason          string
 }
@@ -101,15 +102,15 @@ func (d walkablePointDiagnostics) String() string {
 			hull.PlaneCount,
 			hull.FirstClipNode,
 			hull.LastClipNode,
-			hull.ClipMins[0], hull.ClipMins[1], hull.ClipMins[2],
-			hull.ClipMaxs[0], hull.ClipMaxs[1], hull.ClipMaxs[2]))
+			hull.ClipMins.X, hull.ClipMins.Y, hull.ClipMins.Z,
+			hull.ClipMaxs.X, hull.ClipMaxs.Y, hull.ClipMaxs.Z))
 	}
 
 	sb := strings.Builder{}
 	fmt.Fprintf(&sb, "world model=%q bounds=(%.1f %.1f %.1f)->(%.1f %.1f %.1f) tree(models=%d nodes=%d leafs=%d faces=%d) headnodes=%v collisionModel=%v hulls=[%s] samples=%d reasons={%s}",
 		d.World.ModelName,
-		d.World.BoundsMin[0], d.World.BoundsMin[1], d.World.BoundsMin[2],
-		d.World.BoundsMax[0], d.World.BoundsMax[1], d.World.BoundsMax[2],
+		d.World.BoundsMin.X, d.World.BoundsMin.Y, d.World.BoundsMin.Z,
+		d.World.BoundsMax.X, d.World.BoundsMax.Y, d.World.BoundsMax.Z,
 		d.World.TreeModels, d.World.TreeNodes, d.World.TreeLeafs, d.World.TreeFaces,
 		d.World.HeadNodes, d.World.CollisionOK, strings.Join(hulls, "; "),
 		d.SamplesTried, strings.Join(reasons, ", "))
@@ -118,10 +119,10 @@ func (d walkablePointDiagnostics) String() string {
 		chosen := d.ChosenSample
 		fmt.Fprintf(&sb, " chosen=[xi=%d yi=%d start=(%.1f %.1f %.1f) end=(%.1f %.1f %.1f) traceEnd=(%.1f %.1f %.1f) lifted=(%.1f %.1f %.1f)]",
 			chosen.XI, chosen.YI,
-			chosen.Start[0], chosen.Start[1], chosen.Start[2],
-			chosen.End[0], chosen.End[1], chosen.End[2],
-			chosen.TraceEndPos[0], chosen.TraceEndPos[1], chosen.TraceEndPos[2],
-			chosen.Lifted[0], chosen.Lifted[1], chosen.Lifted[2])
+			chosen.Start.X, chosen.Start.Y, chosen.Start.Z,
+			chosen.End.X, chosen.End.Y, chosen.End.Z,
+			chosen.TraceEndPos.X, chosen.TraceEndPos.Y, chosen.TraceEndPos.Z,
+			chosen.Lifted.X, chosen.Lifted.Y, chosen.Lifted.Z)
 	}
 	if len(d.FailedSamples) > 0 {
 		sb.WriteString(" firstFailures=[")
@@ -134,12 +135,12 @@ func (d walkablePointDiagnostics) String() string {
 				failure.Reason,
 				failure.XI,
 				failure.YI,
-				failure.Start[0], failure.Start[1], failure.Start[2],
+				failure.Start.X, failure.Start.Y, failure.Start.Z,
 				failure.StartContents,
 				failure.TraceFraction,
 				failure.TraceStartSolid,
 				failure.TraceAllSolid,
-				failure.Lifted[0], failure.Lifted[1], failure.Lifted[2],
+				failure.Lifted.X, failure.Lifted.Y, failure.Lifted.Z,
 				failure.LiftedContents)
 		}
 		sb.WriteString("]")
@@ -147,7 +148,7 @@ func (d walkablePointDiagnostics) String() string {
 	return sb.String()
 }
 
-func collectWalkableWorldSummary(s *Server, mins, maxs [3]float32) walkableWorldSummary {
+func collectWalkableWorldSummary(s *Server, mins, maxs qtypes.Vec3) walkableWorldSummary {
 	summary := walkableWorldSummary{
 		ModelName: s.ModelName,
 		BoundsMin: mins,
@@ -182,11 +183,11 @@ func collectWalkableWorldSummary(s *Server, mins, maxs [3]float32) walkableWorld
 	return summary
 }
 
-func validateWalkableSample(s *Server, sample walkableSampleFailure) ([3]float32, bool, walkableSampleFailure) {
+func validateWalkableSample(s *Server, sample walkableSampleFailure) (qtypes.Vec3, bool, walkableSampleFailure) {
 	sample.StartContents = s.PointContents(sample.Start)
-	if sample.StartContents == bsp.ContentsSolid {
-		sample.Reason = "start-in-solid"
-		return [3]float32{}, false, sample
+	if sample.StartContents != bsp.ContentsEmpty {
+		sample.Reason = "start-point-not-empty"
+		return qtypes.Vec3{}, false, sample
 	}
 
 	trace := s.Move(sample.Start, walkablePlayerMins, walkablePlayerMaxs, sample.End, MoveNormal, nil)
@@ -194,66 +195,67 @@ func validateWalkableSample(s *Server, sample walkableSampleFailure) ([3]float32
 	sample.TraceStartSolid = trace.StartSolid
 	sample.TraceAllSolid = trace.AllSolid
 	sample.TraceEndPos = trace.EndPos
+
 	if trace.StartSolid {
 		sample.Reason = "trace-startsolid"
-		return [3]float32{}, false, sample
+		return qtypes.Vec3{}, false, sample
 	}
 	if trace.AllSolid {
 		sample.Reason = "trace-allsolid"
-		return [3]float32{}, false, sample
+		return qtypes.Vec3{}, false, sample
 	}
 	if trace.Fraction == 1 {
 		sample.Reason = "trace-no-floor-hit"
-		return [3]float32{}, false, sample
+		return qtypes.Vec3{}, false, sample
 	}
 
 	return validateWalkableStandingOrigin(s, trace.EndPos, sample)
 }
 
-func validateWalkableStandingOrigin(s *Server, origin [3]float32, sample walkableSampleFailure) ([3]float32, bool, walkableSampleFailure) {
+func validateWalkableStandingOrigin(s *Server, origin qtypes.Vec3, sample walkableSampleFailure) (qtypes.Vec3, bool, walkableSampleFailure) {
 	sample.Lifted = origin
 	sample.LiftedContents = s.PointContents(origin)
 	if sample.LiftedContents != bsp.ContentsEmpty {
 		sample.Reason = "lifted-point-not-empty"
-		return [3]float32{}, false, sample
+		return qtypes.Vec3{}, false, sample
 	}
 
 	ent := allocPhysicsTestEdict(s)
 	ent.SetOrigin(s, origin)
 	ent.SetMins(s, walkablePlayerMins)
 	ent.SetMaxs(s, walkablePlayerMaxs)
-	ent.SetSize(s, [3]float32{32, 32, 56})
+	ent.SetSize(s, qtypes.Vec3{X: 32, Y: 32, Z: 56})
 	ent.SetSolid(s, float32(SolidSlideBox))
-	ent.SetAbsMin(s, [3]float32{origin[0] - 16, origin[1] - 16, origin[2] - 24})
-	ent.SetAbsMax(s, [3]float32{origin[0] + 16, origin[1] + 16, origin[2] + 32})
+	ent.SetAbsMin(s, origin.Add(qtypes.Vec3{X: -16, Y: -16, Z: -24}))
+	ent.SetAbsMax(s, origin.Add(qtypes.Vec3{X: 16, Y: 16, Z: 32}))
 	if blocker := s.SV_TestEntityPosition(ent); blocker != nil {
 		sample.Reason = "lifted-entity-blocked"
-		return [3]float32{}, false, sample
+		return qtypes.Vec3{}, false, sample
 	}
 	if !s.CheckBottom(ent) {
 		sample.Reason = "lifted-no-bottom"
-		return [3]float32{}, false, sample
+		return qtypes.Vec3{}, false, sample
 	}
 	if supportsStationaryMoveStep(s, origin) {
 		return origin, true, sample
 	}
 	sample.Reason = "lifted-not-stationary"
-	return [3]float32{}, false, sample
+	return qtypes.Vec3{}, false, sample
 }
 
-func validateWalkableSpawnPoint(s *Server, origin [3]float32, sample walkableSampleFailure) ([3]float32, bool, walkableSampleFailure) {
+func validateWalkableSpawnPoint(s *Server, origin qtypes.Vec3, sample walkableSampleFailure) (qtypes.Vec3, bool, walkableSampleFailure) {
 	worldMins, _, ok := s.modelBounds(s.ModelName)
 	if !ok {
 		sample.Reason = "model-bounds-unavailable"
-		return [3]float32{}, false, sample
+		return qtypes.Vec3{}, false, sample
 	}
 
 	var lastFailure walkableSampleFailure
 	for _, zOffset := range []float32{0, 1, stepSize, 24, 32, 48, 64} {
 		start := origin
-		start[2] += zOffset
+		start.Z += zOffset
 		sample.Start = start
-		sample.End = [3]float32{start[0], start[1], worldMins[2] - 256}
+		sample.End = qtypes.Vec3{X: start.X, Y: start.Y, Z: worldMins.Z - 256}
 		if pos, ok, validated := validateWalkableSample(s, sample); ok {
 			return pos, true, validated
 		} else {
@@ -263,26 +265,26 @@ func validateWalkableSpawnPoint(s *Server, origin [3]float32, sample walkableSam
 
 	if lastFailure.Reason == "" {
 		sample.Reason = "spawn-no-floor"
-		return [3]float32{}, false, sample
+		return qtypes.Vec3{}, false, sample
 	}
-	return [3]float32{}, false, lastFailure
+	return qtypes.Vec3{}, false, lastFailure
 }
 
-func supportsStationaryMoveStep(s *Server, pos [3]float32) bool {
+func supportsStationaryMoveStep(s *Server, pos qtypes.Vec3) bool {
 	ent := allocPhysicsTestEdict(s)
 	ent.SetOrigin(s, pos)
 	ent.SetMins(s, walkablePlayerMins)
 	ent.SetMaxs(s, walkablePlayerMaxs)
-	ent.SetSize(s, [3]float32{32, 32, 56})
+	ent.SetSize(s, qtypes.Vec3{X: 32, Y: 32, Z: 56})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	ent.SetMoveType(s, float32(MoveTypeStep))
 	ent.SetFlags(s, float32(FlagOnGround))
-	ent.SetAbsMin(s, [3]float32{pos[0] - 16, pos[1] - 16, pos[2] - 24})
-	ent.SetAbsMax(s, [3]float32{pos[0] + 16, pos[1] + 16, pos[2] + 32})
+	ent.SetAbsMin(s, pos.Add(qtypes.Vec3{X: -16, Y: -16, Z: -24}))
+	ent.SetAbsMax(s, pos.Add(qtypes.Vec3{X: 16, Y: 16, Z: 32}))
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 	defer func() {
-		UnlinkEdict(ent)
+		s.UnlinkEdict(ent)
 		s.Edicts = s.Edicts[:len(s.Edicts)-1]
 		s.NumEdicts = len(s.Edicts)
 	}()
@@ -291,7 +293,7 @@ func supportsStationaryMoveStep(s *Server, pos [3]float32) bool {
 		return false
 	}
 	original := ent.Origin(s)
-	if !s.MoveStep(ent, [3]float32{}, true) {
+	if !s.MoveStep(ent, qtypes.Vec3{}, true) {
 		return false
 	}
 	return ent.Origin(s) == original
@@ -299,7 +301,7 @@ func supportsStationaryMoveStep(s *Server, pos [3]float32) bool {
 
 var quotedEntityPairRE = regexp.MustCompile(`"([^"]+)"\s+"([^"]*)"`)
 
-func findSpawnOriginsFromEntityLump(s *Server) [][3]float32 {
+func findSpawnOriginsFromEntityLump(s *Server) []qtypes.Vec3 {
 	if s == nil || s.WorldTree == nil || len(s.WorldTree.Entities) == 0 {
 		return nil
 	}
@@ -312,7 +314,7 @@ func findSpawnOriginsFromEntityLump(s *Server) [][3]float32 {
 		"info_player_start2",
 	}
 	blocks := strings.Split(string(s.WorldTree.Entities), "{")
-	origins := make([][3]float32, 0, len(blocks))
+	origins := make([]qtypes.Vec3, 0, len(blocks))
 	for _, className := range spawnClassOrder {
 		for _, block := range blocks {
 			if !strings.Contains(block, "\"classname\"") {
@@ -340,10 +342,10 @@ func findSpawnOriginsFromEntityLump(s *Server) [][3]float32 {
 	return origins
 }
 
-func findSpawnOriginFromEntityLump(s *Server) ([3]float32, bool) {
+func findSpawnOriginFromEntityLump(s *Server) (qtypes.Vec3, bool) {
 	origins := findSpawnOriginsFromEntityLump(s)
 	if len(origins) == 0 {
-		return [3]float32{}, false
+		return qtypes.Vec3{}, false
 	}
 	return origins[0], true
 }
@@ -369,7 +371,7 @@ func TestFindSpawnOriginFromEntityLumpParsesInfoPlayerStart(t *testing.T) {
 	if !ok {
 		t.Fatal("findSpawnOriginFromEntityLump() = not found, want parsed start origin")
 	}
-	if want := [3]float32{544, 288, 32}; got != want {
+	if want := (qtypes.Vec3{X: 544, Y: 288, Z: 32}); got != want {
 		t.Fatalf("findSpawnOriginFromEntityLump() = %v, want %v", got, want)
 	}
 }
@@ -404,12 +406,12 @@ func TestFindSpawnOriginsFromEntityLumpEnumeratesSupportedSpawnClasses(t *testin
 	}
 
 	got := findSpawnOriginsFromEntityLump(s)
-	want := [][3]float32{
-		{544, 288, 32},
-		{1, 2, 3},
-		{10, 11, 12},
-		{4, 5, 6},
-		{7, 8, 9},
+	want := []qtypes.Vec3{
+		{X: 544, Y: 288, Z: 32},
+		{X: 1, Y: 2, Z: 3},
+		{X: 10, Y: 11, Z: 12},
+		{X: 4, Y: 5, Z: 6},
+		{X: 7, Y: 8, Z: 9},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("findSpawnOriginsFromEntityLump() len=%d, want %d (%v)", len(got), len(want), got)
@@ -421,7 +423,7 @@ func TestFindSpawnOriginsFromEntityLumpEnumeratesSupportedSpawnClasses(t *testin
 	}
 }
 
-func findWalkablePointWithDiagnostics(s *Server) ([3]float32, bool, walkablePointDiagnostics) {
+func findWalkablePointWithDiagnostics(s *Server) (qtypes.Vec3, bool, walkablePointDiagnostics) {
 	mins, maxs, ok := s.modelBounds(s.ModelName)
 	diag := walkablePointDiagnostics{
 		World:        collectWalkableWorldSummary(s, mins, maxs),
@@ -429,7 +431,7 @@ func findWalkablePointWithDiagnostics(s *Server) ([3]float32, bool, walkablePoin
 	}
 	if !ok {
 		diag.ReasonCounts["model-bounds-unavailable"] = 1
-		return [3]float32{}, false, diag
+		return qtypes.Vec3{}, false, diag
 	}
 
 	if spawn := s.findLocalSpawnPoint(); spawn != nil {
@@ -443,7 +445,7 @@ func findWalkablePointWithDiagnostics(s *Server) ([3]float32, bool, walkablePoin
 		} else {
 			diag.addFailure(sample)
 		}
-		return [3]float32{}, false, diag
+		return qtypes.Vec3{}, false, diag
 	}
 	if spawnOrigins := findSpawnOriginsFromEntityLump(s); len(spawnOrigins) > 0 {
 		for i, spawnOrigin := range spawnOrigins {
@@ -461,17 +463,17 @@ func findWalkablePointWithDiagnostics(s *Server) ([3]float32, bool, walkablePoin
 	}
 
 	for xi := 1; xi < 15; xi++ {
-		x := mins[0] + (maxs[0]-mins[0])*(float32(xi)/16)
+		x := mins.X + (maxs.X-mins.X)*(float32(xi)/16)
 		for yi := 1; yi < 15; yi++ {
-			y := mins[1] + (maxs[1]-mins[1])*(float32(yi)/16)
+			y := mins.Y + (maxs.Y-mins.Y)*(float32(yi)/16)
 			for zi := 0; zi < 16; zi++ {
-				z := maxs[2] - (maxs[2]-mins[2])*(float32(zi)/16) - 8
+				z := maxs.Z - (maxs.Z-mins.Z)*(float32(zi)/16) - 8
 				sample := walkableSampleFailure{
 					XI: xi,
 					YI: yi,
 				}
-				sample.Start = [3]float32{x, y, z}
-				sample.End = [3]float32{x, y, mins[2] - 256}
+				sample.Start = qtypes.Vec3{X: x, Y: y, Z: z}
+				sample.End = qtypes.Vec3{X: x, Y: y, Z: mins.Z - 256}
 				if pos, ok, sample := validateWalkableSample(s, sample); ok {
 					diag.setChosen(sample)
 					return pos, true, diag
@@ -482,7 +484,7 @@ func findWalkablePointWithDiagnostics(s *Server) ([3]float32, bool, walkablePoin
 		}
 	}
 
-	return [3]float32{}, false, diag
+	return qtypes.Vec3{}, false, diag
 }
 
 func newStartMapDiagnosticsServer(t *testing.T) *Server {
@@ -524,8 +526,8 @@ func createSyntheticSealedRoomWorldModel() *model.Model {
 
 	hull := model.Hull{
 		Planes: []model.MPlane{
-			{Normal: [3]float32{0, 0, 1}, Dist: 128, Type: 2},
-			{Normal: [3]float32{0, 0, 1}, Dist: 0, Type: 2},
+			{Normal: qtypes.Vec3{Z: 1}, Dist: 128, Type: 2},
+			{Normal: qtypes.Vec3{Z: 1}, Dist: 0, Type: 2},
 		},
 		ClipNodes: []model.MClipNode{
 			{PlaneNum: 0, Children: [2]int{bsp.ContentsSolid, 1}},
@@ -533,8 +535,8 @@ func createSyntheticSealedRoomWorldModel() *model.Model {
 		},
 		FirstClipNode: 0,
 		LastClipNode:  1,
-		ClipMins:      [3]float32{-512, -512, -512},
-		ClipMaxs:      [3]float32{512, 512, 512},
+		ClipMins:      qtypes.Vec3{X: -512, Y: -512, Z: -512},
+		ClipMaxs:      qtypes.Vec3{X: 512, Y: 512, Z: 512},
 	}
 
 	m.Type = model.ModBrush
@@ -543,8 +545,8 @@ func createSyntheticSealedRoomWorldModel() *model.Model {
 	m.Hulls[1].ClipMins = walkablePlayerMins
 	m.Hulls[1].ClipMaxs = walkablePlayerMaxs
 	m.Hulls[2] = hull
-	m.Hulls[2].ClipMins = [3]float32{-32, -32, -24}
-	m.Hulls[2].ClipMaxs = [3]float32{32, 32, 64}
+	m.Hulls[2].ClipMins = qtypes.Vec3{X: -32, Y: -32, Z: -24}
+	m.Hulls[2].ClipMaxs = qtypes.Vec3{X: 32, Y: 32, Z: 64}
 	m.Mins = hull.ClipMins
 	m.Maxs = hull.ClipMaxs
 	m.ClipBox = true
@@ -581,7 +583,7 @@ func TestFindWalkablePointFallsBackBelowSolidTopSliceInSyntheticWorld(t *testing
 	if !ok {
 		t.Fatalf("model bounds unavailable for %q", s.ModelName)
 	}
-	if got := s.PointContents([3]float32{32, 0, maxs[2] - 8}); got != bsp.ContentsSolid {
+	if got := s.PointContents(qtypes.Vec3{X: 32, Y: 0, Z: maxs.Z - 8}); got != bsp.ContentsSolid {
 		t.Fatalf("top-slice contents = %d, want solid", got)
 	}
 
@@ -589,8 +591,8 @@ func TestFindWalkablePointFallsBackBelowSolidTopSliceInSyntheticWorld(t *testing
 	if !ok {
 		t.Fatalf("findWalkablePointWithDiagnostics returned no point: %s", diag.String())
 	}
-	if pos[2] < mins[2] || pos[2] > maxs[2] {
-		t.Fatalf("walkable point z=%v out of world bounds %v..%v", pos[2], mins[2], maxs[2])
+	if pos.Z < mins.Z || pos.Z > maxs.Z {
+		t.Fatalf("walkable point z=%v out of world bounds %v..%v", pos.Z, mins.Z, maxs.Z)
 	}
 	if got := s.PointContents(pos); got == bsp.ContentsSolid {
 		t.Fatalf("walkable point contents = %d, want non-solid; %s", got, diag.String())
@@ -608,7 +610,7 @@ func TestFindWalkablePointUsesSpawnpointOnStartMap(t *testing.T) {
 	if ok != true {
 		t.Fatalf("findWalkablePointWithDiagnostics returned no point: %s", diag.String())
 	}
-	if pos == ([3]float32{}) {
+	if pos == (qtypes.Vec3{}) {
 		t.Fatalf("walkable point = zero vector, want usable spawnpoint-derived position")
 	}
 	if got := s.PointContents(pos); got == bsp.ContentsSolid {
@@ -620,14 +622,14 @@ func TestFindWalkablePointUsesSpawnpointOnStartMap(t *testing.T) {
 	if diag.ChosenSample.XI != -1 || diag.ChosenSample.YI != -1 {
 		t.Fatalf("expected helper to use findLocalSpawnPoint first, got chosen sample %+v; %s", *diag.ChosenSample, diag.String())
 	}
-	if diag.ChosenSample.Start[0] != spawn.Origin(s)[0] || diag.ChosenSample.Start[1] != spawn.Origin(s)[1] {
+	if diag.ChosenSample.Start.X != spawn.Origin(s).X || diag.ChosenSample.Start.Y != spawn.Origin(s).Y {
 		t.Fatalf("chosen sample start = %v, want spawnpoint x/y %v; %s", diag.ChosenSample.Start, spawn.Origin(s), diag.String())
 	}
 
 	ent := allocPhysicsTestEdict(s)
 	ent.SetOrigin(s, pos)
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	s.LinkEdict(ent, false)
 	if blocker := s.SV_TestEntityPosition(ent); blocker != nil {
@@ -701,11 +703,11 @@ func TestFindWalkablePointFallsBackAcrossEntityLumpSpawnCandidatesWithoutPakAsse
 	if ok != true {
 		t.Fatalf("findWalkablePointWithDiagnostics returned no point: %s", diag.String())
 	}
-	if pos[0] != 32 || pos[1] != 0 {
+	if pos.X != 32 || pos.Y != 0 {
 		t.Fatalf("findWalkablePointWithDiagnostics() = %v, want fallback on second spawn column; %s", pos, diag.String())
 	}
-	if pos[2] < -24 || pos[2] > 32 {
-		t.Fatalf("findWalkablePointWithDiagnostics() z=%v, want standing height near second spawn column; %s", pos[2], diag.String())
+	if pos.Z < -24 || pos.Z > 32 {
+		t.Fatalf("findWalkablePointWithDiagnostics() z=%v, want standing height near second spawn column; %s", pos.Z, diag.String())
 	}
 	if diag.SamplesTried < 2 || len(diag.FailedSamples) == 0 {
 		t.Fatalf("expected at least one rejected earlier spawn candidate, got diagnostics: %s", diag.String())
@@ -713,7 +715,7 @@ func TestFindWalkablePointFallsBackAcrossEntityLumpSpawnCandidatesWithoutPakAsse
 	if diag.ChosenSample == nil {
 		t.Fatalf("expected chosen sample in diagnostics, got: %s", diag.String())
 	}
-	if diag.ChosenSample.Start[0] != 32 || diag.ChosenSample.Start[1] != 0 {
+	if diag.ChosenSample.Start.X != 32 || diag.ChosenSample.Start.Y != 0 {
 		t.Fatalf("chosen sample start = %v, want second spawn column; %s", diag.ChosenSample.Start, diag.String())
 	}
 }
@@ -727,9 +729,9 @@ func TestStartMapTopSliceSamplesSolid(t *testing.T) {
 	}
 
 	for _, sample := range [][2]int{{1, 1}, {8, 8}, {14, 14}} {
-		x := mins[0] + (maxs[0]-mins[0])*(float32(sample[0])/16)
-		y := mins[1] + (maxs[1]-mins[1])*(float32(sample[1])/16)
-		start := [3]float32{x, y, maxs[2] - 8}
+		x := mins.X + (maxs.X-mins.X)*(float32(sample[0])/16)
+		y := mins.Y + (maxs.Y-mins.Y)*(float32(sample[1])/16)
+		start := qtypes.Vec3{X: x, Y: y, Z: maxs.Z - 8}
 		if got := s.PointContents(start); got != bsp.ContentsSolid {
 			t.Fatalf("PointContents(%v) = %d, want solid top-slice sample", start, got)
 		}
@@ -749,8 +751,8 @@ func TestStartMapSpawnColumnFindsFloorWithPlayerHull(t *testing.T) {
 	}
 
 	start := spawnOrigin
-	start[2] += stepSize
-	end := [3]float32{start[0], start[1], worldMins[2] - 256}
+	start.Z += stepSize
+	end := qtypes.Vec3{X: start.X, Y: start.Y, Z: worldMins.Z - 256}
 
 	trace := s.Move(start, walkablePlayerMins, walkablePlayerMaxs, end, MoveNormal, nil)
 	if trace.StartSolid {

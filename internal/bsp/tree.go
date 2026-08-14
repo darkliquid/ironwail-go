@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type TreeFace struct {
@@ -27,8 +29,8 @@ type TreeChild struct {
 
 type TreeNode struct {
 	PlaneNum  int32
-	BoundsMin [3]float32
-	BoundsMax [3]float32
+	BoundsMin types.Vec3
+	BoundsMax types.Vec3
 	Children  [2]TreeChild
 	FirstFace uint32
 	NumFaces  uint32
@@ -38,8 +40,8 @@ type TreeNode struct {
 type TreeLeaf struct {
 	Contents         int32
 	VisOfs           int32
-	BoundsMin        [3]float32
-	BoundsMax        [3]float32
+	BoundsMin        types.Vec3
+	BoundsMax        types.Vec3
 	FirstMarkSurface uint32
 	NumMarkSurfaces  uint32
 	AmbientLevel     [NumAmbients]uint8
@@ -166,10 +168,10 @@ func (t *Tree) loadPlanes(r *Reader) error {
 	for i := range t.Planes {
 		o := i * dPlaneSize
 		t.Planes[i] = DPlane{
-			Normal: [3]float32{
-				Float32frombits(binary.LittleEndian.Uint32(data[o:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[o+4:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[o+8:])),
+			Normal: types.Vec3{
+				X: Float32frombits(binary.LittleEndian.Uint32(data[o:])),
+				Y: Float32frombits(binary.LittleEndian.Uint32(data[o+4:])),
+				Z: Float32frombits(binary.LittleEndian.Uint32(data[o+8:])),
 			},
 			Dist: Float32frombits(binary.LittleEndian.Uint32(data[o+12:])),
 			Type: int32(binary.LittleEndian.Uint32(data[o+16:])),
@@ -209,10 +211,10 @@ func (t *Tree) loadVertexes(r *Reader) error {
 	for i := range t.Vertexes {
 		o := i * dVertexSize
 		t.Vertexes[i] = DVertex{
-			Point: [3]float32{
-				Float32frombits(binary.LittleEndian.Uint32(data[o:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[o+4:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[o+8:])),
+			Point: types.Vec3{
+				X: Float32frombits(binary.LittleEndian.Uint32(data[o:])),
+				Y: Float32frombits(binary.LittleEndian.Uint32(data[o+4:])),
+				Z: Float32frombits(binary.LittleEndian.Uint32(data[o+8:])),
 			},
 		}
 	}
@@ -414,15 +416,15 @@ func (t *Tree) loadLeafs(r *Reader) error {
 				leaf := &t.Leafs[i]
 				leaf.Contents = int32(binary.LittleEndian.Uint32(data[o:]))
 				leaf.VisOfs = int32(binary.LittleEndian.Uint32(data[o+4:]))
-				leaf.BoundsMin = [3]float32{
-					Float32frombits(binary.LittleEndian.Uint32(data[o+8:])),
-					Float32frombits(binary.LittleEndian.Uint32(data[o+12:])),
-					Float32frombits(binary.LittleEndian.Uint32(data[o+16:])),
+				leaf.BoundsMin = types.Vec3{
+					X: Float32frombits(binary.LittleEndian.Uint32(data[o+8:])),
+					Y: Float32frombits(binary.LittleEndian.Uint32(data[o+12:])),
+					Z: Float32frombits(binary.LittleEndian.Uint32(data[o+16:])),
 				}
-				leaf.BoundsMax = [3]float32{
-					Float32frombits(binary.LittleEndian.Uint32(data[o+20:])),
-					Float32frombits(binary.LittleEndian.Uint32(data[o+24:])),
-					Float32frombits(binary.LittleEndian.Uint32(data[o+28:])),
+				leaf.BoundsMax = types.Vec3{
+					X: Float32frombits(binary.LittleEndian.Uint32(data[o+20:])),
+					Y: Float32frombits(binary.LittleEndian.Uint32(data[o+24:])),
+					Z: Float32frombits(binary.LittleEndian.Uint32(data[o+28:])),
 				}
 				leaf.FirstMarkSurface = binary.LittleEndian.Uint32(data[o+32:])
 				leaf.NumMarkSurfaces = binary.LittleEndian.Uint32(data[o+36:])
@@ -444,15 +446,15 @@ func (t *Tree) loadLeafs(r *Reader) error {
 			leaf := &t.Leafs[i]
 			leaf.Contents = int32(binary.LittleEndian.Uint32(data[o:]))
 			leaf.VisOfs = int32(binary.LittleEndian.Uint32(data[o+4:]))
-			leaf.BoundsMin = [3]float32{
-				float32(int16(binary.LittleEndian.Uint16(data[o+8:]))),
-				float32(int16(binary.LittleEndian.Uint16(data[o+10:]))),
-				float32(int16(binary.LittleEndian.Uint16(data[o+12:]))),
+			leaf.BoundsMin = types.Vec3{
+				X: float32(int16(binary.LittleEndian.Uint16(data[o+8:]))),
+				Y: float32(int16(binary.LittleEndian.Uint16(data[o+10:]))),
+				Z: float32(int16(binary.LittleEndian.Uint16(data[o+12:]))),
 			}
-			leaf.BoundsMax = [3]float32{
-				float32(int16(binary.LittleEndian.Uint16(data[o+14:]))),
-				float32(int16(binary.LittleEndian.Uint16(data[o+16:]))),
-				float32(int16(binary.LittleEndian.Uint16(data[o+18:]))),
+			leaf.BoundsMax = types.Vec3{
+				X: float32(int16(binary.LittleEndian.Uint16(data[o+14:]))),
+				Y: float32(int16(binary.LittleEndian.Uint16(data[o+16:]))),
+				Z: float32(int16(binary.LittleEndian.Uint16(data[o+18:]))),
 			}
 			leaf.FirstMarkSurface = binary.LittleEndian.Uint32(data[o+20:])
 			leaf.NumMarkSurfaces = binary.LittleEndian.Uint32(data[o+24:])
@@ -474,15 +476,15 @@ func (t *Tree) loadLeafs(r *Reader) error {
 		leaf := &t.Leafs[i]
 		leaf.Contents = int32(binary.LittleEndian.Uint32(data[o:]))
 		leaf.VisOfs = int32(binary.LittleEndian.Uint32(data[o+4:]))
-		leaf.BoundsMin = [3]float32{
-			float32(int16(binary.LittleEndian.Uint16(data[o+8:]))),
-			float32(int16(binary.LittleEndian.Uint16(data[o+10:]))),
-			float32(int16(binary.LittleEndian.Uint16(data[o+12:]))),
+		leaf.BoundsMin = types.Vec3{
+			X: float32(int16(binary.LittleEndian.Uint16(data[o+8:]))),
+			Y: float32(int16(binary.LittleEndian.Uint16(data[o+10:]))),
+			Z: float32(int16(binary.LittleEndian.Uint16(data[o+12:]))),
 		}
-		leaf.BoundsMax = [3]float32{
-			float32(int16(binary.LittleEndian.Uint16(data[o+14:]))),
-			float32(int16(binary.LittleEndian.Uint16(data[o+16:]))),
-			float32(int16(binary.LittleEndian.Uint16(data[o+18:]))),
+		leaf.BoundsMax = types.Vec3{
+			X: float32(int16(binary.LittleEndian.Uint16(data[o+14:]))),
+			Y: float32(int16(binary.LittleEndian.Uint16(data[o+16:]))),
+			Z: float32(int16(binary.LittleEndian.Uint16(data[o+18:]))),
 		}
 		leaf.FirstMarkSurface = uint32(binary.LittleEndian.Uint16(data[o+20:]))
 		leaf.NumMarkSurfaces = uint32(binary.LittleEndian.Uint16(data[o+22:]))
@@ -528,15 +530,15 @@ func (t *Tree) loadNodes(r *Reader) error {
 				o := i * dl2NodeSize
 				n := &t.Nodes[i]
 				n.PlaneNum = int32(binary.LittleEndian.Uint32(data[o:]))
-				n.BoundsMin = [3]float32{
-					Float32frombits(binary.LittleEndian.Uint32(data[o+12:])),
-					Float32frombits(binary.LittleEndian.Uint32(data[o+16:])),
-					Float32frombits(binary.LittleEndian.Uint32(data[o+20:])),
+				n.BoundsMin = types.Vec3{
+					X: Float32frombits(binary.LittleEndian.Uint32(data[o+12:])),
+					Y: Float32frombits(binary.LittleEndian.Uint32(data[o+16:])),
+					Z: Float32frombits(binary.LittleEndian.Uint32(data[o+20:])),
 				}
-				n.BoundsMax = [3]float32{
-					Float32frombits(binary.LittleEndian.Uint32(data[o+24:])),
-					Float32frombits(binary.LittleEndian.Uint32(data[o+28:])),
-					Float32frombits(binary.LittleEndian.Uint32(data[o+32:])),
+				n.BoundsMax = types.Vec3{
+					X: Float32frombits(binary.LittleEndian.Uint32(data[o+24:])),
+					Y: Float32frombits(binary.LittleEndian.Uint32(data[o+28:])),
+					Z: Float32frombits(binary.LittleEndian.Uint32(data[o+32:])),
 				}
 				n.FirstFace = binary.LittleEndian.Uint32(data[o+36:])
 				n.NumFaces = binary.LittleEndian.Uint32(data[o+40:])
@@ -567,15 +569,15 @@ func (t *Tree) loadNodes(r *Reader) error {
 			o := i * dl1NodeSize
 			n := &t.Nodes[i]
 			n.PlaneNum = int32(binary.LittleEndian.Uint32(data[o:]))
-			n.BoundsMin = [3]float32{
-				float32(int16(binary.LittleEndian.Uint16(data[o+12:]))),
-				float32(int16(binary.LittleEndian.Uint16(data[o+14:]))),
-				float32(int16(binary.LittleEndian.Uint16(data[o+16:]))),
+			n.BoundsMin = types.Vec3{
+				X: float32(int16(binary.LittleEndian.Uint16(data[o+12:]))),
+				Y: float32(int16(binary.LittleEndian.Uint16(data[o+14:]))),
+				Z: float32(int16(binary.LittleEndian.Uint16(data[o+16:]))),
 			}
-			n.BoundsMax = [3]float32{
-				float32(int16(binary.LittleEndian.Uint16(data[o+18:]))),
-				float32(int16(binary.LittleEndian.Uint16(data[o+20:]))),
-				float32(int16(binary.LittleEndian.Uint16(data[o+22:]))),
+			n.BoundsMax = types.Vec3{
+				X: float32(int16(binary.LittleEndian.Uint16(data[o+18:]))),
+				Y: float32(int16(binary.LittleEndian.Uint16(data[o+20:]))),
+				Z: float32(int16(binary.LittleEndian.Uint16(data[o+22:]))),
 			}
 			n.FirstFace = binary.LittleEndian.Uint32(data[o+24:])
 			n.NumFaces = binary.LittleEndian.Uint32(data[o+28:])
@@ -606,15 +608,15 @@ func (t *Tree) loadNodes(r *Reader) error {
 		o := i * dsNodeSize
 		n := &t.Nodes[i]
 		n.PlaneNum = int32(binary.LittleEndian.Uint32(data[o:]))
-		n.BoundsMin = [3]float32{
-			float32(int16(binary.LittleEndian.Uint16(data[o+8:]))),
-			float32(int16(binary.LittleEndian.Uint16(data[o+10:]))),
-			float32(int16(binary.LittleEndian.Uint16(data[o+12:]))),
+		n.BoundsMin = types.Vec3{
+			X: float32(int16(binary.LittleEndian.Uint16(data[o+8:]))),
+			Y: float32(int16(binary.LittleEndian.Uint16(data[o+10:]))),
+			Z: float32(int16(binary.LittleEndian.Uint16(data[o+12:]))),
 		}
-		n.BoundsMax = [3]float32{
-			float32(int16(binary.LittleEndian.Uint16(data[o+14:]))),
-			float32(int16(binary.LittleEndian.Uint16(data[o+16:]))),
-			float32(int16(binary.LittleEndian.Uint16(data[o+18:]))),
+		n.BoundsMax = types.Vec3{
+			X: float32(int16(binary.LittleEndian.Uint16(data[o+14:]))),
+			Y: float32(int16(binary.LittleEndian.Uint16(data[o+16:]))),
+			Z: float32(int16(binary.LittleEndian.Uint16(data[o+18:]))),
 		}
 		n.FirstFace = uint32(binary.LittleEndian.Uint16(data[o+20:]))
 		n.NumFaces = uint32(binary.LittleEndian.Uint16(data[o+22:]))
@@ -715,20 +717,20 @@ func (t *Tree) loadModels(r *Reader) error {
 	for i := range t.Models {
 		o := i * dModelSize
 		m := &t.Models[i]
-		m.BoundsMin = [3]float32{
-			Float32frombits(binary.LittleEndian.Uint32(data[o:])),
-			Float32frombits(binary.LittleEndian.Uint32(data[o+4:])),
-			Float32frombits(binary.LittleEndian.Uint32(data[o+8:])),
+		m.BoundsMin = types.Vec3{
+			X: Float32frombits(binary.LittleEndian.Uint32(data[o:])),
+			Y: Float32frombits(binary.LittleEndian.Uint32(data[o+4:])),
+			Z: Float32frombits(binary.LittleEndian.Uint32(data[o+8:])),
 		}
-		m.BoundsMax = [3]float32{
-			Float32frombits(binary.LittleEndian.Uint32(data[o+12:])),
-			Float32frombits(binary.LittleEndian.Uint32(data[o+16:])),
-			Float32frombits(binary.LittleEndian.Uint32(data[o+20:])),
+		m.BoundsMax = types.Vec3{
+			X: Float32frombits(binary.LittleEndian.Uint32(data[o+12:])),
+			Y: Float32frombits(binary.LittleEndian.Uint32(data[o+16:])),
+			Z: Float32frombits(binary.LittleEndian.Uint32(data[o+20:])),
 		}
-		m.Origin = [3]float32{
-			Float32frombits(binary.LittleEndian.Uint32(data[o+24:])),
-			Float32frombits(binary.LittleEndian.Uint32(data[o+28:])),
-			Float32frombits(binary.LittleEndian.Uint32(data[o+32:])),
+		m.Origin = types.Vec3{
+			X: Float32frombits(binary.LittleEndian.Uint32(data[o+24:])),
+			Y: Float32frombits(binary.LittleEndian.Uint32(data[o+28:])),
+			Z: Float32frombits(binary.LittleEndian.Uint32(data[o+32:])),
 		}
 		for j := 0; j < MaxMapHulls; j++ {
 			m.HeadNode[j] = int32(binary.LittleEndian.Uint32(data[o+36+j*4:]))
@@ -769,7 +771,7 @@ func (t *Tree) LeafPVS(leaf *TreeLeaf) []byte {
 
 // FatPVS returns the union of PVS visibility masks for all leaves near org.
 // Where in C: SV_FatPVS in sv_user.c / r_world.c
-func (t *Tree) FatPVS(org [3]float32) []byte {
+func (t *Tree) FatPVS(org types.Vec3) []byte {
 	if t == nil || len(t.Nodes) == 0 {
 		return t.LeafPVS(nil)
 	}
@@ -783,7 +785,7 @@ func (t *Tree) FatPVS(org [3]float32) []byte {
 	return out
 }
 
-func (t *Tree) fatPVSRecursive(org [3]float32, child TreeChild, out []byte) {
+func (t *Tree) fatPVSRecursive(org types.Vec3, child TreeChild, out []byte) {
 	for {
 		if child.IsLeaf {
 			if int(child.Index) < len(t.Leafs) {
@@ -808,9 +810,16 @@ func (t *Tree) fatPVSRecursive(org [3]float32, child TreeChild, out []byte) {
 		plane := &t.Planes[node.PlaneNum]
 		var d float32
 		if plane.Type < 3 {
-			d = org[plane.Type] - plane.Dist
+			switch plane.Type {
+			case 0:
+				d = org.X - plane.Dist
+			case 1:
+				d = org.Y - plane.Dist
+			case 2:
+				d = org.Z - plane.Dist
+			}
 		} else {
-			d = org[0]*plane.Normal[0] + org[1]*plane.Normal[1] + org[2]*plane.Normal[2] - plane.Dist
+			d = org.Dot(plane.Normal) - plane.Dist
 		}
 
 		if d > 8 {
@@ -869,7 +878,7 @@ func (t *Tree) numVisLeafs() int {
 	return 0
 }
 
-func (t *Tree) PointInLeaf(p [3]float32) *TreeLeaf {
+func (t *Tree) PointInLeaf(p types.Vec3) *TreeLeaf {
 	if len(t.Nodes) == 0 {
 		if len(t.Leafs) > 0 {
 			return &t.Leafs[0]
@@ -887,9 +896,16 @@ func (t *Tree) PointInLeaf(p [3]float32) *TreeLeaf {
 
 		var d float32
 		if plane.Type < 3 {
-			d = p[plane.Type] - plane.Dist
+			switch plane.Type {
+			case 0:
+				d = p.X - plane.Dist
+			case 1:
+				d = p.Y - plane.Dist
+			case 2:
+				d = p.Z - plane.Dist
+			}
 		} else {
-			d = p[0]*plane.Normal[0] + p[1]*plane.Normal[1] + p[2]*plane.Normal[2] - plane.Dist
+			d = p.Dot(plane.Normal) - plane.Dist
 		}
 
 		var child TreeChild

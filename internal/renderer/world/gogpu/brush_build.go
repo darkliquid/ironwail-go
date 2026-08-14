@@ -1,12 +1,15 @@
 package gogpu
 
-import worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+import (
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 type BrushEntityParams struct {
 	Alpha  float32
 	Frame  int
-	Origin [3]float32
-	Angles [3]float32
+	Origin types.Vec3
+	Angles types.Vec3
 	Scale  float32
 }
 
@@ -17,7 +20,7 @@ type OpaqueBrushEntityDraw struct {
 	Vertices    []worldimpl.WorldVertex
 	Indices     []uint32
 	Faces       []worldimpl.WorldFace
-	Centers     [][3]float32
+	Centers     []types.Vec3
 }
 
 type BrushEntityFaceClass uint8
@@ -34,10 +37,10 @@ type ClassifiedBrushEntityDraw struct {
 	Vertices         []worldimpl.WorldVertex
 	OpaqueIndices    []uint32
 	OpaqueFaces      []worldimpl.WorldFace
-	OpaqueCenters    [][3]float32
+	OpaqueCenters    []types.Vec3
 	AlphaTestIndices []uint32
 	AlphaTestFaces   []worldimpl.WorldFace
-	AlphaTestCenters [][3]float32
+	AlphaTestCenters []types.Vec3
 }
 
 func FillBrushEntityDraw(dst *OpaqueBrushEntityDraw, entity BrushEntityParams, geom *worldimpl.WorldGeometry, includeFace func(worldimpl.WorldFace, float32) bool) bool {
@@ -146,7 +149,7 @@ func BuildClassifiedBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.Wo
 	return draw
 }
 
-func appendClassifiedBrushEntityFace(dstFaces *[]worldimpl.WorldFace, dstCenters *[][3]float32, dstIndices *[]uint32, face worldimpl.WorldFace, center [3]float32, indices []uint32) {
+func appendClassifiedBrushEntityFace(dstFaces *[]worldimpl.WorldFace, dstCenters *[]types.Vec3, dstIndices *[]uint32, face worldimpl.WorldFace, center types.Vec3, indices []uint32) {
 	drawFace := face
 	drawFace.FirstIndex = uint32(len(*dstIndices))
 	drawFace.NumIndices = uint32(len(indices))

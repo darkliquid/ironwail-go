@@ -7,6 +7,7 @@ package types
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // QCCallback is the set of QuakeC VM dispatch operations the leaf algorithms
@@ -54,7 +55,7 @@ type PhysicsFacade interface {
 	DebugTriggerTouch(source string, touch, other *Edict)
 	// PushMoveScratch returns the origin-restore scratch buffers (retained
 	// across calls to avoid per-frame allocation).
-	PushMoveScratch() (moved *[]*Edict, from *[][3]float32)
+	PushMoveScratch() (moved *[]*Edict, from *[]qtypes.Vec3)
 	// GetFieldGravity returns the QC "gravity" field offset (-1 if absent).
 	GetFieldGravity() int
 	// CaptureExecutionContext snapshots the QC VM execution context (self/other

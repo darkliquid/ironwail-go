@@ -3,20 +3,22 @@ package decal
 import (
 	"math"
 	"testing"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // markStub is a minimal MarkEntity for tests.
 type markStub struct {
-	origin   [3]float32
-	normal   [3]float32
+	origin   types.Vec3
+	normal   types.Vec3
 	size     float32
 	rotation float32
 	alpha    float32
 	variant  int
 }
 
-func (m markStub) DecalOrigin() [3]float32 { return m.origin }
-func (m markStub) DecalNormal() [3]float32 { return m.normal }
+func (m markStub) DecalOrigin() types.Vec3 { return m.origin }
+func (m markStub) DecalNormal() types.Vec3 { return m.normal }
 func (m markStub) DecalSize() float32      { return m.size }
 func (m markStub) DecalRotation() float32  { return m.rotation }
 func (m markStub) DecalAlpha() float32     { return m.alpha }
@@ -24,8 +26,8 @@ func (m markStub) DecalVariant() int       { return m.variant }
 
 func TestBuildQuadFloorFacingUp(t *testing.T) {
 	got, ok := BuildQuad(markStub{
-		origin:   [3]float32{100, 200, 300},
-		normal:   [3]float32{0, 0, 1},
+		origin:   types.Vec3{X: 100, Y: 200, Z: 300},
+		normal:   types.Vec3{X: 0, Y: 0, Z: 1},
 		size:     16,
 		rotation: 0,
 	})
@@ -33,13 +35,13 @@ func TestBuildQuadFloorFacingUp(t *testing.T) {
 		t.Fatal("BuildQuad = !ok, want ok")
 	}
 	// Quad centered at origin + normal*0.05, half-size 8.
-	center := [3]float32{100, 200, 300.05}
+	center := types.Vec3{X: 100, Y: 200, Z: 300.05}
 	for _, c := range got {
-		if math.Abs(float64(c[0]-center[0])) > 8.001 || math.Abs(float64(c[1]-center[1])) > 8.001 {
+		if math.Abs(float64(c.X-center.X)) > 8.001 || math.Abs(float64(c.Y-center.Y)) > 8.001 {
 			t.Fatalf("corner %v outside expected square around %v (size 16)", c, center)
 		}
-		if math.Abs(float64(c[2]-center[2])) > 0.001 {
-			t.Fatalf("corner %v Z = %v, want %.3f (flat on plane)", c, c[2], center[2])
+		if math.Abs(float64(c.Z-center.Z)) > 0.001 {
+			t.Fatalf("corner %v Z = %v, want %.3f (flat on plane)", c, c.Z, center.Z)
 		}
 	}
 }
@@ -48,7 +50,7 @@ func TestBuildQuadDefaultNormalUp(t *testing.T) {
 	// Direct zero normal is rejected by Normalize3 inside BuildQuad; callers
 	// (PrepareDraws' legacy root adapter) default normals before building.
 	if _, ok := BuildQuad(markStub{
-		origin:   [3]float32{10, 20, 30},
+		origin:   types.Vec3{X: 10, Y: 20, Z: 30},
 		size:     8,
 		rotation: 0,
 	}); ok {
@@ -58,7 +60,7 @@ func TestBuildQuadDefaultNormalUp(t *testing.T) {
 
 func TestSystemLifetime(t *testing.T) {
 	s := NewSystem()
-	mark := markStub{origin: [3]float32{1, 2, 3}, size: 8, alpha: 1}
+	mark := markStub{origin: types.Vec3{X: 1, Y: 2, Z: 3}, size: 8, alpha: 1}
 	s.AddMark(mark, 1.0, 0)
 	if s.ActiveCount() != 1 {
 		t.Fatalf("ActiveCount after add = %d, want 1", s.ActiveCount())
@@ -75,9 +77,9 @@ func TestSystemLifetime(t *testing.T) {
 
 func TestSystemIgnoresZeroSizeAndNonPositiveLifetime(t *testing.T) {
 	s := NewSystem()
-	s.AddMark(markStub{origin: [3]float32{1, 2, 3}, size: 0}, 1, 0)
-	s.AddMark(markStub{origin: [3]float32{1, 2, 3}, size: 8}, 0, 0)
-	s.AddMark(markStub{origin: [3]float32{1, 2, 3}, size: 8}, -1, 0)
+	s.AddMark(markStub{origin: types.Vec3{X: 1, Y: 2, Z: 3}, size: 0}, 1, 0)
+	s.AddMark(markStub{origin: types.Vec3{X: 1, Y: 2, Z: 3}, size: 8}, 0, 0)
+	s.AddMark(markStub{origin: types.Vec3{X: 1, Y: 2, Z: 3}, size: 8}, -1, 0)
 	if s.ActiveCount() != 0 {
 		t.Fatalf("ActiveCount = %d, want 0", s.ActiveCount())
 	}
@@ -85,41 +87,41 @@ func TestSystemIgnoresZeroSizeAndNonPositiveLifetime(t *testing.T) {
 
 func TestPrepareDrawsSortsFarToNear(t *testing.T) {
 	marks := []MarkEntity{
-		markStub{origin: [3]float32{100, 0, 0}, size: 8, alpha: 1},
-		markStub{origin: [3]float32{1, 0, 0}, size: 8, alpha: 1},
-		markStub{origin: [3]float32{50, 0, 0}, size: 8, alpha: 1},
+		markStub{origin: types.Vec3{X: 100, Y: 0, Z: 0}, size: 8, alpha: 1},
+		markStub{origin: types.Vec3{X: 1, Y: 0, Z: 0}, size: 8, alpha: 1},
+		markStub{origin: types.Vec3{X: 50, Y: 0, Z: 0}, size: 8, alpha: 1},
 	}
-	draws := PrepareDraws(marks, [3]float32{0, 0, 0})
+	draws := PrepareDraws(marks, types.Vec3{X: 0, Y: 0, Z: 0})
 	if len(draws) != 3 {
 		t.Fatalf("len(draws) = %d, want 3", len(draws))
 	}
 	wantOrder := []float32{100, 50, 1}
 	for i, want := range wantOrder {
-		if draws[i].Mark.DecalOrigin()[0] != want {
-			t.Fatalf("draws[%d].Origin[0] = %v, want %v", i, draws[i].Mark.DecalOrigin()[0], want)
+		if draws[i].Mark.DecalOrigin().X != want {
+			t.Fatalf("draws[%d].Origin.X = %v, want %v", i, draws[i].Mark.DecalOrigin().X, want)
 		}
 	}
 }
 
 func TestPrepareDrawsSkipsZeroSize(t *testing.T) {
 	marks := []MarkEntity{
-		markStub{origin: [3]float32{100, 0, 0}, size: 0, alpha: 1},
-		markStub{origin: [3]float32{10, 0, 0}, size: 4, alpha: 1},
+		markStub{origin: types.Vec3{X: 100, Y: 0, Z: 0}, size: 0, alpha: 1},
+		markStub{origin: types.Vec3{X: 10, Y: 0, Z: 0}, size: 4, alpha: 1},
 	}
-	draws := PrepareDraws(marks, [3]float32{0, 0, 0})
+	draws := PrepareDraws(marks, types.Vec3{X: 0, Y: 0, Z: 0})
 	if len(draws) != 1 {
 		t.Fatalf("len(draws) = %d, want 1", len(draws))
 	}
 }
 
 func TestBuildBasisFloorIdentity(t *testing.T) {
-	tangent, bitangent := BuildBasis([3]float32{0, 0, 1}, 0)
+	tangent, bitangent := BuildBasis(types.Vec3{X: 0, Y: 0, Z: 1}, 0)
 	// For a floor normal, up is replaced with +Y: tangent = Y x Z = X axis,
 	// bitangent = Z x X = Y axis with handedness preserved.
-	if math.Abs(float64(tangent[0])-1) > 0.001 || math.Abs(float64(tangent[1])) > 0.001 || math.Abs(float64(tangent[2])) > 0.001 {
+	if math.Abs(float64(tangent.X-1)) > 0.001 || math.Abs(float64(tangent.Y)) > 0.001 || math.Abs(float64(tangent.Z)) > 0.001 {
 		t.Fatalf("tangent = %v, want (1,0,0)", tangent)
 	}
-	if math.Abs(float64(bitangent[0])) > 0.001 || math.Abs(float64(bitangent[1])-1) > 0.001 || math.Abs(float64(bitangent[2])) > 0.001 {
+	if math.Abs(float64(bitangent.X)) > 0.001 || math.Abs(float64(bitangent.Y-1)) > 0.001 || math.Abs(float64(bitangent.Z)) > 0.001 {
 		t.Fatalf("bitangent = %v, want (0,1,0)", bitangent)
 	}
 }
@@ -159,9 +161,9 @@ func TestSmoothstepClamps(t *testing.T) {
 // dropped in the decal extraction and restored in 6b6f7a8: a mark with alpha
 // > 1 must be clamped and still drawn; alpha == 0 must be dropped.
 func TestPrepareDrawsClampsAlpha(t *testing.T) {
-	over := markStub{origin: [3]float32{10, 0, 0}, size: 8, alpha: 1.5, variant: 2}
-	zero := markStub{origin: [3]float32{20, 0, 0}, size: 8, alpha: 0, variant: 2}
-	draws := PrepareDraws([]MarkEntity{over, zero}, [3]float32{})
+	over := markStub{origin: types.Vec3{X: 10, Y: 0, Z: 0}, size: 8, alpha: 1.5, variant: 2}
+	zero := markStub{origin: types.Vec3{X: 20, Y: 0, Z: 0}, size: 8, alpha: 0, variant: 2}
+	draws := PrepareDraws([]MarkEntity{over, zero}, types.Vec3{})
 	if len(draws) != 1 {
 		t.Fatalf("len(draws) = %d, want 1 (alpha=0 mark dropped, alpha=1.5 kept)", len(draws))
 	}
@@ -175,8 +177,8 @@ func TestPrepareDrawsClampsAlpha(t *testing.T) {
 // TestPrepareDrawsDefaultsZeroNormal pins the +Z normal defaulting restored
 // in 6b6f7a8: a mark with a zero normal must still produce an up-facing quad.
 func TestPrepareDrawsDefaultsZeroNormal(t *testing.T) {
-	m := markStub{origin: [3]float32{10, 20, 30}, size: 8, alpha: 1}
-	draws := PrepareDraws([]MarkEntity{m}, [3]float32{})
+	m := markStub{origin: types.Vec3{X: 10, Y: 20, Z: 30}, size: 8, alpha: 1}
+	draws := PrepareDraws([]MarkEntity{m}, types.Vec3{})
 	if len(draws) != 1 {
 		t.Fatalf("len(draws) = %d, want 1", len(draws))
 	}
@@ -186,8 +188,8 @@ func TestPrepareDrawsDefaultsZeroNormal(t *testing.T) {
 	}
 	// Floor quad: all corners lie on z = origin.z + 0.05.
 	for _, c := range corners {
-		if math.Abs(float64(c[2]-30.05)) > 0.001 {
-			t.Fatalf("corner %v z = %v, want 30.05 (flat +Z quad)", c, c[2])
+		if math.Abs(float64(c.Z-30.05)) > 0.001 {
+			t.Fatalf("corner %v z = %v, want 30.05 (flat +Z quad)", c, c.Z)
 		}
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestSendMoveNotConnected(t *testing.T) {
@@ -86,7 +87,7 @@ func TestSendMovePacking(t *testing.T) {
 	c.Time = 1.234
 
 	cmd := &UserCmd{
-		ViewAngles: [3]float32{10.0, 45.0, 0.0},
+		ViewAngles: types.Vec3{X: 10.0, Y: 45.0, Z: 0.0},
 		Forward:    200.0,
 		Side:       50.0,
 		Up:         0.0,
@@ -179,7 +180,7 @@ func TestSendMoveWithShortAngles(t *testing.T) {
 	c.Time = 2.5
 
 	cmd := &UserCmd{
-		ViewAngles: [3]float32{15.5, 180.25, 5.0},
+		ViewAngles: types.Vec3{X: 15.5, Y: 180.25, Z: 5.0},
 		Forward:    150.0,
 		Side:       -75.0,
 		Up:         10.0,
@@ -206,7 +207,7 @@ func TestSendCmdDuringSignOn(t *testing.T) {
 	c.State = StateConnected
 	c.Signon = 2 // Not yet complete
 	c.MoveMessages = 2
-	c.ViewAngles = [3]float32{0, 90, 0}
+	c.ViewAngles = types.Vec3{X: 0, Y: 90, Z: 0}
 
 	var sentData []byte
 	sendFunc := func(data []byte) error {
@@ -254,7 +255,7 @@ func TestSendCmdAfterSignOn(t *testing.T) {
 
 	// Simulate accumulated input
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{5.0, 270.0, 0.0},
+		ViewAngles: types.Vec3{X: 5.0, Y: 270.0, Z: 0.0},
 		Forward:    300.0,
 		Side:       -100.0,
 		Up:         0.0,
@@ -369,7 +370,7 @@ func TestSendCmdRateLimit(t *testing.T) {
 func TestBuildPendingMoveLatchesAndClearsOneShotInputs(t *testing.T) {
 	c := NewClient()
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{1, 2, 3},
+		ViewAngles: types.Vec3{X: 1, Y: 2, Z: 3},
 		Forward:    120,
 		Side:       -40,
 		Up:         8,
@@ -440,7 +441,7 @@ func TestSendCmdIntegrationWithSocket(t *testing.T) {
 
 	// Setup input command
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{10.0, 90.0, 0.0},
+		ViewAngles: types.Vec3{X: 10.0, Y: 90.0, Z: 0.0},
 		Forward:    250.0,
 		Side:       -50.0,
 		Up:         0.0,
@@ -570,12 +571,12 @@ func TestAdjustAnglesSkipsIntermissionCutsceneWithActiveViewEntity(t *testing.T)
 	c.FixAngle = true
 	c.Intermission = 1
 	c.ViewEntity = 1
-	c.ViewAngles = [3]float32{10, 20, 0}
+	c.ViewAngles = types.Vec3{X: 10, Y: 20, Z: 0}
 	c.InputRight.State = 1
 
 	c.AdjustAngles(0.1)
 
-	if got := c.ViewAngles; got != [3]float32{10, 20, 0} {
+	if got := c.ViewAngles; got != (types.Vec3{X: 10, Y: 20, Z: 0}) {
 		t.Fatalf("ViewAngles after intermission AdjustAngles = %v, want unchanged", got)
 	}
 }

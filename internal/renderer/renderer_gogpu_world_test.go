@@ -12,6 +12,7 @@ import (
 	"github.com/gogpu/wgpu"
 
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestWorldFaceTextureIndexRemapsMissingTextureToDummySlots(t *testing.T) {
@@ -100,8 +101,8 @@ func TestBuildWorldGeometry_SimpleQuad(t *testing.T) {
 		// World model with 1 face
 		Models: []bsp.DModel{
 			{
-				BoundsMin: [3]float32{-100, -100, -100},
-				BoundsMax: [3]float32{100, 100, 100},
+				BoundsMin: types.Vec3{X: -100, Y: -100, Z: -100},
+				BoundsMax: types.Vec3{X: 100, Y: 100, Z: 100},
 				FirstFace: 0,
 				NumFaces:  1,
 			},
@@ -131,16 +132,16 @@ func TestBuildWorldGeometry_SimpleQuad(t *testing.T) {
 
 		// 4 vertices forming a quad (100x100 units on XY plane)
 		Vertexes: []bsp.DVertex{
-			{Point: [3]float32{0, 0, 0}},
-			{Point: [3]float32{100, 0, 0}},
-			{Point: [3]float32{100, 100, 0}},
-			{Point: [3]float32{0, 100, 0}},
+			{Point: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 100, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 100, Y: 100, Z: 0}},
+			{Point: types.Vec3{X: 0, Y: 100, Z: 0}},
 		},
 
 		// One plane (Z-up)
 		Planes: []bsp.DPlane{
 			{
-				Normal: [3]float32{0, 0, 1},
+				Normal: types.Vec3{X: 0, Y: 0, Z: 1},
 				Dist:   0,
 				Type:   bsp.PlaneZ,
 			},
@@ -179,11 +180,11 @@ func TestBuildWorldGeometry_SimpleQuad(t *testing.T) {
 	}
 
 	// Verify vertex positions match input
-	expectedPositions := []([3]float32){
-		{0, 0, 0},
-		{100, 0, 0},
-		{100, 100, 0},
-		{0, 100, 0},
+	expectedPositions := []types.Vec3{
+		{X: 0, Y: 0, Z: 0},
+		{X: 100, Y: 0, Z: 0},
+		{X: 100, Y: 100, Z: 0},
+		{X: 0, Y: 100, Z: 0},
 	}
 
 	for i, expected := range expectedPositions {
@@ -194,7 +195,7 @@ func TestBuildWorldGeometry_SimpleQuad(t *testing.T) {
 	}
 
 	// Verify normals are set (should be Z-up)
-	expectedNormal := [3]float32{0, 0, 1}
+	expectedNormal := types.Vec3{X: 0, Y: 0, Z: 1}
 	for i, v := range geom.Vertices {
 		if v.Normal != expectedNormal {
 			t.Errorf("Vertex[%d] normal = %v, want %v", i, v.Normal, expectedNormal)
@@ -264,13 +265,13 @@ func TestBuildWorldGeometry_DerivesFaceMetadataAndTexcoords(t *testing.T) {
 		},
 		Surfedges: []int32{0, 1, 2, 3},
 		Vertexes: []bsp.DVertex{
-			{Point: [3]float32{0, 0, 0}},
-			{Point: [3]float32{16, 0, 0}},
-			{Point: [3]float32{16, 16, 0}},
-			{Point: [3]float32{0, 16, 0}},
+			{Point: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 16, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 16, Y: 16, Z: 0}},
+			{Point: types.Vec3{X: 0, Y: 16, Z: 0}},
 		},
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{0, 0, 1}},
+			{Normal: types.Vec3{X: 0, Y: 0, Z: 1}},
 		},
 		Lighting: append(make([]byte, 64), 128, 128, 128, 128),
 	}
@@ -323,12 +324,12 @@ func TestBuildWorldGeometry_PopulatesLeafFacesFromMarkSurfaces(t *testing.T) {
 		},
 		Surfedges: []int32{0, 1, 2},
 		Vertexes: []bsp.DVertex{
-			{Point: [3]float32{0, 0, 0}},
-			{Point: [3]float32{1, 0, 0}},
-			{Point: [3]float32{0, 1, 0}},
+			{Point: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 1, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 0, Y: 1, Z: 0}},
 		},
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{0, 0, 1}, Type: bsp.PlaneZ},
+			{Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Type: bsp.PlaneZ},
 		},
 		Leafs: []bsp.TreeLeaf{
 			{},
@@ -352,7 +353,7 @@ func TestBuildWorldGeometry_PopulatesLeafFacesFromMarkSurfaces(t *testing.T) {
 func TestExtractFaceVertices_UsesHighPrecisionLightmapExtents(t *testing.T) {
 	tree := &bsp.Tree{
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{0, 0, 1}},
+			{Normal: types.Vec3{X: 0, Y: 0, Z: 1}},
 		},
 		Texinfo: []bsp.Texinfo{
 			{
@@ -370,9 +371,9 @@ func TestExtractFaceVertices_UsesHighPrecisionLightmapExtents(t *testing.T) {
 		},
 		Surfedges: []int32{0, 1, 2},
 		Vertexes: []bsp.DVertex{
-			{Point: [3]float32{4026.5183, 32887.621, 131090.9}},
-			{Point: [3]float32{4080.9375, 32887.621, 131090.9}},
-			{Point: [3]float32{4026.5183, 32937.996, 131090.9}},
+			{Point: types.Vec3{X: 4026.5183, Y: 32887.621, Z: 131090.9}},
+			{Point: types.Vec3{X: 4080.9375, Y: 32887.621, Z: 131090.9}},
+			{Point: types.Vec3{X: 4026.5183, Y: 32937.996, Z: 131090.9}},
 		},
 		Lighting: make([]byte, 8),
 	}
@@ -444,7 +445,7 @@ func TestSelectVisibleWorldFaces_UsesLeafPVS(t *testing.T) {
 		{2},
 	}
 
-	visible := selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{1, 0, 0})
+	visible := selectVisibleWorldFaces(tree, allFaces, leafFaces, types.Vec3{X: 1, Y: 0, Z: 0})
 	if len(visible) != 2 {
 		t.Fatalf("visible len = %d, want 2", len(visible))
 	}
@@ -452,7 +453,7 @@ func TestSelectVisibleWorldFaces_UsesLeafPVS(t *testing.T) {
 		t.Fatalf("visible faces = %+v, want first two faces", visible)
 	}
 
-	visible = selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{-1, 0, 0})
+	visible = selectVisibleWorldFaces(tree, allFaces, leafFaces, types.Vec3{X: -1, Y: 0, Z: 0})
 	if len(visible) != 2 {
 		t.Fatalf("visible len from leaf2 = %d, want 2", len(visible))
 	}
@@ -497,7 +498,7 @@ func TestWorldVisibilityScratch_ReusesStorageAndPreservesOrder(t *testing.T) {
 	}
 
 	var scratch worldVisibilityScratch
-	first := scratch.selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{1, 0, 0})
+	first := scratch.selectVisibleWorldFaces(tree, allFaces, leafFaces, types.Vec3{X: 1, Y: 0, Z: 0})
 	if len(first) != 2 {
 		t.Fatalf("first visible len = %d, want 2", len(first))
 	}
@@ -507,7 +508,7 @@ func TestWorldVisibilityScratch_ReusesStorageAndPreservesOrder(t *testing.T) {
 	marksPtr := &scratch.marks[0]
 	facesPtr := &scratch.faces[:cap(scratch.faces)][0]
 
-	second := scratch.selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{-1, 0, 0})
+	second := scratch.selectVisibleWorldFaces(tree, allFaces, leafFaces, types.Vec3{X: -1, Y: 0, Z: 0})
 	if len(second) != 2 {
 		t.Fatalf("second visible len = %d, want 2", len(second))
 	}
@@ -553,12 +554,12 @@ func TestBuildWorldGeometry_Triangle(t *testing.T) {
 		},
 		Surfedges: []int32{0, 1, 2},
 		Vertexes: []bsp.DVertex{
-			{Point: [3]float32{0, 0, 0}},
-			{Point: [3]float32{10, 0, 0}},
-			{Point: [3]float32{5, 10, 0}},
+			{Point: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 10, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 5, Y: 10, Z: 0}},
 		},
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{0, 0, 1}, Dist: 0},
+			{Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0},
 		},
 	}
 
@@ -605,15 +606,15 @@ func TestBuildWorldGeometry_Hexagon(t *testing.T) {
 		},
 		Surfedges: []int32{0, 1, 2, 3, 4, 5},
 		Vertexes: []bsp.DVertex{
-			{Point: [3]float32{10, 0, 0}},
-			{Point: [3]float32{5, 8, 0}},
-			{Point: [3]float32{-5, 8, 0}},
-			{Point: [3]float32{-10, 0, 0}},
-			{Point: [3]float32{-5, -8, 0}},
-			{Point: [3]float32{5, -8, 0}},
+			{Point: types.Vec3{X: 10, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 5, Y: 8, Z: 0}},
+			{Point: types.Vec3{X: -5, Y: 8, Z: 0}},
+			{Point: types.Vec3{X: -10, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: -5, Y: -8, Z: 0}},
+			{Point: types.Vec3{X: 5, Y: -8, Z: 0}},
 		},
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{0, 0, 1}, Dist: 0},
+			{Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0},
 		},
 	}
 
@@ -635,7 +636,7 @@ func TestBuildWorldGeometry_Hexagon(t *testing.T) {
 	}
 }
 
-// TestBuildWorldGeometry_MultipleF aces tests processing multiple faces.
+// TestBuildWorldGeometry_MultipleFaces tests processing multiple faces.
 func TestBuildWorldGeometry_MultipleFaces(t *testing.T) {
 	// Two quads (8 vertices total, 12 indices)
 	tree := &bsp.Tree{
@@ -678,19 +679,19 @@ func TestBuildWorldGeometry_MultipleFaces(t *testing.T) {
 		Surfedges: []int32{0, 1, 2, 3, 4, 5, 6, 7},
 		Vertexes: []bsp.DVertex{
 			// Quad 1
-			{Point: [3]float32{0, 0, 0}},
-			{Point: [3]float32{10, 0, 0}},
-			{Point: [3]float32{10, 10, 0}},
-			{Point: [3]float32{0, 10, 0}},
+			{Point: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 10, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 10, Y: 10, Z: 0}},
+			{Point: types.Vec3{X: 0, Y: 10, Z: 0}},
 			// Quad 2
-			{Point: [3]float32{20, 0, 0}},
-			{Point: [3]float32{30, 0, 0}},
-			{Point: [3]float32{30, 10, 0}},
-			{Point: [3]float32{20, 10, 0}},
+			{Point: types.Vec3{X: 20, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 30, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 30, Y: 10, Z: 0}},
+			{Point: types.Vec3{X: 20, Y: 10, Z: 0}},
 		},
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{0, 0, 1}, Dist: 0},
-			{Normal: [3]float32{0, 0, 1}, Dist: 0},
+			{Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0},
+			{Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0},
 		},
 	}
 
@@ -754,12 +755,12 @@ func TestUploadWorld(t *testing.T) {
 		},
 		Surfedges: []int32{0, 1, 2},
 		Vertexes: []bsp.DVertex{
-			{Point: [3]float32{0, 0, 0}},
-			{Point: [3]float32{10, 0, 0}},
-			{Point: [3]float32{5, 10, 0}},
+			{Point: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 10, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 5, Y: 10, Z: 0}},
 		},
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{0, 0, 1}, Dist: 0},
+			{Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0},
 		},
 	}
 
@@ -829,7 +830,7 @@ func TestQbj2StartWaterVisibility(t *testing.T) {
 	if err != nil {
 		t.Skipf("qbj2 start.bsp not found: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	tree, err := bsp.LoadTree(f)
 	testutil.AssertNoError(t, err)
@@ -837,7 +838,7 @@ func TestQbj2StartWaterVisibility(t *testing.T) {
 	geom, err := BuildWorldGeometry(tree)
 	testutil.AssertNoError(t, err)
 
-	spawnPos := [3]float32{-256.0, -2576.0, -2120.0}
+	spawnPos := types.Vec3{X: -256.0, Y: -2576.0, Z: -2120.0}
 	visibleFaces := selectVisibleWorldFaces(geom.Tree, geom.Faces, geom.LeafFaces, spawnPos)
 	t.Logf("Total faces: %d, Visible faces at spawn %v: %d", len(geom.Faces), spawnPos, len(visibleFaces))
 

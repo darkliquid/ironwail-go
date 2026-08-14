@@ -3,6 +3,8 @@ package qc
 import (
 	"math"
 	"testing"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestSetGlobalIntegerValueUsesQuakeCGlobalType(t *testing.T) {
@@ -412,14 +414,14 @@ func TestExecuteProgramOPReturnCopiesThreeSlotsToOFSReturn(t *testing.T) {
 	}
 
 	vm.SetGInt(calleeRefOfs, calleeFuncNum)
-	vm.SetGVector(returnVecOfs, [3]float32{11, 22, 33})
-	vm.SetGVector(OFSReturn, [3]float32{-1, -2, -3}) // stale seed; must be replaced
+	vm.SetGVector(returnVecOfs, types.Vec3{X: 11, Y: 22, Z: 33})
+	vm.SetGVector(OFSReturn, types.Vec3{X: -1, Y: -2, Z: -3}) // stale seed; must be replaced
 
 	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
 		t.Fatalf("ExecuteProgram() error = %v", err)
 	}
 
-	if got := vm.GVector(OFSReturn); got != [3]float32{11, 22, 33} {
+	if got := vm.GVector(OFSReturn); got != (types.Vec3{X: 11, Y: 22, Z: 33}) {
 		t.Fatalf("OFSReturn vector = %v, want [11 22 33]", got)
 	}
 }

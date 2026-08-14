@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/engine/arena"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func validateLumpRecordSize(context string, data []byte, recordSize int) error {
@@ -120,10 +121,10 @@ func (f *File) loadPlanes(r *Reader, ar *arena.Arena) error {
 	for i := 0; i < count; i++ {
 		offset := i * dPlaneSize
 		f.Planes[i] = DPlane{
-			Normal: [3]float32{
-				Float32frombits(binary.LittleEndian.Uint32(data[offset:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+4:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+8:])),
+			Normal: types.Vec3{
+				X: Float32frombits(binary.LittleEndian.Uint32(data[offset:])),
+				Y: Float32frombits(binary.LittleEndian.Uint32(data[offset+4:])),
+				Z: Float32frombits(binary.LittleEndian.Uint32(data[offset+8:])),
 			},
 			Dist: Float32frombits(binary.LittleEndian.Uint32(data[offset+12:])),
 			Type: int32(binary.LittleEndian.Uint32(data[offset+16:])),
@@ -152,10 +153,10 @@ func (f *File) loadVertexes(r *Reader, ar *arena.Arena) error {
 	for i := 0; i < count; i++ {
 		offset := i * dVertexSize
 		f.Vertexes[i] = DVertex{
-			Point: [3]float32{
-				Float32frombits(binary.LittleEndian.Uint32(data[offset:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+4:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+8:])),
+			Point: types.Vec3{
+				X: Float32frombits(binary.LittleEndian.Uint32(data[offset:])),
+				Y: Float32frombits(binary.LittleEndian.Uint32(data[offset+4:])),
+				Z: Float32frombits(binary.LittleEndian.Uint32(data[offset+8:])),
 			},
 		}
 	}
@@ -197,15 +198,15 @@ func (f *File) loadNodes(r *Reader, ar *arena.Arena) error {
 						int32(binary.LittleEndian.Uint32(data[offset+4:])),
 						int32(binary.LittleEndian.Uint32(data[offset+8:])),
 					},
-					BoundsMin: [3]float32{
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+12:])),
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+16:])),
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+20:])),
+					BoundsMin: types.Vec3{
+						X: Float32frombits(binary.LittleEndian.Uint32(data[offset+12:])),
+						Y: Float32frombits(binary.LittleEndian.Uint32(data[offset+16:])),
+						Z: Float32frombits(binary.LittleEndian.Uint32(data[offset+20:])),
 					},
-					BoundsMax: [3]float32{
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+24:])),
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+28:])),
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+32:])),
+					BoundsMax: types.Vec3{
+						X: Float32frombits(binary.LittleEndian.Uint32(data[offset+24:])),
+						Y: Float32frombits(binary.LittleEndian.Uint32(data[offset+28:])),
+						Z: Float32frombits(binary.LittleEndian.Uint32(data[offset+32:])),
 					},
 					FirstFace: binary.LittleEndian.Uint32(data[offset+36:]),
 					NumFaces:  binary.LittleEndian.Uint32(data[offset+40:]),
@@ -440,15 +441,15 @@ func (f *File) loadLeafs(r *Reader, ar *arena.Arena) error {
 				leafs[i] = DL2Leaf{
 					Contents: int32(binary.LittleEndian.Uint32(data[offset:])),
 					VisOfs:   int32(binary.LittleEndian.Uint32(data[offset+4:])),
-					BoundsMin: [3]float32{
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+8:])),
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+12:])),
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+16:])),
+					BoundsMin: types.Vec3{
+						X: Float32frombits(binary.LittleEndian.Uint32(data[offset+8:])),
+						Y: Float32frombits(binary.LittleEndian.Uint32(data[offset+12:])),
+						Z: Float32frombits(binary.LittleEndian.Uint32(data[offset+16:])),
 					},
-					BoundsMax: [3]float32{
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+20:])),
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+24:])),
-						Float32frombits(binary.LittleEndian.Uint32(data[offset+28:])),
+					BoundsMax: types.Vec3{
+						X: Float32frombits(binary.LittleEndian.Uint32(data[offset+20:])),
+						Y: Float32frombits(binary.LittleEndian.Uint32(data[offset+24:])),
+						Z: Float32frombits(binary.LittleEndian.Uint32(data[offset+28:])),
 					},
 					FirstMarkSurface: binary.LittleEndian.Uint32(data[offset+32:]),
 					NumMarkSurfaces:  binary.LittleEndian.Uint32(data[offset+36:]),
@@ -647,20 +648,20 @@ func (f *File) loadModels(r *Reader, ar *arena.Arena) error {
 	for i := 0; i < count; i++ {
 		offset := i * dModelSize
 		model := DModel{
-			BoundsMin: [3]float32{
-				Float32frombits(binary.LittleEndian.Uint32(data[offset:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+4:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+8:])),
+			BoundsMin: types.Vec3{
+				X: Float32frombits(binary.LittleEndian.Uint32(data[offset:])),
+				Y: Float32frombits(binary.LittleEndian.Uint32(data[offset+4:])),
+				Z: Float32frombits(binary.LittleEndian.Uint32(data[offset+8:])),
 			},
-			BoundsMax: [3]float32{
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+12:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+16:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+20:])),
+			BoundsMax: types.Vec3{
+				X: Float32frombits(binary.LittleEndian.Uint32(data[offset+12:])),
+				Y: Float32frombits(binary.LittleEndian.Uint32(data[offset+16:])),
+				Z: Float32frombits(binary.LittleEndian.Uint32(data[offset+20:])),
 			},
-			Origin: [3]float32{
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+24:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+28:])),
-				Float32frombits(binary.LittleEndian.Uint32(data[offset+32:])),
+			Origin: types.Vec3{
+				X: Float32frombits(binary.LittleEndian.Uint32(data[offset+24:])),
+				Y: Float32frombits(binary.LittleEndian.Uint32(data[offset+28:])),
+				Z: Float32frombits(binary.LittleEndian.Uint32(data[offset+32:])),
 			},
 			VisLeafs:  int32(binary.LittleEndian.Uint32(data[offset+52:])),
 			FirstFace: int32(binary.LittleEndian.Uint32(data[offset+56:])),

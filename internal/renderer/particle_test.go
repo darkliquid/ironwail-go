@@ -8,6 +8,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestParticleSystemCapacityAndAlloc(t *testing.T) {
@@ -64,7 +65,7 @@ func TestRunParticlesCompactsAndUpdates(t *testing.T) {
 	p0.Spawn = -1
 	p0.Type = ParticleFire
 	p0.Ramp = 0
-	p0.Vel = [3]float32{0, 0, 10}
+	p0.Vel = types.Vec3{X: 0, Y: 0, Z: 10}
 
 	p1 := ps.AllocParticle(0.0)
 	p1.Die = -1
@@ -81,15 +82,15 @@ func TestRunParticlesCompactsAndUpdates(t *testing.T) {
 		t.Fatalf("ActiveCount = %d, want 1", ps.ActiveCount())
 	}
 	got := ps.ActiveParticles()[0]
-	if got.Vel[2] <= 10 {
-		t.Fatalf("fire vel.z = %f, want > 10", got.Vel[2])
+	if got.Vel.Z <= 10 {
+		t.Fatalf("fire vel.z = %f, want > 10", got.Vel.Z)
 	}
 }
 
 func TestRunParticleEffectRocketExplosion(t *testing.T) {
 	ps := NewParticleSystem(2048)
 	rng := rand.New(rand.NewSource(1))
-	ps.RunParticleEffect([3]float32{1, 2, 3}, [3]float32{1, 0, 0}, 100, 1024, rng, 5)
+	ps.RunParticleEffect(types.Vec3{X: 1, Y: 2, Z: 3}, types.Vec3{X: 1, Y: 0, Z: 0}, 100, 1024, rng, 5)
 
 	if ps.ActiveCount() != 1024 {
 		t.Fatalf("ActiveCount = %d, want 1024", ps.ActiveCount())
@@ -106,7 +107,7 @@ func TestRunParticleEffectRocketExplosion(t *testing.T) {
 func TestRocketTrailTracerAlternatesVelocity(t *testing.T) {
 	ps := NewParticleSystem(1024)
 	rng := rand.New(rand.NewSource(2))
-	ps.RocketTrail([3]float32{0, 0, 0}, [3]float32{9, 0, 0}, 3, rng, 1)
+	ps.RocketTrail(types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{X: 9, Y: 0, Z: 0}, 3, rng, 1)
 
 	a := ps.ActiveParticles()
 	if len(a) < 2 {
@@ -115,8 +116,8 @@ func TestRocketTrailTracerAlternatesVelocity(t *testing.T) {
 	if a[0].Type != ParticleStatic || a[1].Type != ParticleStatic {
 		t.Fatalf("tracer type mismatch: %d %d", a[0].Type, a[1].Type)
 	}
-	if a[0].Vel[1] == a[1].Vel[1] {
-		t.Fatalf("expected alternating tracer side velocity, got %f and %f", a[0].Vel[1], a[1].Vel[1])
+	if a[0].Vel.Y == a[1].Vel.Y {
+		t.Fatalf("expected alternating tracer side velocity, got %f and %f", a[0].Vel.Y, a[1].Vel.Y)
 	}
 }
 
@@ -124,27 +125,27 @@ func TestRocketTrailTracerAlternatesAcrossCalls(t *testing.T) {
 	ps := NewParticleSystem(1024)
 	rng := rand.New(rand.NewSource(11))
 
-	ps.RocketTrail([3]float32{0, 0, 0}, [3]float32{3, 0, 0}, 3, rng, 1)
+	ps.RocketTrail(types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{X: 3, Y: 0, Z: 0}, 3, rng, 1)
 	first := ps.ActiveParticles()
 	if len(first) != 1 {
 		t.Fatalf("first call particles = %d, want 1", len(first))
 	}
 
-	ps.RocketTrail([3]float32{10, 0, 0}, [3]float32{13, 0, 0}, 3, rng, 1)
+	ps.RocketTrail(types.Vec3{X: 10, Y: 0, Z: 0}, types.Vec3{X: 13, Y: 0, Z: 0}, 3, rng, 1)
 	all := ps.ActiveParticles()
 	if len(all) != 2 {
 		t.Fatalf("total particles = %d, want 2", len(all))
 	}
 
-	if all[0].Vel[1] == all[1].Vel[1] {
-		t.Fatalf("expected alternating tracer side velocity across calls, got %f and %f", all[0].Vel[1], all[1].Vel[1])
+	if all[0].Vel.Y == all[1].Vel.Y {
+		t.Fatalf("expected alternating tracer side velocity across calls, got %f and %f", all[0].Vel.Y, all[1].Vel.Y)
 	}
 }
 
 func TestBlobExplosionAddsBlobParticles(t *testing.T) {
 	ps := NewParticleSystem(2048)
 	rng := rand.New(rand.NewSource(3))
-	ps.BlobExplosion([3]float32{1, 2, 3}, rng, 4)
+	ps.BlobExplosion(types.Vec3{X: 1, Y: 2, Z: 3}, rng, 4)
 
 	if ps.ActiveCount() != 1024 {
 		t.Fatalf("ActiveCount = %d, want 1024", ps.ActiveCount())
@@ -158,7 +159,7 @@ func TestBlobExplosionAddsBlobParticles(t *testing.T) {
 func TestParticleExplosion2UsesColorRange(t *testing.T) {
 	ps := NewParticleSystem(1024)
 	rng := rand.New(rand.NewSource(4))
-	ps.ParticleExplosion2([3]float32{0, 0, 0}, 32, 5, rng, 2)
+	ps.ParticleExplosion2(types.Vec3{X: 0, Y: 0, Z: 0}, 32, 5, rng, 2)
 
 	if ps.ActiveCount() != 512 {
 		t.Fatalf("ActiveCount = %d, want 512", ps.ActiveCount())
@@ -176,12 +177,12 @@ func TestParticleExplosion2UsesColorRange(t *testing.T) {
 func TestSplashEffectsAddExpectedCounts(t *testing.T) {
 	ps := NewParticleSystem(4096)
 	rng := rand.New(rand.NewSource(5))
-	ps.LavaSplash([3]float32{0, 0, 0}, rng, 1)
+	ps.LavaSplash(types.Vec3{X: 0, Y: 0, Z: 0}, rng, 1)
 	if ps.ActiveCount() != 1024 {
 		t.Fatalf("LavaSplash count = %d, want 1024", ps.ActiveCount())
 	}
 	ps.Clear()
-	ps.TeleportSplash([3]float32{0, 0, 0}, rng, 1)
+	ps.TeleportSplash(types.Vec3{X: 0, Y: 0, Z: 0}, rng, 1)
 	if ps.ActiveCount() != 896 {
 		t.Fatalf("TeleportSplash count = %d, want 896", ps.ActiveCount())
 	}
@@ -191,7 +192,7 @@ func TestBuildParticleVertices(t *testing.T) {
 	palette := [256][4]byte{}
 	palette[3] = [4]byte{10, 20, 30, 40}
 
-	verts := BuildParticleVertices([]Particle{{Org: [3]float32{1, 2, 3}, Color: 3}}, palette, false)
+	verts := BuildParticleVertices([]Particle{{Org: types.Vec3{X: 1, Y: 2, Z: 3}, Color: 3}}, palette, false)
 	if len(verts) != 1 {
 		t.Fatalf("len = %d, want 1", len(verts))
 	}
@@ -199,7 +200,7 @@ func TestBuildParticleVertices(t *testing.T) {
 		t.Fatalf("color = %v, want [10 20 30 40]", verts[0].Color)
 	}
 
-	verts = BuildParticleVertices([]Particle{{Org: [3]float32{1, 2, 3}, Color: 3}}, palette, true)
+	verts = BuildParticleVertices([]Particle{{Org: types.Vec3{X: 1, Y: 2, Z: 3}, Color: 3}}, palette, true)
 	if verts[0].Color != [4]byte{255, 255, 255, 255} {
 		t.Fatalf("showtris color = %v, want white", verts[0].Color)
 	}
@@ -210,7 +211,7 @@ func TestParticleVertexPtr(t *testing.T) {
 		t.Fatalf("particleVertexPtr(nil) = %v, want nil", ptr)
 	}
 
-	verts := []ParticleVertex{{Pos: [3]float32{1, 2, 3}, Color: [4]byte{4, 5, 6, 7}}}
+	verts := []ParticleVertex{{Pos: types.Vec3{X: 1, Y: 2, Z: 3}, Color: [4]byte{4, 5, 6, 7}}}
 	if ptr := particleVertexPtr(verts); ptr != unsafe.Pointer(&verts[0]) {
 		t.Fatalf("particleVertexPtr returned %v, want %v", ptr, unsafe.Pointer(&verts[0]))
 	}
@@ -238,7 +239,7 @@ func TestEmitDynamicLightsHonorsRDynamicGate(t *testing.T) {
 	EmitDynamicLights(func(DynamicLight) bool {
 		spawned++
 		return true
-	}, []client.TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{1, 2, 3}}})
+	}, []client.TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: types.Vec3{X: 1, Y: 2, Z: 3}}})
 
 	if spawned != 0 {
 		t.Fatalf("spawned lights = %d, want 0 when r_dynamic=0", spawned)
@@ -250,16 +251,16 @@ func TestEvaluateDynamicLightsAtPointHonorsRDynamicGate(t *testing.T) {
 		testCV.Register(CvarRDynamic, "1", cvar.FlagArchive, "")
 	}
 	lights := []DynamicLight{{
-		Position:   [3]float32{0, 0, 0},
+		Position:   types.Vec3{X: 0, Y: 0, Z: 0},
 		Radius:     100,
-		Color:      [3]float32{1, 1, 1},
+		Color:      types.Vec3{X: 1, Y: 1, Z: 1},
 		Brightness: 1,
 		Lifetime:   1,
 	}}
 
 	testCV.Set(CvarRDynamic, "1")
-	on := evaluateDynamicLightsAtPoint(lights, [3]float32{0, 0, 0})
-	if on == [3]float32{} {
+	on := evaluateDynamicLightsAtPoint(lights, types.Vec3{X: 0, Y: 0, Z: 0})
+	if on == (types.Vec3{}) {
 		t.Fatalf("expected non-zero contribution when r_dynamic=1")
 	}
 
@@ -267,8 +268,8 @@ func TestEvaluateDynamicLightsAtPointHonorsRDynamicGate(t *testing.T) {
 	t.Cleanup(func() {
 		testCV.Set(CvarRDynamic, "1")
 	})
-	off := evaluateDynamicLightsAtPoint(lights, [3]float32{0, 0, 0})
-	if off != ([3]float32{}) {
+	off := evaluateDynamicLightsAtPoint(lights, types.Vec3{X: 0, Y: 0, Z: 0})
+	if off != (types.Vec3{}) {
 		t.Fatalf("contribution when r_dynamic=0 = %v, want zero", off)
 	}
 }

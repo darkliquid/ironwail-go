@@ -8,6 +8,7 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	srvnet "github.com/darkliquid/ironwail-go/internal/server/net"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func (s *Server) writeSpawnSnapshot(client *Client) {
@@ -23,14 +24,18 @@ func (s *Server) writeSpawnSnapshot(client *Client) {
 	s.writeSpawnGlobalStats(client, client.Message)
 	s.writeSpawnSetAngle(client, client.Message)
 	s.WriteClientDataToMessage(client.Edict, client.Message)
-	if s.SkyboxName != "" {
-		// External skyboxes are renderer state, but in Go's real client/server
-		// split the client must receive the worldspawn sky name over the protocol.
-		client.Message.PutByte(byte(inet.SVCSkyBox))
-		client.Message.WriteString(s.SkyboxName)
-	}
+	s.writeSpawnSkybox(client, client.Message)
 	client.Message.PutByte(byte(inet.SVCSignOnNum))
 	client.Message.PutByte(3)
+}
+
+func (s *Server) writeSpawnSkybox(_ *Client, msg *MessageBuffer) {
+	if s.SkyboxName != "" && msg != nil {
+		// External skyboxes are renderer state, but in Go's real client/server
+		// split the client must receive the worldspawn sky name over the protocol.
+		msg.PutByte(byte(inet.SVCSkyBox))
+		msg.WriteString(s.SkyboxName)
+	}
 }
 
 func (s *Server) writeSpawnClientRoster(_ *Client, msg *MessageBuffer) {
@@ -107,12 +112,12 @@ func (s *Server) initClientSpawnFallback(client *Client) error {
 	ent.SetDeadFlag(s, 0)
 	ent.SetMoveType(s, float32(MoveTypeWalk))
 	ent.SetSolid(s, float32(SolidSlideBox))
-	ent.SetViewOfs(s, [3]float32{0, 0, ViewHeight})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
-	ent.SetSize(s, [3]float32{32, 32, 56})
-	ent.SetVelocity(s, [3]float32{})
-	ent.SetAVelocity(s, [3]float32{})
+	ent.SetViewOfs(s, qtypes.Vec3{Z: ViewHeight})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
+	ent.SetSize(s, qtypes.Vec3{X: 32, Y: 32, Z: 56})
+	ent.SetVelocity(s, qtypes.Vec3{})
+	ent.SetAVelocity(s, qtypes.Vec3{})
 	ent.SetFixAngle(s, 1)
 
 	if spawn := s.findLocalSpawnPoint(); spawn != nil {
@@ -125,8 +130,8 @@ func (s *Server) initClientSpawnFallback(client *Client) error {
 	entOrigin := ent.Origin(s)
 	entMins := ent.Mins(s)
 	entMaxs := ent.Maxs(s)
-	ent.SetAbsMin(s, [3]float32{entOrigin[0] + entMins[0], entOrigin[1] + entMins[1], entOrigin[2] + entMins[2]})
-	ent.SetAbsMax(s, [3]float32{entOrigin[0] + entMaxs[0], entOrigin[1] + entMaxs[1], entOrigin[2] + entMaxs[2]})
+	ent.SetAbsMin(s, entOrigin.Add(entMins))
+	ent.SetAbsMax(s, entOrigin.Add(entMaxs))
 
 	if client.Name == "" {
 		client.Name = "player"
@@ -315,7 +320,7 @@ func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
 	return nil
 }
 
-func (s *Server) SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward, side, up float32, buttons, impulse int, sentTime float64) error {
+func (s *Server) SubmitLoopbackCmd(clientNum int, viewAngles qtypes.Vec3, forward, side, up float32, buttons, impulse int, sentTime float64) error {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return fmt.Errorf("invalid client number %d", clientNum)
 	}

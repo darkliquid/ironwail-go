@@ -51,6 +51,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // ProgHeaderCRC is the expected CRC checksum for the original Quake progs.dat.
@@ -430,8 +431,8 @@ func (vm *VM) GInt(o int) int32 {
 
 // GVector returns a 3-component vector global by offset.
 // Vectors occupy 3 consecutive global slots.
-func (vm *VM) GVector(o int) [3]float32 {
-	return [3]float32{vm.Globals[o], vm.Globals[o+1], vm.Globals[o+2]}
+func (vm *VM) GVector(o int) types.Vec3 {
+	return types.Vec3{X: vm.Globals[o], Y: vm.Globals[o+1], Z: vm.Globals[o+2]}
 }
 
 // GString returns a string global value by offset.
@@ -467,10 +468,10 @@ func (vm *VM) SetGInt(o int, v int32) {
 
 // SetGVector sets a 3-component vector global by offset.
 // Vectors occupy 3 consecutive global slots.
-func (vm *VM) SetGVector(o int, v [3]float32) {
-	vm.Globals[o] = v[0]
-	vm.Globals[o+1] = v[1]
-	vm.Globals[o+2] = v[2]
+func (vm *VM) SetGVector(o int, v types.Vec3) {
+	vm.Globals[o] = v.X
+	vm.Globals[o+1] = v.Y
+	vm.Globals[o+2] = v.Z
 }
 
 // SetGString sets a string global value by offset.

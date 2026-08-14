@@ -303,10 +303,10 @@ func (s *SoftwareRenderer) DrawBSPWorld(tree *bsp.Tree) {
 	worldModel := tree.Models[0]
 
 	// World bounding box in XY (top-down view)
-	minX := worldModel.BoundsMin[0]
-	maxX := worldModel.BoundsMax[0]
-	minY := worldModel.BoundsMin[1]
-	maxY := worldModel.BoundsMax[1]
+	minX := worldModel.BoundsMin.X
+	maxX := worldModel.BoundsMax.X
+	minY := worldModel.BoundsMin.Y
+	maxY := worldModel.BoundsMax.Y
 
 	rangeX := maxX - minX
 	rangeY := maxY - minY
@@ -384,7 +384,7 @@ func (s *SoftwareRenderer) bspFaceVerts2D(tree *bsp.Tree, face *bsp.TreeFace, pr
 			continue
 		}
 		v := tree.Vertexes[vertIdx].Point
-		verts = append(verts, project(v[0], v[1]))
+		verts = append(verts, project(v.X, v.Y))
 	}
 	return verts
 }
@@ -397,9 +397,9 @@ func (s *SoftwareRenderer) bspFaceColor(tree *bsp.Tree, face *bsp.TreeFace) (r, 
 	}
 	n := tree.Planes[face.PlaneNum].Normal
 	if face.Side != 0 {
-		n[0], n[1], n[2] = -n[0], -n[1], -n[2]
+		n.X, n.Y, n.Z = -n.X, -n.Y, -n.Z
 	}
-	nz := n[2]
+	nz := n.Z
 	absNZ := nz
 	if absNZ < 0 {
 		absNZ = -absNZ
@@ -411,7 +411,7 @@ func (s *SoftwareRenderer) bspFaceColor(tree *bsp.Tree, face *bsp.TreeFace) (r, 
 		return 50, 45, 35 // ceiling – dark
 	}
 	// Wall: lighter toward X-facing, darker toward Y-facing
-	absNX := n[0]
+	absNX := n.X
 	if absNX < 0 {
 		absNX = -absNX
 	}

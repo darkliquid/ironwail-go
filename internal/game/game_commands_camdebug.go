@@ -6,6 +6,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type camDebugFaceHit struct {
@@ -13,10 +14,10 @@ type camDebugFaceHit struct {
 	modelIndex   int
 	entIndex     int
 	distance     float32
-	hitPos       [3]float32
+	hitPos       types.Vec3
 	planeIndex   int32
 	planeSide    int32
-	planeNormal  [3]float32
+	planeNormal  types.Vec3
 	planeDist    float32
 	texinfoIdx   int32
 	texName      string
@@ -32,7 +33,7 @@ type camDebugFaceHit struct {
 	hitU, hitV   float64
 }
 
-func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit, bool) {
+func (g *Game) traceCrosshairFace(origin, forward types.Vec3) (*camDebugFaceHit, bool) {
 	if g.Server == nil || g.Server.WorldTree == nil {
 		return nil, false
 	}
@@ -45,18 +46,14 @@ func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit,
 	var bestHit camDebugFaceHit
 	found := false
 
-	var vertBuf [64][3]float32
+	var vertBuf [64]types.Vec3
 
-	traceModelFaces := func(modelIdx int, entIdx int, firstFace, numFaces int32, entOrigin [3]float32) {
+	traceModelFaces := func(modelIdx int, entIdx int, firstFace, numFaces int32, entOrigin types.Vec3) {
 		if firstFace < 0 || firstFace+numFaces > int32(len(tree.Faces)) {
 			return
 		}
 
-		localOrigin := [3]float32{
-			origin[0] - entOrigin[0],
-			origin[1] - entOrigin[1],
-			origin[2] - entOrigin[2],
-		}
+		localOrigin := origin.Sub(entOrigin)
 
 		for i := firstFace; i < firstFace+numFaces; i++ {
 			face := &tree.Faces[i]
@@ -68,25 +65,25 @@ func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit,
 			normal := plane.Normal
 			dist := plane.Dist
 			if face.Side != 0 {
-				normal = [3]float32{-normal[0], -normal[1], -normal[2]}
+				normal = types.Vec3{X: -normal.X, Y: -normal.Y, Z: -normal.Z}
 				dist = -dist
 			}
 
-			denom := normal[0]*forward[0] + normal[1]*forward[1] + normal[2]*forward[2]
+			denom := normal.X*forward.X + normal.Y*forward.Y + normal.Z*forward.Z
 			if denom >= -1e-6 {
 				continue
 			}
 
-			startDot := localOrigin[0]*normal[0] + localOrigin[1]*normal[1] + localOrigin[2]*normal[2]
+			startDot := localOrigin.X*normal.X + localOrigin.Y*normal.Y + localOrigin.Z*normal.Z
 			t := (dist - startDot) / denom
 			if t < 0 || t >= bestDist {
 				continue
 			}
 
-			localHit := [3]float32{
-				localOrigin[0] + t*forward[0],
-				localOrigin[1] + t*forward[1],
-				localOrigin[2] + t*forward[2],
+			localHit := types.Vec3{
+				X: localOrigin.X + t*forward.X,
+				Y: localOrigin.Y + t*forward.Y,
+				Z: localOrigin.Z + t*forward.Z,
 			}
 
 			numVerts := int(face.NumEdges)
@@ -94,11 +91,11 @@ func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit,
 				continue
 			}
 
-			var verts [][3]float32
+			var verts []types.Vec3
 			if numVerts <= len(vertBuf) {
 				verts = vertBuf[:numVerts]
 			} else {
-				verts = make([][3]float32, numVerts)
+				verts = make([]types.Vec3, numVerts)
 			}
 
 			validVerts := true
@@ -139,14 +136,14 @@ func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit,
 				v0 := verts[j]
 				v1 := verts[(j+1)%numVerts]
 
-				ex, ey, ez := v1[0]-v0[0], v1[1]-v0[1], v1[2]-v0[2]
-				px, py, pz := localHit[0]-v0[0], localHit[1]-v0[1], localHit[2]-v0[2]
+				ex, ey, ez := v1.X-v0.X, v1.Y-v0.Y, v1.Z-v0.Z
+				px, py, pz := localHit.X-v0.X, localHit.Y-v0.Y, localHit.Z-v0.Z
 
 				cx := ey*pz - ez*py
 				cy := ez*px - ex*pz
 				cz := ex*py - ey*px
 
-				dot := cx*normal[0] + cy*normal[1] + cz*normal[2]
+				dot := cx*normal.X + cy*normal.Y + cz*normal.Z
 				if dot > 0.05 {
 					posCount++
 				} else if dot < -0.05 {
@@ -166,11 +163,7 @@ func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit,
 			bestDist = t
 			found = true
 
-			worldHit := [3]float32{
-				localHit[0] + entOrigin[0],
-				localHit[1] + entOrigin[1],
-				localHit[2] + entOrigin[2],
-			}
+			worldHit := localHit.Add(entOrigin)
 
 			hit := camDebugFaceHit{
 				faceIndex:   int(i),
@@ -192,8 +185,8 @@ func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit,
 			if int(face.Texinfo) >= 0 && int(face.Texinfo) < len(tree.Texinfo) {
 				ti := &tree.Texinfo[face.Texinfo]
 				hit.texFlags = ti.Flags
-				hit.hitU = float64(localHit[0])*float64(ti.Vecs[0][0]) + float64(localHit[1])*float64(ti.Vecs[0][1]) + float64(localHit[2])*float64(ti.Vecs[0][2]) + float64(ti.Vecs[0][3])
-				hit.hitV = float64(localHit[0])*float64(ti.Vecs[1][0]) + float64(localHit[1])*float64(ti.Vecs[1][1]) + float64(localHit[2])*float64(ti.Vecs[1][2]) + float64(ti.Vecs[1][3])
+				hit.hitU = float64(localHit.X)*float64(ti.Vecs[0][0]) + float64(localHit.Y)*float64(ti.Vecs[0][1]) + float64(localHit.Z)*float64(ti.Vecs[0][2]) + float64(ti.Vecs[0][3])
+				hit.hitV = float64(localHit.X)*float64(ti.Vecs[1][0]) + float64(localHit.Y)*float64(ti.Vecs[1][1]) + float64(localHit.Z)*float64(ti.Vecs[1][2]) + float64(ti.Vecs[1][3])
 
 				if len(tree.TextureData) >= 4 {
 					textureCount := int(binary.LittleEndian.Uint32(tree.TextureData[:4]))
@@ -222,7 +215,7 @@ func (g *Game) traceCrosshairFace(origin, forward [3]float32) (*camDebugFaceHit,
 
 	if len(tree.Models) > 0 {
 		worldModel := &tree.Models[0]
-		traceModelFaces(0, 0, worldModel.FirstFace, worldModel.NumFaces, [3]float32{0, 0, 0})
+		traceModelFaces(0, 0, worldModel.FirstFace, worldModel.NumFaces, types.Vec3{})
 	}
 
 	if g.Server != nil && g.Server.Edicts != nil {

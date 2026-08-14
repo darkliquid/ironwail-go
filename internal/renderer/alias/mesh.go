@@ -5,6 +5,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type MeshRef struct {
@@ -73,17 +74,13 @@ func MeshFromConvertibleRefs[R MeshRefConvertible](poses [][]model.TriVertX, ref
 	}
 }
 
-func InterpolateVertexPosition(pose1Vert, pose2Vert model.TriVertX, scale, origin [3]float32, factor float32) [3]float32 {
+func InterpolateVertexPosition(pose1Vert, pose2Vert model.TriVertX, scale, origin qtypes.Vec3, factor float32) qtypes.Vec3 {
 	pos1 := model.DecodeVertex(pose1Vert, scale, origin)
 	pos2 := model.DecodeVertex(pose2Vert, scale, origin)
-	return [3]float32{
-		pos1[0] + (pos2[0]-pos1[0])*factor,
-		pos1[1] + (pos2[1]-pos1[1])*factor,
-		pos1[2] + (pos2[2]-pos1[2])*factor,
-	}
+	return pos1.Add(pos2.Sub(pos1).Scale(factor))
 }
 
-func BuildVertices(mesh Mesh, hdr *model.AliasHeader, poseIndex int, origin, angles [3]float32, fullAngles bool) []worldimpl.WorldVertex {
+func BuildVertices(mesh Mesh, hdr *model.AliasHeader, poseIndex int, origin, angles qtypes.Vec3, fullAngles bool) []worldimpl.WorldVertex {
 	return BuildVerticesInterpolated(mesh, hdr, poseIndex, poseIndex, 0, origin, angles, 1, fullAngles)
 }
 
@@ -134,11 +131,11 @@ func SetupFrameInterpolation(frameIndex int, frames []FrameDesc, timeSeconds flo
 	return result
 }
 
-func BuildVerticesInterpolated(mesh Mesh, hdr *model.AliasHeader, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []worldimpl.WorldVertex {
+func BuildVerticesInterpolated(mesh Mesh, hdr *model.AliasHeader, pose1Index, pose2Index int, blend float32, origin, angles qtypes.Vec3, entityScale float32, fullAngles bool) []worldimpl.WorldVertex {
 	return BuildVerticesInterpolatedInto(nil, mesh, hdr, pose1Index, pose2Index, blend, origin, angles, entityScale, fullAngles)
 }
 
-func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *model.AliasHeader, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []worldimpl.WorldVertex {
+func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *model.AliasHeader, pose1Index, pose2Index int, blend float32, origin, angles qtypes.Vec3, entityScale float32, fullAngles bool) []worldimpl.WorldVertex {
 	if hdr == nil || (mesh.RefAt == nil && mesh.Refs == nil) {
 		return nil
 	}
@@ -158,15 +155,15 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 	}
 
 	// Pre-compute rotation ONCE per entity draw call instead of per vertex
-	useYawOnly := !fullAngles || (angles[0] == 0 && angles[2] == 0)
+	useYawOnly := !fullAngles || (angles.X == 0 && angles.Z == 0)
 	var (
 		sinYaw, cosYaw float32
 		rotMat         [9]float32
 	)
 
 	if useYawOnly {
-		if angles[1] != 0 {
-			yaw := float32(math.Pi) * angles[1] / 180.0
+		if angles.Y != 0 {
+			yaw := float32(math.Pi) * angles.Y / 180.0
 			sinYaw = float32(math.Sin(float64(yaw)))
 			cosYaw = float32(math.Cos(float64(yaw)))
 		} else {
@@ -200,13 +197,13 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 		var px, py, pz float32
 		if blend > 0 {
 			v2 := pose2[ref.VertexIndex]
-			px = (v1x+(float32(v2.V[0])-v1x)*blend)*scale[0] + scaleOrigin[0]
-			py = (v1y+(float32(v2.V[1])-v1y)*blend)*scale[1] + scaleOrigin[1]
-			pz = (v1z+(float32(v2.V[2])-v1z)*blend)*scale[2] + scaleOrigin[2]
+			px = (v1x+(float32(v2.V[0])-v1x)*blend)*scale.X + scaleOrigin.X
+			py = (v1y+(float32(v2.V[1])-v1y)*blend)*scale.Y + scaleOrigin.Y
+			pz = (v1z+(float32(v2.V[2])-v1z)*blend)*scale.Z + scaleOrigin.Z
 		} else {
-			px = v1x*scale[0] + scaleOrigin[0]
-			py = v1y*scale[1] + scaleOrigin[1]
-			pz = v1z*scale[2] + scaleOrigin[2]
+			px = v1x*scale.X + scaleOrigin.X
+			py = v1y*scale.Y + scaleOrigin.Y
+			pz = v1z*scale.Z + scaleOrigin.Z
 		}
 
 		if entityScale != 1.0 {
@@ -218,21 +215,21 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 		normal := model.GetNormal(v1.LightNormalIndex)
 		var nx, ny, nz float32
 		if useYawOnly {
-			if angles[1] != 0 {
+			if angles.Y != 0 {
 				rpx := px*cosYaw - py*sinYaw
 				rpy := px*sinYaw + py*cosYaw
 				px = rpx
 				py = rpy
 
-				rnx := normal[0]*cosYaw - normal[1]*sinYaw
-				rny := normal[0]*sinYaw + normal[1]*cosYaw
+				rnx := normal.X*cosYaw - normal.Y*sinYaw
+				rny := normal.X*sinYaw + normal.Y*cosYaw
 				nx = rnx
 				ny = rny
-				nz = normal[2]
+				nz = normal.Z
 			} else {
-				nx = normal[0]
-				ny = normal[1]
-				nz = normal[2]
+				nx = normal.X
+				ny = normal.Y
+				nz = normal.Z
 			}
 		} else {
 			rpx := rotMat[0]*px + rotMat[1]*py + rotMat[2]*pz
@@ -242,29 +239,29 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 			py = rpy
 			pz = rpz
 
-			nx = rotMat[0]*normal[0] + rotMat[1]*normal[1] + rotMat[2]*normal[2]
-			ny = rotMat[3]*normal[0] + rotMat[4]*normal[1] + rotMat[5]*normal[2]
-			nz = rotMat[6]*normal[0] + rotMat[7]*normal[1] + rotMat[8]*normal[2]
+			nx = rotMat[0]*normal.X + rotMat[1]*normal.Y + rotMat[2]*normal.Z
+			ny = rotMat[3]*normal.X + rotMat[4]*normal.Y + rotMat[5]*normal.Z
+			nz = rotMat[6]*normal.X + rotMat[7]*normal.Y + rotMat[8]*normal.Z
 		}
 
-		px += origin[0]
-		py += origin[1]
-		pz += origin[2]
+		px += origin.X
+		py += origin.Y
+		pz += origin.Z
 
 		vertices = append(vertices, worldimpl.WorldVertex{
-			Position:      [3]float32{px, py, pz},
+			Position:      qtypes.Vec3{X: px, Y: py, Z: pz},
 			TexCoord:      ref.TexCoord,
 			LightmapCoord: [2]float32{},
-			Normal:        [3]float32{nx, ny, nz},
+			Normal:        qtypes.Vec3{X: nx, Y: ny, Z: nz},
 		})
 	}
 	return vertices
 }
 
-func entityRotationMatrix(angles [3]float32) [9]float32 {
-	pitch := float32(math.Pi) * angles[0] / 180.0
-	yaw := float32(math.Pi) * angles[1] / 180.0
-	roll := float32(math.Pi) * angles[2] / 180.0
+func entityRotationMatrix(angles qtypes.Vec3) [9]float32 {
+	pitch := float32(math.Pi) * angles.X / 180.0
+	yaw := float32(math.Pi) * angles.Y / 180.0
+	roll := float32(math.Pi) * angles.Z / 180.0
 
 	sp := float32(math.Sin(float64(pitch)))
 	cp := float32(math.Cos(float64(pitch)))
@@ -296,24 +293,24 @@ func entityRotationMatrix(angles [3]float32) [9]float32 {
 // previous ordering (yaw → pitch → roll) composed the inverse matrix and
 // produced visibly wrong viewmodel orientation whenever both yaw and pitch
 // were nonzero (e.g. looking up/down after having turned away from yaw=0).
-func RotateAngles(v [3]float32, angles [3]float32) [3]float32 {
-	v = RotateRoll(v, angles[2])
-	v = RotatePitch(v, angles[0])
-	v = RotateYaw(v, angles[1])
+func RotateAngles(v qtypes.Vec3, angles qtypes.Vec3) qtypes.Vec3 {
+	v = RotateRoll(v, angles.Z)
+	v = RotatePitch(v, angles.X)
+	v = RotateYaw(v, angles.Y)
 	return v
 }
 
-func RotateYaw(v [3]float32, yawDegrees float32) [3]float32 {
+func RotateYaw(v qtypes.Vec3, yawDegrees float32) qtypes.Vec3 {
 	if yawDegrees == 0 {
 		return v
 	}
 	yaw := float32(math.Pi) * yawDegrees / 180.0
 	sinYaw := float32(math.Sin(float64(yaw)))
 	cosYaw := float32(math.Cos(float64(yaw)))
-	return [3]float32{
-		v[0]*cosYaw - v[1]*sinYaw,
-		v[0]*sinYaw + v[1]*cosYaw,
-		v[2],
+	return qtypes.Vec3{
+		X: v.X*cosYaw - v.Y*sinYaw,
+		Y: v.X*sinYaw + v.Y*cosYaw,
+		Z: v.Z,
 	}
 }
 
@@ -321,7 +318,7 @@ func RotateYaw(v [3]float32, yawDegrees float32) [3]float32 {
 // convention (glRotatef(-angles[PITCH], 0, 1, 0)). With Quake's axes
 // (X=forward, Y=left, Z=up), a positive network-angle pitch tilts the nose
 // DOWN, so we rotate world-space forward vectors by -pitch about Y.
-func RotatePitch(v [3]float32, pitchDegrees float32) [3]float32 {
+func RotatePitch(v qtypes.Vec3, pitchDegrees float32) qtypes.Vec3 {
 	if pitchDegrees == 0 {
 		return v
 	}
@@ -331,16 +328,16 @@ func RotatePitch(v [3]float32, pitchDegrees float32) [3]float32 {
 	// Rotation about Y by angle -pitch: applied to (x,y,z):
 	//   x' = x*cos(-p) + z*sin(-p) =  x*c - z*s
 	//   z' = -x*sin(-p) + z*cos(-p) = x*s + z*c
-	return [3]float32{
-		v[0]*c - v[2]*s,
-		v[1],
-		v[0]*s + v[2]*c,
+	return qtypes.Vec3{
+		X: v.X*c - v.Z*s,
+		Y: v.Y,
+		Z: v.X*s + v.Z*c,
 	}
 }
 
 // RotateRoll rotates v about the X axis by rollDegrees, matching Quake's
 // convention (glRotatef(angles[ROLL], 1, 0, 0)).
-func RotateRoll(v [3]float32, rollDegrees float32) [3]float32 {
+func RotateRoll(v qtypes.Vec3, rollDegrees float32) qtypes.Vec3 {
 	if rollDegrees == 0 {
 		return v
 	}
@@ -350,9 +347,9 @@ func RotateRoll(v [3]float32, rollDegrees float32) [3]float32 {
 	// Rotation about X by roll: applied to (x,y,z):
 	//   y' = y*c - z*s
 	//   z' = y*s + z*c
-	return [3]float32{
-		v[0],
-		v[1]*c - v[2]*s,
-		v[1]*s + v[2]*c,
+	return qtypes.Vec3{
+		X: v.X,
+		Y: v.Y*c - v.Z*s,
+		Z: v.Y*s + v.Z*c,
 	}
 }

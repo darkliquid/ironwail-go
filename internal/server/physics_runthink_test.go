@@ -10,6 +10,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestRunThinkTelemetry tests telemetry for entity \"think\" functions.
@@ -437,7 +438,7 @@ func TestPhysicsPusherSyncsThirdPartyPusherStateBackFromQCVM(t *testing.T) {
 	var targetNum int
 	const mutateBuiltinOfs = 10
 	vm.Builtins[1] = func(vm *qc.VM) {
-		vm.SetEVector(targetNum, qc.EntFieldVelocity, [3]float32{0, 100, 0})
+		vm.SetEVector(targetNum, qc.EntFieldVelocity, qtypes.Vec3{X: 0, Y: 100, Z: 0})
 		vm.SetEFloat(targetNum, qc.EntFieldNextThink, 0.5)
 		vm.SetEInt(targetNum, qc.EntFieldThink, 7)
 	}
@@ -465,7 +466,7 @@ func TestPhysicsPusherSyncsThirdPartyPusherStateBackFromQCVM(t *testing.T) {
 
 	s.PhysicsPusher(e1)
 
-	if got := target.Velocity(s); got != [3]float32{0, 100, 0} {
+	if got := target.Velocity(s); got != (qtypes.Vec3{X: 0, Y: 100, Z: 0}) {
 		t.Fatalf("target velocity = %v, want [0 100 0]", got)
 	}
 	if got := target.NextThink(s); got != 0.5 {
@@ -504,10 +505,10 @@ func TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM(t *testing.T) {
 		spawnedNum = int(vm.GInt(qc.OFSReturn))
 		vm.SetEFloat(spawnedNum, qc.EntFieldSolid, float32(SolidTrigger))
 		vm.SetEInt(spawnedNum, qc.EntFieldTouch, 99)
-		vm.SetEVector(spawnedNum, qc.EntFieldOrigin, [3]float32{64, 0, 0})
-		vm.SetEVector(spawnedNum, qc.EntFieldMins, [3]float32{-8, -8, -8})
-		vm.SetEVector(spawnedNum, qc.EntFieldMaxs, [3]float32{8, 8, 8})
-		vm.SetEVector(spawnedNum, qc.EntFieldSize, [3]float32{16, 16, 16})
+		vm.SetEVector(spawnedNum, qc.EntFieldOrigin, qtypes.Vec3{X: 64, Y: 0, Z: 0})
+		vm.SetEVector(spawnedNum, qc.EntFieldMins, qtypes.Vec3{X: -8, Y: -8, Z: -8})
+		vm.SetEVector(spawnedNum, qc.EntFieldMaxs, qtypes.Vec3{X: 8, Y: 8, Z: 8})
+		vm.SetEVector(spawnedNum, qc.EntFieldSize, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	}
 	vm.Functions = []qc.DFunction{
 		{},
@@ -572,7 +573,7 @@ func TestPushMoveBlockedSyncsMutatedPusherFromQCVM(t *testing.T) {
 	const mutateBlockedBuiltinOfs = 10
 	vm.Builtins[1] = func(vm *qc.VM) {
 		self := int(vm.GInt(qc.OFSSelf))
-		vm.SetEVector(self, qc.EntFieldVelocity, [3]float32{0, 0, 200})
+		vm.SetEVector(self, qc.EntFieldVelocity, qtypes.Vec3{X: 0, Y: 0, Z: 200})
 	}
 	vm.Functions = []qc.DFunction{
 		{},
@@ -590,10 +591,10 @@ func TestPushMoveBlockedSyncsMutatedPusherFromQCVM(t *testing.T) {
 	}
 	pusher.SetMoveType(s, float32(MoveTypePush))
 	pusher.SetSolid(s, float32(SolidBSP))
-	pusher.SetVelocity(s, [3]float32{0, 0, 64})
-	pusher.SetOrigin(s, [3]float32{0, 0, 0})
-	pusher.SetMins(s, [3]float32{-64, -64, -8})
-	pusher.SetMaxs(s, [3]float32{64, 64, 8})
+	pusher.SetVelocity(s, qtypes.Vec3{X: 0, Y: 0, Z: 64})
+	pusher.SetOrigin(s, qtypes.Vec3{})
+	pusher.SetMins(s, qtypes.Vec3{X: -64, Y: -64, Z: -8})
+	pusher.SetMaxs(s, qtypes.Vec3{X: 64, Y: 64, Z: 8})
 	pusher.SetBlocked(s, 1)
 	s.LinkEdict(pusher, false)
 
@@ -603,16 +604,16 @@ func TestPushMoveBlockedSyncsMutatedPusherFromQCVM(t *testing.T) {
 	}
 	blocker.SetMoveType(s, float32(MoveTypeWalk))
 	blocker.SetSolid(s, float32(SolidSlideBox))
-	blocker.SetOrigin(s, [3]float32{0, 0, 24})
-	blocker.SetMins(s, [3]float32{-16, -16, -24})
-	blocker.SetMaxs(s, [3]float32{16, 16, 32})
+	blocker.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	blocker.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	blocker.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	s.LinkEdict(blocker, false)
 
 	vm.NumEdicts = s.NumEdicts
 
 	s.PushMove(pusher, s.FrameTime)
 
-	if got := pusher.Velocity(s); got != [3]float32{0, 0, 200} {
+	if got := pusher.Velocity(s); got != (qtypes.Vec3{X: 0, Y: 0, Z: 200}) {
 		t.Fatalf("pusher velocity = %v, want [0 0 200] after blocked callback", got)
 	}
 }
@@ -648,7 +649,7 @@ func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
 	e2.SetSolid(s, float32(SolidBSP))
 	pusher := s.AllocEdict()
 	pusher.SetMoveType(s, float32(MoveTypePush))
-	pusher.SetOrigin(s, [3]float32{32, 0, 0})
+	pusher.SetOrigin(s, qtypes.Vec3{X: 32, Y: 0, Z: 0})
 	pusher.SetLTime(s, 0.3)
 	pusher.SetNextThink(s, 0.6)
 	s.Edicts = append(s.Edicts, e1, e2, pusher)
@@ -657,7 +658,7 @@ func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
 
 	s.Impact(e1, e2)
 
-	if got := pusher.Origin(s); got != [3]float32{32, 0, 0} {
+	if got := pusher.Origin(s); got != (qtypes.Vec3{X: 32, Y: 0, Z: 0}) {
 		t.Fatalf("pusher origin = %v, want [32 0 0]", got)
 	}
 	if got := pusher.LTime(s); got != 0.3 {
@@ -691,7 +692,7 @@ func TestImpactSyncsPusherMutationsFromQCVM(t *testing.T) {
 	const setPusherVelocityBuiltinOfs = 10
 	vm.Builtins[1] = func(vm *qc.VM) {
 		pusherNum := 3
-		vm.SetEVector(pusherNum, qc.EntFieldVelocity, [3]float32{0, 0, -100})
+		vm.SetEVector(pusherNum, qc.EntFieldVelocity, qtypes.Vec3{X: 0, Y: 0, Z: -100})
 		vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 1.5)
 		vm.SetEInt(pusherNum, qc.EntFieldThink, 42)
 	}
@@ -712,7 +713,7 @@ func TestImpactSyncsPusherMutationsFromQCVM(t *testing.T) {
 	e2.SetSolid(s, float32(SolidBSP))
 	pusher := s.AllocEdict()
 	pusher.SetMoveType(s, float32(MoveTypePush))
-	pusher.SetOrigin(s, [3]float32{32, 0, 0})
+	pusher.SetOrigin(s, qtypes.Vec3{X: 32, Y: 0, Z: 0})
 	pusher.SetLTime(s, 0.3)
 	s.Edicts = append(s.Edicts, e1, e2, pusher)
 	s.NumEdicts = len(s.Edicts)
@@ -720,14 +721,14 @@ func TestImpactSyncsPusherMutationsFromQCVM(t *testing.T) {
 
 	// Initialize pusher QCVM fields to zero so mutations are detectable
 	pusherNum := s.NumForEdict(pusher)
-	vm.SetEVector(pusherNum, qc.EntFieldVelocity, [3]float32{0, 0, 0})
+	vm.SetEVector(pusherNum, qc.EntFieldVelocity, qtypes.Vec3{})
 	vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 0)
 	vm.SetEInt(pusherNum, qc.EntFieldThink, 0)
 
 	s.Impact(e1, e2)
 
 	// After Impact, the pusher's mutated fields should be synced back to Go
-	if got := pusher.Velocity(s); got != [3]float32{0, 0, -100} {
+	if got := pusher.Velocity(s); got != (qtypes.Vec3{X: 0, Y: 0, Z: -100}) {
 		t.Fatalf("pusher velocity = %v, want [0 0 -100]", got)
 	}
 	if got := pusher.NextThink(s); got != 1.5 {
@@ -761,7 +762,7 @@ func TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink(t *testing.T) {
 	const setPusherVelocityBuiltinOfs = 10
 	vm.Builtins[1] = func(vm *qc.VM) {
 		pusherNum := 2
-		vm.SetEVector(pusherNum, qc.EntFieldVelocity, [3]float32{0, 0, -600})
+		vm.SetEVector(pusherNum, qc.EntFieldVelocity, qtypes.Vec3{X: 0, Y: 0, Z: -600})
 		vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 7.78)
 		vm.SetEInt(pusherNum, qc.EntFieldThink, 99)
 	}
@@ -784,7 +785,7 @@ func TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink(t *testing.T) {
 	// Entity 2: pusher (e.g. func_train)
 	pusher := s.AllocEdict()
 	pusher.SetMoveType(s, float32(MoveTypePush))
-	pusher.SetOrigin(s, [3]float32{100, 200, 300})
+	pusher.SetOrigin(s, qtypes.Vec3{X: 100, Y: 200, Z: 300})
 	pusher.SetLTime(s, 0.1)
 
 	s.Edicts = append(s.Edicts, thinker, pusher)
@@ -793,7 +794,7 @@ func TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink(t *testing.T) {
 
 	// Initialize pusher QCVM fields to zero so mutations are detectable
 	pusherNum := s.NumForEdict(pusher)
-	vm.SetEVector(pusherNum, qc.EntFieldVelocity, [3]float32{0, 0, 0})
+	vm.SetEVector(pusherNum, qc.EntFieldVelocity, qtypes.Vec3{})
 	vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 0)
 	vm.SetEInt(pusherNum, qc.EntFieldThink, 0)
 
@@ -809,7 +810,7 @@ func TestExecuteQCFunctionSyncsPusherMutationsFromNonPusherThink(t *testing.T) {
 
 	// After executeQCFunction, the pusher's mutated fields should be synced
 	// back to Go so PhysicsPusher can move it on subsequent frames.
-	if got := pusher.Velocity(s); got != [3]float32{0, 0, -600} {
+	if got := pusher.Velocity(s); got != (qtypes.Vec3{X: 0, Y: 0, Z: -600}) {
 		t.Fatalf("pusher velocity = %v, want [0 0 -600]", got)
 	}
 	if got := pusher.NextThink(s); got != 7.78 {

@@ -14,6 +14,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // drainClientMessages consumes all pending loopback messages for the given
@@ -174,10 +175,10 @@ func TestMultiplayerDeathmatchClientsFightEachOther(t *testing.T) {
 	// Forcibly position BotB 96 units in front of BotA so the two headless
 	// bots are at close but distinct positions regardless of map spawn layout.
 	origin0 := cl0.Edict.Origin(s)
-	cl1.Edict.SetOrigin(s, [3]float32{
-		origin0[0] + 96,
-		origin0[1],
-		origin0[2],
+	cl1.Edict.SetOrigin(s, qtypes.Vec3{
+		X: origin0.X + 96,
+		Y: origin0.Y,
+		Z: origin0.Z,
 	})
 	s.LinkEdict(cl1.Edict, true)
 
@@ -192,8 +193,8 @@ func TestMultiplayerDeathmatchClientsFightEachOther(t *testing.T) {
 	for i := 0; i < combatFrames; i++ {
 		// Compute yaw from BotA to BotB and vice-versa each frame so aiming
 		// tracks movement after respawns and physics drift.
-		dx0 := cl1.Edict.Origin(s)[0] - cl0.Edict.Origin(s)[0]
-		dy0 := cl1.Edict.Origin(s)[1] - cl0.Edict.Origin(s)[1]
+		dx0 := cl1.Edict.Origin(s).X - cl0.Edict.Origin(s).X
+		dy0 := cl1.Edict.Origin(s).Y - cl0.Edict.Origin(s).Y
 		yaw0 := float32(math.Atan2(float64(dy0), float64(dx0)) * 180.0 / math.Pi)
 
 		dx1 := -dx0
@@ -201,8 +202,8 @@ func TestMultiplayerDeathmatchClientsFightEachOther(t *testing.T) {
 		yaw1 := float32(math.Atan2(float64(dy1), float64(dx1)) * 180.0 / math.Pi)
 
 		// buttons=1 → IN_ATTACK held; impulse=0 keeps whatever weapon QC gave.
-		_ = s.SubmitLoopbackCmd(0, [3]float32{0, yaw0, 0}, 0, 0, 0, 1, 0, float64(s.Time))
-		_ = s.SubmitLoopbackCmd(1, [3]float32{0, yaw1, 0}, 0, 0, 0, 1, 0, float64(s.Time))
+		_ = s.SubmitLoopbackCmd(0, qtypes.Vec3{X: 0, Y: yaw0, Z: 0}, 0, 0, 0, 1, 0, float64(s.Time))
+		_ = s.SubmitLoopbackCmd(1, qtypes.Vec3{X: 0, Y: yaw1, Z: 0}, 0, 0, 0, 1, 0, float64(s.Time))
 
 		if err := s.Frame(frameTime); err != nil {
 			t.Fatalf("combat frame %d: %v", i, err)

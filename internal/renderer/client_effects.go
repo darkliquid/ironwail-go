@@ -15,7 +15,7 @@ func EmitClientEffects(ps *ParticleSystem, particleEvents []cl.ParticleEvent, tr
 		return
 	}
 
-	var zero [3]float32
+	var zero qtypes.Vec3
 	for _, event := range particleEvents {
 		if event.Count <= 0 {
 			continue
@@ -61,8 +61,8 @@ func DrawParticles2D(dc RenderContext, ps *ParticleSystem) {
 	}
 
 	for _, p := range ps.ActiveParticles() {
-		x := int(p.Org[0])
-		y := int(p.Org[1])
+		x := int(p.Org.X)
+		y := int(p.Org.Y)
 		dc.DrawFill(x-2, y-2, 4, 4, p.Color)
 	}
 }
@@ -94,7 +94,7 @@ func EmitDynamicLights(spawn func(DynamicLight) bool, tempEntities []cl.TempEnti
 			spawn(DynamicLight{
 				Position:   event.Origin,
 				Radius:     320,
-				Color:      [3]float32{1.0, 0.55, 0.2},
+				Color:      qtypes.Vec3{X: 1.0, Y: 0.55, Z: 0.2},
 				Brightness: 1.8,
 				Lifetime:   0.55,
 			})
@@ -130,7 +130,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 			spawn(DynamicLight{
 				Position:   muzzleFlashLightOrigin(entity),
 				Radius:     216,
-				Color:      [3]float32{1.0, 0.82, 0.45},
+				Color:      qtypes.Vec3{X: 1.0, Y: 0.82, Z: 0.45},
 				Brightness: 1.1,
 				MinLight:   32,
 				Lifetime:   0.1,
@@ -141,7 +141,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 			spawn(DynamicLight{
 				Position:   base,
 				Radius:     416,
-				Color:      [3]float32{1.0, 1.0, 0.95},
+				Color:      qtypes.Vec3{X: 1.0, Y: 1.0, Z: 0.95},
 				Brightness: 1.25,
 				Lifetime:   0.001,
 				EntityKey:  key,
@@ -152,7 +152,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 			spawn(DynamicLight{
 				Position:   entity.Origin,
 				Radius:     216,
-				Color:      [3]float32{0.7, 0.8, 1.0},
+				Color:      qtypes.Vec3{X: 0.7, Y: 0.8, Z: 1.0},
 				Brightness: 0.9,
 				Lifetime:   0.001,
 				EntityKey:  key,
@@ -162,7 +162,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 			spawn(DynamicLight{
 				Position:   entity.Origin,
 				Radius:     200,
-				Color:      [3]float32{0.9, 0.6, 0.3},
+				Color:      qtypes.Vec3{X: 0.9, Y: 0.6, Z: 0.3},
 				Brightness: 1.0,
 				Lifetime:   0.001,
 				EntityKey:  key,
@@ -172,7 +172,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 			spawn(DynamicLight{
 				Position:   base,
 				Radius:     216,
-				Color:      [3]float32{0.25, 0.25, 1.0},
+				Color:      qtypes.Vec3{X: 0.25, Y: 0.25, Z: 1.0},
 				Brightness: 0.9,
 				Lifetime:   0.001,
 				EntityKey:  key,
@@ -182,7 +182,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 			spawn(DynamicLight{
 				Position:   base,
 				Radius:     216,
-				Color:      [3]float32{1.0, 0.25, 0.25},
+				Color:      qtypes.Vec3{X: 1.0, Y: 0.25, Z: 0.25},
 				Brightness: 0.9,
 				Lifetime:   0.001,
 				EntityKey:  key,
@@ -192,7 +192,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 			spawn(DynamicLight{
 				Position:   entity.Origin,
 				Radius:     160,
-				Color:      [3]float32{1.0, 0.75, 0.2},
+				Color:      qtypes.Vec3{X: 1.0, Y: 0.75, Z: 0.2},
 				Brightness: 0.8,
 				Lifetime:   0.001,
 				EntityKey:  key,
@@ -202,23 +202,16 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 }
 
 // entityEffectLightOrigin derives a stable light-emission origin for dynamic lights attached to entities.
-func entityEffectLightOrigin(origin [3]float32) [3]float32 {
-	origin[2] += 16
+func entityEffectLightOrigin(origin qtypes.Vec3) qtypes.Vec3 {
+	origin.Z += 16
 	return origin
 }
 
 // muzzleFlashLightOrigin offsets muzzle-light position toward weapon muzzle so flashes appear physically attached to firing points.
-func muzzleFlashLightOrigin(entity EntityEffectSource) [3]float32 {
+func muzzleFlashLightOrigin(entity EntityEffectSource) qtypes.Vec3 {
 	origin := entityEffectLightOrigin(entity.Origin)
-	forward, _, _ := qtypes.AngleVectors(qtypes.Vec3{
-		X: entity.Angles[0],
-		Y: entity.Angles[1],
-		Z: entity.Angles[2],
-	})
-	origin[0] += forward.X * 18
-	origin[1] += forward.Y * 18
-	origin[2] += forward.Z * 18
-	return origin
+	forward, _, _ := qtypes.AngleVectors(entity.Angles)
+	return origin.Add(forward.Scale(18))
 }
 
 func dynamicLightsEnabled() bool {

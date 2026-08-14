@@ -12,12 +12,12 @@ const (
 	diNoDir  = -1
 )
 
-func (s *Server) SV_Move(start, mins, maxs, end [3]float32, moveType MoveType, passedict *Edict) TraceResult {
+func (s *Server) SV_Move(start, mins, maxs, end types.Vec3, moveType MoveType, passedict *Edict) TraceResult {
 	return s.Move(start, mins, maxs, end, moveType, passedict)
 }
 
-func (s *Server) SV_HullForEntity(ent *Edict, mins, maxs [3]float32) (*model.Hull, [3]float32) {
-	var offset [3]float32
+func (s *Server) SV_HullForEntity(ent *Edict, mins, maxs types.Vec3) (*model.Hull, types.Vec3) {
+	var offset types.Vec3
 	h := s.hullForEntity(ent, mins, maxs, &offset)
 	return h, offset
 }
@@ -60,7 +60,7 @@ func ResetCheckBottomStats() {
 	checkBottomNo = 0
 }
 
-func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
+func (s *Server) MoveStep(ent *Edict, move types.Vec3, relink bool) bool {
 	s.ensurePhysicsSys()
 	return s.PhysicsSys.MoveStep(ent, move, relink)
 }
@@ -76,7 +76,7 @@ func (s *Server) MoveToGoal(ent *Edict, dist float32) bool {
 }
 
 func (s *Server) changeYaw(ent *Edict) {
-	current := types.AngleMod(ent.Angles(s)[1])
+	current := types.AngleMod(ent.Angles(s).Y)
 	ideal := ent.IdealYaw(s)
 	speed := ent.YawSpeed(s)
 
@@ -102,7 +102,7 @@ func (s *Server) changeYaw(ent *Edict) {
 	}
 
 	angles := ent.Angles(s)
-	angles[1] = types.AngleMod(current + move)
+	angles.Y = types.AngleMod(current + move)
 	ent.SetAngles(s, angles)
 }
 
@@ -111,10 +111,10 @@ func (s *Server) CloseEnough(ent, goal *Edict, dist float32) bool {
 	entAbsMax := ent.AbsMax(s)
 	goalAbsMin := goal.AbsMin(s)
 	goalAbsMax := goal.AbsMax(s)
-	for i := 0; i < 3; i++ {
-		if goalAbsMin[i] > entAbsMax[i]+dist || goalAbsMax[i] < entAbsMin[i]-dist {
-			return false
-		}
+	if goalAbsMin.X > entAbsMax.X+dist || goalAbsMax.X < entAbsMin.X-dist ||
+		goalAbsMin.Y > entAbsMax.Y+dist || goalAbsMax.Y < entAbsMin.Y-dist ||
+		goalAbsMin.Z > entAbsMax.Z+dist || goalAbsMax.Z < entAbsMin.Z-dist {
+		return false
 	}
 	return true
 }

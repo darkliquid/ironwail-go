@@ -335,14 +335,14 @@ func particleVertexBytes(vertices []ParticleVertex) []byte {
 	return out
 }
 
-func particleUniformBytes(vp types.Mat4, projScale [2]float32, uvScale float32, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32) []byte {
+func particleUniformBytes(vp types.Mat4, projScale [2]float32, uvScale float32, cameraOrigin [3]float32, fogColor types.Vec3, fogDensity float32) []byte {
 	data := make([]byte, particleUniformBufferSize)
 	copy(data[:64], matrixToBytes(vp))
 	putFloat32s(data[64:72], projScale[:])
 	binary.LittleEndian.PutUint32(data[72:76], math.Float32bits(uvScale))
 	putFloat32s(data[80:92], cameraOrigin[:])
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(worldFogUniformDensity(fogDensity)))
-	putFloat32s(data[96:108], fogColor[:])
+	putFloat32s(data[96:108], fogColor.Slice())
 	return data
 }
 

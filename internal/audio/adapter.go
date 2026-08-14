@@ -9,6 +9,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // AudioAdapter wraps audio.System to implement host.Audio interface
@@ -66,7 +67,7 @@ func (a *AudioAdapter) Init() error {
 	return nil
 }
 
-func (a *AudioAdapter) Update(origin, velocity, forward, right, up [3]float32) {
+func (a *AudioAdapter) Update(origin, velocity, forward, right, up types.Vec3) {
 	if a.sys != nil {
 		a.sys.Update(origin, velocity, forward, right, up)
 	}
@@ -106,14 +107,14 @@ func (a *AudioAdapter) PrecacheSound(name string, loader func() ([]byte, error))
 	return a.sys.PrecacheSound(name, loader)
 }
 
-func (a *AudioAdapter) StartSound(entNum, entChannel int, sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
+func (a *AudioAdapter) StartSound(entNum, entChannel int, sfx *SFX, origin, velocity types.Vec3, vol, attenuation float32) {
 	if a == nil || a.sys == nil {
 		return
 	}
 	a.sys.StartSound(entNum, entChannel, sfx, origin, velocity, vol, attenuation)
 }
 
-func (a *AudioAdapter) StartStaticSound(sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
+func (a *AudioAdapter) StartStaticSound(sfx *SFX, origin, velocity types.Vec3, vol, attenuation float32) {
 	if a == nil || a.sys == nil {
 		return
 	}
@@ -127,7 +128,7 @@ func (a *AudioAdapter) ClearStaticSounds() {
 	a.sys.ClearStaticSounds()
 }
 
-func (a *AudioAdapter) SetListener(origin, velocity, forward, right, up [3]float32) {
+func (a *AudioAdapter) SetListener(origin, velocity, forward, right, up types.Vec3) {
 	if a == nil || a.sys == nil {
 		return
 	}
@@ -219,7 +220,7 @@ func (a *AudioAdapter) PlayLocalSound(name string, loader func() ([]byte, error)
 	if sfx == nil || sfx.Cache == nil {
 		return fmt.Errorf("failed to load sound %q", name)
 	}
-	a.sys.StartSound(a.sys.ViewEntity(), -1, sfx, [3]float32{}, [3]float32{}, vol, 1.0)
+	a.sys.StartSound(a.sys.ViewEntity(), -1, sfx, types.Vec3{}, types.Vec3{}, vol, 1.0)
 	return nil
 }
 

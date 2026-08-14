@@ -12,6 +12,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestCmdSaveArgsPrintsUsageWithoutName(t *testing.T) {
@@ -560,7 +561,7 @@ func TestCmdStopWritesDisconnectTrailer(t *testing.T) {
 	h := NewHost()
 	console := &mockConsole{}
 	lc := newLocalLoopbackClient()
-	lc.inner.ViewAngles = [3]float32{11, 22, 33}
+	lc.inner.ViewAngles = types.Vec3{X: 11, Y: 22, Z: 33}
 	subs := &Subsystems{
 		Client:  lc,
 		Console: console,
@@ -736,7 +737,7 @@ func TestCmdTimedemoEnablesTimeDemoPlayback(t *testing.T) {
 	if err := recorder.StartDemoRecording("timedemo_cmd", 0); err != nil {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame failed: %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {
@@ -821,7 +822,7 @@ func TestStopDemoPlaybackClearsClientStateAndSounds(t *testing.T) {
 	}
 }
 
-func TestCmdRewindSeeksBackwardFromCurrentFrame(t *testing.T) {
+func TestCmdRewindRewindsDemoPlaybackFrame(t *testing.T) {
 	oldWD, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd failed: %v", err)
@@ -839,7 +840,7 @@ func TestCmdRewindSeeksBackwardFromCurrentFrame(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 	for i := 0; i < 3; i++ {
-		if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{float32(i), 0, 0}); err != nil {
+		if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{X: float32(i), Y: 0, Z: 0}); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
 	}
@@ -895,7 +896,7 @@ func TestCmdDemoSeekRejectsFrameEqualToFrameCount(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 	for i := 0; i < 2; i++ {
-		if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{float32(i), 0, 0}); err != nil {
+		if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{X: float32(i), Y: 0, Z: 0}); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
 	}

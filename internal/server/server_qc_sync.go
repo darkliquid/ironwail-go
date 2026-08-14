@@ -159,7 +159,7 @@ func (s *Server) newCheckClient() int {
 	if s.WorldTree != nil && len(s.WorldTree.Nodes) > 0 {
 		org := client.Edict.Origin(s)
 		viewOfs := client.Edict.ViewOfs(s)
-		org = [3]float32{org[0] + viewOfs[0], org[1] + viewOfs[1], org[2] + viewOfs[2]}
+		org = org.Add(viewOfs)
 		if leaf := s.WorldTree.PointInLeaf(org); leaf != nil {
 			s.checkClientPVS = append(s.checkClientPVS[:0], s.WorldTree.LeafPVS(leaf)...)
 		}

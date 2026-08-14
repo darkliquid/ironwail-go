@@ -1,6 +1,10 @@
 package client
 
-import "math"
+import (
+	"math"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 // PredictPlayers updates the predicted player position and velocity based on
 // accumulated input commands. This provides client-side movement prediction
@@ -20,19 +24,19 @@ import "math"
 //
 // The prediction is framerate-independent and uses simplified physics
 // (no collision detection). Full collision-aware prediction is future work.
-func (c *Client) resetLocalTeleportPrediction(origin [3]float32) {
+func (c *Client) resetLocalTeleportPrediction(origin types.Vec3) {
 	if c == nil {
 		return
 	}
 	c.LastServerOrigin = origin
 	c.PredictedOrigin = origin
-	c.PredictionError = [3]float32{}
+	c.PredictionError = types.Vec3{}
 	c.PredictionValid = false
 	c.PredictionEntityNum = 0
 	c.PredictionFrameTime = 0
-	c.Velocity = [3]float32{}
-	c.MVelocity = [2][3]float32{}
-	c.PredictedVelocity = [3]float32{}
+	c.Velocity = types.Vec3{}
+	c.MVelocity = [2]types.Vec3{}
+	c.PredictedVelocity = types.Vec3{}
 	c.CommandCount = 0
 }
 
@@ -76,7 +80,7 @@ func (c *Client) PredictPlayers(frametime float32) {
 	telemetry.ServerBaseVelocity = c.Velocity
 
 	// On first run or server update, initialize prediction state
-	if c.LastServerOrigin == [3]float32{} {
+	if c.LastServerOrigin == (types.Vec3{}) {
 		c.LastServerOrigin = ent.Origin
 		c.PredictedOrigin = ent.Origin
 		c.PredictedVelocity = c.Velocity
@@ -86,11 +90,7 @@ func (c *Client) PredictPlayers(frametime float32) {
 	// Check if server sent a new update (origin changed)
 	if ent.Origin != c.LastServerOrigin {
 		// Calculate prediction error (where we predicted vs where server says we are)
-		c.PredictionError = [3]float32{
-			ent.Origin[0] - c.PredictedOrigin[0],
-			ent.Origin[1] - c.PredictedOrigin[1],
-			ent.Origin[2] - c.PredictedOrigin[2],
-		}
+		c.PredictionError = ent.Origin.Sub(c.PredictedOrigin)
 
 		// Update last known server position
 		telemetry.ServerBaseChanged = true
@@ -99,21 +99,17 @@ func (c *Client) PredictPlayers(frametime float32) {
 	telemetry.CommandCountAfterAck = c.CommandCount
 
 	// Keep prediction error as a decaying telemetry/guard signal.
-	if c.PredictionError != [3]float32{} {
+	if c.PredictionError != (types.Vec3{}) {
 		errorLerpSpeed := c.PredictionErrorLerp * frametime * 60.0 // Scale for 60fps baseline
 		if errorLerpSpeed > 1.0 {
 			errorLerpSpeed = 1.0
 		}
 
-		c.PredictionError[0] *= (1.0 - errorLerpSpeed)
-		c.PredictionError[1] *= (1.0 - errorLerpSpeed)
-		c.PredictionError[2] *= (1.0 - errorLerpSpeed)
+		c.PredictionError = c.PredictionError.Scale(1.0 - errorLerpSpeed)
 
 		// Clear error if very small
-		if absFloat32(c.PredictionError[0]) < 0.001 &&
-			absFloat32(c.PredictionError[1]) < 0.001 &&
-			absFloat32(c.PredictionError[2]) < 0.001 {
-			c.PredictionError = [3]float32{}
+		if c.PredictionError.LenSq() < 0.000001 {
+			c.PredictionError = types.Vec3{}
 		}
 	}
 	commands := c.bufferedCommands()
@@ -182,76 +178,69 @@ func (c *Client) predictMovement(cmd *UserCmd, frametime float32) {
 	// and roll from velocity. Keep water movement on raw view angles to match
 	// the server's water movement path.
 	angles := c.predictionMovementAngles(cmd.ViewAngles)
-	forward, right, _ := angleVectorsQuake(angles)
+	forward, right, _ := types.AngleVectors(angles)
 
 	if c.OnGround {
 		applyGroundFriction(&c.PredictedVelocity, c.PredictionFriction, c.PredictionStopSpeed, frametime)
 	}
 
-	wishVel := [2]float32{
-		forward[0]*cmd.Forward + right[0]*cmd.Side,
-		forward[1]*cmd.Forward + right[1]*cmd.Side,
-	}
-	wishSpeed := sqrtFloat32(wishVel[0]*wishVel[0] + wishVel[1]*wishVel[1])
+	wishVelX := forward.X*cmd.Forward + right.X*cmd.Side
+	wishVelY := forward.Y*cmd.Forward + right.Y*cmd.Side
+	wishSpeed := sqrtFloat32(wishVelX*wishVelX + wishVelY*wishVelY)
 	if wishSpeed > 0 {
-		wishDir := [2]float32{wishVel[0] / wishSpeed, wishVel[1] / wishSpeed}
+		wishDirX := wishVelX / wishSpeed
+		wishDirY := wishVelY / wishSpeed
 		if wishSpeed > c.PredictionMaxSpeed {
 			wishSpeed = c.PredictionMaxSpeed
 		}
-		currentSpeed := c.PredictedVelocity[0]*wishDir[0] + c.PredictedVelocity[1]*wishDir[1]
+		currentSpeed := c.PredictedVelocity.X*wishDirX + c.PredictedVelocity.Y*wishDirY
 		addSpeed := wishSpeed - currentSpeed
 		if addSpeed > 0 {
 			accelSpeed := c.PredictionAccel * frametime * wishSpeed
 			if accelSpeed > addSpeed {
 				accelSpeed = addSpeed
 			}
-			c.PredictedVelocity[0] += wishDir[0] * accelSpeed
-			c.PredictedVelocity[1] += wishDir[1] * accelSpeed
+			c.PredictedVelocity.X += wishDirX * accelSpeed
+			c.PredictedVelocity.Y += wishDirY * accelSpeed
 		}
 	}
 
 	if cmd.Up != 0 {
-		c.PredictedVelocity[2] += cmd.Up * c.PredictionAccel * frametime
+		c.PredictedVelocity.Z += cmd.Up * c.PredictionAccel * frametime
 	}
 	if !c.OnGround {
-		c.PredictedVelocity[2] -= c.PredictionGravity * frametime
+		c.PredictedVelocity.Z -= c.PredictionGravity * frametime
 	}
 
 	// Update position
-	c.PredictedOrigin[0] += c.PredictedVelocity[0] * frametime
-	c.PredictedOrigin[1] += c.PredictedVelocity[1] * frametime
-	c.PredictedOrigin[2] += c.PredictedVelocity[2] * frametime
+	c.PredictedOrigin = c.PredictedOrigin.Add(c.PredictedVelocity.Scale(frametime))
 }
 
-func (c *Client) predictionMovementAngles(viewAngles [3]float32) [3]float32 {
+func (c *Client) predictionMovementAngles(viewAngles types.Vec3) types.Vec3 {
 	if c != nil && c.InWater {
 		return viewAngles
 	}
 
-	punchAngles := [3]float32{}
-	predictedVelocity := [3]float32{}
+	punchAngles := types.Vec3{}
+	predictedVelocity := types.Vec3{}
 	if c != nil {
 		punchAngles = c.PunchAngle
 		predictedVelocity = c.PredictedVelocity
 	}
 
-	vAngle := [3]float32{
-		viewAngles[0] + punchAngles[0],
-		viewAngles[1] + punchAngles[1],
-		viewAngles[2] + punchAngles[2],
+	vAngle := viewAngles.Add(punchAngles)
+	angles := types.Vec3{
+		X: -vAngle.X / 3,
+		Y: vAngle.Y,
 	}
-	angles := [3]float32{
-		-vAngle[0] / 3,
-		vAngle[1],
-	}
-	angles[2] = predictionCalcRoll(angles, predictedVelocity) * 4
+	angles.Z = predictionCalcRoll(angles, predictedVelocity) * 4
 	return angles
 }
 
-func predictionCalcRoll(angles, velocity [3]float32) float32 {
-	_, right, _ := angleVectorsQuake(angles)
+func predictionCalcRoll(angles, velocity types.Vec3) float32 {
+	_, right, _ := types.AngleVectors(angles)
 
-	side := velocity[0]*right[0] + velocity[1]*right[1] + velocity[2]*right[2]
+	side := velocity.Dot(right)
 	sign := float32(1)
 	if side < 0 {
 		sign = -1
@@ -275,11 +264,11 @@ func predictionCalcRoll(angles, velocity [3]float32) float32 {
 	return side * sign
 }
 
-func applyGroundFriction(velocity *[3]float32, friction, stopSpeed, frametime float32) {
+func applyGroundFriction(velocity *types.Vec3, friction, stopSpeed, frametime float32) {
 	if velocity == nil || frametime <= 0 {
 		return
 	}
-	speed := sqrtFloat32(velocity[0]*velocity[0] + velocity[1]*velocity[1])
+	speed := sqrtFloat32(velocity.X*velocity.X + velocity.Y*velocity.Y)
 	if speed <= 0 {
 		return
 	}
@@ -296,68 +285,28 @@ func applyGroundFriction(velocity *[3]float32, friction, stopSpeed, frametime fl
 		return
 	}
 	scale := newSpeed / speed
-	velocity[0] *= scale
-	velocity[1] *= scale
+	velocity.X *= scale
+	velocity.Y *= scale
 }
 
 // GetPredictedOrigin returns the predicted player origin for rendering.
 // This should be used instead of the raw server entity origin to reduce lag.
 // Retains its Get prefix because the Client struct already exposes a
 // PredictedOrigin field; see go-guide.md §2.
-func (c *Client) GetPredictedOrigin() [3]float32 {
+func (c *Client) GetPredictedOrigin() types.Vec3 {
 	if c == nil {
-		return [3]float32{}
+		return types.Vec3{}
 	}
 	return c.PredictedOrigin
 }
 
 // GetPredictedVelocity returns the predicted player velocity.
 // Retains its Get prefix for the same reason as GetPredictedOrigin.
-func (c *Client) GetPredictedVelocity() [3]float32 {
+func (c *Client) GetPredictedVelocity() types.Vec3 {
 	if c == nil {
-		return [3]float32{}
+		return types.Vec3{}
 	}
 	return c.PredictedVelocity
-}
-
-// angleVectorsQuake calculates forward, right, and up vectors from angles.
-// This is a local implementation to avoid circular imports with pkg/types.
-func angleVectorsQuake(angles [3]float32) (forward, right, up [3]float32) {
-	sy := math.Sin(float64(angles[1]) * (math.Pi * 2 / 360))
-	cy := math.Cos(float64(angles[1]) * (math.Pi * 2 / 360))
-	sp := math.Sin(float64(angles[0]) * (math.Pi * 2 / 360))
-	cp := math.Cos(float64(angles[0]) * (math.Pi * 2 / 360))
-	sr := math.Sin(float64(angles[2]) * (math.Pi * 2 / 360))
-	cr := math.Cos(float64(angles[2]) * (math.Pi * 2 / 360))
-
-	forward[0] = float32(cp * cy)
-	forward[1] = float32(cp * sy)
-	forward[2] = float32(-sp)
-
-	right[0] = float32(-1*sr*sp*cy + -1*cr*-sy)
-	right[1] = float32(-1*sr*sp*sy + -1*cr*cy)
-	right[2] = float32(-1 * sr * cp)
-
-	up[0] = float32(cr*sp*cy + -sr*-sy)
-	up[1] = float32(cr*sp*sy + -sr*cy)
-	up[2] = float32(cr * cp)
-	return
-}
-
-// absFloat32 returns the absolute value of a float32.
-func absFloat32(x float32) float32 {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-// maxFloat32 returns the maximum of two float32 values.
-func maxFloat32(a, b float32) float32 {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // sqrtFloat32 is a helper that wraps math.Sqrt for float32.

@@ -2,7 +2,11 @@
 
 package server
 
-import "testing"
+import (
+	"testing"
+
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 // TestMovementAgainstMap loads the start map and runs a set of movement
 // traces and checks that world collisions are detected. This test is a
@@ -20,8 +24,8 @@ func TestMovementAgainstMap(t *testing.T) {
 	// Place a small test move: step forward and ensure MoveStep respects BSP.
 	ent := s.AllocEdict()
 	ent.SetOrigin(s, pos)
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	ent.SetMoveType(s, float32(MoveTypeStep))
 	ent.SetFlags(s, float32(FlagOnGround))
@@ -40,7 +44,7 @@ func TestMovementAgainstMap(t *testing.T) {
 	// Attempt a small MoveStep; on a valid walkable point this should succeed
 	// without changing origin when move is zero and return true for grounded.
 	before := ent.Origin(s)
-	if !s.MoveStep(ent, [3]float32{}, true) {
+	if !s.MoveStep(ent, qtypes.Vec3{}, true) {
 		t.Fatalf("MoveStep failed on stationary grounded entity; %s", diag.String())
 	}
 	if ent.Origin(s) != before {

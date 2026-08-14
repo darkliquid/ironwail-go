@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // LightStyleConfig controls lightstyle animation behavior. These correspond
@@ -57,16 +59,16 @@ func (c *Client) LightStyleValuesWithConfig(cfg LightStyleConfig) [256]float32 {
 }
 
 // CurrentFog evaluates the client's active fog state at the current client clock.
-func (c *Client) CurrentFog() (density float32, color [3]float32) {
+func (c *Client) CurrentFog() (density float32, color types.Vec3) {
 	if c == nil {
-		return 0, [3]float32{}
+		return 0, types.Vec3{}
 	}
 
 	targetDensity := float32(c.FogDensity) / 255
-	targetColor := [3]float32{
-		float32(c.FogColor[0]) / 255,
-		float32(c.FogColor[1]) / 255,
-		float32(c.FogColor[2]) / 255,
+	targetColor := types.Vec3{
+		X: float32(c.FogColor[0]) / 255,
+		Y: float32(c.FogColor[1]) / 255,
+		Z: float32(c.FogColor[2]) / 255,
 	}
 	if c.fogFloatValid {
 		targetDensity = c.FogDensityVal
@@ -76,23 +78,24 @@ func (c *Client) CurrentFog() (density float32, color [3]float32) {
 	if c.fogFadeDone > c.Time && c.fogFadeTime > 0 {
 		f := float32((c.fogFadeDone - c.Time) / float64(c.fogFadeTime))
 		density = f*c.fogOldDensity + (1-f)*targetDensity
-		for i := range color {
-			color[i] = f*c.fogOldColor[i] + (1-f)*targetColor[i]
-		}
+		color = c.fogOldColor.Scale(f).Add(targetColor.Scale(1 - f))
 	} else {
 		density = targetDensity
 		color = targetColor
 	}
 
-	for i := range color {
-		if color[i] < 0 {
-			color[i] = 0
+	clampRound := func(v float32) float32 {
+		if v < 0 {
+			v = 0
 		}
-		if color[i] > 1 {
-			color[i] = 1
+		if v > 1 {
+			v = 1
 		}
-		color[i] = float32(math.Round(float64(color[i]*255))) / 255
+		return float32(math.Round(float64(v*255))) / 255
 	}
+	color.X = clampRound(color.X)
+	color.Y = clampRound(color.Y)
+	color.Z = clampRound(color.Z)
 	return density, color
 }
 
@@ -106,10 +109,10 @@ func (c *Client) SetFogState(density byte, color [3]byte, time float32) {
 	c.FogDensity = density
 	c.FogColor = color
 	c.FogDensityVal = float32(density) / 255
-	c.FogColorVal = [3]float32{
-		float32(color[0]) / 255,
-		float32(color[1]) / 255,
-		float32(color[2]) / 255,
+	c.FogColorVal = types.Vec3{
+		X: float32(color[0]) / 255,
+		Y: float32(color[1]) / 255,
+		Z: float32(color[2]) / 255,
 	}
 	c.fogFloatValid = false
 	c.FogTime = time
@@ -118,7 +121,7 @@ func (c *Client) SetFogState(density byte, color [3]byte, time float32) {
 	c.fogConfigured = true
 }
 
-func (c *Client) SetFogStateFloat(density float32, color [3]float32, time float32) {
+func (c *Client) SetFogStateFloat(density float32, color types.Vec3, time float32) {
 	if c == nil {
 		return
 	}
@@ -129,9 +132,9 @@ func (c *Client) SetFogStateFloat(density float32, color [3]float32, time float3
 	c.FogColorVal = color
 	c.FogDensity = fogByteFromFloat(density)
 	c.FogColor = [3]byte{
-		fogByteFromFloat(color[0]),
-		fogByteFromFloat(color[1]),
-		fogByteFromFloat(color[2]),
+		fogByteFromFloat(color.X),
+		fogByteFromFloat(color.Y),
+		fogByteFromFloat(color.Z),
 	}
 	c.fogFloatValid = true
 	c.FogTime = time
@@ -140,17 +143,17 @@ func (c *Client) SetFogStateFloat(density float32, color [3]float32, time float3
 	c.fogConfigured = true
 }
 
-func (c *Client) FogValues() (density float32, color [3]float32) {
+func (c *Client) FogValues() (density float32, color types.Vec3) {
 	if c == nil {
-		return 0, [3]float32{}
+		return 0, types.Vec3{}
 	}
 	if c.fogFloatValid {
 		return c.FogDensityVal, c.FogColorVal
 	}
-	return float32(c.FogDensity) / 255, [3]float32{
-		float32(c.FogColor[0]) / 255,
-		float32(c.FogColor[1]) / 255,
-		float32(c.FogColor[2]) / 255,
+	return float32(c.FogDensity) / 255, types.Vec3{
+		X: float32(c.FogColor[0]) / 255,
+		Y: float32(c.FogColor[1]) / 255,
+		Z: float32(c.FogColor[2]) / 255,
 	}
 }
 
@@ -168,9 +171,9 @@ func (c *Client) ApplyWorldspawnFogDefaults(entities []byte) {
 	c.FogColorVal = color
 	c.FogDensity = fogByteFromFloat(density)
 	c.FogColor = [3]byte{
-		fogByteFromFloat(color[0]),
-		fogByteFromFloat(color[1]),
-		fogByteFromFloat(color[2]),
+		fogByteFromFloat(color.X),
+		fogByteFromFloat(color.Y),
+		fogByteFromFloat(color.Z),
 	}
 	c.fogFloatValid = true
 	c.FogTime = 0
@@ -181,24 +184,24 @@ func (c *Client) ApplyWorldspawnFogDefaults(entities []byte) {
 	c.fogConfigured = true
 }
 
-func worldspawnFogStateFromEntities(entities []byte) (float32, [3]float32, bool) {
+func worldspawnFogStateFromEntities(entities []byte) (float32, types.Vec3, bool) {
 	if len(entities) == 0 {
-		return 0, [3]float32{}, false
+		return 0, types.Vec3{}, false
 	}
 
 	entity, ok := firstEntityLumpObject(string(entities))
 	if !ok {
-		return 0, [3]float32{}, false
+		return 0, types.Vec3{}, false
 	}
 
 	fields := parseEntityFields(entity)
 	if !strings.EqualFold(strings.TrimSpace(fields["classname"]), "worldspawn") {
-		return 0, [3]float32{}, false
+		return 0, types.Vec3{}, false
 	}
 
 	const defaultGray = 0.3
 	density := float32(0)
-	color := [3]float32{defaultGray, defaultGray, defaultGray}
+	color := types.Vec3{X: defaultGray, Y: defaultGray, Z: defaultGray}
 
 	value, ok := fields["fog"]
 	if !ok {
@@ -207,10 +210,10 @@ func worldspawnFogStateFromEntities(entities []byte) (float32, [3]float32, bool)
 	if ok {
 		var parsedDensity, red, green, blue float32
 		parsedDensity = density
-		red, green, blue = color[0], color[1], color[2]
+		red, green, blue = color.X, color.Y, color.Z
 		if n, _ := fmt.Sscanf(value, "%f %f %f %f", &parsedDensity, &red, &green, &blue); n >= 1 {
 			density = parsedDensity
-			color = [3]float32{red, green, blue}
+			color = types.Vec3{X: red, Y: green, Z: blue}
 		}
 	}
 

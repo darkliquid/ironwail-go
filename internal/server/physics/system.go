@@ -3,6 +3,7 @@ package physics
 
 import (
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // System encapsulates physics, collision resolution, and monster movement.
@@ -49,7 +50,7 @@ func (s *System) CheckBottom(ent *srvtypes.Edict) bool {
 }
 
 // MoveStep attempts to step an entity forward in a direction.
-func (s *System) MoveStep(ent *srvtypes.Edict, move [3]float32, relink bool) bool {
+func (s *System) MoveStep(ent *srvtypes.Edict, move qtypes.Vec3, relink bool) bool {
 	return moveStep(s.col, s.store, ent, move, relink, s.sh)
 }
 
@@ -80,7 +81,7 @@ func (s *System) SV_ClientThink(client *srvtypes.Client) {
 
 // CalcRoll computes the view roll from lateral velocity, matching C Ironwail
 // V_CalcRoll (cl_rollangle / cl_rollspeed).
-func (s *System) CalcRoll(angles, velocity [3]float32) float32 {
+func (s *System) CalcRoll(angles, velocity qtypes.Vec3) float32 {
 	if s.facade == nil {
 		return 0
 	}

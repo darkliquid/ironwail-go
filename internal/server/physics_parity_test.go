@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/model"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestPhysicsWalkJump tests walk/jump physics parity.
@@ -17,9 +18,9 @@ func TestPhysicsWalkJump(t *testing.T) {
 	s.Gravity = 800
 
 	ent := s.AllocEdict()
-	ent.SetOrigin(s, [3]float32{0, 0, 0})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, qtypes.Vec3{})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetFlags(s, float32(FlagOnGround))
 	ent.SetMoveType(s, float32(MoveTypeWalk))
 	s.Edicts = append(s.Edicts, ent)
@@ -46,12 +47,12 @@ func TestPhysicsWalkStepUp(t *testing.T) {
 	}
 
 	ent := s.AllocEdict()
-	ent.SetOrigin(s, [3]float32{0, 0, 24})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetFlags(s, float32(FlagOnGround))
 	ent.SetMoveType(s, float32(MoveTypeWalk))
-	ent.SetVelocity(s, [3]float32{100, 0, 0})
+	ent.SetVelocity(s, qtypes.Vec3{X: 100, Y: 0, Z: 0})
 	s.Edicts = append(s.Edicts, ent)
 	s.NumEdicts = len(s.Edicts)
 

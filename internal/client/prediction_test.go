@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestPredictPlayersInitialization verifies that the client correctly initializes its prediction state from server data.
@@ -19,7 +20,7 @@ func TestPredictPlayersInitialization(t *testing.T) {
 	c.OnGround = true
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
-		Origin: [3]float32{100, 200, 300},
+		Origin: types.Vec3{X: 100, Y: 200, Z: 300},
 	}
 
 	// First call should initialize prediction state
@@ -45,7 +46,7 @@ func TestPredictPlayersPrefersEntityOneWhenViewEntityUnset(t *testing.T) {
 	c.ViewEntity = 0
 	c.OnGround = true
 	c.Entities[1] = inet.EntityState{
-		Origin: [3]float32{10, 20, 30},
+		Origin: types.Vec3{X: 10, Y: 20, Z: 30},
 	}
 
 	c.PredictPlayers(0.016)
@@ -66,7 +67,7 @@ func TestPredictPlayersForwardMovement(t *testing.T) {
 	c.State = StateActive
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
-		Origin: [3]float32{0, 0, 0},
+		Origin: types.Vec3{X: 0, Y: 0, Z: 0},
 	}
 
 	// Initialize prediction
@@ -74,8 +75,8 @@ func TestPredictPlayersForwardMovement(t *testing.T) {
 
 	// Apply forward movement command
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{0, 0, 0}, // Facing forward (along +X)
-		Forward:    200,                 // Forward speed
+		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0}, // Facing forward (along +X)
+		Forward:    200,                         // Forward speed
 	}
 
 	initialOrigin := c.PredictedOrigin
@@ -89,10 +90,7 @@ func TestPredictPlayersForwardMovement(t *testing.T) {
 	}
 
 	// Velocity should be non-zero
-	speed := sqrtFloat32(
-		c.PredictedVelocity[0]*c.PredictedVelocity[0] +
-			c.PredictedVelocity[1]*c.PredictedVelocity[1] +
-			c.PredictedVelocity[2]*c.PredictedVelocity[2])
+	speed := c.PredictedVelocity.Len()
 
 	if speed == 0 {
 		t.Error("Velocity is zero with forward movement")
@@ -108,18 +106,18 @@ func TestPredictPlayersFriction(t *testing.T) {
 	c.OnGround = true
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
-		Origin: [3]float32{0, 0, 0},
+		Origin: types.Vec3{X: 0, Y: 0, Z: 0},
 	}
 
 	// Initialize with some velocity
 	c.PredictPlayers(0.016)
-	c.PredictedVelocity = [3]float32{100, 0, 0}
+	c.PredictedVelocity = types.Vec3{X: 100, Y: 0, Z: 0}
 
-	initialVelocity := c.PredictedVelocity[0]
+	initialVelocity := c.PredictedVelocity.X
 
 	// Apply prediction with no input (only friction)
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{0, 0, 0},
+		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0},
 		Forward:    0,
 		Side:       0,
 		Up:         0,
@@ -128,13 +126,13 @@ func TestPredictPlayersFriction(t *testing.T) {
 	c.PredictPlayers(0.016)
 
 	// Velocity should have decreased due to friction
-	if c.PredictedVelocity[0] >= initialVelocity {
+	if c.PredictedVelocity.X >= initialVelocity {
 		t.Errorf("Friction did not reduce velocity: initial=%.2f, after=%.2f",
-			initialVelocity, c.PredictedVelocity[0])
+			initialVelocity, c.PredictedVelocity.X)
 	}
 
 	// Velocity should not be negative (friction doesn't reverse)
-	if c.PredictedVelocity[0] < 0 {
+	if c.PredictedVelocity.X < 0 {
 		t.Error("Friction caused velocity to go negative")
 	}
 }
@@ -148,7 +146,7 @@ func TestPredictPlayersSpeedClamping(t *testing.T) {
 	c.OnGround = true
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
-		Origin: [3]float32{0, 0, 0},
+		Origin: types.Vec3{X: 0, Y: 0, Z: 0},
 	}
 
 	// Initialize prediction
@@ -156,7 +154,7 @@ func TestPredictPlayersSpeedClamping(t *testing.T) {
 
 	// Apply prediction with oversized desired speed.
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{0, 0, 0},
+		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0},
 		Forward:    1000,
 	}
 	for i := 0; i < 60; i++ {
@@ -164,10 +162,7 @@ func TestPredictPlayersSpeedClamping(t *testing.T) {
 	}
 
 	// Calculate speed
-	speed := sqrtFloat32(
-		c.PredictedVelocity[0]*c.PredictedVelocity[0] +
-			c.PredictedVelocity[1]*c.PredictedVelocity[1] +
-			c.PredictedVelocity[2]*c.PredictedVelocity[2])
+	speed := c.PredictedVelocity.Len()
 
 	// Speed should remain bounded by configured max speed.
 	if speed > c.PredictionMaxSpeed+0.1 {
@@ -183,12 +178,12 @@ func TestPredictPlayersAirborneNoGroundFriction(t *testing.T) {
 	c := NewClient()
 	c.OnGround = false
 	c.PredictionGravity = 0
-	c.PredictedVelocity = [3]float32{100, 0, 0}
+	c.PredictedVelocity = types.Vec3{X: 100, Y: 0, Z: 0}
 
-	c.predictMovement(&UserCmd{ViewAngles: [3]float32{0, 0, 0}}, 0.016)
+	c.predictMovement(&UserCmd{ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0}}, 0.016)
 
-	if absFloat32(c.PredictedVelocity[0]-100) > 0.001 {
-		t.Fatalf("airborne x velocity changed by ground friction: got %.3f, want 100", c.PredictedVelocity[0])
+	if absFloat32(c.PredictedVelocity.X-100) > 0.001 {
+		t.Fatalf("airborne x velocity changed by ground friction: got %.3f, want 100", c.PredictedVelocity.X)
 	}
 }
 
@@ -200,14 +195,14 @@ func TestPredictPlayersAirborneGravity(t *testing.T) {
 	c.State = StateActive
 	c.OnGround = false
 	c.ViewEntity = 0
-	c.Entities[0] = inet.EntityState{Origin: [3]float32{1, 0, 0}}
+	c.Entities[0] = inet.EntityState{Origin: types.Vec3{X: 1, Y: 0, Z: 0}}
 	c.PredictPlayers(0.016)
 
-	c.PendingCmd = UserCmd{ViewAngles: [3]float32{0, 0, 0}}
+	c.PendingCmd = UserCmd{ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0}}
 	c.PredictPlayers(0.016)
 
-	if c.PredictedVelocity[2] >= 0 {
-		t.Fatalf("airborne gravity not applied: z velocity %.3f", c.PredictedVelocity[2])
+	if c.PredictedVelocity.Z >= 0 {
+		t.Fatalf("airborne gravity not applied: z velocity %.3f", c.PredictedVelocity.Z)
 	}
 }
 
@@ -219,28 +214,28 @@ func TestPredictPlayersErrorCorrection(t *testing.T) {
 	c.State = StateActive
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
-		Origin: [3]float32{100, 100, 100},
+		Origin: types.Vec3{X: 100, Y: 100, Z: 100},
 	}
 
 	// Initialize prediction
 	c.PredictPlayers(0.016)
 
 	// Simulate prediction drift
-	c.PredictedOrigin = [3]float32{110, 105, 102}
+	c.PredictedOrigin = types.Vec3{X: 110, Y: 105, Z: 102}
 
 	// Server sends update with different position
 	c.Entities[0] = inet.EntityState{
-		Origin: [3]float32{115, 110, 105},
+		Origin: types.Vec3{X: 115, Y: 110, Z: 105},
 	}
 
 	// Apply prediction
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{0, 0, 0},
+		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0},
 	}
 	c.PredictPlayers(0.016)
 
 	// Prediction error should be calculated
-	if c.PredictionError == [3]float32{} {
+	if c.PredictionError == (types.Vec3{}) {
 		t.Error("Prediction error not calculated after server update")
 	}
 
@@ -254,15 +249,8 @@ func TestPredictPlayersErrorCorrection(t *testing.T) {
 	}
 
 	// Error should be reduced (lerped towards zero)
-	currentError := sqrtFloat32(
-		c.PredictionError[0]*c.PredictionError[0] +
-			c.PredictionError[1]*c.PredictionError[1] +
-			c.PredictionError[2]*c.PredictionError[2])
-
-	initialErrorMag := sqrtFloat32(
-		initialError[0]*initialError[0] +
-			initialError[1]*initialError[1] +
-			initialError[2]*initialError[2])
+	currentError := c.PredictionError.Len()
+	initialErrorMag := initialError.Len()
 
 	if currentError >= initialErrorMag {
 		t.Errorf("Error not corrected: initial=%.4f, current=%.4f",
@@ -291,13 +279,13 @@ func TestPredictPlayersInactiveStateDoesNothing(t *testing.T) {
 	c.State = StateDisconnected
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
-		Origin: [3]float32{100, 200, 300},
+		Origin: types.Vec3{X: 100, Y: 200, Z: 300},
 	}
 
 	c.PredictPlayers(0.016)
 
 	// Should not initialize when not active
-	if c.LastServerOrigin != [3]float32{} {
+	if c.LastServerOrigin != (types.Vec3{}) {
 		t.Error("Prediction initialized in non-active state")
 	}
 }
@@ -310,7 +298,7 @@ func TestPredictPlayersStrafeMovement(t *testing.T) {
 	c.State = StateActive
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
-		Origin: [3]float32{0, 0, 0},
+		Origin: types.Vec3{X: 0, Y: 0, Z: 0},
 	}
 
 	// Initialize prediction
@@ -318,8 +306,8 @@ func TestPredictPlayersStrafeMovement(t *testing.T) {
 
 	// Apply strafe movement command
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{0, 0, 0}, // Facing forward
-		Side:       350,                 // Strafe right
+		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0}, // Facing forward
+		Side:       350,                         // Strafe right
 	}
 
 	initialOrigin := c.PredictedOrigin
@@ -341,7 +329,7 @@ func TestPredictPlayersMultipleFrames(t *testing.T) {
 	c.State = StateActive
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
-		Origin: [3]float32{0, 0, 0},
+		Origin: types.Vec3{X: 0, Y: 0, Z: 0},
 	}
 
 	// Initialize
@@ -349,7 +337,7 @@ func TestPredictPlayersMultipleFrames(t *testing.T) {
 
 	// Apply movement over multiple frames
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{0, 0, 0},
+		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0},
 		Forward:    200,
 	}
 
@@ -358,10 +346,7 @@ func TestPredictPlayersMultipleFrames(t *testing.T) {
 	}
 
 	// Should have moved after 60 frames (~1 second)
-	distance := sqrtFloat32(
-		c.PredictedOrigin[0]*c.PredictedOrigin[0] +
-			c.PredictedOrigin[1]*c.PredictedOrigin[1] +
-			c.PredictedOrigin[2]*c.PredictedOrigin[2])
+	distance := c.PredictedOrigin.Len()
 
 	if distance < 0.1 {
 		t.Errorf("Distance too small after 60 frames: %.2f", distance)
@@ -376,17 +361,17 @@ func TestPredictPlayersConsumesBufferedCommands(t *testing.T) {
 	c.State = StateActive
 	c.Signon = Signons
 	c.ViewEntity = 0
-	c.Entities[0] = inet.EntityState{Origin: [3]float32{0, 0, 0}}
+	c.Entities[0] = inet.EntityState{Origin: types.Vec3{X: 0, Y: 0, Z: 0}}
 	c.PredictPlayers(0.016)
 
-	c.enqueueCommand(UserCmd{ViewAngles: [3]float32{0, 0, 0}, Forward: 200})
-	c.enqueueCommand(UserCmd{ViewAngles: [3]float32{0, 90, 0}, Side: 200})
+	c.enqueueCommand(UserCmd{ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0}, Forward: 200})
+	c.enqueueCommand(UserCmd{ViewAngles: types.Vec3{X: 0, Y: 90, Z: 0}, Side: 200})
 
 	c.PredictPlayers(0.032)
 	if c.CommandCount != 2 {
 		t.Fatalf("command count after prediction = %d, want 2 (unacknowledged)", c.CommandCount)
 	}
-	if c.PredictedOrigin == [3]float32{} {
+	if c.PredictedOrigin == (types.Vec3{}) {
 		t.Fatal("predicted origin unchanged after buffered command prediction")
 	}
 }
@@ -424,7 +409,7 @@ func TestPredictPlayersRebasesFromServerOriginEachFrame(t *testing.T) {
 	c.State = StateActive
 	c.ViewEntity = 0
 	c.OnGround = true
-	c.Entities[0] = inet.EntityState{Origin: [3]float32{0, 0, 0}}
+	c.Entities[0] = inet.EntityState{Origin: types.Vec3{X: 0, Y: 0, Z: 0}}
 	c.PredictPlayers(0.016)
 	c.enqueueCommand(UserCmd{Forward: 200, Msec: 16})
 	c.enqueueCommand(UserCmd{Forward: 200, Msec: 16})
@@ -448,9 +433,9 @@ func TestPredictPlayersPendingFallbackRebasesEachFrame(t *testing.T) {
 	c.ViewEntity = 0
 	c.OnGround = false
 	c.PredictionGravity = 0
-	c.Entities[0] = inet.EntityState{Origin: [3]float32{10, 20, 30}}
-	c.Velocity = [3]float32{0, 100, 0}
-	c.PendingCmd = UserCmd{ViewAngles: [3]float32{0, 0, 0}, Msec: 16}
+	c.Entities[0] = inet.EntityState{Origin: types.Vec3{X: 10, Y: 20, Z: 30}}
+	c.Velocity = types.Vec3{X: 0, Y: 100, Z: 0}
+	c.PendingCmd = UserCmd{ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0}, Msec: 16}
 
 	c.PredictPlayers(0.016)
 	first := c.PredictedOrigin
@@ -474,9 +459,9 @@ func TestPredictPlayersRecordsCurrentFrameTelemetryAndValidity(t *testing.T) {
 	c.Time = 1.25
 	c.ViewEntity = 1
 	c.OnGround = true
-	c.Entities[1] = inet.EntityState{Origin: [3]float32{10, 20, 30}}
+	c.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 10, Y: 20, Z: 30}}
 	c.PendingCmd = UserCmd{
-		ViewAngles: [3]float32{0, 0, 0},
+		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0},
 		Forward:    100,
 		Msec:       16,
 	}
@@ -509,7 +494,7 @@ func TestPredictPlayersRecordsCurrentFrameTelemetryAndValidity(t *testing.T) {
 	if !telemetry.Valid {
 		t.Fatal("telemetry.Valid = false, want true")
 	}
-	if telemetry.ServerBaseOrigin != [3]float32{10, 20, 30} {
+	if telemetry.ServerBaseOrigin != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("telemetry.ServerBaseOrigin = %v, want [10 20 30]", telemetry.ServerBaseOrigin)
 	}
 	if !telemetry.UsedPendingCmdFallback {
@@ -543,8 +528,8 @@ func TestPredictPlayersInvalidatesMissingEntityAndTelemetry(t *testing.T) {
 	c.State = StateActive
 	c.Time = 2.5
 	c.ViewEntity = 1
-	c.PredictedOrigin = [3]float32{99, 88, 77}
-	c.PredictedVelocity = [3]float32{1, 2, 3}
+	c.PredictedOrigin = types.Vec3{X: 99, Y: 88, Z: 77}
+	c.PredictedVelocity = types.Vec3{X: 1, Y: 2, Z: 3}
 	c.PredictionValid = true
 	c.PredictionEntityNum = 1
 	c.PredictionFrameTime = 1.0
@@ -574,10 +559,10 @@ func TestPredictPlayersInvalidatesMissingEntityAndTelemetry(t *testing.T) {
 	if telemetry.Valid {
 		t.Fatal("telemetry.Valid = true, want false")
 	}
-	if telemetry.OutputPredictedOrigin != [3]float32{99, 88, 77} {
+	if telemetry.OutputPredictedOrigin != (types.Vec3{X: 99, Y: 88, Z: 77}) {
 		t.Fatalf("telemetry.OutputPredictedOrigin = %v, want stale predicted origin snapshot", telemetry.OutputPredictedOrigin)
 	}
-	if telemetry.OutputPredictedVelocity != [3]float32{1, 2, 3} {
+	if telemetry.OutputPredictedVelocity != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("telemetry.OutputPredictedVelocity = %v, want stale predicted velocity snapshot", telemetry.OutputPredictedVelocity)
 	}
 }
@@ -587,10 +572,10 @@ func TestPredictPlayersInvalidatesMissingEntityAndTelemetry(t *testing.T) {
 // Where in C: cl_main.c, CL_PredictMove.
 func TestGetPredictedOriginReturnsCorrectValue(t *testing.T) {
 	c := NewClient()
-	c.PredictedOrigin = [3]float32{10, 20, 30}
+	c.PredictedOrigin = types.Vec3{X: 10, Y: 20, Z: 30}
 
 	origin := c.GetPredictedOrigin()
-	if origin != [3]float32{10, 20, 30} {
+	if origin != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Errorf("PredictedOrigin returned %v, want [10 20 30]", origin)
 	}
 }
@@ -600,10 +585,10 @@ func TestGetPredictedOriginReturnsCorrectValue(t *testing.T) {
 // Where in C: cl_main.c, CL_PredictMove.
 func TestGetPredictedVelocityReturnsCorrectValue(t *testing.T) {
 	c := NewClient()
-	c.PredictedVelocity = [3]float32{100, 50, 25}
+	c.PredictedVelocity = types.Vec3{X: 100, Y: 50, Z: 25}
 
 	velocity := c.GetPredictedVelocity()
-	if velocity != [3]float32{100, 50, 25} {
+	if velocity != (types.Vec3{X: 100, Y: 50, Z: 25}) {
 		t.Errorf("PredictedVelocity returned %v, want [100 50 25]", velocity)
 	}
 }
@@ -613,20 +598,20 @@ func TestGetPredictedVelocityReturnsCorrectValue(t *testing.T) {
 // Where in C: mathlib.c, AngleVectors.
 func TestAngleVectorsQuake(t *testing.T) {
 	// Test forward vector (no rotation)
-	angles := [3]float32{0, 0, 0}
-	forward, _, _ := angleVectorsQuake(angles)
+	angles := types.Vec3{X: 0, Y: 0, Z: 0}
+	forward, _, _ := types.AngleVectors(angles)
 
 	// Forward should be approximately (1, 0, 0)
-	if absFloat32(forward[0]-1.0) > 0.01 || absFloat32(forward[1]) > 0.01 || absFloat32(forward[2]) > 0.01 {
+	if absFloat32(forward.X-1.0) > 0.01 || absFloat32(forward.Y) > 0.01 || absFloat32(forward.Z) > 0.01 {
 		t.Errorf("Forward vector incorrect: got %v, want ~[1 0 0]", forward)
 	}
 
 	// Test 90 degree yaw rotation
-	angles = [3]float32{0, 90, 0}
-	forward, _, _ = angleVectorsQuake(angles)
+	angles = types.Vec3{X: 0, Y: 90, Z: 0}
+	forward, _, _ = types.AngleVectors(angles)
 
 	// Forward should be approximately (0, 1, 0) after 90 degree yaw
-	if absFloat32(forward[0]) > 0.01 || absFloat32(forward[1]-1.0) > 0.01 || absFloat32(forward[2]) > 0.01 {
+	if absFloat32(forward.X) > 0.01 || absFloat32(forward.Y-1.0) > 0.01 || absFloat32(forward.Z) > 0.01 {
 		t.Errorf("Forward vector after 90° yaw incorrect: got %v, want ~[0 1 0]", forward)
 	}
 }
@@ -636,10 +621,10 @@ func TestAngleVectorsQuake(t *testing.T) {
 // Where in C: cl_main.c, CL_PredictMove.
 func TestPredictionMovementAnglesMatchesServerSemantics(t *testing.T) {
 	c := NewClient()
-	c.PunchAngle = [3]float32{6, -15, 4}
+	c.PunchAngle = types.Vec3{X: 6, Y: -15, Z: 4}
 
-	got := c.predictionMovementAngles([3]float32{-30, 90, 17})
-	want := [3]float32{8, 75, 0}
+	got := c.predictionMovementAngles(types.Vec3{X: -30, Y: 90, Z: 17})
+	want := types.Vec3{X: 8, Y: 75, Z: 0}
 
 	if got != want {
 		t.Fatalf("predictionMovementAngles = %v, want %v", got, want)
@@ -655,20 +640,20 @@ func TestPredictMovementUsesServerStylePitchForAcceleration(t *testing.T) {
 	c.PredictionGravity = 0
 	c.PredictionAccel = 10
 	c.PredictionMaxSpeed = 1000
-	c.PunchAngle = [3]float32{30, 0, 0}
+	c.PunchAngle = types.Vec3{X: 30, Y: 0, Z: 0}
 
 	cmd := UserCmd{
-		ViewAngles: [3]float32{-30, 0, 15},
+		ViewAngles: types.Vec3{X: -30, Y: 0, Z: 15},
 		Forward:    320,
 	}
 
 	c.predictMovement(&cmd, 0.016)
 
 	wantAccel := float32(c.PredictionAccel * 0.016 * cmd.Forward)
-	if absFloat32(c.PredictedVelocity[0]-wantAccel) > 0.001 {
-		t.Fatalf("PredictedVelocity[0] = %.3f, want %.3f from server-style move pitch", c.PredictedVelocity[0], wantAccel)
+	if absFloat32(c.PredictedVelocity.X-wantAccel) > 0.001 {
+		t.Fatalf("PredictedVelocity[0] = %.3f, want %.3f from server-style move pitch", c.PredictedVelocity.X, wantAccel)
 	}
-	if absFloat32(c.PredictedVelocity[1]) > 0.001 || absFloat32(c.PredictedVelocity[2]) > 0.001 {
+	if absFloat32(c.PredictedVelocity.Y) > 0.001 || absFloat32(c.PredictedVelocity.Z) > 0.001 {
 		t.Fatalf("PredictedVelocity = %v, want only +X acceleration", c.PredictedVelocity)
 	}
 }
@@ -678,14 +663,28 @@ func TestPredictMovementUsesServerStylePitchForAcceleration(t *testing.T) {
 // Where in C: cl_main.c, CL_PredictMove.
 func TestPredictionMovementAnglesIncludeServerStyleRoll(t *testing.T) {
 	c := NewClient()
-	c.PredictedVelocity = [3]float32{0, 200, 0}
+	c.PredictedVelocity = types.Vec3{X: 0, Y: 200, Z: 0}
 
-	got := c.predictionMovementAngles([3]float32{})
-	want := [3]float32{0, 0, -8}
+	got := c.predictionMovementAngles(types.Vec3{})
+	want := types.Vec3{X: 0, Y: 0, Z: -8}
 
 	if got != want {
 		t.Fatalf("predictionMovementAngles roll = %v, want %v", got, want)
 	}
+}
+
+func absFloat32(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func maxFloat32(a, b float32) float32 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // TestAbsFloat32 verifies the absolute value helper for float32.

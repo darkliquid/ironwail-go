@@ -131,7 +131,7 @@ func main() {
 	// Goroutine to scan stdout for completion markers
 	go func() {
 		defer wg.Done()
-		defer pw.Close()
+		defer func() { _ = pw.Close() }()
 
 		scanner := bufio.NewScanner(pr)
 		for scanner.Scan() {
@@ -198,7 +198,7 @@ ProcessTerminated:
 	// Count number of frames dumped (lines in JSON)
 	frameCount := 0
 	if f, err := os.Open(outputPath); err == nil {
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		s := bufio.NewScanner(f)
 		for s.Scan() {
 			frameCount++

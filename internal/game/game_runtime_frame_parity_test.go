@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestParseParityAnglesEnv(t *testing.T) {
@@ -13,7 +14,7 @@ func TestParseParityAnglesEnv(t *testing.T) {
 	if !ok {
 		t.Fatal("parseParityAnglesEnv returned !ok, want ok")
 	}
-	want := [3]float32{-28.82, 24.43, 0}
+	want := types.Vec3{X: -28.82, Y: 24.43, Z: 0}
 	if got != want {
 		t.Fatalf("parseParityAnglesEnv = %v, want %v", got, want)
 	}
@@ -30,15 +31,15 @@ func TestApplyParityViewAnglesOverride(t *testing.T) {
 	g := &Game{
 		Client: &cl.Client{
 			State:       cl.StateActive,
-			ViewAngles:  [3]float32{1, 2, 3},
-			MViewAngles: [2][3]float32{{4, 5, 6}, {7, 8, 9}},
-			PendingCmd:  cl.UserCmd{ViewAngles: [3]float32{10, 11, 12}},
+			ViewAngles:  types.Vec3{X: 1, Y: 2, Z: 3},
+			MViewAngles: [2]types.Vec3{{X: 4, Y: 5, Z: 6}, {X: 7, Y: 8, Z: 9}},
+			PendingCmd:  cl.UserCmd{ViewAngles: types.Vec3{X: 10, Y: 11, Z: 12}},
 		},
 	}
 
 	g.applyParityViewAnglesOverride()
 
-	want := [3]float32{-28.82, 24.43, 0}
+	want := types.Vec3{X: -28.82, Y: 24.43, Z: 0}
 	if g.Client.ViewAngles != want {
 		t.Fatalf("Client.ViewAngles = %v, want %v", g.Client.ViewAngles, want)
 	}

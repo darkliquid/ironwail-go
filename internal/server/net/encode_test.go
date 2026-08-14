@@ -7,35 +7,44 @@ import (
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
-func TestEncodeScaleClamps(t *testing.T) {
+func TestEncodeScaleClampsAndPacks(t *testing.T) {
 	cases := []struct {
 		in   float32
 		want byte
 	}{
-		{-5, 0},
-		{0, 0},
-		{1, 16},
-		{16, 255},
-		{100, 255},
+		{-1.0, 0},
+		{0.0, 0},
+		{1.0, 16},
+		{2.5, 40},
+		{15.9375, 255},
+		{20.0, 255},
 	}
-	for _, c := range cases {
-		if got := EncodeScale(c.in); got != c.want {
-			t.Errorf("EncodeScale(%v) = %d, want %d", c.in, got, c.want)
+	for _, tc := range cases {
+		if got := EncodeScale(tc.in); got != tc.want {
+			t.Errorf("EncodeScale(%v) = %d, want %d", tc.in, got, tc.want)
 		}
 	}
 }
 
-func TestEncodeLerpFinish(t *testing.T) {
-	if b, ok := EncodeLerpFinish(0.5, 0.5); ok || b != 0 {
-		t.Errorf("EncodeLerpFinish(past) = (%d, %v), want (0, false)", b, ok)
+func TestEncodeLerpFinishComputesFraction(t *testing.T) {
+	// Past or current think -> no lerp.
+	if _, ok := EncodeLerpFinish(1.0, 1.0); ok {
+		t.Error("expected false for nextthink == time")
 	}
-	if b, ok := EncodeLerpFinish(0.6, 0.5); !ok || b != 26 {
-		t.Errorf("EncodeLerpFinish(0.1) = (%d, %v), want (26, true) (0.1*255+0.5=26.0)", b, ok)
+	if _, ok := EncodeLerpFinish(0.5, 1.0); ok {
+		t.Error("expected false for nextthink < time")
 	}
-	if b, ok := EncodeLerpFinish(2.0, 0.5); !ok || b != 255 {
-		t.Errorf("EncodeLerpFinish(>1s) = (%d, %v), want (255, true)", b, ok)
+	// Future think within 1 second -> clamped 0..255 fraction.
+	got, ok := EncodeLerpFinish(1.5, 1.0)
+	if !ok || got != 128 { // 0.5 * 255 + 0.5 = 128
+		t.Errorf("EncodeLerpFinish(1.5, 1.0) = (%d, %t), want (128, true)", got, ok)
+	}
+	got, ok = EncodeLerpFinish(3.0, 1.0) // delta > 1 -> clamp to 1.0 (255)
+	if !ok || got != 255 {
+		t.Errorf("EncodeLerpFinish(3.0, 1.0) = (%d, %t), want (255, true)", got, ok)
 	}
 }
 
@@ -46,8 +55,8 @@ func TestWriteEntityStatePacksFields(t *testing.T) {
 		Frame:      3,
 		Colormap:   7,
 		Skin:       1,
-		Origin:     [3]float32{1, 2, 3},
-		Angles:     [3]float32{0, 90, 0},
+		Origin:     qtypes.Vec3{X: 1, Y: 2, Z: 3},
+		Angles:     qtypes.Vec3{X: 0, Y: 90, Z: 0},
 	}
 
 	WriteEntityState(msg, state, true, true, 17, uint32(srvtypes.ProtocolFlagFloatCoord|srvtypes.ProtocolFlagFloatAngle))
@@ -81,12 +90,12 @@ func TestWriteEntityUpdateDeltaEncodes(t *testing.T) {
 		Frame:      3,
 		Colormap:   7,
 		Skin:       1,
-		Origin:     [3]float32{0, 0, 0},
-		Angles:     [3]float32{0, 0, 0},
+		Origin:     qtypes.Vec3{},
+		Angles:     qtypes.Vec3{},
 	}
 	// Only origin X changed.
 	changed := base
-	changed.Origin[0] = 64
+	changed.Origin.X = 64
 
 	msg := srvtypes.NewMessageBuffer(64)
 	ok := WriteEntityUpdate(msg, 3, changed, base, false, srvtypes.MoveTypeWalk,
@@ -119,7 +128,7 @@ func TestWriteEntityUpdateDeltaEncodes(t *testing.T) {
 }
 
 func TestWriteEntityUpdateForceSendsAll(t *testing.T) {
-	base := srvtypes.EntityState{Origin: [3]float32{0, 0, 0}}
+	base := srvtypes.EntityState{Origin: qtypes.Vec3{}}
 	msg := srvtypes.NewMessageBuffer(64)
 
 	ok := WriteEntityUpdate(msg, 1, base, base, true, srvtypes.MoveTypeWalk,

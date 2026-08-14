@@ -6,6 +6,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func newBuiltinsTestVM(maxEdicts int) *VM {
@@ -236,7 +237,7 @@ func TestRemoveClearsEntityData(t *testing.T) {
 	vm.NumEdicts = 2
 
 	vm.SetEFloat(1, EntFieldHealth, 99)
-	vm.SetEVector(1, EntFieldOrigin, [3]float32{1, 2, 3})
+	vm.SetEVector(1, EntFieldOrigin, types.Vec3{X: 1, Y: 2, Z: 3})
 	vm.SetGInt(OFSParm0, 1)
 
 	remove(vm)
@@ -244,7 +245,7 @@ func TestRemoveClearsEntityData(t *testing.T) {
 	if got := vm.EFloat(1, EntFieldHealth); got != 0 {
 		t.Fatalf("health after remove = %f, want 0", got)
 	}
-	if got := vm.EVector(1, EntFieldOrigin); got != [3]float32{} {
+	if got := vm.EVector(1, EntFieldOrigin); got != (types.Vec3{}) {
 		t.Fatalf("origin after remove = %v, want zero", got)
 	}
 }
@@ -253,20 +254,20 @@ func TestSetOriginUpdatesAbsBounds(t *testing.T) {
 	vm := newBuiltinsTestVM(8)
 	vm.NumEdicts = 2
 
-	vm.SetEVector(1, EntFieldMins, [3]float32{-1, -2, -3})
-	vm.SetEVector(1, EntFieldMaxs, [3]float32{4, 5, 6})
+	vm.SetEVector(1, EntFieldMins, types.Vec3{X: -1, Y: -2, Z: -3})
+	vm.SetEVector(1, EntFieldMaxs, types.Vec3{X: 4, Y: 5, Z: 6})
 	vm.SetGInt(OFSParm0, 1)
-	vm.SetGVector(OFSParm1, [3]float32{10, 20, 30})
+	vm.SetGVector(OFSParm1, types.Vec3{X: 10, Y: 20, Z: 30})
 
 	setorigin(vm)
 
-	if got := vm.EVector(1, EntFieldOrigin); got != [3]float32{10, 20, 30} {
+	if got := vm.EVector(1, EntFieldOrigin); got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("origin = %v", got)
 	}
-	if got := vm.EVector(1, EntFieldAbsMin); got != [3]float32{9, 18, 27} {
+	if got := vm.EVector(1, EntFieldAbsMin); got != (types.Vec3{X: 9, Y: 18, Z: 27}) {
 		t.Fatalf("absmin = %v", got)
 	}
-	if got := vm.EVector(1, EntFieldAbsMax); got != [3]float32{14, 25, 36} {
+	if got := vm.EVector(1, EntFieldAbsMax); got != (types.Vec3{X: 14, Y: 25, Z: 36}) {
 		t.Fatalf("absmax = %v", got)
 	}
 }
@@ -275,26 +276,26 @@ func TestSetSizeUpdatesSizeAndAbsBounds(t *testing.T) {
 	vm := newBuiltinsTestVM(8)
 	vm.NumEdicts = 2
 
-	vm.SetEVector(1, EntFieldOrigin, [3]float32{10, 20, 30})
+	vm.SetEVector(1, EntFieldOrigin, types.Vec3{X: 10, Y: 20, Z: 30})
 	vm.SetGInt(OFSParm0, 1)
-	vm.SetGVector(OFSParm1, [3]float32{-1, -2, -3})
-	vm.SetGVector(OFSParm2, [3]float32{4, 5, 6})
+	vm.SetGVector(OFSParm1, types.Vec3{X: -1, Y: -2, Z: -3})
+	vm.SetGVector(OFSParm2, types.Vec3{X: 4, Y: 5, Z: 6})
 
 	setsize(vm)
 
-	if got := vm.EVector(1, EntFieldMins); got != [3]float32{-1, -2, -3} {
+	if got := vm.EVector(1, EntFieldMins); got != (types.Vec3{X: -1, Y: -2, Z: -3}) {
 		t.Fatalf("mins = %v", got)
 	}
-	if got := vm.EVector(1, EntFieldMaxs); got != [3]float32{4, 5, 6} {
+	if got := vm.EVector(1, EntFieldMaxs); got != (types.Vec3{X: 4, Y: 5, Z: 6}) {
 		t.Fatalf("maxs = %v", got)
 	}
-	if got := vm.EVector(1, EntFieldSize); got != [3]float32{5, 7, 9} {
+	if got := vm.EVector(1, EntFieldSize); got != (types.Vec3{X: 5, Y: 7, Z: 9}) {
 		t.Fatalf("size = %v", got)
 	}
-	if got := vm.EVector(1, EntFieldAbsMin); got != [3]float32{9, 18, 27} {
+	if got := vm.EVector(1, EntFieldAbsMin); got != (types.Vec3{X: 9, Y: 18, Z: 27}) {
 		t.Fatalf("absmin = %v", got)
 	}
-	if got := vm.EVector(1, EntFieldAbsMax); got != [3]float32{14, 25, 36} {
+	if got := vm.EVector(1, EntFieldAbsMax); got != (types.Vec3{X: 14, Y: 25, Z: 36}) {
 		t.Fatalf("absmax = %v", got)
 	}
 }
@@ -399,9 +400,9 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 
 	vm := newBuiltinsTestVM(8)
 	vm.ServerHooks = ServerBuiltinHooks{
-		Traceline: func(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult {
+		Traceline: func(vm *VM, start, end types.Vec3, noMonsters bool, passEnt int) BuiltinTraceResult {
 			hookCalls.traceline++
-			return BuiltinTraceResult{Fraction: 0.5, EndPos: [3]float32{4, 5, 6}, PlaneNormal: [3]float32{0, 0, 1}, EntNum: 3}
+			return BuiltinTraceResult{Fraction: 0.5, EndPos: types.Vec3{X: 4, Y: 5, Z: 6}, PlaneNormal: types.Vec3{X: 0, Y: 0, Z: 1}, EntNum: 3}
 		},
 		Spawn: func(vm *VM) (int, error) {
 			hookCalls.spawn++
@@ -427,11 +428,11 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 			hookCalls.checkbottom++
 			return true
 		},
-		PointContents: func(vm *VM, point [3]float32) int {
+		PointContents: func(vm *VM, point types.Vec3) int {
 			hookCalls.pointcontents++
 			return -2
 		},
-		FindRadius: func(vm *VM, org [3]float32, radius float32) int {
+		FindRadius: func(vm *VM, org types.Vec3, radius float32) int {
 			hookCalls.findradius++
 			return 9
 		},
@@ -443,18 +444,18 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 			hookCalls.walkmove++
 			return true
 		},
-		Aim: func(vm *VM, entNum int, missileSpeed float32) [3]float32 {
+		Aim: func(vm *VM, entNum int, missileSpeed float32) types.Vec3 {
 			hookCalls.aim++
-			return [3]float32{0, 1, 0}
+			return types.Vec3{X: 0, Y: 1, Z: 0}
 		},
 		DropToFloor: func(vm *VM) bool {
 			hookCalls.droptofloor++
 			return true
 		},
-		SetOrigin: func(vm *VM, entNum int, org [3]float32) {
+		SetOrigin: func(vm *VM, entNum int, org types.Vec3) {
 			hookCalls.setorigin++
 		},
-		SetSize: func(vm *VM, entNum int, mins, maxs [3]float32) {
+		SetSize: func(vm *VM, entNum int, mins, maxs types.Vec3) {
 			hookCalls.setsize++
 		},
 		SetModel: func(vm *VM, entNum int, modelName string) {
@@ -487,7 +488,7 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 		LightStyle: func(vm *VM, style int, value string) {
 			hookCalls.lightstyle++
 		},
-		Particle: func(vm *VM, org, dir [3]float32, color, count int) {
+		Particle: func(vm *VM, org, dir types.Vec3, color, count int) {
 			hookCalls.particle++
 		},
 		LocalSound: func(vm *VM, entNum int, sample string) {
@@ -510,14 +511,14 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 		},
 	}
 
-	vm.SetGVector(OFSParm0, [3]float32{1, 2, 3})
-	vm.SetGVector(OFSParm1, [3]float32{7, 8, 9})
+	vm.SetGVector(OFSParm0, types.Vec3{X: 1, Y: 2, Z: 3})
+	vm.SetGVector(OFSParm1, types.Vec3{X: 7, Y: 8, Z: 9})
 	vm.SetGFloat(OFSParm2, 0)
 	traceline(vm)
 	if got := vm.GFloat(OFSReturn); got != 0.5 {
 		t.Fatalf("traceline return = %v, want 0.5", got)
 	}
-	if got := vm.GVector(OFSTraceEndPos); got != [3]float32{4, 5, 6} {
+	if got := vm.GVector(OFSTraceEndPos); got != (types.Vec3{X: 4, Y: 5, Z: 6}) {
 		t.Fatalf("trace_endpos = %v", got)
 	}
 	checkclient(vm)
@@ -527,7 +528,7 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 	vm.SetGInt(OFSParm0, 1)
 	vm.SetGFloat(OFSParm1, 0)
 	aimBuiltin(vm)
-	if got := vm.GVector(OFSReturn); got != [3]float32{0, 1, 0} {
+	if got := vm.GVector(OFSReturn); got != (types.Vec3{X: 0, Y: 1, Z: 0}) {
 		t.Fatalf("aim return = %v", got)
 	}
 
@@ -559,11 +560,11 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 	sprint(vm)
 	dprint(vm)
 
-	vm.SetGVector(OFSParm1, [3]float32{1, 2, 3})
+	vm.SetGVector(OFSParm1, types.Vec3{X: 1, Y: 2, Z: 3})
 	setorigin(vm)
 
-	vm.SetGVector(OFSParm1, [3]float32{-1, -1, -1})
-	vm.SetGVector(OFSParm2, [3]float32{1, 1, 1})
+	vm.SetGVector(OFSParm1, types.Vec3{X: -1, Y: -1, Z: -1})
+	vm.SetGVector(OFSParm2, types.Vec3{X: 1, Y: 1, Z: 1})
 	setsize(vm)
 
 	vm.SetGString(OFSParm1, "progs/hook.mdl")

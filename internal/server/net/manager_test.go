@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type mockBroadcaster struct {
@@ -11,7 +12,7 @@ type mockBroadcaster struct {
 	soundCalled    bool
 }
 
-func (m *mockBroadcaster) StartParticle(org, dir [3]float32, color, count int) {
+func (m *mockBroadcaster) StartParticle(org, dir qtypes.Vec3, color, count int) {
 	m.particleCalled = true
 }
 
@@ -23,7 +24,7 @@ func TestNetworkManager_Delegation(t *testing.T) {
 	b := &mockBroadcaster{}
 	nm := NewNetworkManager(b)
 
-	nm.StartParticle([3]float32{0, 0, 0}, [3]float32{0, 0, 1}, 1, 10)
+	nm.StartParticle(qtypes.Vec3{}, qtypes.Vec3{X: 0, Y: 0, Z: 1}, 1, 10)
 	if !b.particleCalled {
 		t.Error("StartParticle was not delegated")
 	}

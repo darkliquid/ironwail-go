@@ -1,6 +1,9 @@
 package gogpu
 
-import worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+import (
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 type TranslucentFacePass uint8
 
@@ -19,7 +22,7 @@ type TranslucentFacePlan struct {
 type TranslucentFaceDraw struct {
 	Face       worldimpl.WorldFace
 	Alpha      float32
-	Center     [3]float32
+	Center     types.Vec3
 	DistanceSq float32
 }
 
@@ -35,12 +38,12 @@ type TranslucentBrushEntityDraw struct {
 	Vertices         []worldimpl.WorldVertex
 	Indices          []uint32
 	AlphaTestFaces   []worldimpl.WorldFace
-	AlphaTestCenters [][3]float32
+	AlphaTestCenters []types.Vec3
 	TranslucentFaces []TranslucentFaceDraw
 	LiquidFaces      []TranslucentFaceDraw
 }
 
-func BuildTranslucentLiquidBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.WorldGeometry, planFace func(worldimpl.WorldFace, float32) (float32, bool), distanceSq func([3]float32) float32) *TranslucentLiquidBrushEntityDraw {
+func BuildTranslucentLiquidBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.WorldGeometry, planFace func(worldimpl.WorldFace, float32) (float32, bool), distanceSq func(types.Vec3) float32) *TranslucentLiquidBrushEntityDraw {
 	if planFace == nil || distanceSq == nil {
 		return nil
 	}
@@ -83,7 +86,7 @@ func BuildTranslucentLiquidBrushEntityDraw(entity BrushEntityParams, geom *world
 	}
 }
 
-func BuildTranslucentBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.WorldGeometry, planFace func(worldimpl.WorldFace, float32) (TranslucentFacePlan, bool), distanceSq func([3]float32) float32) *TranslucentBrushEntityDraw {
+func BuildTranslucentBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.WorldGeometry, planFace func(worldimpl.WorldFace, float32) (TranslucentFacePlan, bool), distanceSq func(types.Vec3) float32) *TranslucentBrushEntityDraw {
 	if planFace == nil || distanceSq == nil {
 		return nil
 	}
@@ -96,7 +99,7 @@ func BuildTranslucentBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.W
 		return nil
 	}
 	alphaTestFaces := make([]worldimpl.WorldFace, 0, len(geom.Faces))
-	alphaTestCenters := make([][3]float32, 0, len(geom.Faces))
+	alphaTestCenters := make([]types.Vec3, 0, len(geom.Faces))
 	translucentFaces := make([]TranslucentFaceDraw, 0, len(geom.Faces))
 	liquidFaces := make([]TranslucentFaceDraw, 0, len(geom.Faces))
 	indices := make([]uint32, 0, len(geom.Indices))

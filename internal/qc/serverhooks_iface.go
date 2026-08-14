@@ -1,5 +1,9 @@
 package qc
 
+import (
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
+
 // ServerHooks is a small interface that describes the server-side
 // operations the QuakeC builtins call into. Exporting this interface
 // allows the engine to provide a mock or a thin adapter in tests and
@@ -10,7 +14,7 @@ package qc
 // QuakeC builtins such as `spawn`, `find`, `walkmove` and others.
 type ServerHooks interface {
 	// Traceline performs a collision trace and returns the trace globals.
-	Traceline(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult
+	Traceline(vm *VM, start, end types.Vec3, noMonsters bool, passEnt int) BuiltinTraceResult
 
 	// Spawn allocates and returns a new entity index. It may return
 	// an error if allocation fails.
@@ -27,7 +31,7 @@ type ServerHooks interface {
 	FindFloat(vm *VM, startEnt, fieldOfs int, match float32) int
 
 	// FindRadius finds an entity within `radius` of `org`.
-	FindRadius(vm *VM, org [3]float32, radius float32) int
+	FindRadius(vm *VM, org types.Vec3, radius float32) int
 
 	// CheckClient returns a candidate client entity for AI targeting.
 	CheckClient(vm *VM) int
@@ -39,10 +43,10 @@ type ServerHooks interface {
 	CheckBottom(vm *VM, entNum int) bool
 
 	// PointContents returns BSP contents at a point.
-	PointContents(vm *VM, point [3]float32) int
+	PointContents(vm *VM, point types.Vec3) int
 
 	// Aim returns an aim direction for the given entity.
-	Aim(vm *VM, entNum int, missileSpeed float32) [3]float32
+	Aim(vm *VM, entNum int, missileSpeed float32) types.Vec3
 
 	// WalkMove moves the current entity forward by `dist` at `yaw`.
 	// Returns true on success (moved) or false on collision.
@@ -52,8 +56,8 @@ type ServerHooks interface {
 	DropToFloor(vm *VM) bool
 
 	// SetOrigin and SetSize update entity transform and bounding box.
-	SetOrigin(vm *VM, entNum int, org [3]float32)
-	SetSize(vm *VM, entNum int, mins, maxs [3]float32)
+	SetOrigin(vm *VM, entNum int, org types.Vec3)
+	SetSize(vm *VM, entNum int, mins, maxs types.Vec3)
 
 	// SetModel assigns a model name to an entity and updates related
 	// model indices/animation state as needed by the server.
@@ -73,7 +77,7 @@ type ServerHooks interface {
 	Sound(vm *VM, entNum, channel int, sample string, volume int, attenuation float32)
 	StuffCmd(vm *VM, entNum int, cmd string)
 	LightStyle(vm *VM, style int, value string)
-	Particle(vm *VM, org, dir [3]float32, color, count int)
+	Particle(vm *VM, org, dir types.Vec3, color, count int)
 	LocalSound(vm *VM, entNum int, sample string)
 	WriteByteTo(vm *VM, dest, value int)
 	WriteCharTo(vm *VM, dest, value int)
@@ -89,7 +93,7 @@ type ServerHooks interface {
 
 	// Static signon helpers.
 	MakeStatic(vm *VM, entNum int)
-	AmbientSound(vm *VM, org [3]float32, sample string, volume int, attenuation float32)
+	AmbientSound(vm *VM, org types.Vec3, sample string, volume int, attenuation float32)
 
 	// MoveToGoal/ChangeYaw are AI helpers invoked by QuakeC.
 	MoveToGoal(vm *VM, dist float32)
@@ -114,7 +118,7 @@ func AdaptServerBuiltinHooks(h ServerBuiltinHooks) ServerHooks {
 	return serverBuiltinHooksAdapter{hooks: h}
 }
 
-func (a serverBuiltinHooksAdapter) Traceline(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult {
+func (a serverBuiltinHooksAdapter) Traceline(vm *VM, start, end types.Vec3, noMonsters bool, passEnt int) BuiltinTraceResult {
 	if a.hooks.Traceline == nil {
 		return BuiltinTraceResult{}
 	}
@@ -149,7 +153,7 @@ func (a serverBuiltinHooksAdapter) FindFloat(vm *VM, startEnt, fieldOfs int, mat
 	return a.hooks.FindFloat(vm, startEnt, fieldOfs, match)
 }
 
-func (a serverBuiltinHooksAdapter) FindRadius(vm *VM, org [3]float32, radius float32) int {
+func (a serverBuiltinHooksAdapter) FindRadius(vm *VM, org types.Vec3, radius float32) int {
 	if a.hooks.FindRadius == nil {
 		return 0
 	}
@@ -177,16 +181,16 @@ func (a serverBuiltinHooksAdapter) CheckBottom(vm *VM, entNum int) bool {
 	return a.hooks.CheckBottom(vm, entNum)
 }
 
-func (a serverBuiltinHooksAdapter) PointContents(vm *VM, point [3]float32) int {
+func (a serverBuiltinHooksAdapter) PointContents(vm *VM, point types.Vec3) int {
 	if a.hooks.PointContents == nil {
 		return 0
 	}
 	return a.hooks.PointContents(vm, point)
 }
 
-func (a serverBuiltinHooksAdapter) Aim(vm *VM, entNum int, missileSpeed float32) [3]float32 {
+func (a serverBuiltinHooksAdapter) Aim(vm *VM, entNum int, missileSpeed float32) types.Vec3 {
 	if a.hooks.Aim == nil {
-		return [3]float32{}
+		return types.Vec3{}
 	}
 	return a.hooks.Aim(vm, entNum, missileSpeed)
 }
@@ -205,13 +209,13 @@ func (a serverBuiltinHooksAdapter) DropToFloor(vm *VM) bool {
 	return a.hooks.DropToFloor(vm)
 }
 
-func (a serverBuiltinHooksAdapter) SetOrigin(vm *VM, entNum int, org [3]float32) {
+func (a serverBuiltinHooksAdapter) SetOrigin(vm *VM, entNum int, org types.Vec3) {
 	if a.hooks.SetOrigin != nil {
 		a.hooks.SetOrigin(vm, entNum, org)
 	}
 }
 
-func (a serverBuiltinHooksAdapter) SetSize(vm *VM, entNum int, mins, maxs [3]float32) {
+func (a serverBuiltinHooksAdapter) SetSize(vm *VM, entNum int, mins, maxs types.Vec3) {
 	if a.hooks.SetSize != nil {
 		a.hooks.SetSize(vm, entNum, mins, maxs)
 	}
@@ -277,7 +281,7 @@ func (a serverBuiltinHooksAdapter) LightStyle(vm *VM, style int, value string) {
 	}
 }
 
-func (a serverBuiltinHooksAdapter) Particle(vm *VM, org, dir [3]float32, color, count int) {
+func (a serverBuiltinHooksAdapter) Particle(vm *VM, org, dir types.Vec3, color, count int) {
 	if a.hooks.Particle != nil {
 		a.hooks.Particle(vm, org, dir, color, count)
 	}
@@ -349,7 +353,7 @@ func (a serverBuiltinHooksAdapter) MakeStatic(vm *VM, entNum int) {
 	}
 }
 
-func (a serverBuiltinHooksAdapter) AmbientSound(vm *VM, org [3]float32, sample string, volume int, attenuation float32) {
+func (a serverBuiltinHooksAdapter) AmbientSound(vm *VM, org types.Vec3, sample string, volume int, attenuation float32) {
 	if a.hooks.AmbientSound != nil {
 		a.hooks.AmbientSound(vm, org, sample, volume, attenuation)
 	}
@@ -407,7 +411,7 @@ func (vm *VM) RegisterServerHooks(h ServerHooks) {
 // ServerHooks interface.
 func adaptServerHooks(h ServerHooks) ServerBuiltinHooks {
 	return ServerBuiltinHooks{
-		Traceline: func(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult {
+		Traceline: func(vm *VM, start, end types.Vec3, noMonsters bool, passEnt int) BuiltinTraceResult {
 			return h.Traceline(vm, start, end, noMonsters, passEnt)
 		},
 		Spawn:  func(vm *VM) (int, error) { return h.Spawn(vm) },
@@ -416,20 +420,20 @@ func adaptServerHooks(h ServerHooks) ServerBuiltinHooks {
 		FindFloat: func(vm *VM, startEnt, fieldOfs int, match float32) int {
 			return h.FindFloat(vm, startEnt, fieldOfs, match)
 		},
-		FindRadius:  func(vm *VM, org [3]float32, radius float32) int { return h.FindRadius(vm, org, radius) },
+		FindRadius:  func(vm *VM, org types.Vec3, radius float32) int { return h.FindRadius(vm, org, radius) },
 		CheckClient: func(vm *VM) int { return h.CheckClient(vm) },
 		NextEnt:     func(vm *VM, entNum int) int { return h.NextEnt(vm, entNum) },
 		CheckBottom: func(vm *VM, entNum int) bool { return h.CheckBottom(vm, entNum) },
-		PointContents: func(vm *VM, point [3]float32) int {
+		PointContents: func(vm *VM, point types.Vec3) int {
 			return h.PointContents(vm, point)
 		},
-		Aim: func(vm *VM, entNum int, missileSpeed float32) [3]float32 {
+		Aim: func(vm *VM, entNum int, missileSpeed float32) types.Vec3 {
 			return h.Aim(vm, entNum, missileSpeed)
 		},
 		WalkMove:       func(vm *VM, yaw, dist float32) bool { return h.WalkMove(vm, yaw, dist) },
 		DropToFloor:    func(vm *VM) bool { return h.DropToFloor(vm) },
-		SetOrigin:      func(vm *VM, entNum int, org [3]float32) { h.SetOrigin(vm, entNum, org) },
-		SetSize:        func(vm *VM, entNum int, mins, maxs [3]float32) { h.SetSize(vm, entNum, mins, maxs) },
+		SetOrigin:      func(vm *VM, entNum int, org types.Vec3) { h.SetOrigin(vm, entNum, org) },
+		SetSize:        func(vm *VM, entNum int, mins, maxs types.Vec3) { h.SetSize(vm, entNum, mins, maxs) },
 		SetModel:       func(vm *VM, entNum int, modelName string) { h.SetModel(vm, entNum, modelName) },
 		PrecacheSound:  func(vm *VM, sample string) { h.PrecacheSound(vm, sample) },
 		PrecacheModel:  func(vm *VM, modelName string) { h.PrecacheModel(vm, modelName) },
@@ -442,7 +446,7 @@ func adaptServerHooks(h ServerHooks) ServerBuiltinHooks {
 		},
 		StuffCmd:   func(vm *VM, entNum int, cmd string) { h.StuffCmd(vm, entNum, cmd) },
 		LightStyle: func(vm *VM, style int, value string) { h.LightStyle(vm, style, value) },
-		Particle: func(vm *VM, org, dir [3]float32, color, count int) {
+		Particle: func(vm *VM, org, dir types.Vec3, color, count int) {
 			h.Particle(vm, org, dir, color, count)
 		},
 		LocalSound:    func(vm *VM, entNum int, sample string) { h.LocalSound(vm, entNum, sample) },
@@ -456,7 +460,7 @@ func adaptServerHooks(h ServerHooks) ServerBuiltinHooks {
 		WriteEntity:   func(vm *VM, dest, entNum int) { h.WriteEntityTo(vm, dest, entNum) },
 		SetSpawnParms: func(vm *VM, entNum int) { h.SetSpawnParms(vm, entNum) },
 		MakeStatic:    func(vm *VM, entNum int) { h.MakeStatic(vm, entNum) },
-		AmbientSound: func(vm *VM, org [3]float32, sample string, volume int, attenuation float32) {
+		AmbientSound: func(vm *VM, org types.Vec3, sample string, volume int, attenuation float32) {
 			h.AmbientSound(vm, org, sample, volume, attenuation)
 		},
 		MoveToGoal:       func(vm *VM, dist float32) { h.MoveToGoal(vm, dist) },

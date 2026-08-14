@@ -7,6 +7,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TextureMeta holds parsed texture metadata from BSP miptex entries.
@@ -179,10 +180,10 @@ func BuildMaterialTextureRGBA(pixels, palette []byte, textureType model.TextureT
 // TexCoordDouble projects a world position onto one texinfo axis vector
 // (position·vec[0..2] + vec[3]) in float64 precision, mirroring C Ironwail's
 // double-precision texture coordinate math.
-func TexCoordDouble(position [3]float32, vec [4]float32) float64 {
-	return float64(position[0])*float64(vec[0]) +
-		float64(position[1])*float64(vec[1]) +
-		float64(position[2])*float64(vec[2]) +
+func TexCoordDouble(position types.Vec3, vec [4]float32) float64 {
+	return float64(position.X)*float64(vec[0]) +
+		float64(position.Y)*float64(vec[1]) +
+		float64(position.Z)*float64(vec[2]) +
 		float64(vec[3])
 }
 

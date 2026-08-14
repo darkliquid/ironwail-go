@@ -13,6 +13,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/console"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestParseEntityUpdateStepMovePreservesHistoryWithoutForceLink(t *testing.T) {
@@ -25,15 +26,15 @@ func TestParseEntityUpdateStepMovePreservesHistoryWithoutForceLink(t *testing.T)
 	}
 	c.Entities[1] = inet.EntityState{
 		ModelIndex: 1,
-		Origin:     [3]float32{10, 20, 30},
-		Angles:     [3]float32{0, 0, 0},
-		MsgOrigins: [2][3]float32{
-			{10, 20, 30},
-			{1, 2, 3},
+		Origin:     types.Vec3{X: 10, Y: 20, Z: 30},
+		Angles:     types.Vec3{X: 0, Y: 0, Z: 0},
+		MsgOrigins: [2]types.Vec3{
+			{X: 10, Y: 20, Z: 30},
+			{X: 1, Y: 2, Z: 3},
 		},
-		MsgAngles: [2][3]float32{
-			{0, 45, 0},
-			{0, 30, 0},
+		MsgAngles: [2]types.Vec3{
+			{X: 0, Y: 45, Z: 0},
+			{X: 0, Y: 30, Z: 0},
 		},
 		MsgTime: 1.9,
 	}
@@ -56,13 +57,13 @@ func TestParseEntityUpdateStepMovePreservesHistoryWithoutForceLink(t *testing.T)
 	if ent.LerpFlags&inet.LerpMoveStep == 0 {
 		t.Fatal("LerpFlags missing LerpMoveStep for U_STEP update")
 	}
-	if got := ent.MsgOrigins[0]; got != [3]float32{24, 0, 0} {
+	if got := ent.MsgOrigins[0]; got != (types.Vec3{X: 24, Y: 0, Z: 0}) {
 		t.Fatalf("MsgOrigins[0] = %v, want latest raw origin [24 0 0]", got)
 	}
-	if got := ent.MsgOrigins[1]; got != [3]float32{10, 20, 30} {
+	if got := ent.MsgOrigins[1]; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("MsgOrigins[1] = %v, want preserved previous origin [10 20 30]", got)
 	}
-	if got := ent.Origin; got != [3]float32{10, 20, 30} {
+	if got := ent.Origin; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("Origin = %v, want live origin preserved until relink", got)
 	}
 }
@@ -78,8 +79,8 @@ func TestParseEntityUpdateCarriesLerpFinish(t *testing.T) {
 	}
 	c.Entities[1] = inet.EntityState{
 		ModelIndex: 1,
-		MsgOrigins: [2][3]float32{{10, 20, 30}, {1, 2, 3}},
-		MsgAngles:  [2][3]float32{{0, 45, 0}, {0, 30, 0}},
+		MsgOrigins: [2]types.Vec3{{X: 10, Y: 20, Z: 30}, {X: 1, Y: 2, Z: 3}},
+		MsgAngles:  [2]types.Vec3{{X: 0, Y: 45, Z: 0}, {X: 0, Y: 30, Z: 0}},
 		MsgTime:    1.9,
 	}
 	p := NewParser(c)
@@ -115,8 +116,8 @@ func TestParseServerMessageDoesNotTreat0xFFEntityUpdateAsTerminator(t *testing.T
 		Colormap:   3,
 		Skin:       4,
 		Effects:    5,
-		Origin:     [3]float32{1, 2, 3},
-		Angles:     [3]float32{10, 20, 30},
+		Origin:     types.Vec3{X: 1, Y: 2, Z: 3},
+		Angles:     types.Vec3{X: 10, Y: 20, Z: 30},
 		Alpha:      inet.ENTALPHA_DEFAULT,
 		Scale:      inet.ENTSCALE_DEFAULT,
 	}
@@ -161,7 +162,7 @@ func TestParseServerMessageDoesNotTreat0xFFEntityUpdateAsTerminator(t *testing.T
 	if got := ent.Effects; got != 5 {
 		t.Fatalf("Effects = %d, want 5", got)
 	}
-	if got := ent.MsgOrigins[0]; got != [3]float32{40, 50, 60} {
+	if got := ent.MsgOrigins[0]; got != (types.Vec3{X: 40, Y: 50, Z: 60}) {
 		t.Fatalf("MsgOrigins[0] = %v, want [40 50 60]", got)
 	}
 }
@@ -239,7 +240,7 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 		t.Fatal("missing client edict")
 	}
 	clientSlot.Edict.SetHealth(s, 100)
-	clientSlot.Edict.SetOrigin(s, [3]float32{1, 2, 3})
+	clientSlot.Edict.SetOrigin(s, types.Vec3{X: 1, Y: 2, Z: 3})
 
 	ent := s.AllocEdict()
 	if ent == nil {
@@ -247,8 +248,8 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	}
 	ent.SetModelIndex(s, 2)
 	ent.SetModel(s, s.QCVM.AllocString("progs/ogre.mdl"))
-	ent.SetOrigin(s, [3]float32{10, 20, 30})
-	ent.SetAngles(s, [3]float32{0, 45, 0})
+	ent.SetOrigin(s, types.Vec3{X: 10, Y: 20, Z: 30})
+	ent.SetAngles(s, types.Vec3{X: 0, Y: 45, Z: 0})
 	ent.SetFrame(s, 4)
 	ent.SetSkin(s, 2)
 	ent.SetEffects(s, 8)
@@ -278,22 +279,22 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	if got.Frame != 4 {
 		t.Fatalf("entity frame = %d, want 4", got.Frame)
 	}
-	if got.MsgOrigins[0] != [3]float32{10, 20, 30} {
+	if got.MsgOrigins[0] != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("entity MsgOrigins[0] = %v, want [10 20 30]", got.MsgOrigins[0])
 	}
-	if got.Origin != [3]float32{10, 20, 30} {
+	if got.Origin != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("entity origin = %v, want initial forced-link origin [10 20 30]", got.Origin)
 	}
-	if got.MsgAngles[0][1] < 44.5 || got.MsgAngles[0][1] > 45.5 {
-		t.Fatalf("entity raw yaw = %f, want ~45", got.MsgAngles[0][1])
+	if got.MsgAngles[0].Y < 44.5 || got.MsgAngles[0].Y > 45.5 {
+		t.Fatalf("entity raw yaw = %f, want ~45", got.MsgAngles[0].Y)
 	}
-	if got.Angles[1] < 44.5 || got.Angles[1] > 45.5 {
-		t.Fatalf("entity yaw = %f, want initial forced-link yaw ~45", got.Angles[1])
+	if got.Angles.Y < 44.5 || got.Angles.Y > 45.5 {
+		t.Fatalf("entity yaw = %f, want initial forced-link yaw ~45", got.Angles.Y)
 	}
 
 	s.Time = 1.6
 	org := ent.Origin(s)
-	org[0] = 42
+	org.X = 42
 	ent.SetOrigin(s, org)
 	data = s.ClientDatagram(0)
 	if err := p.ParseServerMessage(data); err != nil {
@@ -307,10 +308,10 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	if got.Frame != 4 {
 		t.Fatalf("entity frame after delta = %d, want 4", got.Frame)
 	}
-	if got.MsgOrigins[0] != [3]float32{42, 20, 30} {
+	if got.MsgOrigins[0] != (types.Vec3{X: 42, Y: 20, Z: 30}) {
 		t.Fatalf("entity MsgOrigins[0] after delta = %v, want [42 20 30]", got.MsgOrigins[0])
 	}
-	if got.Origin != [3]float32{10, 20, 30} {
+	if got.Origin != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("entity origin after delta = %v, want preserved live origin [10 20 30] until relink", got.Origin)
 	}
 
@@ -331,7 +332,7 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 		if state.ModelIndex != 0 {
 			t.Fatalf("stale-cleared entity %d has ModelIndex=%d after relink, want 0", s.NumForEdict(ent), state.ModelIndex)
 		}
-		if state.Origin != [3]float32{10, 20, 30} {
+		if state.Origin != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 			t.Fatalf("stale-cleared entity %d origin = %v, want preserved last render origin", s.NumForEdict(ent), state.Origin)
 		}
 	} else {
@@ -505,7 +506,7 @@ func TestClientCurrentFogInterpolatesFade(t *testing.T) {
 	c.FogDensity = 255
 	c.FogColor = [3]byte{255, 128, 0}
 	c.fogOldDensity = 0
-	c.fogOldColor = [3]float32{}
+	c.fogOldColor = types.Vec3{}
 	c.fogFadeTime = 4
 	c.fogFadeDone = 6
 
@@ -513,11 +514,9 @@ func TestClientCurrentFogInterpolatesFade(t *testing.T) {
 	if math.Abs(float64(density-0.5)) > 0.0001 {
 		t.Fatalf("density = %v, want 0.5", density)
 	}
-	want := [3]float32{128.0 / 255.0, 64.0 / 255.0, 0}
-	for i := range want {
-		if math.Abs(float64(color[i]-want[i])) > 0.0001 {
-			t.Fatalf("color[%d] = %v, want %v", i, color[i], want[i])
-		}
+	want := types.Vec3{X: 128.0 / 255.0, Y: 64.0 / 255.0, Z: 0}
+	if math.Abs(float64(color.X-want.X)) > 0.0001 || math.Abs(float64(color.Y-want.Y)) > 0.0001 || math.Abs(float64(color.Z-want.Z)) > 0.0001 {
+		t.Fatalf("color = %v, want %v", color, want)
 	}
 }
 
@@ -527,7 +526,7 @@ func TestClientCurrentFogDensityInterpolationNotQuantized(t *testing.T) {
 	c.FogDensity = 255
 	c.FogColor = [3]byte{0, 0, 0}
 	c.fogOldDensity = 0
-	c.fogOldColor = [3]float32{}
+	c.fogOldColor = types.Vec3{}
 	c.fogFadeTime = 3
 	c.fogFadeDone = 7
 
@@ -543,7 +542,7 @@ func TestSVCFogStartsFadeFromCurrentValue(t *testing.T) {
 	c.FogDensity = 255
 	c.FogColor = [3]byte{255, 128, 0}
 	c.fogOldDensity = 0
-	c.fogOldColor = [3]float32{}
+	c.fogOldColor = types.Vec3{}
 	c.fogFadeTime = 4
 	c.fogFadeDone = 6
 	p := NewParser(c)
@@ -563,11 +562,9 @@ func TestSVCFogStartsFadeFromCurrentValue(t *testing.T) {
 	if math.Abs(float64(c.fogOldDensity-0.5)) > 0.0001 {
 		t.Fatalf("fogOldDensity = %v, want 0.5", c.fogOldDensity)
 	}
-	want := [3]float32{128.0 / 255.0, 64.0 / 255.0, 0}
-	for i := range want {
-		if math.Abs(float64(c.fogOldColor[i]-want[i])) > 0.0001 {
-			t.Fatalf("fogOldColor[%d] = %v, want %v", i, c.fogOldColor[i], want[i])
-		}
+	want := types.Vec3{X: 128.0 / 255.0, Y: 64.0 / 255.0, Z: 0}
+	if math.Abs(float64(c.fogOldColor.X-want.X)) > 0.0001 || math.Abs(float64(c.fogOldColor.Y-want.Y)) > 0.0001 || math.Abs(float64(c.fogOldColor.Z-want.Z)) > 0.0001 {
+		t.Fatalf("fogOldColor = %v, want %v", c.fogOldColor, want)
 	}
 	if c.fogFadeDone != 6 {
 		t.Fatalf("fogFadeDone = %v, want 6", c.fogFadeDone)
@@ -587,7 +584,7 @@ func TestApplyWorldspawnFogDefaultsParsesFogKey(t *testing.T) {
 	if got := c.fogOldDensity; math.Abs(float64(got-0.5)) > 0.0001 {
 		t.Fatalf("fogOldDensity = %v, want 0.5", got)
 	}
-	if got := c.fogOldColor; got != [3]float32{0.25, 0.5, 0.75} {
+	if got := c.fogOldColor; got != (types.Vec3{X: 0.25, Y: 0.5, Z: 0.75}) {
 		t.Fatalf("fogOldColor = %v, want [0.25 0.5 0.75]", got)
 	}
 	if !c.fogConfigured {
@@ -671,15 +668,15 @@ func TestParseSoundSupportsExtendedEntityChannelAndSoundIndex(t *testing.T) {
 	if ev.Attenuation != 0.5 {
 		t.Fatalf("attenuation = %v, want 0.5", ev.Attenuation)
 	}
-	if ev.Origin != [3]float32{10, 20, 30} {
+	if ev.Origin != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("origin = %v, want [10 20 30]", ev.Origin)
 	}
 }
 
 func TestParseSetAngleSnapsViewAngleHistory(t *testing.T) {
 	c := NewClient()
-	c.MViewAngles[1] = [3]float32{1, 2, 3}
-	c.MViewAngles[0] = [3]float32{4, 5, 6}
+	c.MViewAngles[1] = types.Vec3{X: 1, Y: 2, Z: 3}
+	c.MViewAngles[0] = types.Vec3{X: 4, Y: 5, Z: 6}
 	p := NewParser(c)
 
 	msg := bytes.NewBuffer(nil)
@@ -693,7 +690,7 @@ func TestParseSetAngleSnapsViewAngleHistory(t *testing.T) {
 		t.Fatalf("ParseServerMessage() error = %v", err)
 	}
 
-	want := [3]float32{90, -180, -90}
+	want := types.Vec3{X: 90, Y: -180, Z: -90}
 	if c.ViewAngles != want {
 		t.Fatalf("ViewAngles = %v, want %v", c.ViewAngles, want)
 	}
@@ -724,7 +721,7 @@ func TestParseSetAngleUsesProtocolShortAngles(t *testing.T) {
 		t.Fatalf("ParseServerMessage() error = %v", err)
 	}
 
-	want := [3]float32{90, -180, -90}
+	want := types.Vec3{X: 90, Y: -180, Z: -90}
 	if c.ViewAngles != want {
 		t.Fatalf("ViewAngles = %v, want %v", c.ViewAngles, want)
 	}
@@ -749,7 +746,7 @@ func TestParseSetAngleUsesProtocolFloatAngles(t *testing.T) {
 		t.Fatalf("ParseServerMessage() error = %v", err)
 	}
 
-	want := [3]float32{12.5, 181.25, -45.75}
+	want := types.Vec3{X: 12.5, Y: 181.25, Z: -45.75}
 	if c.ViewAngles != want {
 		t.Fatalf("ViewAngles = %v, want %v", c.ViewAngles, want)
 	}
@@ -783,8 +780,8 @@ func TestParseEntityUpdateUsesRMQFloatCoordsAndAngles(t *testing.T) {
 	}
 
 	ent := c.Entities[1]
-	wantOrigin := [3]float32{10.25, 0, 0}
-	wantAngles := [3]float32{12.5, 0, 0}
+	wantOrigin := types.Vec3{X: 10.25, Y: 0, Z: 0}
+	wantAngles := types.Vec3{X: 12.5, Y: 0, Z: 0}
 	if ent.MsgOrigins[0] != wantOrigin {
 		t.Fatalf("MsgOrigins[0] = %v, want %v", ent.MsgOrigins[0], wantOrigin)
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type mockCollisionWorld struct {
@@ -18,10 +19,10 @@ type mockCollisionWorld struct {
 	testPosOverride *srvtypes.Edict
 }
 
-func (m *mockCollisionWorld) SV_Move(start, mins, maxs, end [3]float32, moveType srvtypes.MoveType, passedict *srvtypes.Edict) srvtypes.TraceResult {
+func (m *mockCollisionWorld) SV_Move(start, mins, maxs, end qtypes.Vec3, moveType srvtypes.MoveType, passedict *srvtypes.Edict) srvtypes.TraceResult {
 	if m.moveTrace.Fraction != 0 {
 		tr := m.moveTrace
-		if tr.EndPos == [3]float32{} {
+		if tr.EndPos == (qtypes.Vec3{}) {
 			tr.EndPos = end
 		}
 		return tr
@@ -33,13 +34,13 @@ func (m *mockCollisionWorld) SV_TestEntityPosition(ent *srvtypes.Edict) *srvtype
 	return m.testPosOverride
 }
 
-func (m *mockCollisionWorld) SV_HullForEntity(ent *srvtypes.Edict, mins, maxs [3]float32) (*model.Hull, [3]float32) {
-	return nil, [3]float32{}
+func (m *mockCollisionWorld) SV_HullForEntity(ent *srvtypes.Edict, mins, maxs qtypes.Vec3) (*model.Hull, qtypes.Vec3) {
+	return nil, qtypes.Vec3{}
 }
 
 func (m *mockCollisionWorld) LinkEdict(ent *srvtypes.Edict, touchTriggers bool) {}
 
-func (m *mockCollisionWorld) PointContents(p [3]float32) int {
+func (m *mockCollisionWorld) PointContents(p qtypes.Vec3) int {
 	return m.contents
 }
 
@@ -90,7 +91,7 @@ func TestPhysicsSystemMoveStepInIsolation(t *testing.T) {
 
 	ent := &srvtypes.Edict{Num: 1}
 
-	moved := sys.MoveStep(ent, [3]float32{10, 0, 0}, false)
+	moved := sys.MoveStep(ent, qtypes.Vec3{X: 10, Y: 0, Z: 0}, false)
 	if !moved {
 		t.Errorf("MoveStep() = false, want true for clear move")
 	}

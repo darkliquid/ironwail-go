@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/host"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func createSyntheticBSPTreeForFaceTrace() *bsp.Tree {
@@ -30,13 +31,13 @@ func createSyntheticBSPTreeForFaceTrace() *bsp.Tree {
 
 	tree := &bsp.Tree{
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{1, 0, 0}, Dist: 100.0, Type: 0},
+			{Normal: types.Vec3{X: 1, Y: 0, Z: 0}, Dist: 100.0, Type: 0},
 		},
 		Vertexes: []bsp.DVertex{
-			{Point: [3]float32{100, -50, -50}},
-			{Point: [3]float32{100, 50, -50}},
-			{Point: [3]float32{100, 50, 50}},
-			{Point: [3]float32{100, -50, 50}},
+			{Point: types.Vec3{X: 100, Y: -50, Z: -50}},
+			{Point: types.Vec3{X: 100, Y: 50, Z: -50}},
+			{Point: types.Vec3{X: 100, Y: 50, Z: 50}},
+			{Point: types.Vec3{X: 100, Y: -50, Z: 50}},
 		},
 		Edges: []bsp.TreeEdge{
 			{V: [2]uint32{0, 1}},
@@ -85,8 +86,8 @@ func TestTraceCrosshairFace(t *testing.T) {
 	g.Server = s
 
 	t.Run("DirectHit", func(t *testing.T) {
-		origin := [3]float32{0, 0, 0}
-		forward := [3]float32{1, 0, 0}
+		origin := types.Vec3{X: 0, Y: 0, Z: 0}
+		forward := types.Vec3{X: 1, Y: 0, Z: 0}
 
 		hit, ok := g.traceCrosshairFace(origin, forward)
 		if !ok {
@@ -99,7 +100,7 @@ func TestTraceCrosshairFace(t *testing.T) {
 		if hit.distance != 100.0 {
 			t.Errorf("distance = %f, want 100.0", hit.distance)
 		}
-		if hit.hitPos != [3]float32{100, 0, 0} {
+		if hit.hitPos != (types.Vec3{X: 100, Y: 0, Z: 0}) {
 			t.Errorf("hitPos = %v, want (100, 0, 0)", hit.hitPos)
 		}
 		if hit.texName != "wall01" {
@@ -108,8 +109,8 @@ func TestTraceCrosshairFace(t *testing.T) {
 	})
 
 	t.Run("MissRayPointingAway", func(t *testing.T) {
-		origin := [3]float32{0, 0, 0}
-		forward := [3]float32{-1, 0, 0}
+		origin := types.Vec3{X: 0, Y: 0, Z: 0}
+		forward := types.Vec3{X: -1, Y: 0, Z: 0}
 
 		_, ok := g.traceCrosshairFace(origin, forward)
 		if ok {
@@ -118,8 +119,8 @@ func TestTraceCrosshairFace(t *testing.T) {
 	})
 
 	t.Run("MissOutsidePolygon", func(t *testing.T) {
-		origin := [3]float32{0, 200, 0}
-		forward := [3]float32{1, 0, 0}
+		origin := types.Vec3{X: 0, Y: 200, Z: 0}
+		forward := types.Vec3{X: 1, Y: 0, Z: 0}
 
 		_, ok := g.traceCrosshairFace(origin, forward)
 		if ok {
@@ -138,7 +139,7 @@ func TestCmdCamDebugRunsWithoutPanic(t *testing.T) {
 	g.Client = &client.Client{
 		ViewEntity: 1,
 		Entities: map[int]inet.EntityState{
-			1: {Origin: [3]float32{0, 0, 0}},
+			1: {Origin: types.Vec3{X: 0, Y: 0, Z: 0}},
 		},
 	}
 	g.Server = &server.Server{

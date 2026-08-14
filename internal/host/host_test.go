@@ -13,6 +13,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type mockSubsystems struct {
@@ -162,7 +163,7 @@ func (c *shutdownTrackingClient) SendStringCmd(string) error { return nil }
 type shutdownTrackingAudio struct{ recorder *shutdownRecorder }
 
 func (a *shutdownTrackingAudio) Init() error { return nil }
-func (a *shutdownTrackingAudio) Update(origin, velocity, forward, right, up [3]float32) {
+func (a *shutdownTrackingAudio) Update(origin, velocity, forward, right, up types.Vec3) {
 }
 func (a *shutdownTrackingAudio) StopAllSounds(clear bool) {}
 func (a *shutdownTrackingAudio) SoundInfo() string        { return "" }
@@ -218,12 +219,12 @@ type mockCallbacks struct {
 	clientCalled bool
 }
 
-func (m *mockCallbacks) Events()                                           {}
-func (m *mockCallbacks) ProcessConsoleCommands()                           {}
-func (m *mockCallbacks) ProcessServer()                                    { m.serverCalled = true }
-func (m *mockCallbacks) ProcessClient()                                    { m.clientCalled = true }
-func (m *mockCallbacks) UpdateScreen()                                     {}
-func (m *mockCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {}
+func (m *mockCallbacks) Events()                                            {}
+func (m *mockCallbacks) ProcessConsoleCommands()                            {}
+func (m *mockCallbacks) ProcessServer()                                     { m.serverCalled = true }
+func (m *mockCallbacks) ProcessClient()                                     { m.clientCalled = true }
+func (m *mockCallbacks) UpdateScreen()                                      {}
+func (m *mockCallbacks) UpdateAudio(origin, forward, right, up types.Vec3) {}
 
 // TestHostInit verifies that the host initializes correctly with mock subsystems.
 // Why: The Host is the central coordinator of the engine, and ensuring its

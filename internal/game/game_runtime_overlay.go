@@ -239,7 +239,7 @@ func (g *Game) drawRuntimeSpeed(rc renderer.RenderContext, state TelemetryState,
 		overlay.DisplaySpeed = -1
 		overlay.MaxSpeed = 0
 	}
-	speed := float32(math.Sqrt(float64(state.Velocity[0]*state.Velocity[0] + state.Velocity[1]*state.Velocity[1])))
+	speed := float32(math.Sqrt(float64(state.Velocity.X*state.Velocity.X + state.Velocity.Y*state.Velocity.Y)))
 	if speed > overlay.MaxSpeed {
 		overlay.MaxSpeed = speed
 	}

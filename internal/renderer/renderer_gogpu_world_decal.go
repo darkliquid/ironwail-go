@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -352,9 +353,9 @@ func gogpuDecalPreparedMark(draw decalDraw) (worldgogpu.DecalPreparedMark, bool)
 	return worldgogpu.DecalPreparedMark{
 		Params: gogpuDecalMarkParams(draw.mark),
 		Color: [4]float32{
-			clamp01(draw.mark.Color[0]),
-			clamp01(draw.mark.Color[1]),
-			clamp01(draw.mark.Color[2]),
+			clamp01(draw.mark.Color.X),
+			clamp01(draw.mark.Color.Y),
+			clamp01(draw.mark.Color.Z),
 			clamp01(draw.mark.Alpha),
 		},
 	}, true
@@ -370,7 +371,7 @@ func gogpuDecalMarkParams(mark DecalMarkEntity) worldgogpu.DecalMarkParams {
 	}
 }
 
-func gogpuDecalQuad(params worldgogpu.DecalMarkParams) ([4][3]float32, bool) {
+func gogpuDecalQuad(params worldgogpu.DecalMarkParams) ([4]types.Vec3, bool) {
 	return buildDecalQuad(DecalMarkEntity{
 		Origin:   params.Origin,
 		Normal:   params.Normal,

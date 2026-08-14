@@ -335,10 +335,14 @@ func (s *Server) writeSpawnStaticSoundToSignon(snd StaticSound) error {
 		if err := s.WriteSignonByte(byte(inet.SVCSpawnStaticSound2)); err != nil {
 			return err
 		}
-		for i := 0; i < 3; i++ {
-			if err := s.WriteSignonCoord(snd.Origin[i]); err != nil {
-				return err
-			}
+		if err := s.WriteSignonCoord(snd.Origin.X); err != nil {
+			return err
+		}
+		if err := s.WriteSignonCoord(snd.Origin.Y); err != nil {
+			return err
+		}
+		if err := s.WriteSignonCoord(snd.Origin.Z); err != nil {
+			return err
 		}
 		if err := s.WriteSignonShort(int16(snd.SoundIndex)); err != nil {
 			return err
@@ -352,10 +356,14 @@ func (s *Server) writeSpawnStaticSoundToSignon(snd StaticSound) error {
 	if err := s.WriteSignonByte(byte(inet.SVCSpawnStaticSound)); err != nil {
 		return err
 	}
-	for i := 0; i < 3; i++ {
-		if err := s.WriteSignonCoord(snd.Origin[i]); err != nil {
-			return err
-		}
+	if err := s.WriteSignonCoord(snd.Origin.X); err != nil {
+		return err
+	}
+	if err := s.WriteSignonCoord(snd.Origin.Y); err != nil {
+		return err
+	}
+	if err := s.WriteSignonCoord(snd.Origin.Z); err != nil {
+		return err
 	}
 	if err := s.WriteSignonByte(byte(snd.SoundIndex)); err != nil {
 		return err
@@ -632,10 +640,8 @@ func (s *Server) CreateBaseline() {
 			continue
 		}
 
-		for i := 0; i < 3; i++ {
-			ent.Baseline.Origin[i] = ent.Origin(s)[i]
-			ent.Baseline.Angles[i] = ent.Angles(s)[i]
-		}
+		ent.Baseline.Origin = ent.Origin(s)
+		ent.Baseline.Angles = ent.Angles(s)
 		ent.Baseline.Frame = int(ent.Frame(s))
 		ent.Baseline.Skin = int(ent.Skin(s))
 

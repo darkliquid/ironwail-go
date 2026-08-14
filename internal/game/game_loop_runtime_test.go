@@ -15,6 +15,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func demoPlaybackData(t *testing.T, messages ...[]byte) []byte {
@@ -45,18 +46,18 @@ func TestRunRuntimeFrameRunsClientPrediction(t *testing.T) {
 	g.Client.MTime[0] = 1.1
 	g.Client.Time = g.Client.MTime[0]
 	g.Client.Entities[1] = inet.EntityState{
-		Origin:     [3]float32{100, 200, 300},
-		MsgOrigins: [2][3]float32{{100, 200, 300}, {100, 200, 300}},
+		Origin:     types.Vec3{X: 100, Y: 200, Z: 300},
+		MsgOrigins: [2]types.Vec3{{X: 100, Y: 200, Z: 300}, {X: 100, Y: 200, Z: 300}},
 		MsgTime:    g.Client.MTime[0],
 	}
 	g.Client.PendingCmd = cl.UserCmd{
-		ViewAngles: [3]float32{0, 0, 0},
+		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0},
 		Forward:    100,
 	}
 
 	g.RunRuntimeFrame(0.016, gameCallbacks{g: g})
 
-	if got := g.Client.PredictedOrigin; got[0] <= 100 {
+	if got := g.Client.PredictedOrigin; got.X <= 100 {
 		t.Fatalf("expected PredictPlayers to advance predicted origin, got %#v", got)
 	}
 }
@@ -76,7 +77,7 @@ func TestRunRuntimeFrameSyncsAudioViewEntity(t *testing.T) {
 	g.Client.State = cl.StateActive
 	g.Client.ViewEntity = 3
 	g.Client.ViewHeight = 22
-	g.Client.Entities[3] = inet.EntityState{Origin: [3]float32{64, 32, 16}}
+	g.Client.Entities[3] = inet.EntityState{Origin: types.Vec3{X: 64, Y: 32, Z: 16}}
 
 	g.RunRuntimeFrame(0.016, gameCallbacks{g: g})
 	if got := sys.ViewEntity(); got != 3 {
@@ -109,14 +110,14 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 	g.Client.ViewEntity = 1
 	g.Client.ViewHeight = 0
 	g.Client.Entities[1] = inet.EntityState{
-		Origin:     [3]float32{64, 0, 0},
-		MsgOrigins: [2][3]float32{{64, 0, 0}, {64, 0, 0}},
+		Origin:     types.Vec3{X: 64, Y: 0, Z: 0},
+		MsgOrigins: [2]types.Vec3{{X: 64, Y: 0, Z: 0}, {X: 64, Y: 0, Z: 0}},
 		MsgTime:    g.Client.MTime[0],
 	}
 	g.Server = &server.Server{
 		WorldTree: &bsp.Tree{
 			Planes: []bsp.DPlane{
-				{Normal: [3]float32{1, 0, 0}, Dist: 0},
+				{Normal: types.Vec3{X: 1, Y: 0, Z: 0}, Dist: 0},
 			},
 			Nodes: []bsp.TreeNode{
 				{
@@ -150,8 +151,8 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 	}
 
 	g.Client.Entities[1] = inet.EntityState{
-		Origin:     [3]float32{-64, 0, 0},
-		MsgOrigins: [2][3]float32{{-64, 0, 0}, {-64, 0, 0}},
+		Origin:     types.Vec3{X: -64, Y: 0, Z: 0},
+		MsgOrigins: [2]types.Vec3{{X: -64, Y: 0, Z: 0}, {X: -64, Y: 0, Z: 0}},
 		MsgTime:    g.Client.MTime[0],
 	}
 	g.RunRuntimeFrame(0.1, gameCallbacks{g: g})
@@ -178,8 +179,8 @@ func TestRunRuntimeFrameConsumesTransientEventsOnce(t *testing.T) {
 	g.Client.State = cl.StateActive
 	g.Client.SoundEvents = []cl.SoundEvent{{Entity: 1, Channel: 2, SoundIndex: 3}}
 	g.Client.StopSoundEvents = []cl.StopSoundEvent{{Entity: 4, Channel: 5}}
-	g.Client.ParticleEvents = []cl.ParticleEvent{{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 4}}
-	g.Client.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_GUNSHOT, Origin: [3]float32{4, 5, 6}}}
+	g.Client.ParticleEvents = []cl.ParticleEvent{{Origin: types.Vec3{X: 1, Y: 2, Z: 3}, Count: 12, Color: 4}}
+	g.Client.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_GUNSHOT, Origin: types.Vec3{X: 4, Y: 5, Z: 6}}}
 
 	events := g.RunRuntimeFrame(0.016, gameCallbacks{g: g})
 	if len(events.SoundEvents) != 1 || len(events.StopSoundEvents) != 1 || len(events.ParticleEvents) != 1 || len(events.TempEntities) != 1 {
@@ -348,17 +349,17 @@ func TestRunRuntimeFrameRelinksBeforeViewAndViewModelConsumers(t *testing.T) {
 	g.Client.Stats[inet.StatWeaponFrame] = 0
 	g.Client.Entities[1] = inet.EntityState{
 		ModelIndex:  1,
-		Origin:      [3]float32{0, 0, 0},
-		MsgOrigins:  [2][3]float32{{100, 0, 0}, {0, 0, 0}},
-		MsgAngles:   [2][3]float32{{0, 0, 0}, {0, 0, 0}},
+		Origin:      types.Vec3{X: 0, Y: 0, Z: 0},
+		MsgOrigins:  [2]types.Vec3{{X: 100, Y: 0, Z: 0}, {X: 0, Y: 0, Z: 0}},
+		MsgAngles:   [2]types.Vec3{{X: 0, Y: 0, Z: 0}, {X: 0, Y: 0, Z: 0}},
 		MsgTime:     1.1,
-		TrailOrigin: [3]float32{0, 0, 0},
+		TrailOrigin: types.Vec3{X: 0, Y: 0, Z: 0},
 	}
 
 	g.RunRuntimeFrame(0.016, gameCallbacks{g: g})
 
 	viewOrigin, _ := g.runtimeViewState()
-	if want := [3]float32{66, 0, 20}; viewOrigin != want {
+	if want := (types.Vec3{X: 66, Y: 0, Z: 20}); viewOrigin != want {
 		t.Fatalf("runtimeViewState origin = %v, want relinked origin %v", viewOrigin, want)
 	}
 

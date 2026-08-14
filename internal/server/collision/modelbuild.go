@@ -7,17 +7,18 @@ package collision
 import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // brushHullClipBounds holds the clip bounds for the standard movement hulls
 // (box, head, and large step offsets used by Quake's player collision).
 var brushHullClipBounds = [model.MaxMapHulls]struct {
-	mins [3]float32
-	maxs [3]float32
+	mins qtypes.Vec3
+	maxs qtypes.Vec3
 }{
 	0: {},
-	1: {mins: [3]float32{-16, -16, -24}, maxs: [3]float32{16, 16, 32}},
-	2: {mins: [3]float32{-32, -32, -24}, maxs: [3]float32{32, 32, 64}},
+	1: {mins: qtypes.Vec3{X: -16, Y: -16, Z: -24}, maxs: qtypes.Vec3{X: 16, Y: 16, Z: 32}},
+	2: {mins: qtypes.Vec3{X: -32, Y: -32, Z: -24}, maxs: qtypes.Vec3{X: 32, Y: 32, Z: 64}},
 }
 
 // WorldModelFromBSPTree adapts a parsed BSP tree into the runtime model.Model
@@ -56,8 +57,8 @@ func WorldModelFromBSPTree(modelName string, tree *bsp.Tree) *model.Model {
 		m.Nodes[i] = model.MNode{
 			Contents: int(bsp.ContentsEmpty),
 			MinMaxs: [6]float32{
-				n.BoundsMin[0], n.BoundsMin[1], n.BoundsMin[2],
-				n.BoundsMax[0], n.BoundsMax[1], n.BoundsMax[2],
+				n.BoundsMin.X, n.BoundsMin.Y, n.BoundsMin.Z,
+				n.BoundsMax.X, n.BoundsMax.Y, n.BoundsMax.Z,
 			},
 			FirstSurface: n.FirstFace,
 			NumSurfaces:  n.NumFaces,

@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/engine/arena"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestLoadAliasModelFromPak0 tests the loading of Quake Alias Models (.mdl).
@@ -93,13 +94,11 @@ func TestLoadAliasModelFromPak0(t *testing.T) {
 			if m.NumFrames != a.NumFrames {
 				t.Fatalf("model numframes = %d, want %d", m.NumFrames, a.NumFrames)
 			}
-			for axis := 0; axis < 3; axis++ {
-				if m.Mins[axis] > m.Maxs[axis] {
-					t.Fatalf("invalid axis %d bounds: min=%f max=%f", axis, m.Mins[axis], m.Maxs[axis])
-				}
-				if m.RMins[axis] > m.RMaxs[axis] {
-					t.Fatalf("invalid axis %d rotational bounds: min=%f max=%f", axis, m.RMins[axis], m.RMaxs[axis])
-				}
+			if m.Mins.X > m.Maxs.X || m.Mins.Y > m.Maxs.Y || m.Mins.Z > m.Maxs.Z {
+				t.Fatalf("invalid bounds: min=%v max=%v", m.Mins, m.Maxs)
+			}
+			if m.RMins.X > m.RMaxs.X || m.RMins.Y > m.RMaxs.Y || m.RMins.Z > m.RMaxs.Z {
+				t.Fatalf("invalid rotational bounds: min=%v max=%v", m.RMins, m.RMaxs)
 			}
 		})
 	}
@@ -326,14 +325,16 @@ func TestLoadAliasModelWithArena(t *testing.T) {
 func TestLoadAliasModelWithArenaSynthetic(t *testing.T) {
 	var data bytes.Buffer
 	write := func(value any) {
-		binary.Write(&data, binary.LittleEndian, value)
+		if err := binary.Write(&data, binary.LittleEndian, value); err != nil {
+			t.Fatalf("binary.Write: %v", err)
+		}
 	}
 	write(int32(MDLIdent))
 	write(int32(MDLVersion))
-	write([3]float32{1, 1, 1})
-	write([3]float32{0, 0, 0})
+	write(types.Vec3{X: 1, Y: 1, Z: 1})
+	write(types.Vec3{X: 0, Y: 0, Z: 0})
 	write(float32(1))
-	write([3]float32{0, 0, 0})
+	write(types.Vec3{X: 0, Y: 0, Z: 0})
 	write(int32(1))   // 1 skin
 	write(int32(2))   // 2 width
 	write(int32(2))   // 2 height

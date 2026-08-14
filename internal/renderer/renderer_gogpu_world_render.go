@@ -243,8 +243,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		fillWorldSceneUniformBytesWithExternalSkyWind(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, dc.renderer.worldSkyExternalWind, dc.renderer.resources.WorldSkyExternalWindLoaded)
 		return queue.WriteBuffer(dc.renderer.resources.UniformBuffer, 0, uniformBytes[:]) == nil
 	}
-	cameraOriginWorld := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	cameraLeafIndex := worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
+	cameraLeafIndex := worldLeafIndex(worldData.Geometry.Tree, camera.Origin)
 	cacheEntry := dc.renderer.gogpuWorldBatchCacheEntry(cameraLeafIndex, liquidAlpha)
 	cacheHit := cacheEntry != nil
 	visibleFaceCount := 0
@@ -268,7 +267,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			worldData.Geometry.Tree,
 			worldData.Geometry.Faces,
 			worldData.Geometry.LeafFaces,
-			cameraOriginWorld,
+			camera.Origin,
 		)
 		visibleSelectMS = float64(time.Since(selectStart)) / float64(time.Millisecond)
 		visibleFaceCount = len(visibleFaces)
@@ -507,7 +506,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	slog.Debug("World render commands submitted successfully")
 }
 
-func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor types.Vec3, fogDensity float32) {
 	if dc == nil || dc.renderer == nil {
 		return
 	}
@@ -553,7 +552,7 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor [3]float32, fog
 		worldData.Geometry.Tree,
 		worldData.Geometry.Faces,
 		worldData.Geometry.LeafFaces,
-		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+		camera.Origin,
 	)
 	skyFaces := make([]WorldFace, 0, len(visibleFaces))
 	for _, face := range visibleFaces {
@@ -677,19 +676,19 @@ func (r *Renderer) storeGoGPUWorldBatchCacheEntry(leaf int, liquidAlpha worldLiq
 	entry.liquid = append(entry.liquid[:0], opaqueLiquidBatches...)
 }
 
-func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, litWater float32) {
+func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor types.Vec3, fogDensity float32, time float32, alpha float32, litWater float32) {
 	clear(dst[:worldUniformBufferSize])
 	matrixBytes := matrixToBytes(vp)
 	copy(dst[:64], matrixBytes)
 	putFloat32s(dst[64:76], cameraOrigin[:])
 	binary.LittleEndian.PutUint32(dst[76:80], math.Float32bits(fogDensity))
-	putFloat32s(dst[80:92], fogColor[:])
+	putFloat32s(dst[80:92], fogColor.Slice())
 	binary.LittleEndian.PutUint32(dst[92:96], math.Float32bits(time))
 	binary.LittleEndian.PutUint32(dst[96:100], math.Float32bits(alpha))
 	binary.LittleEndian.PutUint32(dst[100:104], math.Float32bits(litWater))
 }
 
-func fillWorldSceneUniformBytesWithExternalSkyWind(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, timeValue float32, wind externalSkyboxWind, windLoaded bool) {
+func fillWorldSceneUniformBytesWithExternalSkyWind(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor types.Vec3, fogDensity float32, timeValue float32, wind externalSkyboxWind, windLoaded bool) {
 	fillWorldSceneUniformBytes(dst, vp, cameraOrigin, fogColor, fogDensity, timeValue, 1, 0)
 	if !windLoaded || wind.Dist == 0 {
 		return

@@ -72,13 +72,13 @@ func WriteClientData(deps ClientDataDeps, ent *srvtypes.Edict, msg *srvtypes.Mes
 			oOrg := other.Origin(deps.Handle)
 			oMins := other.Mins(deps.Handle)
 			oMaxs := other.Maxs(deps.Handle)
-			for i := 0; i < 3; i++ {
-				msg.WriteCoord(oOrg[i]+0.5*(oMins[i]+oMaxs[i]), flags)
-			}
+			msg.WriteCoord(oOrg.X+0.5*(oMins.X+oMaxs.X), flags)
+			msg.WriteCoord(oOrg.Y+0.5*(oMins.Y+oMaxs.Y), flags)
+			msg.WriteCoord(oOrg.Z+0.5*(oMins.Z+oMaxs.Z), flags)
 		} else {
-			for i := 0; i < 3; i++ {
-				msg.WriteCoord(0, flags)
-			}
+			msg.WriteCoord(0, flags)
+			msg.WriteCoord(0, flags)
+			msg.WriteCoord(0, flags)
 		}
 		ent.SetDmgTake(deps.Handle, 0)
 		ent.SetDmgSave(deps.Handle, 0)
@@ -91,9 +91,9 @@ func WriteClientData(deps ClientDataDeps, ent *srvtypes.Edict, msg *srvtypes.Mes
 	if ent.FixAngle(deps.Handle) != 0 {
 		msg.PutByte(byte(inet.SVCSetAngle))
 		vAng := ent.VAngle(deps.Handle)
-		for i := 0; i < 3; i++ {
-			msg.WriteAngle(vAng[i], flags)
-		}
+		msg.WriteAngle(vAng.X, flags)
+		msg.WriteAngle(vAng.Y, flags)
+		msg.WriteAngle(vAng.Z, flags)
 		ent.SetFixAngle(deps.Handle, 0)
 	}
 
@@ -117,7 +117,7 @@ func WriteClientData(deps ClientDataDeps, ent *srvtypes.Edict, msg *srvtypes.Mes
 	weaponVal := ent.Weapon(deps.Handle)
 	healthVal := ent.Health(deps.Handle)
 
-	if viewOfs[2] != srvtypes.ViewHeight {
+	if viewOfs.Z != srvtypes.ViewHeight {
 		bits |= inet.SU_VIEWHEIGHT
 	}
 	if idealPitch != 0 {
@@ -131,13 +131,23 @@ func WriteClientData(deps ClientDataDeps, ent *srvtypes.Edict, msg *srvtypes.Mes
 	if waterLevel >= 2 {
 		bits |= inet.SU_INWATER
 	}
-	for i := 0; i < 3; i++ {
-		if punchAngle[i] != 0 {
-			bits |= inet.SU_PUNCH1 << i
-		}
-		if velocity[i] != 0 {
-			bits |= inet.SU_VELOCITY1 << i
-		}
+	if punchAngle.X != 0 {
+		bits |= inet.SU_PUNCH1
+	}
+	if punchAngle.Y != 0 {
+		bits |= inet.SU_PUNCH2
+	}
+	if punchAngle.Z != 0 {
+		bits |= inet.SU_PUNCH3
+	}
+	if velocity.X != 0 {
+		bits |= inet.SU_VELOCITY1
+	}
+	if velocity.Y != 0 {
+		bits |= inet.SU_VELOCITY2
+	}
+	if velocity.Z != 0 {
+		bits |= inet.SU_VELOCITY3
 	}
 	if weaponFrame != 0 {
 		bits |= inet.SU_WEAPONFRAME
@@ -191,10 +201,10 @@ func WriteClientData(deps ClientDataDeps, ent *srvtypes.Edict, msg *srvtypes.Mes
 		deps.Logger.LogEventf(srvdebug.DebugEventPhysics, deps.Handle.GetVM(), entNum, ent,
 			"clientdata serialize bits=%#x onground=%t waterlevel=%d viewofs=(%.1f %.1f %.1f) idealpitch=%.1f vel=(%.1f %.1f %.1f) punch=(%.1f %.1f %.1f) fixangle_sent=%t ground=%d teleport=%.3f items=%#x weapon=%#x weaponmodel=%q weaponmodelidx=%d ammo=%d shells=%d",
 			bits, uint32(entFlags)&srvtypes.FlagOnGround != 0, int(waterLevel),
-			viewOfs[0], viewOfs[1], viewOfs[2],
+			viewOfs.X, viewOfs.Y, viewOfs.Z,
 			idealPitch,
-			velocity[0], velocity[1], velocity[2],
-			punchAngle[0], punchAngle[1], punchAngle[2],
+			velocity.X, velocity.Y, velocity.Z,
+			punchAngle.X, punchAngle.Y, punchAngle.Z,
 			fixAngleSent, int(ent.GroundEntity(deps.Handle)), ent.TeleportTime(deps.Handle),
 			uint32(itemsVal), uint32(weaponVal), weaponModelName, weaponModelIdx,
 			int(currentAmmo), int(ammoShells))
@@ -211,18 +221,28 @@ func WriteClientData(deps ClientDataDeps, ent *srvtypes.Edict, msg *srvtypes.Mes
 	}
 
 	if bits&inet.SU_VIEWHEIGHT != 0 {
-		msg.WriteChar(int8(viewOfs[2]))
+		msg.WriteChar(int8(viewOfs.Z))
 	}
 	if bits&inet.SU_IDEALPITCH != 0 {
 		msg.WriteChar(int8(idealPitch))
 	}
-	for i := 0; i < 3; i++ {
-		if bits&(inet.SU_PUNCH1<<i) != 0 {
-			msg.WriteChar(int8(punchAngle[i]))
-		}
-		if bits&(inet.SU_VELOCITY1<<i) != 0 {
-			msg.WriteChar(int8(velocity[i] / 16))
-		}
+	if bits&inet.SU_PUNCH1 != 0 {
+		msg.WriteChar(int8(punchAngle.X))
+	}
+	if bits&inet.SU_PUNCH2 != 0 {
+		msg.WriteChar(int8(punchAngle.Y))
+	}
+	if bits&inet.SU_PUNCH3 != 0 {
+		msg.WriteChar(int8(punchAngle.Z))
+	}
+	if bits&inet.SU_VELOCITY1 != 0 {
+		msg.WriteChar(int8(velocity.X / 16))
+	}
+	if bits&inet.SU_VELOCITY2 != 0 {
+		msg.WriteChar(int8(velocity.Y / 16))
+	}
+	if bits&inet.SU_VELOCITY3 != 0 {
+		msg.WriteChar(int8(velocity.Z / 16))
 	}
 
 	items := uint32(itemsVal)

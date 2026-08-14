@@ -7,12 +7,13 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestWorldModelFromBSPTreeBuildsNodes(t *testing.T) {
 	tree := &bsp.Tree{
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{0, 0, 1}, Dist: 0},
+			{Normal: qtypes.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0},
 		},
 		Nodes: []bsp.TreeNode{
 			{PlaneNum: 0, Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 0}, {IsLeaf: false, Index: 1}}},
@@ -21,8 +22,8 @@ func TestWorldModelFromBSPTreeBuildsNodes(t *testing.T) {
 		Leafs: []bsp.TreeLeaf{{Contents: int32(bsp.ContentsEmpty)}},
 		Models: []bsp.DModel{
 			{
-				BoundsMin: [3]float32{-100, -100, 0},
-				BoundsMax: [3]float32{100, 100, 128},
+				BoundsMin: qtypes.Vec3{X: -100, Y: -100, Z: 0},
+				BoundsMax: qtypes.Vec3{X: 100, Y: 100, Z: 128},
 				HeadNode:  [4]int32{0, -1, -1, -1},
 			},
 		},
@@ -71,11 +72,11 @@ func TestBuildNodeHullTracksLeafContents(t *testing.T) {
 
 func TestPopulateWorldModelCollisionSetsHull0(t *testing.T) {
 	tree := &bsp.Tree{
-		Planes: []bsp.DPlane{{Normal: [3]float32{0, 0, 1}}},
+		Planes: []bsp.DPlane{{Normal: qtypes.Vec3{X: 0, Y: 0, Z: 1}}},
 		Nodes:  []bsp.TreeNode{{PlaneNum: 0}},
 		Leafs:  []bsp.TreeLeaf{{Contents: int32(bsp.ContentsEmpty)}},
 		Models: []bsp.DModel{
-			{BoundsMin: [3]float32{0, 0, 0}, BoundsMax: [3]float32{1, 1, 1}, HeadNode: [4]int32{0, -1, -1, -1}},
+			{BoundsMin: qtypes.Vec3{X: 0, Y: 0, Z: 0}, BoundsMax: qtypes.Vec3{X: 1, Y: 1, Z: 1}, HeadNode: [4]int32{0, -1, -1, -1}},
 		},
 	}
 	file := &bsp.File{}

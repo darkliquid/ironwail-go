@@ -8,6 +8,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // mockFacade implements the PhysicsFacade surface used by the mover and the
@@ -31,7 +32,7 @@ type mockFacade struct {
 	sounds []string
 	// moved/from are the PushMoveScratch buffers.
 	moved []*srvtypes.Edict
-	from  [][3]float32
+	from  []qtypes.Vec3
 	// runThink overrides the RunThink gate when non-nil.
 	runThink func(ent *srvtypes.Edict) bool
 	// runExecute overrides ExecuteQCFunction when non-nil (pusher gate tests).
@@ -105,7 +106,7 @@ func (m *mockFacade) PlayerClient(ent *srvtypes.Edict) *srvtypes.Client { return
 func (m *mockFacade) RunClientQCThinkWithMode(client *srvtypes.Client, funcName string, fullSync bool) {
 }
 func (m *mockFacade) DebugTriggerTouch(source string, touch, other *srvtypes.Edict) {}
-func (m *mockFacade) PushMoveScratch() (moved *[]*srvtypes.Edict, from *[][3]float32) {
+func (m *mockFacade) PushMoveScratch() (moved *[]*srvtypes.Edict, from *[]qtypes.Vec3) {
 	return &m.moved, &m.from
 }
 func (m *mockFacade) GetFieldGravity() int            { return -1 }
@@ -126,7 +127,7 @@ func TestClientMoverWalkProducesHorizontalVelocity(t *testing.T) {
 	ent.SetMoveType(h, float32(srvtypes.MoveTypeWalk))
 	ent.SetHealth(h, 100)
 	ent.SetFlags(h, float32(srvtypes.FlagOnGround))
-	ent.SetVAngle(h, [3]float32{60, 0, 0})
+	ent.SetVAngle(h, qtypes.Vec3{X: 60, Y: 0, Z: 0})
 
 	client := &srvtypes.Client{
 		Edict: ent,
@@ -138,17 +139,17 @@ func TestClientMoverWalkProducesHorizontalVelocity(t *testing.T) {
 	mover.SV_ClientThink(client)
 
 	vel := ent.Velocity(h)
-	if vel[2] != 0 {
-		t.Errorf("walk velocity z = %v, want 0", vel[2])
+	if vel.Z != 0 {
+		t.Errorf("walk velocity z = %v, want 0", vel.Z)
 	}
-	if vel[0] == 0 && vel[1] == 0 {
+	if vel.X == 0 && vel.Y == 0 {
 		t.Errorf("walk forward move did not produce horizontal velocity: %v", vel)
 	}
 }
 
 func TestCalcRollFlatReturnsZero(t *testing.T) {
 	// No lateral velocity -> no roll.
-	if got := CalcRoll(nil, [3]float32{0, 0, 0}, [3]float32{0, 0, 0}); got != 0 {
+	if got := CalcRoll(nil, qtypes.Vec3{}, qtypes.Vec3{}); got != 0 {
 		t.Errorf("CalcRoll flat = %v, want 0", got)
 	}
 }

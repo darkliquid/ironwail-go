@@ -99,10 +99,10 @@ func ComputeProjectionMatrix(fovDegrees, aspect, near, far float32) types.Mat4 {
 
 // ConvertClientStateToCamera converts client prediction state to camera state.
 // This is the main integration point between the client system and the renderer.
-func ConvertClientStateToCamera(origin [3]float32, angles [3]float32, fov float32) CameraState {
+func ConvertClientStateToCamera(origin types.Vec3, angles types.Vec3, fov float32) CameraState {
 	return CameraState{
-		Origin: types.NewVec3(origin[0], origin[1], origin[2]),
-		Angles: types.NewVec3(angles[0], angles[1], angles[2]),
+		Origin: origin,
+		Angles: angles,
 		FOV:    fov,
 		Time:   0, // Will be set by caller if needed
 	}

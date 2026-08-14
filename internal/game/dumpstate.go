@@ -6,14 +6,15 @@ package game
 import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // DumpFrameState captures the full frame state and active edicts into the
 // standardized H1 dumpstate schema.
 type DumpFrameState struct {
 	Frame        int         `json:"frame"`
-	ViewOrg      [3]float32  `json:"vieworg"`
-	ViewAngles   [3]float32  `json:"viewangles"`
+	ViewOrg      types.Vec3  `json:"vieworg"`
+	ViewAngles   types.Vec3  `json:"viewangles"`
 	ViewLeaf     int         `json:"viewleaf"`
 	MatView      [16]float32 `json:"r_matview"`
 	MatProj      [16]float32 `json:"r_matproj"`
@@ -28,9 +29,9 @@ type DumpFrameState struct {
 // DumpEdict represents the extended H1 schema for an edict.
 type DumpEdict struct {
 	Number       int        `json:"number"`
-	Origin       [3]float32 `json:"origin"`
-	Angles       [3]float32 `json:"angles"`
-	Velocity     [3]float32 `json:"velocity,omitempty"`
+	Origin       types.Vec3 `json:"origin"`
+	Angles       types.Vec3 `json:"angles"`
+	Velocity     types.Vec3 `json:"velocity,omitempty"`
 	Model        string     `json:"model,omitempty"`
 	ModelIndex   int        `json:"modelindex,omitempty"`
 	Frame        int        `json:"frame,omitempty"`
@@ -50,9 +51,9 @@ type DumpEdict struct {
 
 // DumpLight represents dynamic light state in the frame.
 type DumpLight struct {
-	Pos      [3]float32 `json:"pos"`
+	Pos      types.Vec3 `json:"pos"`
 	Radius   float32    `json:"radius"`
-	Color    [3]float32 `json:"color"`
+	Color    types.Vec3 `json:"color"`
 	MinLight float32    `json:"minlight"`
 }
 
@@ -84,7 +85,7 @@ func (g *Game) CaptureDumpState(frameIndex int) DumpFrameState {
 	dump := DumpFrameState{
 		Frame:      frameIndex,
 		ViewOrg:    viewOrg,
-		ViewAngles: [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z},
+		ViewAngles: camera.Angles,
 		ViewLeaf:   viewLeaf,
 		MatView:    matView,
 		MatProj:    matProj,
@@ -149,9 +150,9 @@ func (g *Game) CaptureDumpState(frameIndex int) DumpFrameState {
 		if r, ok := g.Renderer.(*renderer.Renderer); ok {
 			for _, l := range r.ActiveLights() {
 				dump.Lights = append(dump.Lights, DumpLight{
-					Pos:      [3]float32{l.Position[0], l.Position[1], l.Position[2]},
+					Pos:      l.Position,
 					Radius:   l.Radius,
-					Color:    [3]float32{l.Color[0], l.Color[1], l.Color[2]},
+					Color:    l.Color,
 					MinLight: l.MinLight,
 				})
 			}

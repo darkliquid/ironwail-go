@@ -1,5 +1,7 @@
 package world
 
+import "github.com/darkliquid/ironwail-go/pkg/types"
+
 func clamp01(v float32) float32 {
 	if v < 0 {
 		return 0
@@ -22,7 +24,7 @@ func FogUniformDensity(density float32) float32 {
 }
 
 // BlendFogStateTowards blends previous fog state toward a target by maxStep.
-func BlendFogStateTowards(prevColor [3]float32, prevDensity float32, nextColor [3]float32, nextDensity float32, maxStep float32) ([3]float32, float32) {
+func BlendFogStateTowards(prevColor types.Vec3, prevDensity float32, nextColor types.Vec3, nextDensity float32, maxStep float32) (types.Vec3, float32) {
 	if maxStep <= 0 {
 		return nextColor, nextDensity
 	}
@@ -38,10 +40,10 @@ func BlendFogStateTowards(prevColor [3]float32, prevDensity float32, nextColor [
 		return next
 	}
 
-	return [3]float32{
-			blendChannel(prevColor[0], nextColor[0]),
-			blendChannel(prevColor[1], nextColor[1]),
-			blendChannel(prevColor[2], nextColor[2]),
+	return types.Vec3{
+			X: blendChannel(prevColor.X, nextColor.X),
+			Y: blendChannel(prevColor.Y, nextColor.Y),
+			Z: blendChannel(prevColor.Z, nextColor.Z),
 		},
 		blendChannel(prevDensity, nextDensity)
 }

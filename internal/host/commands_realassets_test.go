@@ -12,6 +12,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/server"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestCmdMapStartRealAssetsReachesCaActive(t *testing.T) {
@@ -121,7 +122,7 @@ func TestCmdMapE2M2RealAssetsKeepsMonstersOutOfSolid(t *testing.T) {
 			continue
 		}
 		monsterCount++
-		if ent.Origin(srv) == ([3]float32{}) {
+		if ent.Origin(srv) == (qtypes.Vec3{}) {
 			t.Fatalf("monster %d (%s) spawned at origin after CmdMap", entNum, className)
 		}
 		if blocker := srv.TestEntityPosition(ent); blocker != nil {
@@ -175,7 +176,7 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 
 	player := srv.Static.Clients[0].Edict
 	player.SetHealth(srv, 61)
-	player.SetOrigin(srv, [3]float32{320, 144, 40})
+	player.SetOrigin(srv, qtypes.Vec3{X: 320, Y: 144, Z: 40})
 	player.SetCurrentAmmo(srv, 12)
 	player.SetAmmoShells(srv, 25)
 	player.SetAmmoNails(srv, 50)
@@ -196,7 +197,7 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	}
 
 	player.SetHealth(srv, 12)
-	player.SetOrigin(srv, [3]float32{0, 0, 0})
+	player.SetOrigin(srv, qtypes.Vec3{X: 0, Y: 0, Z: 0})
 	player.SetCurrentAmmo(srv, 1)
 	player.SetAmmoShells(srv, 1)
 	player.SetAmmoNails(srv, 1)
@@ -217,7 +218,7 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	if got := srv.Static.Clients[0].Edict.Health(srv); got != 61 {
 		t.Fatalf("loaded player health = %v, want 61", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Origin(srv); got != ([3]float32{320, 144, 40}) {
+	if got := srv.Static.Clients[0].Edict.Origin(srv); got != (qtypes.Vec3{X: 320, Y: 144, Z: 40}) {
 		t.Fatalf("loaded player origin = %v, want restored origin", got)
 	}
 	if got := srv.Static.Clients[0].Edict.CurrentAmmo(srv); got != 12 {
@@ -307,10 +308,10 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 
 	player := srv.Static.Clients[0].Edict
 	player.SetHealth(srv, 61)
-	player.SetOrigin(srv, [3]float32{320, 144, 40})
-	player.SetViewOfs(srv, [3]float32{0, 0, 22})
-	player.SetVAngle(srv, [3]float32{0, 90, 0})
-	player.SetAngles(srv, [3]float32{0, 90, 0})
+	player.SetOrigin(srv, qtypes.Vec3{X: 320, Y: 144, Z: 40})
+	player.SetViewOfs(srv, qtypes.Vec3{X: 0, Y: 0, Z: 22})
+	player.SetVAngle(srv, qtypes.Vec3{X: 0, Y: 90, Z: 0})
+	player.SetAngles(srv, qtypes.Vec3{X: 0, Y: 90, Z: 0})
 	player.SetCurrentAmmo(srv, 12)
 	player.SetAmmoShells(srv, 25)
 	player.SetAmmoNails(srv, 50)
@@ -325,9 +326,9 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 	player.SetTakeDamage(srv, 1)
 	player.SetColormap(srv, 1)
 	player.SetTeam(srv, 1)
-	player.SetMins(srv, [3]float32{-16, -16, -24})
-	player.SetMaxs(srv, [3]float32{16, 16, 32})
-	player.SetSize(srv, [3]float32{32, 32, 56})
+	player.SetMins(srv, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	player.SetMaxs(srv, qtypes.Vec3{X: 16, Y: 16, Z: 32})
+	player.SetSize(srv, qtypes.Vec3{X: 32, Y: 32, Z: 56})
 	srv.Static.Clients[0].SpawnParms[0] = 100
 	srv.Static.Clients[0].SpawnParms[1] = 250
 	srv.LightStyles[3] = "az"
@@ -378,7 +379,7 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 	}
 
 	player.SetHealth(srv, 12)
-	player.SetOrigin(srv, [3]float32{})
+	player.SetOrigin(srv, qtypes.Vec3{})
 	player.SetCurrentAmmo(srv, 1)
 	player.SetAmmoShells(srv, 1)
 	player.SetAmmoNails(srv, 1)
@@ -400,7 +401,7 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 	if got := srv.Static.Clients[0].Edict.Health(srv); got != 61 {
 		t.Fatalf("loaded player health = %v, want 61", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Origin(srv); got != ([3]float32{320, 144, 40}) {
+	if got := srv.Static.Clients[0].Edict.Origin(srv); got != (qtypes.Vec3{X: 320, Y: 144, Z: 40}) {
 		t.Fatalf("loaded player origin = %v, want restored origin", got)
 	}
 	if got := srv.Static.Clients[0].Edict.CurrentAmmo(srv); got != 12 {
@@ -627,19 +628,19 @@ func TestCmdRestartAutoloadsLastSaveForDeadPlayer(t *testing.T) {
 
 	player := srv.Static.Clients[0].Edict
 	player.SetHealth(srv, 61)
-	player.SetOrigin(srv, [3]float32{320, 144, 40})
+	player.SetOrigin(srv, qtypes.Vec3{X: 320, Y: 144, Z: 40})
 
 	h.CmdSave("autoload_restart", subs)
 
 	player.SetHealth(srv, 0)
-	player.SetOrigin(srv, [3]float32{0, 0, 0})
+	player.SetOrigin(srv, qtypes.Vec3{X: 0, Y: 0, Z: 0})
 
 	h.CmdRestart(subs)
 
 	if got := srv.Static.Clients[0].Edict.Health(srv); got != 61 {
 		t.Fatalf("autoloaded restart health = %v, want 61", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Origin(srv); got != ([3]float32{320, 144, 40}) {
+	if got := srv.Static.Clients[0].Edict.Origin(srv); got != (qtypes.Vec3{X: 320, Y: 144, Z: 40}) {
 		t.Fatalf("autoloaded restart origin = %v, want restored origin", got)
 	}
 }
@@ -688,19 +689,19 @@ func TestCmdChangelevelSameMapAutoloadsLastSaveWhenConfigured(t *testing.T) {
 
 	player := srv.Static.Clients[0].Edict
 	player.SetHealth(srv, 61)
-	player.SetOrigin(srv, [3]float32{320, 144, 40})
+	player.SetOrigin(srv, qtypes.Vec3{X: 320, Y: 144, Z: 40})
 
 	h.CmdSave("autoload_changelevel", subs)
 
 	player.SetHealth(srv, 12)
-	player.SetOrigin(srv, [3]float32{0, 0, 0})
+	player.SetOrigin(srv, qtypes.Vec3{X: 0, Y: 0, Z: 0})
 
 	h.CmdChangelevel("start", subs)
 
 	if got := srv.Static.Clients[0].Edict.Health(srv); got != 61 {
 		t.Fatalf("autoloaded same-map changelevel health = %v, want 61", got)
 	}
-	if got := srv.Static.Clients[0].Edict.Origin(srv); got != ([3]float32{320, 144, 40}) {
+	if got := srv.Static.Clients[0].Edict.Origin(srv); got != (qtypes.Vec3{X: 320, Y: 144, Z: 40}) {
 		t.Fatalf("autoloaded same-map changelevel origin = %v, want restored origin", got)
 	}
 }
@@ -843,12 +844,12 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 	}
 
 	player := srv.Static.Clients[0].Edict
-	player.SetOrigin(srv, [3]float32{
-		(trigger.AbsMin(srv)[0] + trigger.AbsMax(srv)[0]) * 0.5,
-		(trigger.AbsMin(srv)[1] + trigger.AbsMax(srv)[1]) * 0.5,
-		trigger.AbsMin(srv)[2] - player.Mins(srv)[2] + 1,
+	player.SetOrigin(srv, qtypes.Vec3{
+		X: (trigger.AbsMin(srv).X + trigger.AbsMax(srv).X) * 0.5,
+		Y: (trigger.AbsMin(srv).Y + trigger.AbsMax(srv).Y) * 0.5,
+		Z: trigger.AbsMin(srv).Z - player.Mins(srv).Z + 1,
 	})
-	player.SetVelocity(srv, [3]float32{})
+	player.SetVelocity(srv, qtypes.Vec3{})
 	player.SetFlags(srv, float32(uint32(player.Flags(srv))|uint32(server.FlagOnGround)))
 	srv.LinkEdict(player, false)
 

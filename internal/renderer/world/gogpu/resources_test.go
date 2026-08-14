@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestEncodeIndexBytes verifies the pure little-endian index packing matches
@@ -28,10 +29,10 @@ func TestEncodeIndexBytes(t *testing.T) {
 // packing helper.
 func TestCreateWorldVertexBufferPacking(t *testing.T) {
 	v := worldimpl.WorldVertex{
-		Position:      [3]float32{1, 2, 3},
+		Position:      types.Vec3{X: 1, Y: 2, Z: 3},
 		TexCoord:      [2]float32{0.5, 0.25},
 		LightmapCoord: [2]float32{0.1, 0.9},
-		Normal:        [3]float32{0, 1, 0},
+		Normal:        types.Vec3{X: 0, Y: 1, Z: 0},
 		LightmapLayer: 2,
 		MaterialID:    7,
 	}

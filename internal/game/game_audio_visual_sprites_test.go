@@ -11,6 +11,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
@@ -33,7 +34,7 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 	g.Client = cl.NewClient()
 	g.Client.ModelPrecache = []string{"progs/flame.spr"}
 	g.Client.Entities = map[int]inet.EntityState{
-		1: {ModelIndex: 1, Frame: 0, Origin: [3]float32{7, 8, 9}, Angles: [3]float32{10, 20, 30}, Alpha: 128, Scale: 32},
+		1: {ModelIndex: 1, Frame: 0, Origin: types.Vec3{X: 7, Y: 8, Z: 9}, Angles: types.Vec3{X: 10, Y: 20, Z: 30}, Alpha: 128, Scale: 32},
 	}
 	g.SpriteModelCache = nil
 
@@ -69,7 +70,7 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 	if got := entities[0].Scale; math.Abs(float64(got-inet.ENTSCALE_DECODE(32))) > 0.0001 {
 		t.Fatalf("collectSpriteEntities scale = %v, want %v", got, inet.ENTSCALE_DECODE(32))
 	}
-	if got := entities[0].Angles; got != [3]float32{10, 20, 30} {
+	if got := entities[0].Angles; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("collectSpriteEntities angles = %v, want [10 20 30]", got)
 	}
 	if got := testFS.loads; got != 1 {
@@ -84,7 +85,7 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 
 func TestResolveRuntimeSpriteFrameGroupTimingWraps(t *testing.T) {
 	g := New()
-	viewForward, viewRight, _ := g.runtimeAngleVectors([3]float32{})
+	viewForward, viewRight, _ := g.runtimeAngleVectors(types.Vec3{})
 	sprite := &model.MSprite{
 		NumFrames: 1,
 		Frames: []model.MSpriteFrameDesc{
@@ -129,7 +130,7 @@ func TestResolveRuntimeSpriteFrameGroupTimingWraps(t *testing.T) {
 
 func TestResolveRuntimeSpriteFrameUsesFlatOffsetForGroupedFrames(t *testing.T) {
 	g := New()
-	viewForward, viewRight, _ := g.runtimeAngleVectors([3]float32{})
+	viewForward, viewRight, _ := g.runtimeAngleVectors(types.Vec3{})
 	sprite := &model.MSprite{
 		NumFrames: 3,
 		Frames: []model.MSpriteFrameDesc{
@@ -183,13 +184,13 @@ func TestResolveRuntimeSpriteFrameAngledUsesViewDirection(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		viewAngles [3]float32
+		viewAngles types.Vec3
 		want       int
 	}{
-		{name: "front", viewAngles: [3]float32{0, 0, 0}, want: 4},
-		{name: "right", viewAngles: [3]float32{0, 90, 0}, want: 6},
-		{name: "back", viewAngles: [3]float32{0, 180, 0}, want: 0},
-		{name: "left", viewAngles: [3]float32{0, 270, 0}, want: 2},
+		{name: "front", viewAngles: types.Vec3{X: 0, Y: 0, Z: 0}, want: 4},
+		{name: "right", viewAngles: types.Vec3{X: 0, Y: 90, Z: 0}, want: 6},
+		{name: "back", viewAngles: types.Vec3{X: 0, Y: 180, Z: 0}, want: 0},
+		{name: "left", viewAngles: types.Vec3{X: 0, Y: 270, Z: 0}, want: 2},
 	}
 
 	for _, tc := range tests {
@@ -204,7 +205,7 @@ func TestResolveRuntimeSpriteFrameAngledUsesViewDirection(t *testing.T) {
 
 func TestResolveRuntimeSpriteFrameUsesFlatOffsetForAngledFrames(t *testing.T) {
 	g := New()
-	viewForward, viewRight, _ := g.runtimeAngleVectors([3]float32{})
+	viewForward, viewRight, _ := g.runtimeAngleVectors(types.Vec3{})
 	sprite := &model.MSprite{
 		NumFrames: 2,
 		Frames: []model.MSpriteFrameDesc{
@@ -404,9 +405,9 @@ func TestCollectSpriteEntitiesResolvesAngledFrameFromViewAngles(t *testing.T) {
 	g.Subs = &host.Subsystems{Files: testFS}
 	g.Client = cl.NewClient()
 	g.Client.ModelPrecache = []string{"progs/flame.spr"}
-	g.Client.ViewAngles = [3]float32{0, 90, 0}
+	g.Client.ViewAngles = types.Vec3{X: 0, Y: 90, Z: 0}
 	g.Client.Entities = map[int]inet.EntityState{
-		1: {ModelIndex: 1, Frame: 0, Angles: [3]float32{0, 0, 0}},
+		1: {ModelIndex: 1, Frame: 0, Angles: types.Vec3{X: 0, Y: 0, Z: 0}},
 	}
 	g.SpriteModelCache = nil
 
@@ -448,7 +449,7 @@ func TestCollectEntityEffectSourcesIncludesRocketModelFlagWithZeroEffects(t *tes
 		return 0
 	}
 	g.Client.Entities = map[int]inet.EntityState{
-		1: {ModelIndex: 1, Origin: [3]float32{1, 2, 3}},
+		1: {ModelIndex: 1, Origin: types.Vec3{X: 1, Y: 2, Z: 3}},
 	}
 
 	sources := g.collectEntityEffectSources()
@@ -477,23 +478,23 @@ func TestCollectEntityEffectSourcesKeepsAliasEffectsOnly(t *testing.T) {
 		"progs/flame.spr",
 	}
 	g.Client.Entities = map[int]inet.EntityState{
-		1: {ModelIndex: 1, Origin: [3]float32{1, 2, 3}, Angles: [3]float32{0, 90, 0}, Effects: inet.EF_MUZZLEFLASH},
-		2: {ModelIndex: 2, Origin: [3]float32{4, 5, 6}, Effects: inet.EF_BRIGHTLIGHT},
-		3: {ModelIndex: 3, Origin: [3]float32{7, 8, 9}, Effects: inet.EF_DIMLIGHT},
-		4: {ModelIndex: 1, Origin: [3]float32{9, 9, 9}},
+		1: {ModelIndex: 1, Origin: types.Vec3{X: 1, Y: 2, Z: 3}, Angles: types.Vec3{X: 0, Y: 90, Z: 0}, Effects: inet.EF_MUZZLEFLASH},
+		2: {ModelIndex: 2, Origin: types.Vec3{X: 4, Y: 5, Z: 6}, Effects: inet.EF_BRIGHTLIGHT},
+		3: {ModelIndex: 3, Origin: types.Vec3{X: 7, Y: 8, Z: 9}, Effects: inet.EF_DIMLIGHT},
+		4: {ModelIndex: 1, Origin: types.Vec3{X: 9, Y: 9, Z: 9}},
 	}
 	g.Client.StaticEntities = []inet.EntityState{
-		{ModelIndex: 1, Origin: [3]float32{10, 11, 12}, Effects: inet.EF_DIMLIGHT},
+		{ModelIndex: 1, Origin: types.Vec3{X: 10, Y: 11, Z: 12}, Effects: inet.EF_DIMLIGHT},
 	}
 
 	sources := g.collectEntityEffectSources()
 	if got := len(sources); got != 2 {
 		t.Fatalf("collectEntityEffectSources len = %d, want 2", got)
 	}
-	if sources[0].Origin != [3]float32{1, 2, 3} || sources[0].Effects != inet.EF_MUZZLEFLASH {
+	if sources[0].Origin != (types.Vec3{X: 1, Y: 2, Z: 3}) || sources[0].Effects != inet.EF_MUZZLEFLASH {
 		t.Fatalf("first effect source = %#v, want alias muzzle-flash source", sources[0])
 	}
-	if sources[1].Origin != [3]float32{10, 11, 12} || sources[1].Effects != inet.EF_DIMLIGHT {
+	if sources[1].Origin != (types.Vec3{X: 10, Y: 11, Z: 12}) || sources[1].Effects != inet.EF_DIMLIGHT {
 		t.Fatalf("second effect source = %#v, want static alias dim-light source", sources[1])
 	}
 }

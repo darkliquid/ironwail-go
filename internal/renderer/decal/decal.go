@@ -7,13 +7,15 @@ package decal
 import (
 	"math"
 	"sort"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // MarkEntity is the minimal geometry a projected mark needs for draw
 // preparation. DecalMarkEntity in the parent renderer package satisfies it.
 type MarkEntity interface {
-	DecalOrigin() [3]float32
-	DecalNormal() [3]float32
+	DecalOrigin() types.Vec3
+	DecalNormal() types.Vec3
 	DecalSize() float32
 	DecalRotation() float32
 	// DecalAlpha returns the mark's opacity in [0,1]; PrepareDraws clamps it.
@@ -161,14 +163,14 @@ type Draw struct {
 // non-positive size are dropped, zero normals are defaulted to +Z, alpha is
 // clamped to [0,1] (alpha<=0 drops the mark), and the variant is normalized
 // via NormalizeVariant.
-func PrepareDraws(marks []MarkEntity, cameraOrigin [3]float32) []Draw {
+func PrepareDraws(marks []MarkEntity, cameraOrigin types.Vec3) []Draw {
 	draws := make([]Draw, 0, len(marks))
 	for _, mark := range marks {
 		if mark.DecalSize() <= 0 {
 			continue
 		}
-		if mark.DecalNormal() == ([3]float32{}) {
-			mark = newNormalMark(mark, [3]float32{0, 0, 1})
+		if mark.DecalNormal() == (types.Vec3{}) {
+			mark = newNormalMark(mark, types.Vec3{X: 0, Y: 0, Z: 1})
 		}
 		alpha := clamp01(mark.DecalAlpha())
 		if alpha <= 0 {
@@ -195,24 +197,24 @@ type normalizedMark struct {
 	variant int
 }
 
-func (m normalizedMark) DecalOrigin() [3]float32 { return m.inner.DecalOrigin() }
-func (m normalizedMark) DecalNormal() [3]float32 { return m.inner.DecalNormal() }
+func (m normalizedMark) DecalOrigin() types.Vec3 { return m.inner.DecalOrigin() }
+func (m normalizedMark) DecalNormal() types.Vec3 { return m.inner.DecalNormal() }
 func (m normalizedMark) DecalSize() float32      { return m.inner.DecalSize() }
 func (m normalizedMark) DecalRotation() float32  { return m.inner.DecalRotation() }
 func (m normalizedMark) DecalAlpha() float32     { return m.alpha }
 func (m normalizedMark) DecalVariant() int       { return m.variant }
 
-func newNormalMark(m MarkEntity, normal [3]float32) MarkEntity {
+func newNormalMark(m MarkEntity, normal types.Vec3) MarkEntity {
 	return normalMark{inner: m, normal: normal}
 }
 
 type normalMark struct {
 	inner  MarkEntity
-	normal [3]float32
+	normal types.Vec3
 }
 
-func (m normalMark) DecalOrigin() [3]float32 { return m.inner.DecalOrigin() }
-func (m normalMark) DecalNormal() [3]float32 { return m.normal }
+func (m normalMark) DecalOrigin() types.Vec3 { return m.inner.DecalOrigin() }
+func (m normalMark) DecalNormal() types.Vec3 { return m.normal }
 func (m normalMark) DecalSize() float32      { return m.inner.DecalSize() }
 func (m normalMark) DecalRotation() float32  { return m.inner.DecalRotation() }
 func (m normalMark) DecalAlpha() float32     { return m.inner.DecalAlpha() }
@@ -230,18 +232,16 @@ func NormalizeVariant(variant int) int {
 }
 
 // DistanceSq returns the squared distance between two points.
-func DistanceSq(origin, camera [3]float32) float32 {
-	dx := origin[0] - camera[0]
-	dy := origin[1] - camera[1]
-	dz := origin[2] - camera[2]
-	return dx*dx + dy*dy + dz*dz
+func DistanceSq(origin, camera types.Vec3) float32 {
+	d := origin.Sub(camera)
+	return d.X*d.X + d.Y*d.Y + d.Z*d.Z
 }
 
 // BuildQuad computes the four corners of a projected mark quad in world
 // space. The quad is centered 0.05 units in front of the surface along the
 // normal, oriented by the mark rotation.
-func BuildQuad(mark MarkEntity) ([4][3]float32, bool) {
-	var corners [4][3]float32
+func BuildQuad(mark MarkEntity) ([4]types.Vec3, bool) {
+	var corners [4]types.Vec3
 	normal, ok := Normalize3(mark.DecalNormal())
 	if !ok {
 		return corners, false
@@ -253,32 +253,32 @@ func BuildQuad(mark MarkEntity) ([4][3]float32, bool) {
 		return corners, false
 	}
 
-	center := Add3(mark.DecalOrigin(), Scale3(normal, 0.05))
+	center := mark.DecalOrigin().Add(normal.Scale(0.05))
 	offsets := [4][2]float32{{-1, -1}, {1, -1}, {1, 1}, {-1, 1}}
 	for i, o := range offsets {
-		a := Scale3(tangent, o[0]*half)
-		b := Scale3(bitangent, o[1]*half)
-		corners[i] = Add3(Add3(center, a), b)
+		a := tangent.Scale(o[0] * half)
+		b := bitangent.Scale(o[1] * half)
+		corners[i] = center.Add(a).Add(b)
 	}
 	return corners, true
 }
 
 // BuildBasis computes the tangent/bitangent basis for a mark quad given the
 // surface normal and a rotation around it.
-func BuildBasis(normal [3]float32, rotation float32) (tangent [3]float32, bitangent [3]float32) {
-	up := [3]float32{0, 0, 1}
-	if float32(math.Abs(float64(normal[2]))) > 0.99 {
-		up = [3]float32{0, 1, 0}
+func BuildBasis(normal types.Vec3, rotation float32) (tangent types.Vec3, bitangent types.Vec3) {
+	up := types.Vec3{X: 0, Y: 0, Z: 1}
+	if float32(math.Abs(float64(normal.Z))) > 0.99 {
+		up = types.Vec3{X: 0, Y: 1, Z: 0}
 	}
 
-	tangent, _ = Normalize3(Cross3(up, normal))
-	bitangent = Cross3(normal, tangent)
+	tangent, _ = Normalize3(up.Cross(normal))
+	bitangent = normal.Cross(tangent)
 
 	if rotation != 0 {
 		c := float32(math.Cos(float64(rotation)))
 		s := float32(math.Sin(float64(rotation)))
-		rotT := Add3(Scale3(tangent, c), Scale3(bitangent, s))
-		rotB := Add3(Scale3(bitangent, c), Scale3(tangent, -s))
+		rotT := tangent.Scale(c).Add(bitangent.Scale(s))
+		rotB := bitangent.Scale(c).Add(tangent.Scale(-s))
 		tangent, _ = Normalize3(rotT)
 		bitangent, _ = Normalize3(rotB)
 	}
@@ -286,32 +286,28 @@ func BuildBasis(normal [3]float32, rotation float32) (tangent [3]float32, bitang
 }
 
 // Add3 returns the element-wise sum of two 3-vectors.
-func Add3(a, b [3]float32) [3]float32 {
-	return [3]float32{a[0] + b[0], a[1] + b[1], a[2] + b[2]}
+func Add3(a, b types.Vec3) types.Vec3 {
+	return a.Add(b)
 }
 
 // Scale3 scales a 3-vector by a scalar.
-func Scale3(a [3]float32, s float32) [3]float32 {
-	return [3]float32{a[0] * s, a[1] * s, a[2] * s}
+func Scale3(a types.Vec3, s float32) types.Vec3 {
+	return a.Scale(s)
 }
 
 // Cross3 returns the cross product of two 3-vectors.
-func Cross3(a, b [3]float32) [3]float32 {
-	return [3]float32{
-		a[1]*b[2] - a[2]*b[1],
-		a[2]*b[0] - a[0]*b[2],
-		a[0]*b[1] - a[1]*b[0],
-	}
+func Cross3(a, b types.Vec3) types.Vec3 {
+	return a.Cross(b)
 }
 
 // Normalize3 normalizes a 3-vector, reporting false for null vectors.
-func Normalize3(v [3]float32) ([3]float32, bool) {
-	lengthSq := v[0]*v[0] + v[1]*v[1] + v[2]*v[2]
+func Normalize3(v types.Vec3) (types.Vec3, bool) {
+	lengthSq := v.X*v.X + v.Y*v.Y + v.Z*v.Z
 	if lengthSq <= 1e-12 {
-		return [3]float32{}, false
+		return types.Vec3{}, false
 	}
 	invLen := float32(1.0 / math.Sqrt(float64(lengthSq)))
-	return [3]float32{v[0] * invLen, v[1] * invLen, v[2] * invLen}, true
+	return types.Vec3{X: v.X * invLen, Y: v.Y * invLen, Z: v.Z * invLen}, true
 }
 
 func clamp01(v float32) float32 {

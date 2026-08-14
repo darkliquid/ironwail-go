@@ -16,6 +16,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/menu"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 var UIScaleCVarNames = []string{
@@ -243,8 +244,8 @@ func (g *Game) cmdEntities(_ []string) {
 		console.Printf("%s:%2d  (%5.1f,%5.1f,%5.1f) [%5.1f %5.1f %5.1f]\n",
 			modelName,
 			state.Frame,
-			state.Origin[0], state.Origin[1], state.Origin[2],
-			state.Angles[0], state.Angles[1], state.Angles[2],
+			state.Origin.X, state.Origin.Y, state.Origin.Z,
+			state.Angles.X, state.Angles.Y, state.Angles.Z,
 		)
 	}
 }
@@ -277,32 +278,32 @@ func (g *Game) cmdCamDebug(_ []string) {
 	console.Printf("localViewTeleport=%v\n", g.Client.LocalViewTeleport)
 
 	console.Printf("entity.renderOrigin  = (%.2f, %.2f, %.2f)\n",
-		state.Origin[0], state.Origin[1], state.Origin[2])
+		state.Origin.X, state.Origin.Y, state.Origin.Z)
 	console.Printf("entity.msgOrigin[0]  = (%.2f, %.2f, %.2f)\n",
-		state.MsgOrigins[0][0], state.MsgOrigins[0][1], state.MsgOrigins[0][2])
+		state.MsgOrigins[0].X, state.MsgOrigins[0].Y, state.MsgOrigins[0].Z)
 	console.Printf("entity.msgOrigin[1]  = (%.2f, %.2f, %.2f)\n",
-		state.MsgOrigins[1][0], state.MsgOrigins[1][1], state.MsgOrigins[1][2])
+		state.MsgOrigins[1].X, state.MsgOrigins[1].Y, state.MsgOrigins[1].Z)
 	console.Printf("entity.msgTime=%.6f  matchesMTime0=%v  modelIndex=%d  forceLink=%v\n",
 		state.MsgTime, state.MsgTime == g.Client.MTime[0], state.ModelIndex, state.ForceLink)
 
-	serverOrigin := [3]float32{}
+	serverOrigin := types.Vec3{}
 	if g.Server != nil && g.Server.Edicts != nil {
 		if ent := g.Server.Edicts[viewEnt]; ent != nil {
 			serverOrigin = ent.Origin(g.Server)
 		}
 	}
 	console.Printf("server.playerOrigin  = (%.2f, %.2f, %.2f)\n",
-		serverOrigin[0], serverOrigin[1], serverOrigin[2])
+		serverOrigin.X, serverOrigin.Y, serverOrigin.Z)
 
 	camOrigin, camAngles := g.runtimeViewState()
 	console.Printf("camera.viewOrigin   = (%.2f, %.2f, %.2f)\n",
-		camOrigin[0], camOrigin[1], camOrigin[2])
+		camOrigin.X, camOrigin.Y, camOrigin.Z)
 	console.Printf("camera.viewAngles   = (%.2f, %.2f, %.2f)\n",
-		camAngles[0], camAngles[1], camAngles[2])
+		camAngles.X, camAngles.Y, camAngles.Z)
 
-	dx := camOrigin[0] - state.Origin[0]
-	dy := camOrigin[1] - state.Origin[1]
-	dz := camOrigin[2] - state.Origin[2]
+	dx := camOrigin.X - state.Origin.X
+	dy := camOrigin.Y - state.Origin.Y
+	dz := camOrigin.Z - state.Origin.Z
 	console.Printf("delta(cam-entity)    = (%.2f, %.2f, %.2f)  dist=%.2f\n",
 		dx, dy, dz, math.Sqrt(float64(dx*dx+dy*dy+dz*dz)))
 
@@ -312,14 +313,14 @@ func (g *Game) cmdCamDebug(_ []string) {
 		console.Printf("crosshair.face       = none (no geometry hit within 16384 units)\n")
 	} else {
 		console.Printf("crosshair.face       = #%d  dist=%.2f  hitPos=(%.2f, %.2f, %.2f)\n",
-			hit.faceIndex, hit.distance, hit.hitPos[0], hit.hitPos[1], hit.hitPos[2])
+			hit.faceIndex, hit.distance, hit.hitPos.X, hit.hitPos.Y, hit.hitPos.Z)
 		if hit.modelIndex > 0 {
 			console.Printf("crosshair.entity     = edict #%d (submodel *%d)\n", hit.entIndex, hit.modelIndex)
 		} else {
 			console.Printf("crosshair.entity     = worldspawn (model 0)\n")
 		}
 		console.Printf("crosshair.plane      = #%d  side=%d  normal=(%.4f, %.4f, %.4f)  dist=%.2f\n",
-			hit.planeIndex, hit.planeSide, hit.planeNormal[0], hit.planeNormal[1], hit.planeNormal[2], hit.planeDist)
+			hit.planeIndex, hit.planeSide, hit.planeNormal.X, hit.planeNormal.Y, hit.planeNormal.Z, hit.planeDist)
 		console.Printf("crosshair.texture    = %s (%dx%d)  type=%v  uv=(%.2f, %.2f)\n",
 			hit.texName, hit.texWidth, hit.texHeight, hit.texType, hit.hitU, hit.hitV)
 		console.Printf("crosshair.texinfo    = #%d  rawFlags=0x%X  derivedFlags=0x%X  edges=%d  lightOfs=%d  styles=%v\n",

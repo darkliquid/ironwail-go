@@ -12,8 +12,8 @@ import (
 
 // TransformVertex applies model-view-projection transformation to a vertex.
 // This is a helper for software rendering fallback.
-func TransformVertex(pos [3]float32, mvp types.Mat4) types.Vec4 {
-	v := types.Vec4{X: pos[0], Y: pos[1], Z: pos[2], W: 1.0}
+func TransformVertex(pos types.Vec3, mvp types.Mat4) types.Vec4 {
+	v := types.Vec4{X: pos.X, Y: pos.Y, Z: pos.Z, W: 1.0}
 	return types.Mat4MulVec4(mvp, v)
 }
 
@@ -452,7 +452,7 @@ func (r *Renderer) WorldData() *WorldRenderData {
 }
 
 // WorldBounds returns uploaded world geometry bounds when available.
-func (r *Renderer) WorldBounds() (min [3]float32, max [3]float32, ok bool) {
+func (r *Renderer) WorldBounds() (min types.Vec3, max types.Vec3, ok bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

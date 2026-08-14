@@ -6,6 +6,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/common"
 	"github.com/darkliquid/ironwail-go/internal/console"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -448,13 +449,19 @@ func (p *Parser) parseLightStyle(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseSetAngle(msg *common.SizeBuf) error {
-	for i := 0; i < 3; i++ {
-		angle, err := p.readAngle(msg, fmt.Sprintf("svc_setangle: missing component %d", i))
-		if err != nil {
-			return err
-		}
-		p.Client.ViewAngles[i] = angle
+	a0, err := p.readAngle(msg, "svc_setangle: missing component 0")
+	if err != nil {
+		return err
 	}
+	a1, err := p.readAngle(msg, "svc_setangle: missing component 1")
+	if err != nil {
+		return err
+	}
+	a2, err := p.readAngle(msg, "svc_setangle: missing component 2")
+	if err != nil {
+		return err
+	}
+	p.Client.ViewAngles = types.Vec3{X: a0, Y: a1, Z: a2}
 	p.Client.MViewAngles[0] = p.Client.ViewAngles
 	p.Client.MViewAngles[1] = p.Client.ViewAngles
 	p.Client.FixAngle = true
@@ -642,13 +649,19 @@ func (p *Parser) parseDamage(msg *common.SizeBuf) error {
 	p.Client.DamageSaved = int(save)
 	p.Client.DamageTaken = int(take)
 	p.Client.FaceAnimUntil = p.Client.Time + 0.2
-	for i := 0; i < 3; i++ {
-		coord, err := p.readCoord(msg, fmt.Sprintf("svc_damage: missing origin %d", i))
-		if err != nil {
-			return err
-		}
-		p.Client.DamageOrigin[i] = coord
+	x, err := p.readCoord(msg, "svc_damage: missing origin 0")
+	if err != nil {
+		return err
 	}
+	y, err := p.readCoord(msg, "svc_damage: missing origin 1")
+	if err != nil {
+		return err
+	}
+	z, err := p.readCoord(msg, "svc_damage: missing origin 2")
+	if err != nil {
+		return err
+	}
+	p.Client.DamageOrigin = types.Vec3{X: x, Y: y, Z: z}
 	// Update the damage color shift (percent + color) from the new event.
 	// Mirrors C view.c:V_ParseDamage() cshift update block.
 	p.Client.ApplyDamage()
@@ -739,37 +752,57 @@ func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
 		event.SoundIndex = int(v)
 	}
 
-	for i := 0; i < 3; i++ {
-		coord, err := p.readCoord(msg, fmt.Sprintf("svc_sound: missing origin %d", i))
-		if err != nil {
-			return err
-		}
-		event.Origin[i] = coord
+	x, err := p.readCoord(msg, "svc_sound: missing origin 0")
+	if err != nil {
+		return err
 	}
+	y, err := p.readCoord(msg, "svc_sound: missing origin 1")
+	if err != nil {
+		return err
+	}
+	z, err := p.readCoord(msg, "svc_sound: missing origin 2")
+	if err != nil {
+		return err
+	}
+	event.Origin = types.Vec3{X: x, Y: y, Z: z}
 
 	p.Client.SoundEvents = append(p.Client.SoundEvents, event)
 	netDebugLogf("sound", "ent=%d ch=%d sound=%d volume=%d atten=%.3f origin=(%.3f %.3f %.3f) local=%t",
 		event.Entity, event.Channel, event.SoundIndex, event.Volume, event.Attenuation,
-		event.Origin[0], event.Origin[1], event.Origin[2], event.Local)
+		event.Origin.X, event.Origin.Y, event.Origin.Z, event.Local)
 	return nil
 }
 
 func (p *Parser) parseParticle(msg *common.SizeBuf) error {
 	var event ParticleEvent
-	for i := 0; i < 3; i++ {
-		coord, err := p.readCoord(msg, fmt.Sprintf("svc_particle: missing origin %d", i))
-		if err != nil {
-			return err
-		}
-		event.Origin[i] = coord
+	ox, err := p.readCoord(msg, "svc_particle: missing origin 0")
+	if err != nil {
+		return err
 	}
-	for i := 0; i < 3; i++ {
-		v, err := readChar(msg, fmt.Sprintf("svc_particle: missing dir %d", i))
-		if err != nil {
-			return err
-		}
-		event.Dir[i] = float32(v) / 16
+	oy, err := p.readCoord(msg, "svc_particle: missing origin 1")
+	if err != nil {
+		return err
 	}
+	oz, err := p.readCoord(msg, "svc_particle: missing origin 2")
+	if err != nil {
+		return err
+	}
+	event.Origin = types.Vec3{X: ox, Y: oy, Z: oz}
+
+	dx, err := readChar(msg, "svc_particle: missing dir 0")
+	if err != nil {
+		return err
+	}
+	dy, err := readChar(msg, "svc_particle: missing dir 1")
+	if err != nil {
+		return err
+	}
+	dz, err := readChar(msg, "svc_particle: missing dir 2")
+	if err != nil {
+		return err
+	}
+	event.Dir = types.Vec3{X: float32(dx) / 16, Y: float32(dy) / 16, Z: float32(dz) / 16}
+
 	count, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_particle: missing count")

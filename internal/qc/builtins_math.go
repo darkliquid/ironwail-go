@@ -22,14 +22,7 @@ import (
 // QuakeC signature: void(vector ang) makevectors
 func makevectors(vm *VM) {
 	angles := vm.GVector(OFSParm0)
-	forwardVec, rightVec, upVec := qtypes.AngleVectors(qtypes.Vec3{
-		X: angles[0],
-		Y: angles[1],
-		Z: angles[2],
-	})
-	forward := [3]float32{forwardVec.X, forwardVec.Y, forwardVec.Z}
-	right := [3]float32{rightVec.X, rightVec.Y, rightVec.Z}
-	up := [3]float32{upVec.X, upVec.Y, upVec.Z}
+	forward, right, up := qtypes.AngleVectors(angles)
 
 	vm.SetGVector(OFSGlobalVForward, forward)
 	vm.SetGVector(OFSGlobalVRight, right)
@@ -43,39 +36,30 @@ func makevectors(vm *VM) {
 // This is the inverse of makevectors.
 //
 // QuakeC signature: vector(vector dir) vectoangles
-
-// vectoangles converts a direction vector to Euler angles.
-// This is the inverse of makevectors.
-//
-// QuakeC signature: vector(vector dir) vectoangles
 func vectoangles(vm *VM) {
 	dir := vm.GVector(OFSParm0)
 
 	var yaw float32
 	var pitch float32
-	if dir[0] == 0 && dir[1] == 0 {
+	if dir.X == 0 && dir.Y == 0 {
 		yaw = 0
-		if dir[2] > 0 {
+		if dir.Z > 0 {
 			pitch = 90
 		} else {
 			pitch = 270
 		}
 	} else {
 		yaw = vectoyawValue(dir)
-		forwardLen := math.Sqrt(float64(dir[0]*dir[0] + dir[1]*dir[1]))
-		pitch = float32(math.Atan2(float64(dir[2]), forwardLen) * 180.0 / math.Pi)
+		forwardLen := math.Sqrt(float64(dir.X*dir.X + dir.Y*dir.Y))
+		pitch = float32(math.Atan2(float64(dir.Z), forwardLen) * 180.0 / math.Pi)
 		if pitch < 0 {
 			pitch += 360
 		}
 	}
-	angles := [3]float32{pitch, yaw, 0}
+	angles := qtypes.Vec3{X: pitch, Y: yaw, Z: 0}
 
 	vm.SetGVector(OFSReturn, angles)
 }
-
-// vectoyaw returns the yaw angle (Y-axis rotation) from a vector.
-//
-// QuakeC signature: float(vector vec) vectoyaw
 
 // vectoyaw returns the yaw angle (Y-axis rotation) from a vector.
 //
@@ -85,20 +69,16 @@ func vectoyaw(vm *VM) {
 	vm.SetGFloat(OFSReturn, vectoyawValue(vec))
 }
 
-func vectoyawValue(vec [3]float32) float32 {
-	if vec[0] == 0 && vec[1] == 0 {
+func vectoyawValue(vec qtypes.Vec3) float32 {
+	if vec.X == 0 && vec.Y == 0 {
 		return 0
 	}
-	yaw := math.Atan2(float64(vec[1]), float64(vec[0])) * 180.0 / math.Pi
+	yaw := math.Atan2(float64(vec.Y), float64(vec.X)) * 180.0 / math.Pi
 	if yaw < 0 {
 		yaw += 360
 	}
 	return float32(yaw)
 }
-
-// vlen returns the length (magnitude) of a vector.
-//
-// QuakeC signature: float(vector vec) vlen
 
 // vlen returns the length (magnitude) of a vector.
 //
@@ -117,7 +97,7 @@ func normalize(vm *VM) {
 	length := vm.VectorLength(vec)
 
 	if length == 0 {
-		vm.SetGVector(OFSReturn, [3]float32{0, 0, 0})
+		vm.SetGVector(OFSReturn, qtypes.Vec3{})
 		return
 	}
 

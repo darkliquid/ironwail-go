@@ -9,6 +9,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestDumpStateSchemaFullEntityState(t *testing.T) {
@@ -34,9 +35,9 @@ func TestDumpStateSchemaFullEntityState(t *testing.T) {
 	e1 := s.EdictNum(1)
 	if e1 != nil {
 		e1.Free = false
-		e1.SetOrigin(s, [3]float32{100, 200, 300})
-		e1.SetAngles(s, [3]float32{10, 20, 30})
-		e1.SetVelocity(s, [3]float32{50, 0, -100})
+		e1.SetOrigin(s, types.Vec3{X: 100, Y: 200, Z: 300})
+		e1.SetAngles(s, types.Vec3{X: 10, Y: 20, Z: 30})
+		e1.SetVelocity(s, types.Vec3{X: 50, Y: 0, Z: -100})
 		e1.SetModelIndex(s, 5)
 		e1.SetFrame(s, 2)
 		e1.SetSkin(s, 1)
@@ -78,13 +79,13 @@ func TestDumpStateSchemaFullEntityState(t *testing.T) {
 		t.Fatalf("edict 1 not found in dump")
 	}
 
-	if foundE1.Origin != [3]float32{100, 200, 300} {
+	if foundE1.Origin != (types.Vec3{X: 100, Y: 200, Z: 300}) {
 		t.Fatalf("unexpected Origin: got %v", foundE1.Origin)
 	}
-	if foundE1.Angles != [3]float32{10, 20, 30} {
+	if foundE1.Angles != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("unexpected Angles: got %v", foundE1.Angles)
 	}
-	if foundE1.Velocity != [3]float32{50, 0, -100} {
+	if foundE1.Velocity != (types.Vec3{X: 50, Y: 0, Z: -100}) {
 		t.Fatalf("unexpected Velocity: got %v", foundE1.Velocity)
 	}
 	if foundE1.ModelIndex != 5 {

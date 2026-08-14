@@ -8,6 +8,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // handle is a minimal ServerHandle wired to a real VM so Edict accessors
@@ -89,17 +90,17 @@ func TestStepFrameDispatchesMovetypes(t *testing.T) {
 	tossEnt := &srvtypes.Edict{Num: 2}
 	noneEnt := &srvtypes.Edict{Num: 3}
 	walkEnt.SetMoveType(h, float32(srvtypes.MoveTypeWalk))
-	walkEnt.SetOrigin(h, [3]float32{0, 0, 0})
-	walkEnt.SetVelocity(h, [3]float32{0, 0, -100})
-	walkEnt.SetMins(h, [3]float32{-16, -16, -24})
-	walkEnt.SetMaxs(h, [3]float32{16, 16, 32})
+	walkEnt.SetOrigin(h, qtypes.Vec3{})
+	walkEnt.SetVelocity(h, qtypes.Vec3{X: 0, Y: 0, Z: -100})
+	walkEnt.SetMins(h, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	walkEnt.SetMaxs(h, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	tossEnt.SetMoveType(h, float32(srvtypes.MoveTypeToss))
-	tossEnt.SetOrigin(h, [3]float32{0, 0, 32})
-	tossEnt.SetVelocity(h, [3]float32{0, 0, 0})
-	tossEnt.SetMins(h, [3]float32{-16, -16, -24})
-	tossEnt.SetMaxs(h, [3]float32{16, 16, 32})
+	tossEnt.SetOrigin(h, qtypes.Vec3{X: 0, Y: 0, Z: 32})
+	tossEnt.SetVelocity(h, qtypes.Vec3{})
+	tossEnt.SetMins(h, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	tossEnt.SetMaxs(h, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	noneEnt.SetMoveType(h, float32(srvtypes.MoveTypeNone))
-	noneEnt.SetOrigin(h, [3]float32{5, 5, 5})
+	noneEnt.SetOrigin(h, qtypes.Vec3{X: 5, Y: 5, Z: 5})
 
 	col := &mockCollisionWorld{}
 	store := &mockEntityStore{edicts: []*srvtypes.Edict{walkEnt, tossEnt, noneEnt}}
@@ -122,15 +123,15 @@ func TestStepFrameDispatchesMovetypes(t *testing.T) {
 	}
 
 	// MoveTypeWalk: velocity integrated -> descending origin.
-	if got := walkEnt.Origin(h)[2]; got >= 0 {
+	if got := walkEnt.Origin(h).Z; got >= 0 {
 		t.Errorf("walk origin z = %v, want < 0 after gravity frame", got)
 	}
 	// MoveTypeToss: gravity applied -> velocity z decreased below 0.
-	if got := tossEnt.Velocity(h)[2]; got >= 0 {
+	if got := tossEnt.Velocity(h).Z; got >= 0 {
 		t.Errorf("toss velocity z = %v, want < 0 after gravity frame", got)
 	}
 	// MoveTypeNone: no movement.
-	if got := noneEnt.Origin(h); got != [3]float32{5, 5, 5} {
+	if got := noneEnt.Origin(h); got != (qtypes.Vec3{X: 5, Y: 5, Z: 5}) {
 		t.Errorf("none origin = %v, want [5 5 5]", got)
 	}
 }
@@ -144,10 +145,10 @@ func TestStepFrameFreezeNonClientsSkipsEdictsAndTime(t *testing.T) {
 
 	walkEnt := &srvtypes.Edict{Num: 1}
 	walkEnt.SetMoveType(h, float32(srvtypes.MoveTypeWalk))
-	walkEnt.SetOrigin(h, [3]float32{0, 0, 0})
-	walkEnt.SetVelocity(h, [3]float32{0, 0, -100})
-	walkEnt.SetMins(h, [3]float32{-16, -16, -24})
-	walkEnt.SetMaxs(h, [3]float32{16, 16, 32})
+	walkEnt.SetOrigin(h, qtypes.Vec3{})
+	walkEnt.SetVelocity(h, qtypes.Vec3{X: 0, Y: 0, Z: -100})
+	walkEnt.SetMins(h, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	walkEnt.SetMaxs(h, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 
 	// Index 0 is the world edict (nil here); walkEnt is a non-client edict
 	// beyond the freeze cap, so it must be skipped.
@@ -168,7 +169,7 @@ func TestStepFrameFreezeNonClientsSkipsEdictsAndTime(t *testing.T) {
 	if newTime != 1.0 {
 		t.Errorf("StepFrame freeze time = %v, want 1.0 (time frozen)", newTime)
 	}
-	if got := walkEnt.Origin(h); got != [3]float32{0, 0, 0} {
+	if got := walkEnt.Origin(h); got != (qtypes.Vec3{}) {
 		t.Errorf("walk origin = %v, want [0 0 0] (edict beyond client cap skipped)", got)
 	}
 }
@@ -196,10 +197,10 @@ func TestStepFrameSkipsInactiveClientSlots(t *testing.T) {
 	// Edict 1 = inactive client slot (PlayerClient returns nil -> must skip).
 	inactiveEnt := &srvtypes.Edict{Num: 1}
 	inactiveEnt.SetMoveType(h, float32(srvtypes.MoveTypeWalk))
-	inactiveEnt.SetOrigin(h, [3]float32{0, 0, 0})
-	inactiveEnt.SetVelocity(h, [3]float32{0, 0, -100}) // would fall if PhysicsWalk ran
-	inactiveEnt.SetMins(h, [3]float32{-16, -16, -24})
-	inactiveEnt.SetMaxs(h, [3]float32{16, 16, 32})
+	inactiveEnt.SetOrigin(h, qtypes.Vec3{})
+	inactiveEnt.SetVelocity(h, qtypes.Vec3{X: 0, Y: 0, Z: -100}) // would fall if PhysicsWalk ran
+	inactiveEnt.SetMins(h, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	inactiveEnt.SetMaxs(h, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 
 	col := &mockCollisionWorld{}
 	store := &mockEntityStore{edicts: []*srvtypes.Edict{nil, inactiveEnt}}
@@ -221,10 +222,10 @@ func TestStepFrameSkipsInactiveClientSlots(t *testing.T) {
 		t.Errorf("StepFrame time = %v, want 1.1", newTime)
 	}
 	// The inactive slot's edict must be untouched: no gravity, no walkmove.
-	if got := inactiveEnt.Origin(h); got != [3]float32{0, 0, 0} {
+	if got := inactiveEnt.Origin(h); got != (qtypes.Vec3{}) {
 		t.Errorf("inactive client origin = %v, want [0 0 0] (slot skipped like C)", got)
 	}
-	if got := inactiveEnt.Velocity(h); got != [3]float32{0, 0, -100} {
+	if got := inactiveEnt.Velocity(h); got != (qtypes.Vec3{X: 0, Y: 0, Z: -100}) {
 		t.Errorf("inactive client velocity = %v, want unchanged [0 0 -100]", got)
 	}
 }

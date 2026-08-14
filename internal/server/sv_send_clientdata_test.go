@@ -11,6 +11,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestWriteClientDataToMessage_NetQuakeOmitsExtensions(t *testing.T) {
@@ -171,8 +172,8 @@ func TestWriteClientDataToMessage_FixAngleUsesVAngle(t *testing.T) {
 	newServerTestVM(s, 8)
 	ent := allocPhysicsTestEdict(s)
 	ent.SetFixAngle(s, 1)
-	ent.SetAngles(s, [3]float32{10, 20, 30})
-	ent.SetVAngle(s, [3]float32{90, 180, 270})
+	ent.SetAngles(s, qtypes.Vec3{X: 10, Y: 20, Z: 30})
+	ent.SetVAngle(s, qtypes.Vec3{X: 90, Y: 180, Z: 270})
 
 	msg := NewMessageBuffer(256)
 	s.WriteClientDataToMessage(ent, msg)
@@ -187,9 +188,9 @@ func TestWriteClientDataToMessage_FixAngleUsesVAngle(t *testing.T) {
 
 	want := NewMessageBuffer(16)
 	flags := uint32(s.ProtocolFlags())
-	want.WriteAngle(ent.VAngle(s)[0], flags)
-	want.WriteAngle(ent.VAngle(s)[1], flags)
-	want.WriteAngle(ent.VAngle(s)[2], flags)
+	want.WriteAngle(ent.VAngle(s).X, flags)
+	want.WriteAngle(ent.VAngle(s).Y, flags)
+	want.WriteAngle(ent.VAngle(s).Z, flags)
 	if got := data[1:4]; !bytes.Equal(got, want.Data[:want.Len()]) {
 		t.Fatalf("setangle payload = %v, want %v", got, want.Data[:want.Len()])
 	}
@@ -288,10 +289,10 @@ func TestWriteClientDataToMessage_LogsPhysicsTelemetry(t *testing.T) {
 
 	ent := &Edict{Num: 1}
 	ent.SetIdealPitch(s, 7)
-	ent.SetVelocity(s, [3]float32{0, 1840, 0})
+	ent.SetVelocity(s, qtypes.Vec3{X: 0, Y: 1840, Z: 0})
 	ent.SetFlags(s, FlagPartialGround)
-	ent.SetViewOfs(s, [3]float32{0, 0, 22})
-	ent.SetPunchAngle(s, [3]float32{105, 0, 32})
+	ent.SetViewOfs(s, qtypes.Vec3{X: 0, Y: 0, Z: 22})
+	ent.SetPunchAngle(s, qtypes.Vec3{X: 105, Y: 0, Z: 32})
 	ent.SetFixAngle(s, 1)
 	ent.SetGroundEntity(s, 99)
 	ent.SetTeleportTime(s, 1.25)

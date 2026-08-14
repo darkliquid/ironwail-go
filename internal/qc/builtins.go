@@ -8,14 +8,15 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type BuiltinTraceResult struct {
 	AllSolid    bool
 	StartSolid  bool
 	Fraction    float32
-	EndPos      [3]float32
-	PlaneNormal [3]float32
+	EndPos      types.Vec3
+	PlaneNormal types.Vec3
 	PlaneDist   float32
 	EntNum      int
 	InOpen      bool
@@ -23,21 +24,21 @@ type BuiltinTraceResult struct {
 }
 
 type ServerBuiltinHooks struct {
-	Traceline        func(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult
+	Traceline        func(vm *VM, start, end types.Vec3, noMonsters bool, passEnt int) BuiltinTraceResult
 	Spawn            func(vm *VM) (int, error)
 	Remove           func(vm *VM, entNum int) error
 	Find             func(vm *VM, startEnt, fieldOfs int, match string) int
 	FindFloat        func(vm *VM, startEnt, fieldOfs int, match float32) int
-	FindRadius       func(vm *VM, org [3]float32, radius float32) int
+	FindRadius       func(vm *VM, org types.Vec3, radius float32) int
 	CheckClient      func(vm *VM) int
 	NextEnt          func(vm *VM, entNum int) int
 	CheckBottom      func(vm *VM, entNum int) bool
-	PointContents    func(vm *VM, point [3]float32) int
-	Aim              func(vm *VM, entNum int, missileSpeed float32) [3]float32
+	PointContents    func(vm *VM, point types.Vec3) int
+	Aim              func(vm *VM, entNum int, missileSpeed float32) types.Vec3
 	WalkMove         func(vm *VM, yaw, dist float32) bool
 	DropToFloor      func(vm *VM) bool
-	SetOrigin        func(vm *VM, entNum int, org [3]float32)
-	SetSize          func(vm *VM, entNum int, mins, maxs [3]float32)
+	SetOrigin        func(vm *VM, entNum int, org types.Vec3)
+	SetSize          func(vm *VM, entNum int, mins, maxs types.Vec3)
 	SetModel         func(vm *VM, entNum int, modelName string)
 	PrecacheSound    func(vm *VM, sample string)
 	PrecacheModel    func(vm *VM, modelName string)
@@ -48,7 +49,7 @@ type ServerBuiltinHooks struct {
 	Sound            func(vm *VM, entNum, channel int, sample string, volume int, attenuation float32)
 	StuffCmd         func(vm *VM, entNum int, cmd string)
 	LightStyle       func(vm *VM, style int, value string)
-	Particle         func(vm *VM, org, dir [3]float32, color, count int)
+	Particle         func(vm *VM, org, dir types.Vec3, color, count int)
 	LocalSound       func(vm *VM, entNum int, sample string)
 	WriteByte        func(vm *VM, dest, value int)
 	WriteChar        func(vm *VM, dest, value int)
@@ -60,7 +61,7 @@ type ServerBuiltinHooks struct {
 	WriteEntity      func(vm *VM, dest, entNum int)
 	SetSpawnParms    func(vm *VM, entNum int)
 	MakeStatic       func(vm *VM, entNum int)
-	AmbientSound     func(vm *VM, org [3]float32, sample string, volume int, attenuation float32)
+	AmbientSound     func(vm *VM, org types.Vec3, sample string, volume int, attenuation float32)
 	MoveToGoal       func(vm *VM, dist float32)
 	ChangeYaw        func(vm *VM)
 	IssueChangeLevel func(vm *VM, level string) bool
@@ -272,7 +273,7 @@ func ftosBuiltin(vm *VM) {
 // Matches C PF_vtos behavior exactly.
 func vtosBuiltin(vm *VM) {
 	vec := vm.GVector(OFSParm0)
-	s := fmt.Sprintf("'%5.1f %5.1f %5.1f'", vec[0], vec[1], vec[2])
+	s := fmt.Sprintf("'%5.1f %5.1f %5.1f'", vec.X, vec.Y, vec.Z)
 	vm.SetGString(OFSReturn, s)
 }
 

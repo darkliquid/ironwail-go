@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestParseStaticEntityAndSoundMessages(t *testing.T) {
@@ -69,7 +70,7 @@ func TestParseStaticEntityAndSoundMessages(t *testing.T) {
 	if got := len(c.StaticEntities); got != 2 {
 		t.Fatalf("static entities len = %d, want 2", got)
 	}
-	if got := c.StaticEntities[0].Origin; got != [3]float32{10, 20, 30} {
+	if got := c.StaticEntities[0].Origin; got != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("static entity origin = %v, want [10 20 30]", got)
 	}
 	if got := c.StaticEntities[1].ModelIndex; got != 300 {
@@ -181,24 +182,21 @@ func TestParseRuntimeServerMessages(t *testing.T) {
 	if c.FaceAnimUntil != c.Time+0.2 {
 		t.Fatalf("face anim until = %f, want %f", c.FaceAnimUntil, c.Time+0.2)
 	}
-	if c.DamageOrigin != [3]float32{1, 2, 3} {
+	if c.DamageOrigin != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("damage origin = %v, want [1 2 3]", c.DamageOrigin)
 	}
 
-	if got := len(c.SoundEvents); got != 2 {
-		t.Fatalf("sound events len = %d, want 2", got)
+	if got := c.SoundEvents[0]; got.Entity != 1 || got.Channel != 2 || got.SoundIndex != 9 || got.Volume != 200 || got.Attenuation != 0.5 || got.Origin != (types.Vec3{X: 10, Y: 20, Z: 30}) || got.Local {
+		t.Fatalf("sound event = %+v", got)
 	}
-	if got := c.SoundEvents[0]; got.Entity != 1 || got.Channel != 2 || got.SoundIndex != 9 || got.Volume != 200 || got.Attenuation != 0.5 || got.Origin != [3]float32{10, 20, 30} || got.Local {
-		t.Fatalf("sound event[0] = %+v", got)
-	}
-	if got := c.SoundEvents[1]; got.SoundIndex != 4 || !got.Local {
-		t.Fatalf("sound event[1] = %+v", got)
+	if got := c.ParticleEvents[0]; got.Origin != (types.Vec3{X: 4, Y: 5, Z: 6}) || got.Dir != (types.Vec3{X: 1, Y: -1, Z: 0.5}) || got.Count != 1024 || got.Color != 99 {
+		t.Fatalf("particle event = %+v", got)
 	}
 
 	if got := len(c.ParticleEvents); got != 1 {
 		t.Fatalf("particle events len = %d, want 1", got)
 	}
-	if got := c.ParticleEvents[0]; got.Origin != [3]float32{4, 5, 6} || got.Dir != [3]float32{1, -1, 0.5} || got.Count != 1024 || got.Color != 99 {
+	if got := c.ParticleEvents[0]; got.Origin != (types.Vec3{X: 4, Y: 5, Z: 6}) || got.Dir != (types.Vec3{X: 1, Y: -1, Z: 0.5}) || got.Count != 1024 || got.Color != 99 {
 		t.Fatalf("particle event = %+v", got)
 	}
 }
@@ -270,8 +268,8 @@ func TestConsumeTransientEffectsClearsBuffers(t *testing.T) {
 	c := NewClient()
 	c.SoundEvents = []SoundEvent{{Entity: 1, Channel: 2, SoundIndex: 3}}
 	c.StopSoundEvents = []StopSoundEvent{{Entity: 4, Channel: 5}}
-	c.ParticleEvents = []ParticleEvent{{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 4}}
-	c.TempEntities = []TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{4, 5, 6}}}
+	c.ParticleEvents = []ParticleEvent{{Origin: types.Vec3{X: 1, Y: 2, Z: 3}, Count: 12, Color: 4}}
+	c.TempEntities = []TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: types.Vec3{X: 4, Y: 5, Z: 6}}}
 
 	events := c.ConsumeTransientEvents()
 	if len(events.SoundEvents) != 1 || len(events.StopSoundEvents) != 1 || len(events.ParticleEvents) != 1 || len(events.TempEntities) != 1 {

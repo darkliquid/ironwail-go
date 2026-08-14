@@ -571,7 +571,7 @@ func (r *Renderer) buildAliasDrawLocked(device *wgpu.Device, queue *wgpu.Queue, 
 	}
 }
 
-func (dc *DrawContext) renderAliasEntitiesHAL(entities []AliasModelEntity, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderAliasEntitiesHAL(entities []AliasModelEntity, fogColor types.Vec3, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
@@ -583,7 +583,7 @@ func (dc *DrawContext) renderAliasEntitiesHAL(entities []AliasModelEntity, fogCo
 	dc.renderAliasDrawsHAL(draws, false, fogColor, fogDensity)
 }
 
-func (dc *DrawContext) renderViewModelHAL(entity AliasModelEntity, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderViewModelHAL(entity AliasModelEntity, fogColor types.Vec3, fogDensity float32) {
 	if dc == nil || dc.renderer == nil {
 		return
 	}
@@ -621,7 +621,7 @@ func (dc *DrawContext) collectAliasDraws(entities []AliasModelEntity, fullAngles
 	return draws
 }
 
-func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDepthRange bool, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDepthRange bool, fogColor types.Vec3, fogDensity float32) {
 	if len(draws) == 0 {
 		return
 	}
@@ -792,7 +792,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	}
 }
 
-func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor types.Vec3, fogDensity float32) []byte {
 	return worldgogpu.AppendAliasSceneUniformBytes(dst, targetOffset, vp, cameraOrigin, alpha, fogColor, fogDensity)
 }
 
@@ -811,7 +811,7 @@ func appendAliasVertexBytes(dst []byte, vertices []WorldVertex) []byte {
 	return worldgogpu.AppendAliasVertexBytes(dst, vertices)
 }
 
-func buildAliasVerticesInterpolatedInto(dst []WorldVertex, alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {
+func buildAliasVerticesInterpolatedInto(dst []WorldVertex, alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles types.Vec3, entityScale float32, fullAngles bool) []WorldVertex {
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil {
 		return nil
 	}

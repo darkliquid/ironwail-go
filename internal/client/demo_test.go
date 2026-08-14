@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestDemoRecordingOpenClose verifies that demo recording can be started and stopped correctly.
@@ -95,18 +96,18 @@ func TestDemoFrameRoundTrip(t *testing.T) {
 	// Test data: 10 frames with known data
 	testFrames := []struct {
 		message    []byte
-		viewAngles [3]float32
+		viewAngles types.Vec3
 	}{
-		{[]byte{0x01, 0x02, 0x03}, [3]float32{0.0, 0.0, 0.0}},
-		{[]byte{0x04, 0x05, 0x06, 0x07}, [3]float32{10.0, 20.0, 30.0}},
-		{[]byte{0x08}, [3]float32{-45.0, 90.0, 180.0}},
-		{[]byte{0x09, 0x0a, 0x0b, 0x0c, 0x0d}, [3]float32{0.5, 1.5, 2.5}},
-		{[]byte{0x0e, 0x0f}, [3]float32{100.0, 200.0, 300.0}},
-		{[]byte{0x10, 0x11, 0x12, 0x13}, [3]float32{-90.0, -180.0, 0.0}},
-		{[]byte{0x14}, [3]float32{0.0, 0.0, 0.0}},
-		{[]byte{0x15, 0x16, 0x17, 0x18, 0x19, 0x1a}, [3]float32{45.0, 45.0, 45.0}},
-		{[]byte{0x1b, 0x1c, 0x1d}, [3]float32{1.0, 2.0, 3.0}},
-		{[]byte{0x1e, 0x1f, 0x20, 0x21}, [3]float32{360.0, 720.0, 1080.0}},
+		{[]byte{0x01, 0x02, 0x03}, types.Vec3{X: 0.0, Y: 0.0, Z: 0.0}},
+		{[]byte{0x04, 0x05, 0x06, 0x07}, types.Vec3{X: 10.0, Y: 20.0, Z: 30.0}},
+		{[]byte{0x08}, types.Vec3{X: -45.0, Y: 90.0, Z: 180.0}},
+		{[]byte{0x09, 0x0a, 0x0b, 0x0c, 0x0d}, types.Vec3{X: 0.5, Y: 1.5, Z: 2.5}},
+		{[]byte{0x0e, 0x0f}, types.Vec3{X: 100.0, Y: 200.0, Z: 300.0}},
+		{[]byte{0x10, 0x11, 0x12, 0x13}, types.Vec3{X: -90.0, Y: -180.0, Z: 0.0}},
+		{[]byte{0x14}, types.Vec3{X: 0.0, Y: 0.0, Z: 0.0}},
+		{[]byte{0x15, 0x16, 0x17, 0x18, 0x19, 0x1a}, types.Vec3{X: 45.0, Y: 45.0, Z: 45.0}},
+		{[]byte{0x1b, 0x1c, 0x1d}, types.Vec3{X: 1.0, Y: 2.0, Z: 3.0}},
+		{[]byte{0x1e, 0x1f, 0x20, 0x21}, types.Vec3{X: 360.0, Y: 720.0, Z: 1080.0}},
 	}
 
 	demo := NewDemoState()
@@ -145,10 +146,8 @@ func TestDemoFrameRoundTrip(t *testing.T) {
 			t.Errorf("Frame %d message mismatch: got %v, want %v", i, msg, expectedFrame.message)
 		}
 
-		for j := 0; j < 3; j++ {
-			if angles[j] != expectedFrame.viewAngles[j] {
-				t.Errorf("Frame %d angle[%d] = %f, want %f", i, j, angles[j], expectedFrame.viewAngles[j])
-			}
+		if angles != expectedFrame.viewAngles {
+			t.Errorf("Frame %d angles = %v, want %v", i, angles, expectedFrame.viewAngles)
 		}
 	}
 
@@ -179,7 +178,7 @@ func TestDemoHeaderValidation(t *testing.T) {
 
 	// Write a single frame
 	testMsg := []byte{0xaa, 0xbb, 0xcc}
-	testAngles := [3]float32{1.0, 2.0, 3.0}
+	testAngles := types.Vec3{X: 1.0, Y: 2.0, Z: 3.0}
 	if err := demo.WriteDemoFrame(testMsg, testAngles); err != nil {
 		t.Fatalf("WriteDemoFrame failed: %v", err)
 	}
@@ -215,10 +214,8 @@ func TestDemoHeaderValidation(t *testing.T) {
 		t.Errorf("Message mismatch: got %v, want %v", msg, testMsg)
 	}
 
-	for i := 0; i < 3; i++ {
-		if angles[i] != testAngles[i] {
-			t.Errorf("Angle[%d] = %f, want %f", i, angles[i], testAngles[i])
-		}
+	if angles != testAngles {
+		t.Errorf("Angles = %v, want %v", angles, testAngles)
 	}
 
 	if err := demo.StopPlayback(); err != nil {
@@ -244,7 +241,7 @@ func TestDemoPlaybackSequence(t *testing.T) {
 	for i := 0; i < numFrames; i++ {
 		angle := float32(i * 18) // Rotate 18 degrees per frame
 		msg := []byte{byte(i), byte(i * 2)}
-		angles := [3]float32{angle, 0.0, 0.0}
+		angles := types.Vec3{X: angle, Y: 0.0, Z: 0.0}
 
 		if err := demo.WriteDemoFrame(msg, angles); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
@@ -272,8 +269,8 @@ func TestDemoPlaybackSequence(t *testing.T) {
 		}
 
 		expectedAngle := float32(i * 18)
-		if angles[0] != expectedAngle {
-			t.Errorf("Frame %d angle = %f, want %f", i, angles[0], expectedAngle)
+		if angles.X != expectedAngle {
+			t.Errorf("Frame %d angle = %f, want %f", i, angles.X, expectedAngle)
 		}
 	}
 
@@ -294,7 +291,7 @@ func TestDemoSeekFrameReplaysFromOffset(t *testing.T) {
 	}
 	for i := 0; i < 4; i++ {
 		msg := []byte{byte(i), byte(i + 1)}
-		angles := [3]float32{float32(i), 0, 0}
+		angles := types.Vec3{X: float32(i), Y: 0, Z: 0}
 		if err := demo.WriteDemoFrame(msg, angles); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
@@ -324,8 +321,8 @@ func TestDemoSeekFrameReplaysFromOffset(t *testing.T) {
 	if !bytes.Equal(msg, []byte{1, 2}) {
 		t.Fatalf("seeked frame message = %v, want [1 2]", msg)
 	}
-	if angles[0] != 1 {
-		t.Fatalf("seeked frame angle = %v, want 1", angles[0])
+	if angles.X != 1 {
+		t.Fatalf("seeked frame angle = %v, want 1", angles.X)
 	}
 }
 
@@ -341,7 +338,7 @@ func TestDemoPlaybackIndexesFramesAtStart(t *testing.T) {
 	}
 	for i := 0; i < 3; i++ {
 		msg := []byte{byte(i), byte(i + 1)}
-		angles := [3]float32{float32(i), 0, 0}
+		angles := types.Vec3{X: float32(i), Y: 0, Z: 0}
 		if err := demo.WriteDemoFrame(msg, angles); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
@@ -368,8 +365,8 @@ func TestDemoPlaybackIndexesFramesAtStart(t *testing.T) {
 	if !bytes.Equal(msg, []byte{2, 3}) {
 		t.Fatalf("seeked frame message = %v, want [2 3]", msg)
 	}
-	if angles[0] != 2 {
-		t.Fatalf("seeked frame angle = %v, want 2", angles[0])
+	if angles.X != 2 {
+		t.Fatalf("seeked frame angle = %v, want 2", angles.X)
 	}
 }
 
@@ -384,7 +381,7 @@ func TestWriteDisconnectTrailerRoundTrip(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 
-	wantAngles := [3]float32{4, 5, 6}
+	wantAngles := types.Vec3{X: 4, Y: 5, Z: 6}
 	if err := demo.WriteDisconnectTrailer(wantAngles); err != nil {
 		t.Fatalf("WriteDisconnectTrailer failed: %v", err)
 	}
@@ -427,7 +424,7 @@ func TestWriteInitialStateSnapshotRoundTrip(t *testing.T) {
 	source.ViewEntity = 1
 	source.CDTrack = 7
 	source.LoopTrack = 7
-	source.ViewAngles = [3]float32{11, 22, 33}
+	source.ViewAngles = types.Vec3{X: 11, Y: 22, Z: 33}
 	source.PlayerNames[0] = "PlayerZero"
 	source.PlayerNames[1] = "PlayerOne"
 	source.PlayerColors[1] = 0x4f
@@ -440,13 +437,13 @@ func TestWriteInitialStateSnapshotRoundTrip(t *testing.T) {
 		Frame:      2,
 		Colormap:   4,
 		Skin:       5,
-		Origin:     [3]float32{10, 20, 30},
-		Angles:     [3]float32{0, 90, 180},
+		Origin:     types.Vec3{X: 10, Y: 20, Z: 30},
+		Angles:     types.Vec3{X: 0, Y: 90, Z: 180},
 		Alpha:      inet.ENTALPHA_DEFAULT,
 		Scale:      inet.ENTSCALE_DEFAULT,
 	}}
 	source.StaticSounds = []StaticSound{{
-		Origin:      [3]float32{1, 2, 3},
+		Origin:      types.Vec3{X: 1, Y: 2, Z: 3},
 		SoundIndex:  9,
 		Volume:      255,
 		Attenuation: 1,

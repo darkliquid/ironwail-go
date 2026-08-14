@@ -4,14 +4,16 @@ import (
 	"encoding/binary"
 	"math"
 	"testing"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestProceduralSkyGradientColorsDeterministic(t *testing.T) {
 	horizon, zenith := proceduralSkyGradientColors()
-	if horizon != ([3]float32{0.40, 0.53, 0.78}) {
+	if horizon != (types.Vec3{X: 0.40, Y: 0.53, Z: 0.78}) {
 		t.Fatalf("horizon = %v, want [0.4 0.53 0.78]", horizon)
 	}
-	if zenith != ([3]float32{0.07, 0.10, 0.23}) {
+	if zenith != (types.Vec3{X: 0.07, Y: 0.10, Z: 0.23}) {
 		t.Fatalf("zenith = %v, want [0.07 0.10 0.23]", zenith)
 	}
 }
@@ -42,9 +44,9 @@ func TestShouldUseProceduralSky(t *testing.T) {
 
 func TestEncodeGoGPUWorldDynamicLights(t *testing.T) {
 	lights := []DynamicLight{{
-		Position:   [3]float32{10, 20, 30},
+		Position:   types.Vec3{X: 10, Y: 20, Z: 30},
 		Radius:     200,
-		Color:      [3]float32{1, 0.5, 0.25},
+		Color:      types.Vec3{X: 1, Y: 0.5, Z: 0.25},
 		Brightness: 2,
 		MinLight:   32,
 		Lifetime:   10,

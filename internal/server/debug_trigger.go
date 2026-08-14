@@ -7,6 +7,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // debugTriggerEnabled returns true when sv_debug_trigger is set. When enabled,
@@ -29,32 +30,35 @@ func (s *Server) qcEntString(entNum int, fieldOfs int) string {
 // qcFuncName resolves a QC function table index to a human-readable name
 // like "plat_go_down[#42]" or "#0" if the index is invalid.
 func (s *Server) qcFuncName(funcIdx int32) string {
-	if s.QCVM == nil || s.DebugTelemetry == nil {
+	if s.QCVM == nil || funcIdx <= 0 || int(funcIdx) >= len(s.QCVM.Functions) {
 		return fmt.Sprintf("#%d", funcIdx)
 	}
-	return s.DebugTelemetry.FormatQCFunction(s.QCVM, funcIdx)
+	name := s.QCVM.String(s.QCVM.Functions[funcIdx].Name)
+	if name == "" {
+		return fmt.Sprintf("#%d", funcIdx)
+	}
+	return fmt.Sprintf("%s[#%d]", name, funcIdx)
 }
 
-// debugTriggerTouch logs a trigger touch dispatch to the console. Called from
-// touchLinks when a SOLID_TRIGGER entity's touch callback is about to fire.
+// debugTriggerTouch logs a trigger activation event when sv_debug_trigger is on.
+// Shows: source, touch entity (with targetname/target/touch/use/think), the other
+// entity (player/monster with origin), and custom fields (state/wait/nextthink).
 func (s *Server) debugTriggerTouch(source string, touch, other *Edict) {
-	if !s.debugTriggerEnabled() {
+	if !s.debugTriggerEnabled() || touch == nil || other == nil {
 		return
 	}
+
 	touchNum := s.NumForEdict(touch)
 	otherNum := s.NumForEdict(other)
-
-	touchClass := s.qcEntString(touchNum, qc.EntFieldClassName)
-	touchTargetName := s.qcEntString(touchNum, qc.EntFieldTargetName)
-	touchTarget := s.qcEntString(touchNum, qc.EntFieldTarget)
+	touchClass := touch.ClassNameString(s)
+	otherClass := other.ClassNameString(s)
+	touchTarget := touch.TargetString(s)
+	touchTargetName := touch.TargetNameString(s)
 	touchUseFn := s.qcFuncName(touch.Use(s))
 	touchThinkFn := s.qcFuncName(touch.Think(s))
 
-	otherClass := s.qcEntString(otherNum, qc.EntFieldClassName)
-
-	// Read extension fields via accessor methods (cached offsets)
 	thCheckAttack := touch.ThCheckAttack(s)
-	customFlags := int32(touch.CustomFlags(s))
+	customFlags := touch.CustomFlags(s)
 	state := touch.State(s)
 	wait := touch.Wait(s)
 	nextThink := touch.NextThink(s)
@@ -70,9 +74,9 @@ func (s *Server) debugTriggerTouch(source string, touch, other *Edict) {
 	console.Printf("trigger [%s] ent=%d classname=%q targetname=%q target=%q touch_fn=%d use_fn=%s think_fn=%s\n",
 		source, touchNum, touchClass, touchTargetName, touchTarget, touch.Touch(s), touchUseFn, touchThinkFn)
 	console.Printf("  → other ent=%d classname=%q origin=(%.1f %.1f %.1f)\n",
-		otherNum, otherClass, otherOrg[0], otherOrg[1], otherOrg[2])
+		otherNum, otherClass, otherOrg.X, otherOrg.Y, otherOrg.Z)
 	console.Printf("  → th_checkattack=%d(%s) customflags=%d state=%.1f wait=%.3f nextthink=%.3f time=%.3f enemy=%d(%q)\n",
-		thCheckAttack, s.qcFuncName(thCheckAttack), customFlags, state, wait, nextThink, s.Time, enemyNum, enemyClass)
+		thCheckAttack, s.qcFuncName(thCheckAttack), int(customFlags), state, wait, nextThink, s.Time, enemyNum, enemyClass)
 
 	if touchTarget != "" {
 		console.Printf("  → target %q: searching entities...\n", touchTarget)
@@ -98,7 +102,7 @@ func (s *Server) debugTriggerFind(fieldOfs int, match string, result int) {
 		thinkFn := ""
 		nextThink := float32(0)
 		ltime := float32(0)
-		vel := [3]float32{}
+		vel := qtypes.Vec3{}
 		movetype := ""
 		if ent != nil {
 			useFn = s.qcFuncName(ent.Use(s))
@@ -110,6 +114,6 @@ func (s *Server) debugTriggerFind(fieldOfs int, match string, result int) {
 		}
 		console.Printf("  find(%s=%q) → ent=%d classname=%q %s use_fn=%s think_fn=%s nextthink=%.3f ltime=%.3f velocity=(%.1f %.1f %.1f)\n",
 			fieldName, match, result, cls, movetype, useFn, thinkFn,
-			nextThink, ltime, vel[0], vel[1], vel[2])
+			nextThink, ltime, vel.X, vel.Y, vel.Z)
 	}
 }

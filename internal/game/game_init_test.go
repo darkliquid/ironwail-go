@@ -17,6 +17,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type registrationModeTestFS struct {
@@ -469,8 +470,8 @@ func (reloadTestRenderer) UploadPendingExternalSkybox() error                   
 func (reloadTestRenderer) UpdateCamera(renderer.CameraState, float32, float32)    {}
 func (reloadTestRenderer) UploadWorld(*bsp.Tree) error                            { return nil }
 func (reloadTestRenderer) HasWorldData() bool                                     { return false }
-func (reloadTestRenderer) WorldBounds() (min [3]float32, max [3]float32, ok bool) {
-	return [3]float32{}, [3]float32{}, false
+func (reloadTestRenderer) WorldBounds() (min types.Vec3, max types.Vec3, ok bool) {
+	return types.Vec3{}, types.Vec3{}, false
 }
 func (reloadTestRenderer) PreloadBrushEntities([]renderer.BrushEntity)       {}
 func (reloadTestRenderer) SpawnDynamicLight(renderer.DynamicLight) bool      { return false }
@@ -712,4 +713,3 @@ func TestRenderPassCvars(t *testing.T) {
 	// Reset to all
 	renderer.SetGlobalPassFlags(renderer.PassAll)
 }
-

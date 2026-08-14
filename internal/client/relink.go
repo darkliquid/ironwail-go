@@ -17,13 +17,10 @@ func entityNeedsHardReset(state inet.EntityState) bool {
 	if state.ForceLink {
 		return true
 	}
-	for j := 0; j < 3; j++ {
-		delta := state.MsgOrigins[0][j] - state.MsgOrigins[1][j]
-		if delta > hardResetMsgOriginDelta || delta < -hardResetMsgOriginDelta {
-			return true
-		}
-	}
-	return false
+	delta := state.MsgOrigins[0].Sub(state.MsgOrigins[1])
+	return delta.X > hardResetMsgOriginDelta || delta.X < -hardResetMsgOriginDelta ||
+		delta.Y > hardResetMsgOriginDelta || delta.Y < -hardResetMsgOriginDelta ||
+		delta.Z > hardResetMsgOriginDelta || delta.Z < -hardResetMsgOriginDelta
 }
 
 func resetEntityTrail(state *inet.EntityState) {
@@ -56,10 +53,11 @@ func (c *Client) RelinkEntities() {
 	// MViewAngles frames. Matches C CL_RelinkEntities:
 	//   if (cls.demoplayback) { for j: d = mviewangles[0]-[1]; wrap; viewangles = [1]+frac*d; }
 	if c.DemoPlayback {
-		for j := 0; j < 3; j++ {
-			d := c.MViewAngles[0][j] - c.MViewAngles[1][j]
-			d = wrapAngleDelta(d)
-			c.ViewAngles[j] = c.MViewAngles[1][j] + frac*d
+		d := c.MViewAngles[0].Sub(c.MViewAngles[1])
+		c.ViewAngles = types.Vec3{
+			X: c.MViewAngles[1].X + frac*wrapAngleDelta(d.X),
+			Y: c.MViewAngles[1].Y + frac*wrapAngleDelta(d.Y),
+			Z: c.MViewAngles[1].Z + frac*wrapAngleDelta(d.Z),
 		}
 	}
 
@@ -104,13 +102,13 @@ func (c *Client) RelinkEntities() {
 			}
 
 			// Interpolate origin and angles.
-			for j := 0; j < 3; j++ {
-				delta := state.MsgOrigins[0][j] - state.MsgOrigins[1][j]
-				state.Origin[j] = state.MsgOrigins[1][j] + f*delta
+			state.Origin = state.MsgOrigins[1].Lerp(state.MsgOrigins[0], f)
 
-				ad := state.MsgAngles[0][j] - state.MsgAngles[1][j]
-				ad = wrapAngleDelta(ad)
-				state.Angles[j] = state.MsgAngles[1][j] + f*ad
+			ad := state.MsgAngles[0].Sub(state.MsgAngles[1])
+			state.Angles = types.Vec3{
+				X: state.MsgAngles[1].X + f*wrapAngleDelta(ad.X),
+				Y: state.MsgAngles[1].Y + f*wrapAngleDelta(ad.Y),
+				Z: state.MsgAngles[1].Z + f*wrapAngleDelta(ad.Z),
 			}
 		}
 		if teleported {
@@ -129,7 +127,7 @@ func (c *Client) RelinkEntities() {
 			if modelName != "" {
 				flags := c.ModelFlagsFunc(modelName)
 				if flags&model.EFRotate != 0 {
-					state.Angles[1] = bobjRotate
+					state.Angles.Y = bobjRotate
 				}
 			}
 		}
@@ -182,7 +180,7 @@ func (c *Client) RelinkEntities() {
 				}
 			}
 		}
-		if state.TrailOrigin == [3]float32{} && state.TrailDelay == 0 {
+		if state.TrailOrigin == (types.Vec3{}) && state.TrailDelay == 0 {
 			resetEntityTrail(&state)
 		}
 

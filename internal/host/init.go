@@ -21,6 +21,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -76,7 +77,7 @@ type serverDatagramSource interface {
 }
 
 type serverCommandSink interface {
-	SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward, side, up float32, buttons, impulse int, sentTime float64) error
+	SubmitLoopbackCmd(clientNum int, viewAngles types.Vec3, forward, side, up float32, buttons, impulse int, sentTime float64) error
 	SubmitLoopbackStringCommand(clientNum int, cmd string) error
 }
 
@@ -399,7 +400,7 @@ type Client interface {
 
 type Audio interface {
 	Init() error
-	Update(origin, velocity, forward, right, up [3]float32)
+	Update(origin, velocity, forward, right, up types.Vec3)
 	StopAllSounds(clear bool)
 	SoundInfo() string
 	SoundList() string

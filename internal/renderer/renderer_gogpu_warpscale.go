@@ -514,7 +514,7 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
 	if err := queue.WriteBuffer(uniformBuffer, 0, sceneCompositeUniformBytes(warpActive, warpTime)); err != nil {
-		renderPass.End()
+		_ = renderPass.End()
 		return false
 	}
 	renderPass.Draw(3, 1, 0, 0)

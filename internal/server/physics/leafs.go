@@ -16,6 +16,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const maxClipPlanes = 5
@@ -35,28 +36,47 @@ func checkVelocity(cfg srvtypes.PhysicsConfig, ent *srvtypes.Edict, sh srvtypes.
 	changedVel := false
 	changedOrig := false
 	maxVel := cfg.GetMaxVelocity()
-	for i := 0; i < 3; i++ {
-		if math.IsNaN(float64(vel[i])) {
-			// C prints "Got a NaN velocity on %s" before zeroing — surface the
-			// same warning instead of silently fixing. Where in C:
-			// SV_CheckVelocity sv_phys.c:87-110.
-			slog.Warn("Got a NaN velocity", "entity", ent.Num, "classname", ent.ClassName(sh))
-			vel[i] = 0
-			changedVel = true
+
+	checkComp := func(val float32, isOrig bool) (float32, bool) {
+		changed := false
+		if math.IsNaN(float64(val)) {
+			if isOrig {
+				slog.Warn("Got a NaN origin", "entity", ent.Num, "classname", ent.ClassName(sh))
+			} else {
+				slog.Warn("Got a NaN velocity", "entity", ent.Num, "classname", ent.ClassName(sh))
+			}
+			return 0, true
 		}
-		if math.IsNaN(float64(orig[i])) {
-			slog.Warn("Got a NaN origin", "entity", ent.Num, "classname", ent.ClassName(sh))
-			orig[i] = 0
-			changedOrig = true
+		if !isOrig {
+			if val > maxVel {
+				return maxVel, true
+			} else if val < -maxVel {
+				return -maxVel, true
+			}
 		}
-		if vel[i] > maxVel {
-			vel[i] = maxVel
-			changedVel = true
-		} else if vel[i] < -maxVel {
-			vel[i] = -maxVel
-			changedVel = true
-		}
+		return val, changed
 	}
+
+	if v, ch := checkComp(vel.X, false); ch {
+		vel.X, changedVel = v, true
+	}
+	if v, ch := checkComp(vel.Y, false); ch {
+		vel.Y, changedVel = v, true
+	}
+	if v, ch := checkComp(vel.Z, false); ch {
+		vel.Z, changedVel = v, true
+	}
+
+	if o, ch := checkComp(orig.X, true); ch {
+		orig.X, changedOrig = o, true
+	}
+	if o, ch := checkComp(orig.Y, true); ch {
+		orig.Y, changedOrig = o, true
+	}
+	if o, ch := checkComp(orig.Z, true); ch {
+		orig.Z, changedOrig = o, true
+	}
+
 	if changedVel {
 		ent.SetVelocity(sh, vel)
 	}
@@ -80,7 +100,7 @@ func addGravity(cfg srvtypes.PhysicsConfig, timing srvtypes.FrameTiming, ent *sr
 		}
 	}
 	vel := ent.Velocity(sh)
-	vel[2] -= entGravity * cfg.GetGravity() * timing.GetFrameTime()
+	vel.Z -= entGravity * cfg.GetGravity() * timing.GetFrameTime()
 	ent.SetVelocity(sh, vel)
 }
 
@@ -106,10 +126,11 @@ func svCheckWater(col srvtypes.CollisionWorld, ent *srvtypes.Edict, sh srvtypes.
 	maxs := ent.Maxs(sh)
 	viewOfs := ent.ViewOfs(sh)
 
-	var point [3]float32
-	point[0] = orig[0]
-	point[1] = orig[1]
-	point[2] = orig[2] + mins[2] + 1
+	point := qtypes.Vec3{
+		X: orig.X,
+		Y: orig.Y,
+		Z: orig.Z + mins.Z + 1,
+	}
 
 	ent.SetWaterLevel(sh, 0)
 	ent.SetWaterType(sh, float32(bsp.ContentsEmpty))
@@ -117,11 +138,11 @@ func svCheckWater(col srvtypes.CollisionWorld, ent *srvtypes.Edict, sh srvtypes.
 	if cont <= bsp.ContentsWater {
 		ent.SetWaterType(sh, float32(cont))
 		ent.SetWaterLevel(sh, 1)
-		point[2] = orig[2] + (mins[2]+maxs[2])*0.5
+		point.Z = orig.Z + (mins.Z+maxs.Z)*0.5
 		cont = col.PointContents(point)
 		if cont <= bsp.ContentsWater {
 			ent.SetWaterLevel(sh, 2)
-			point[2] = orig[2] + viewOfs[2]
+			point.Z = orig.Z + viewOfs.Z
 			cont = col.PointContents(point)
 			if cont <= bsp.ContentsWater {
 				ent.SetWaterLevel(sh, 3)
@@ -163,16 +184,18 @@ func (s *System) CheckWaterTransition(ent *srvtypes.Edict) {
 }
 
 // ClipVelocity slides off an impacting surface.
-func ClipVelocity(in, normal [3]float32, overbounce float32) [3]float32 {
-	backoff := srvtypes.VecDot(in, normal) * overbounce
+func ClipVelocity(in, normal qtypes.Vec3, overbounce float32) qtypes.Vec3 {
+	backoff := in.Dot(normal) * overbounce
+	out := in.Sub(normal.Scale(backoff))
 
-	var out [3]float32
-	for i := 0; i < 3; i++ {
-		change := normal[i] * backoff
-		out[i] = in[i] - change
-		if out[i] > -srvtypes.StopEpsilon && out[i] < srvtypes.StopEpsilon {
-			out[i] = 0
-		}
+	if out.X > -srvtypes.StopEpsilon && out.X < srvtypes.StopEpsilon {
+		out.X = 0
+	}
+	if out.Y > -srvtypes.StopEpsilon && out.Y < srvtypes.StopEpsilon {
+		out.Y = 0
+	}
+	if out.Z > -srvtypes.StopEpsilon && out.Z < srvtypes.StopEpsilon {
+		out.Z = 0
 	}
 
 	return out
@@ -192,19 +215,19 @@ func (s *System) FlyMove(ent *srvtypes.Edict, time float32, steptrace *srvtypes.
 	originalVelocity := entVel
 	primalVelocity := entVel
 	numPlanes := 0
-	var planes [maxClipPlanes][3]float32
+	var planes [maxClipPlanes]qtypes.Vec3
 	timeLeft := time
 
 	for bumpCount := 0; bumpCount < 4; bumpCount++ {
-		if entVel[0] == 0 && entVel[1] == 0 && entVel[2] == 0 {
+		if entVel.X == 0 && entVel.Y == 0 && entVel.Z == 0 {
 			break
 		}
 
-		end := srvtypes.VecAdd(entOrig, srvtypes.VecScale(entVel, timeLeft))
+		end := entOrig.Add(entVel.Scale(timeLeft))
 		trace := s.col.SV_Move(entOrig, entMins, entMaxs, end, srvtypes.MoveNormal, ent)
 
 		if trace.AllSolid {
-			ent.SetVelocity(s.sh, [3]float32{})
+			ent.SetVelocity(s.sh, qtypes.Vec3{})
 			return 3
 		}
 
@@ -219,14 +242,14 @@ func (s *System) FlyMove(ent *srvtypes.Edict, time float32, steptrace *srvtypes.
 			break
 		}
 
-		if trace.PlaneNormal[2] > 0.7 {
+		if trace.PlaneNormal.Z > 0.7 {
 			blocked |= 1
 			if trace.Entity != nil && int(trace.Entity.Solid(s.sh)) == int(srvtypes.SolidBSP) {
 				ent.SetFlags(s.sh, float32(uint32(ent.Flags(s.sh))|srvtypes.FlagOnGround))
 				ent.SetGroundEntity(s.sh, int32(s.facade.NumForEdict(trace.Entity)))
 			}
 		}
-		if trace.PlaneNormal[2] == 0 {
+		if trace.PlaneNormal.Z == 0 {
 			blocked |= 2
 			if steptrace != nil {
 				*steptrace = trace
@@ -244,7 +267,7 @@ func (s *System) FlyMove(ent *srvtypes.Edict, time float32, steptrace *srvtypes.
 		timeLeft -= timeLeft * trace.Fraction
 
 		if numPlanes >= maxClipPlanes {
-			ent.SetVelocity(s.sh, [3]float32{})
+			ent.SetVelocity(s.sh, qtypes.Vec3{})
 			return 3
 		}
 
@@ -252,14 +275,14 @@ func (s *System) FlyMove(ent *srvtypes.Edict, time float32, steptrace *srvtypes.
 		numPlanes++
 
 		// modify original_velocity so it parallels all of the clip planes
-		var newVelocity [3]float32
+		var newVelocity qtypes.Vec3
 		i := 0
 		for i = 0; i < numPlanes; i++ {
 			newVelocity = ClipVelocity(originalVelocity, planes[i], 1)
 			j := 0
 			for j = 0; j < numPlanes; j++ {
 				if j != i {
-					if srvtypes.VecDot(newVelocity, planes[j]) < 0 {
+					if newVelocity.Dot(planes[j]) < 0 {
 						break
 					}
 				}
@@ -276,16 +299,16 @@ func (s *System) FlyMove(ent *srvtypes.Edict, time float32, steptrace *srvtypes.
 		} else {
 			// go along the crease
 			if numPlanes != 2 {
-				ent.SetVelocity(s.sh, [3]float32{})
+				ent.SetVelocity(s.sh, qtypes.Vec3{})
 				return 7
 			}
 			dir := srvtypes.VecCross(planes[0], planes[1])
-			d := srvtypes.VecDot(dir, entVel)
-			entVel = srvtypes.VecScale(dir, d)
+			d := dir.Dot(entVel)
+			entVel = dir.Scale(d)
 			ent.SetVelocity(s.sh, entVel)
 		}
-		if srvtypes.VecDot(entVel, primalVelocity) <= 0 {
-			ent.SetVelocity(s.sh, [3]float32{})
+		if entVel.Dot(primalVelocity) <= 0 {
+			ent.SetVelocity(s.sh, qtypes.Vec3{})
 			return blocked
 		}
 	}
@@ -294,18 +317,14 @@ func (s *System) FlyMove(ent *srvtypes.Edict, time float32, steptrace *srvtypes.
 }
 
 // PushEntity moves an entity by a push vector, clipping against solid geometry.
-func (s *System) PushEntity(ent *srvtypes.Edict, push [3]float32) srvtypes.TraceResult {
+func (s *System) PushEntity(ent *srvtypes.Edict, push qtypes.Vec3) srvtypes.TraceResult {
 	orig := ent.Origin(s.sh)
 	mins := ent.Mins(s.sh)
 	maxs := ent.Maxs(s.sh)
 	mt := ent.MoveType(s.sh)
 	solid := ent.Solid(s.sh)
 
-	end := [3]float32{
-		orig[0] + push[0],
-		orig[1] + push[1],
-		orig[2] + push[2],
-	}
+	end := orig.Add(push)
 
 	moveType := srvtypes.MoveNormal
 	if srvtypes.MoveType(mt) == srvtypes.MoveTypeFlyMissile {
@@ -447,30 +466,18 @@ func (s *System) PushMove(pusher *srvtypes.Edict, movetime float32) {
 	pusherAbsMax := pusher.AbsMax(sh)
 	pusherOrig := pusher.Origin(sh)
 
-	if pusherVel[0] == 0 && pusherVel[1] == 0 && pusherVel[2] == 0 {
+	if pusherVel.X == 0 && pusherVel.Y == 0 && pusherVel.Z == 0 {
 		srvdebug.SvdbgPushLogf("pusher=%d velocity=0 — early return (ltime += %.4f), no entities pushed", pusherNum, movetime)
 		pusher.SetLTime(sh, pusherLTime+movetime)
 		return
 	}
 
-	move := [3]float32{
-		pusherVel[0] * movetime,
-		pusherVel[1] * movetime,
-		pusherVel[2] * movetime,
-	}
-	mins := [3]float32{
-		pusherAbsMin[0] + move[0],
-		pusherAbsMin[1] + move[1],
-		pusherAbsMin[2] + move[2],
-	}
-	maxs := [3]float32{
-		pusherAbsMax[0] + move[0],
-		pusherAbsMax[1] + move[1],
-		pusherAbsMax[2] + move[2],
-	}
+	move := pusherVel.Scale(movetime)
+	mins := pusherAbsMin.Add(move)
+	maxs := pusherAbsMax.Add(move)
 
 	pushorig := pusherOrig
-	pusher.SetOrigin(sh, srvtypes.VecAdd(pusherOrig, move))
+	pusher.SetOrigin(sh, pusherOrig.Add(move))
 	pusher.SetLTime(sh, pusherLTime+movetime)
 	col.LinkEdict(pusher, false)
 
@@ -506,12 +513,12 @@ func (s *System) PushMove(pusher *srvtypes.Edict, movetime float32) {
 
 		riding := (uint32(checkFlags)&srvtypes.FlagOnGround) != 0 && s.store.EdictNum(int(checkGroundEnt)) == pusher
 		if !riding {
-			if checkAbsMin[0] >= maxs[0] ||
-				checkAbsMin[1] >= maxs[1] ||
-				checkAbsMin[2] >= maxs[2] ||
-				checkAbsMax[0] <= mins[0] ||
-				checkAbsMax[1] <= mins[1] ||
-				checkAbsMax[2] <= mins[2] {
+			if checkAbsMin.X >= maxs.X ||
+				checkAbsMin.Y >= maxs.Y ||
+				checkAbsMin.Z >= maxs.Z ||
+				checkAbsMax.X <= mins.X ||
+				checkAbsMax.Y <= mins.Y ||
+				checkAbsMax.Z <= mins.Z {
 				if pushLogEnabled {
 					srvdebug.SvdbgPushLogfAt(2, "pusher=%d check=%d riding=false aabb_miss=true — skipped", pusherNum, e)
 				}
@@ -555,9 +562,9 @@ func (s *System) PushMove(pusher *srvtypes.Edict, movetime float32) {
 		postPushAbsMax := check.AbsMax(sh)
 		srvdebug.SvdbgPushLogfAt(2, "pusher=%d check=%d post-push origin=(%.1f %.1f %.1f) absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
 			pusherNum, e,
-			postPushOrig[0], postPushOrig[1], postPushOrig[2],
-			postPushAbsMin[0], postPushAbsMin[1], postPushAbsMin[2],
-			postPushAbsMax[0], postPushAbsMax[1], postPushAbsMax[2])
+			postPushOrig.X, postPushOrig.Y, postPushOrig.Z,
+			postPushAbsMin.X, postPushAbsMin.Y, postPushAbsMin.Z,
+			postPushAbsMax.X, postPushAbsMax.Y, postPushAbsMax.Z)
 
 		block := col.SV_TestEntityPosition(check)
 		if block == nil {
@@ -567,14 +574,14 @@ func (s *System) PushMove(pusher *srvtypes.Edict, movetime float32) {
 
 		checkMins := check.Mins(sh)
 		checkMaxs := check.Maxs(sh)
-		if checkMins[0] == checkMaxs[0] {
+		if checkMins.X == checkMaxs.X {
 			continue
 		}
 
 		checkSolid := check.Solid(sh)
 		if int(checkSolid) == int(srvtypes.SolidNot) || int(checkSolid) == int(srvtypes.SolidTrigger) {
-			check.SetMins(sh, [3]float32{})
-			check.SetMaxs(sh, [3]float32{})
+			check.SetMins(sh, qtypes.Vec3{})
+			check.SetMaxs(sh, qtypes.Vec3{})
 			continue
 		}
 
@@ -584,7 +591,7 @@ func (s *System) PushMove(pusher *srvtypes.Edict, movetime float32) {
 		fixLevel := facade.FloatValue("sv_gameplayfix_elevators")
 		if riding && block == pusher &&
 			(fixLevel >= 2 || (fixLevel > 0 && e <= facade.MaxClients())) {
-			postPushOrig[2] += srvtypes.DistEpsilon
+			postPushOrig.Z += srvtypes.DistEpsilon
 			check.SetOrigin(sh, postPushOrig)
 			if col.SV_TestEntityPosition(check) == nil {
 				slog.Debug("elevator fix nudged entity",
@@ -657,10 +664,8 @@ func (s *System) PhysicsNoClip(ent *srvtypes.Edict) {
 	vel := ent.Velocity(sh)
 	frameTime := s.facade.GetFrameTime()
 
-	for i := 0; i < 3; i++ {
-		angles[i] += avel[i] * frameTime
-		orig[i] += vel[i] * frameTime
-	}
+	angles = angles.Add(avel.Scale(frameTime))
+	orig = orig.Add(vel.Scale(frameTime))
 
 	ent.SetAngles(sh, angles)
 	ent.SetOrigin(sh, orig)
@@ -731,7 +736,7 @@ func (s *System) PhysicsStep(ent *srvtypes.Edict) {
 	flags := uint32(ent.Flags(sh))
 	if flags&(srvtypes.FlagOnGround|srvtypes.FlagFly|srvtypes.FlagSwim) == 0 {
 		vel := ent.Velocity(sh)
-		hitSound := vel[2] < -0.1*s.facade.GetGravity()
+		hitSound := vel.Z < -0.1*s.facade.GetGravity()
 		s.AddGravity(ent)
 		s.CheckVelocity(ent)
 		s.FlyMove(ent, s.facade.GetFrameTime(), nil)
@@ -769,45 +774,45 @@ func (s *System) SV_CheckAllEnts() {
 }
 
 // SV_TryUnstick attempts to unstick an entity by nudging in 8 directions.
-func (s *System) SV_TryUnstick(ent *srvtypes.Edict, oldVel [3]float32) int {
+func (s *System) SV_TryUnstick(ent *srvtypes.Edict, oldVel qtypes.Vec3) int {
 	sh := s.sh
 	oldOrg := ent.Origin(sh)
-	var dir [3]float32
+	var dir qtypes.Vec3
 
 	for i := 0; i < 8; i++ {
-		dir = [3]float32{}
+		dir = qtypes.Vec3{}
 		switch i {
 		case 0:
-			dir[0] = 2
+			dir.X = 2
 		case 1:
-			dir[1] = 2
+			dir.Y = 2
 		case 2:
-			dir[0] = -2
+			dir.X = -2
 		case 3:
-			dir[1] = -2
+			dir.Y = -2
 		case 4:
-			dir[0] = 2
-			dir[1] = 2
+			dir.X = 2
+			dir.Y = 2
 		case 5:
-			dir[0] = -2
-			dir[1] = 2
+			dir.X = -2
+			dir.Y = 2
 		case 6:
-			dir[0] = 2
-			dir[1] = -2
+			dir.X = 2
+			dir.Y = -2
 		case 7:
-			dir[0] = -2
-			dir[1] = -2
+			dir.X = -2
+			dir.Y = -2
 		}
 
 		s.PushEntity(ent, dir)
 
 		// retry the original move
-		ent.SetVelocity(sh, [3]float32{oldVel[0], oldVel[1], 0})
+		ent.SetVelocity(sh, qtypes.Vec3{X: oldVel.X, Y: oldVel.Y, Z: 0})
 		blocked := s.FlyMove(ent, 0.1, nil)
 
 		curOrg := ent.Origin(sh)
-		if math.Abs(float64(oldOrg[0]-curOrg[0])) > 4 ||
-			math.Abs(float64(oldOrg[1]-curOrg[1])) > 4 {
+		if math.Abs(float64(oldOrg.X-curOrg.X)) > 4 ||
+			math.Abs(float64(oldOrg.Y-curOrg.Y)) > 4 {
 			return blocked
 		}
 
@@ -815,7 +820,7 @@ func (s *System) SV_TryUnstick(ent *srvtypes.Edict, oldVel [3]float32) int {
 		ent.SetOrigin(sh, oldOrg)
 	}
 
-	ent.SetVelocity(sh, [3]float32{})
+	ent.SetVelocity(sh, qtypes.Vec3{})
 	return 7 // still not moving
 }
 
@@ -864,11 +869,11 @@ func (s *System) SV_WalkMove(ent *srvtypes.Edict) {
 	ent.SetOrigin(sh, oldorg)
 
 	// step up
-	upmove := [3]float32{0, 0, 18}
+	upmove := qtypes.Vec3{Z: 18}
 	s.PushEntity(ent, upmove)
 
 	// move forward with zeroed Z velocity
-	ent.SetVelocity(sh, [3]float32{oldvel[0], oldvel[1], 0})
+	ent.SetVelocity(sh, qtypes.Vec3{X: oldvel.X, Y: oldvel.Y, Z: 0})
 	clip = s.FlyMove(ent, facade.GetFrameTime(), &steptrace)
 
 	// check for stuckness
@@ -884,10 +889,10 @@ func (s *System) SV_WalkMove(ent *srvtypes.Edict) {
 	}
 
 	// move down
-	downmove := [3]float32{0, 0, -18 + oldvel[2]*facade.GetFrameTime()}
+	downmove := qtypes.Vec3{Z: -18 + oldvel.Z*facade.GetFrameTime()}
 	downtrace := s.PushEntity(ent, downmove)
 
-	if downtrace.PlaneNormal[2] > 0.7 {
+	if downtrace.PlaneNormal.Z > 0.7 {
 		if downtrace.Entity != nil && int(downtrace.Entity.Solid(sh)) == int(srvtypes.SolidBSP) {
 			ent.SetFlags(sh, float32(uint32(ent.Flags(sh))|srvtypes.FlagOnGround))
 			ent.SetGroundEntity(sh, int32(facade.NumForEdict(downtrace.Entity)))
@@ -902,10 +907,10 @@ func (s *System) SV_WalkMove(ent *srvtypes.Edict) {
 // SV_WallFriction applies extra friction based on view angle against a wall.
 func (s *System) SV_WallFriction(ent *srvtypes.Edict, trace *srvtypes.TraceResult) {
 	sh := s.sh
-	var forward, right, up [3]float32
+	var forward, right, up qtypes.Vec3
 	srvtypes.AngleVectors(ent.VAngle(sh), &forward, &right, &up)
 
-	d := srvtypes.VecDot(trace.PlaneNormal, forward)
+	d := trace.PlaneNormal.Dot(forward)
 	d += 0.5
 	if d >= 0 {
 		return
@@ -913,12 +918,12 @@ func (s *System) SV_WallFriction(ent *srvtypes.Edict, trace *srvtypes.TraceResul
 
 	// cut the tangential velocity
 	vel := ent.Velocity(sh)
-	i := srvtypes.VecDot(trace.PlaneNormal, vel)
-	into := srvtypes.VecScale(trace.PlaneNormal, i)
-	side := srvtypes.VecSub(vel, into)
+	i := trace.PlaneNormal.Dot(vel)
+	into := trace.PlaneNormal.Scale(i)
+	side := vel.Sub(into)
 
-	vel[0] = side[0] * (1 + d)
-	vel[1] = side[1] * (1 + d)
+	vel.X = side.X * (1 + d)
+	vel.Y = side.Y * (1 + d)
 	ent.SetVelocity(sh, vel)
 }
 
@@ -982,7 +987,7 @@ func (s *System) SV_CheckStuck(ent *srvtypes.Edict) {
 	for z := float32(0); z < 18; z++ {
 		for i := float32(-1); i <= 1; i++ {
 			for j := float32(-1); j <= 1; j++ {
-				cand := [3]float32{orig[0] + i, orig[1] + j, orig[2] + z}
+				cand := qtypes.Vec3{X: orig.X + i, Y: orig.Y + j, Z: orig.Z + z}
 				ent.SetOrigin(sh, cand)
 				if s.col.SV_TestEntityPosition(ent) == nil {
 					// Unstuck.
@@ -1019,13 +1024,11 @@ func (s *System) PhysicsToss(ent *srvtypes.Edict) {
 
 	angles := ent.Angles(sh)
 	avel := ent.AVelocity(sh)
-	for i := 0; i < 3; i++ {
-		angles[i] += avel[i] * facade.GetFrameTime()
-	}
+	angles = angles.Add(avel.Scale(facade.GetFrameTime()))
 	ent.SetAngles(sh, angles)
 
 	vel := ent.Velocity(sh)
-	move := srvtypes.VecScale(vel, facade.GetFrameTime())
+	move := vel.Scale(facade.GetFrameTime())
 	trace := s.PushEntity(ent, move)
 	if trace.Fraction == 1 || ent.Free {
 		return
@@ -1039,12 +1042,12 @@ func (s *System) PhysicsToss(ent *srvtypes.Edict) {
 	newVel := ClipVelocity(vel, trace.PlaneNormal, backoff)
 	ent.SetVelocity(sh, newVel)
 
-	if trace.PlaneNormal[2] > 0.7 {
-		if newVel[2] < 60 || mt != srvtypes.MoveTypeBounce {
+	if trace.PlaneNormal.Z > 0.7 {
+		if newVel.Z < 60 || mt != srvtypes.MoveTypeBounce {
 			ent.SetFlags(sh, float32(uint32(ent.Flags(sh))|srvtypes.FlagOnGround))
 			ent.SetGroundEntity(sh, int32(facade.NumForEdict(trace.Entity)))
-			ent.SetVelocity(sh, [3]float32{})
-			ent.SetAVelocity(sh, [3]float32{})
+			ent.SetVelocity(sh, qtypes.Vec3{})
+			ent.SetAVelocity(sh, qtypes.Vec3{})
 		}
 	}
 

@@ -11,6 +11,7 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	srvcmds "github.com/darkliquid/ironwail-go/internal/server/commands"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -50,7 +51,7 @@ func (s *Server) SetIdealPitch(ent *Edict) {
 	}
 
 	entAngles := ent.Angles(s)
-	angle := float64(entAngles[1]) * math.Pi * 2 / 360
+	angle := float64(entAngles.Y) * math.Pi * 2 / 360
 	sinVal := float32(math.Sin(angle))
 	cosVal := float32(math.Cos(angle))
 
@@ -58,19 +59,19 @@ func (s *Server) SetIdealPitch(ent *Edict) {
 	entViewOfs := ent.ViewOfs(s)
 	var z [maxForwardSamples]float32
 	for i := 0; i < maxForwardSamples; i++ {
-		top := [3]float32{
-			entOrigin[0] + cosVal*float32(i+3)*12,
-			entOrigin[1] + sinVal*float32(i+3)*12,
-			entOrigin[2] + entViewOfs[2],
+		top := qtypes.Vec3{
+			X: entOrigin.X + cosVal*float32(i+3)*12,
+			Y: entOrigin.Y + sinVal*float32(i+3)*12,
+			Z: entOrigin.Z + entViewOfs.Z,
 		}
-		bottom := [3]float32{top[0], top[1], top[2] - 160}
+		bottom := qtypes.Vec3{X: top.X, Y: top.Y, Z: top.Z - 160}
 
-		tr := s.Move(top, [3]float32{}, [3]float32{}, bottom, MoveType(MoveNoMonsters), ent)
+		tr := s.Move(top, qtypes.Vec3{}, qtypes.Vec3{}, bottom, MoveType(MoveNoMonsters), ent)
 		if tr.AllSolid || tr.Fraction == 1 {
 			return
 		}
 
-		z[i] = top[2] + tr.Fraction*(bottom[2]-top[2])
+		z[i] = top.Z + tr.Fraction*(bottom.Z-top.Z)
 	}
 
 	var dir float32
@@ -158,9 +159,9 @@ func (s *Server) RunClientQCThinkWithMode(client *Client, funcName string, fullS
 		ang := client.Edict.VAngle(s)
 		SvdbgMoveLogf("%s/pre ent=%d origin=[%.3f %.3f %.3f] velocity=[%.3f %.3f %.3f] angles=[%.3f %.3f %.3f] flags=%d movetype=%d",
 			funcName, entNum,
-			org[0], org[1], org[2],
-			vel[0], vel[1], vel[2],
-			ang[0], ang[1], ang[2],
+			org.X, org.Y, org.Z,
+			vel.X, vel.Y, vel.Z,
+			ang.X, ang.Y, ang.Z,
 			int(client.Edict.Flags(s)), int(client.Edict.MoveType(s)))
 	}
 	if err := s.executeQCFunction(funcIdx); err != nil {
@@ -173,9 +174,9 @@ func (s *Server) RunClientQCThinkWithMode(client *Client, funcName string, fullS
 		ang := client.Edict.VAngle(s)
 		SvdbgMoveLogf("%s/post ent=%d origin=[%.3f %.3f %.3f] velocity=[%.3f %.3f %.3f] angles=[%.3f %.3f %.3f] flags=%d movetype=%d",
 			funcName, entNum,
-			org[0], org[1], org[2],
-			vel[0], vel[1], vel[2],
-			ang[0], ang[1], ang[2],
+			org.X, org.Y, org.Z,
+			vel.X, vel.Y, vel.Z,
+			ang.X, ang.Y, ang.Z,
 			int(client.Edict.Flags(s)), int(client.Edict.MoveType(s)))
 	}
 }
@@ -191,13 +192,14 @@ func (s *Server) ReadClientMove(client *Client, buf *MessageBuffer) UserCmd {
 	client.PingTimes[client.NumPings%NumPingTimes] = s.Time - pingTime
 	client.NumPings++
 
-	for i := 0; i < 3; i++ {
-		// NetQuake uses 8-bit angles, FitzQuake/RMQ use 16-bit
-		if s.Protocol == ProtocolNetQuake {
-			cmd.ViewAngles[i] = buf.ReadAngle(0)
-		} else {
-			cmd.ViewAngles[i] = buf.ReadAngle16()
-		}
+	if s.Protocol == ProtocolNetQuake {
+		cmd.ViewAngles.X = buf.ReadAngle(0)
+		cmd.ViewAngles.Y = buf.ReadAngle(0)
+		cmd.ViewAngles.Z = buf.ReadAngle(0)
+	} else {
+		cmd.ViewAngles.X = buf.ReadAngle16()
+		cmd.ViewAngles.Y = buf.ReadAngle16()
+		cmd.ViewAngles.Z = buf.ReadAngle16()
 	}
 
 	if client.Edict != nil {
@@ -534,6 +536,6 @@ func (s *Server) DropClient(client *Client, crash bool) {
 	}
 }
 
-func AngleVectors(angles [3]float32, forward, right, up *[3]float32) {
+func AngleVectors(angles qtypes.Vec3, forward, right, up *qtypes.Vec3) {
 	srvtypes.AngleVectors(angles, forward, right, up)
 }

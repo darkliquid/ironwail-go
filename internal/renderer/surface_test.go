@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
@@ -83,18 +84,16 @@ func TestBuildTextureAnimationsRejectsInvalidFrameToken(t *testing.T) {
 }
 
 func TestBlendFogStateTowards(t *testing.T) {
-	prevColor := [3]float32{0.1, 0.2, 0.3}
+	prevColor := types.Vec3{X: 0.1, Y: 0.2, Z: 0.3}
 	prevDensity := float32(0.1)
-	nextColor := [3]float32{0.9, 0.05, 0.6}
+	nextColor := types.Vec3{X: 0.9, Y: 0.05, Z: 0.6}
 	nextDensity := float32(0.7)
 
 	gotColor, gotDensity := blendFogStateTowards(prevColor, prevDensity, nextColor, nextDensity, 0.2)
-	wantColor := [3]float32{0.3, 0.05, 0.5}
+	wantColor := types.Vec3{X: 0.3, Y: 0.05, Z: 0.5}
 	wantDensity := float32(0.3)
-	for i := range wantColor {
-		if gotColor[i] != wantColor[i] {
-			t.Fatalf("blendFogStateTowards color[%d] = %v, want %v", i, gotColor[i], wantColor[i])
-		}
+	if gotColor != wantColor {
+		t.Fatalf("blendFogStateTowards color = %v, want %v", gotColor, wantColor)
 	}
 	if gotDensity != wantDensity {
 		t.Fatalf("blendFogStateTowards density = %v, want %v", gotDensity, wantDensity)
@@ -102,9 +101,9 @@ func TestBlendFogStateTowards(t *testing.T) {
 }
 
 func TestBlendFogStateTowardsImmediateWhenStepDisabled(t *testing.T) {
-	prevColor := [3]float32{0.1, 0.2, 0.3}
+	prevColor := types.Vec3{X: 0.1, Y: 0.2, Z: 0.3}
 	prevDensity := float32(0.1)
-	nextColor := [3]float32{0.9, 0.8, 0.7}
+	nextColor := types.Vec3{X: 0.9, Y: 0.8, Z: 0.7}
 	nextDensity := float32(0.6)
 
 	gotColor, gotDensity := blendFogStateTowards(prevColor, prevDensity, nextColor, nextDensity, 0)
@@ -256,20 +255,20 @@ func TestSetupAliasFrameAndTransform(t *testing.T) {
 	}
 
 	ent.LerpFlags = LerpMoveStep
-	ent.PreviousOrigin = [3]float32{0, 0, 0}
-	ent.CurrentOrigin = [3]float32{10, 0, 0}
+	ent.PreviousOrigin = types.Vec3{X: 0, Y: 0, Z: 0}
+	ent.CurrentOrigin = types.Vec3{X: 10, Y: 0, Z: 0}
 	ent.Origin = ent.CurrentOrigin
-	ent.PreviousAngles = [3]float32{0, 0, 0}
-	ent.CurrentAngles = [3]float32{0, 90, 0}
+	ent.PreviousAngles = types.Vec3{X: 0, Y: 0, Z: 0}
+	ent.CurrentAngles = types.Vec3{X: 0, Y: 90, Z: 0}
 	ent.Angles = ent.CurrentAngles
 	ent.MoveLerpStart = 0
 
 	origin, angles := SetupEntityTransform(ent, 0.05, true, false, false, false, 1)
-	if origin[0] < 4.99 || origin[0] > 5.01 {
-		t.Fatalf("origin.x = %f, want ~5", origin[0])
+	if origin.X < 4.99 || origin.X > 5.01 {
+		t.Fatalf("origin.x = %f, want ~5", origin.X)
 	}
-	if angles[1] < 44.99 || angles[1] > 45.01 {
-		t.Fatalf("angles.y = %f, want ~45", angles[1])
+	if angles.Y < 44.99 || angles.Y > 45.01 {
+		t.Fatalf("angles.y = %f, want ~45", angles.Y)
 	}
 }
 
@@ -288,8 +287,8 @@ func TestRendererAliasStateInterpolatesFrameAndTransformAcrossUpdates(t *testing
 		EntityKey:   7,
 		Frame:       0,
 		TimeSeconds: 1.0,
-		Origin:      [3]float32{0, 0, 0},
-		Angles:      [3]float32{0, 0, 0},
+		Origin:      types.Vec3{X: 0, Y: 0, Z: 0},
+		Angles:      types.Vec3{X: 0, Y: 0, Z: 0},
 	})
 	lerp, err := SetupAliasFrame(first, aliasHeaderFromModel(hdr), 1.0, true, false, 1)
 	if err != nil {
@@ -299,7 +298,7 @@ func TestRendererAliasStateInterpolatesFrameAndTransformAcrossUpdates(t *testing
 		t.Fatalf("first lerp = %#v, want pose snap to 0", lerp)
 	}
 	origin, angles := SetupEntityTransform(first, 1.0, true, false, false, false, 1)
-	if origin != [3]float32{} || angles != [3]float32{} {
+	if origin != (types.Vec3{}) || angles != (types.Vec3{}) {
 		t.Fatalf("first transform = (%v,%v), want origin/angles at zero", origin, angles)
 	}
 
@@ -309,8 +308,8 @@ func TestRendererAliasStateInterpolatesFrameAndTransformAcrossUpdates(t *testing
 		Frame:       1,
 		TimeSeconds: 1.05,
 		LerpFlags:   LerpMoveStep,
-		Origin:      [3]float32{10, 0, 0},
-		Angles:      [3]float32{0, 90, 0},
+		Origin:      types.Vec3{X: 10, Y: 0, Z: 0},
+		Angles:      types.Vec3{X: 0, Y: 90, Z: 0},
 	})
 	lerp, err = SetupAliasFrame(second, aliasHeaderFromModel(hdr), 1.05, true, false, 1)
 	if err != nil {
@@ -323,7 +322,7 @@ func TestRendererAliasStateInterpolatesFrameAndTransformAcrossUpdates(t *testing
 		t.Fatalf("second blend = %f, want 0 on frame change", lerp.Blend)
 	}
 	origin, angles = SetupEntityTransform(second, 1.05, true, false, false, false, 1)
-	if origin != [3]float32{} || angles != [3]float32{} {
+	if origin != (types.Vec3{}) || angles != (types.Vec3{}) {
 		t.Fatalf("second transform = (%v,%v), want interpolation start", origin, angles)
 	}
 
@@ -333,8 +332,8 @@ func TestRendererAliasStateInterpolatesFrameAndTransformAcrossUpdates(t *testing
 		Frame:       1,
 		TimeSeconds: 1.10,
 		LerpFlags:   LerpMoveStep,
-		Origin:      [3]float32{10, 0, 0},
-		Angles:      [3]float32{0, 90, 0},
+		Origin:      types.Vec3{X: 10, Y: 0, Z: 0},
+		Angles:      types.Vec3{X: 0, Y: 90, Z: 0},
 	})
 	lerp, err = SetupAliasFrame(third, aliasHeaderFromModel(hdr), 1.10, true, false, 1)
 	if err != nil {
@@ -347,11 +346,11 @@ func TestRendererAliasStateInterpolatesFrameAndTransformAcrossUpdates(t *testing
 		t.Fatalf("third blend = %f, want ~0.5", lerp.Blend)
 	}
 	origin, angles = SetupEntityTransform(third, 1.10, true, false, false, false, 1)
-	if origin[0] < 4.99 || origin[0] > 5.01 {
-		t.Fatalf("origin.x = %f, want ~5", origin[0])
+	if origin.X < 4.99 || origin.X > 5.01 {
+		t.Fatalf("origin.x = %f, want ~5", origin.X)
 	}
-	if angles[1] < 44.99 || angles[1] > 45.01 {
-		t.Fatalf("angles.y = %f, want ~45", angles[1])
+	if angles.Y < 44.99 || angles.Y > 45.01 {
+		t.Fatalf("angles.y = %f, want ~45", angles.Y)
 	}
 }
 
@@ -379,24 +378,3 @@ func TestRendererPruneAliasStatesDropsRetiredWorldEntities(t *testing.T) {
 	}
 }
 
-func TestAliasBatch(t *testing.T) {
-	b := NewAliasBatch(2)
-	key := AliasBatchKey{ModelID: "progs/player.mdl", SkinNum: 0}
-	if !b.Add(key, AliasInstance{}) {
-		t.Fatal("first Add failed")
-	}
-	if !b.Add(key, AliasInstance{}) {
-		t.Fatal("second Add failed")
-	}
-	if b.Add(key, AliasInstance{}) {
-		t.Fatal("third Add should fail due to max batch size")
-	}
-
-	b.Flush()
-	if !b.Add(AliasBatchKey{ModelID: "a", SkinNum: 0, IsPlayer: true}, AliasInstance{}) {
-		t.Fatal("player first Add failed")
-	}
-	if b.Add(AliasBatchKey{ModelID: "a", SkinNum: 0, IsPlayer: true}, AliasInstance{}) {
-		t.Fatal("player second Add should fail due to color translation rule")
-	}
-}

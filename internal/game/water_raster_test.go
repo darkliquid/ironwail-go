@@ -89,7 +89,7 @@ func TestQBJ2WaterTranslucencyRaster(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Could not open captured screenshot %s: %v", pngPath, err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		img, _, err := image.Decode(f)
 		if err != nil {

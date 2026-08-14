@@ -15,6 +15,7 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestNewServerUsesExtendedEdictCapacity(t *testing.T) {
@@ -40,9 +41,9 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 	)
 	s.SoundPrecache[soundNum] = "misc/large.wav"
 	ent := &Edict{Num: entNum}
-	ent.SetOrigin(s, [3]float32{10, 20, 30})
-	ent.SetMins(s, [3]float32{-2, -4, -6})
-	ent.SetMaxs(s, [3]float32{2, 4, 6})
+	ent.SetOrigin(s, qtypes.Vec3{X: 10, Y: 20, Z: 30})
+	ent.SetMins(s, qtypes.Vec3{X: -2, Y: -4, Z: -6})
+	ent.SetMaxs(s, qtypes.Vec3{X: 2, Y: 4, Z: 6})
 	s.Edicts = make([]*Edict, entNum+1)
 	s.Edicts[entNum] = ent
 
@@ -253,7 +254,7 @@ func TestSpawnServerE2M2MonstersDoNotStartInSolid(t *testing.T) {
 			continue
 		}
 		monsterCount++
-		if ent.Origin(s) == ([3]float32{}) {
+		if ent.Origin(s) == (qtypes.Vec3{}) {
 			t.Fatalf("monster %d (%s) spawned at origin", entNum, className)
 		}
 		if blocker := s.TestEntityPosition(ent); blocker != nil {
@@ -360,7 +361,7 @@ func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testi
 	serverClient.Spawned = true
 	serverClient.Edict.SetModelIndex(s, 1)
 	serverClient.Edict.SetColormap(s, 1)
-	serverClient.Edict.SetOrigin(s, [3]float32{100, 200, 300})
+	serverClient.Edict.SetOrigin(s, qtypes.Vec3{X: 100, Y: 200, Z: 300})
 
 	parserClient := cl.NewClient()
 	parser := cl.NewParser(parserClient)
@@ -369,21 +370,21 @@ func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testi
 	if err := parser.ParseServerMessage(initial); err != nil {
 		t.Fatalf("parse initial loopback message: %v", err)
 	}
-	if got := parserClient.Entities[1].Origin; got != [3]float32{100, 200, 300} {
+	if got := parserClient.Entities[1].Origin; got != (qtypes.Vec3{X: 100, Y: 200, Z: 300}) {
 		t.Fatalf("initial parsed origin = %v, want [100 200 300]", got)
 	}
 
-	serverClient.Edict.SetOrigin(s, [3]float32{104, 208, 296})
+	serverClient.Edict.SetOrigin(s, qtypes.Vec3{X: 104, Y: 208, Z: 296})
 	s.SendClientMessages()
 
 	delta := s.ClientLoopbackMessage(0)
 	if err := parser.ParseServerMessage(delta); err != nil {
 		t.Fatalf("parse loopback delta message: %v", err)
 	}
-	if got := parserClient.Entities[1].MsgOrigins[0]; got != [3]float32{104, 208, 296} {
+	if got := parserClient.Entities[1].MsgOrigins[0]; got != (qtypes.Vec3{X: 104, Y: 208, Z: 296}) {
 		t.Fatalf("parsed raw origin after server send phase = %v, want [104 208 296]", got)
 	}
-	if got := parserClient.Entities[1].Origin; got != [3]float32{100, 200, 300} {
+	if got := parserClient.Entities[1].Origin; got != (qtypes.Vec3{X: 100, Y: 200, Z: 300}) {
 		t.Fatalf("parsed live origin after server send phase = %v, want preserved [100 200 300] until relink", got)
 	}
 }
@@ -583,7 +584,7 @@ func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
 	client := s.Static.Clients[0]
 	client.Name = "Player"
 	client.Color = 3
-	client.Edict.SetOrigin(s, [3]float32{128, 64, 32})
+	client.Edict.SetOrigin(s, qtypes.Vec3{X: 128, Y: 64, Z: 32})
 	client.Edict.SetHealth(s, 37)
 	client.Edict.SetMoveType(s, float32(MoveTypeNoClip))
 
@@ -597,7 +598,7 @@ func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
 		t.Fatalf("SubmitLoopbackStringCommand(begin): %v", err)
 	}
 
-	if got := client.Edict.Origin(s); got != ([3]float32{128, 64, 32}) {
+	if got := client.Edict.Origin(s); got != (qtypes.Vec3{X: 128, Y: 64, Z: 32}) {
 		t.Fatalf("player origin = %v, want preserved", got)
 	}
 	if got := client.Edict.Health(s); got != 37 {
@@ -625,7 +626,7 @@ func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.
 	client := s.Static.Clients[0]
 	client.Name = "Player"
 	client.Color = 3
-	client.Edict.SetOrigin(s, [3]float32{128, 64, 32})
+	client.Edict.SetOrigin(s, qtypes.Vec3{X: 128, Y: 64, Z: 32})
 	client.SpawnParms[0] = 42
 
 	spawn := s.AllocEdict()
@@ -633,8 +634,8 @@ func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.
 		t.Fatal("AllocEdict returned nil")
 	}
 	spawn.SetClassName(s, s.QCVM.AllocString("info_player_start"))
-	spawn.SetOrigin(s, [3]float32{480, -320, 64})
-	spawn.SetAngles(s, [3]float32{0, 90, 0})
+	spawn.SetOrigin(s, qtypes.Vec3{X: 480, Y: -320, Z: 64})
+	spawn.SetAngles(s, qtypes.Vec3{X: 0, Y: 90, Z: 0})
 
 	if err := s.SubmitLoopbackStringCommand(0, "prespawn"); err != nil {
 		t.Fatalf("SubmitLoopbackStringCommand(prespawn): %v", err)

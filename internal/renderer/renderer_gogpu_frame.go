@@ -87,7 +87,7 @@ type RenderFrameState struct {
 	LightStyles [256]float32
 
 	// FogColor and FogDensity mirror the authoritative renderer state for parity tracking.
-	FogColor   [3]float32
+	FogColor   types.Vec3
 	FogDensity float32
 
 	// DrawParticles enables particle rendering
@@ -327,7 +327,7 @@ func (dc *DrawContext) maybeLogGoGPUFirstWorldFrameStats(state *RenderFrameState
 		worldData.Geometry.Tree,
 		worldData.Geometry.Faces,
 		worldData.Geometry.LeafFaces,
-		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+		camera.Origin,
 	)
 	visibleStats := summarizeGoGPUWorldFaceStats(visibleFaces, liquidAlpha)
 
@@ -554,11 +554,11 @@ func (dc *DrawContext) renderWorldFallbackTopDown() {
 	}
 
 	verts := worldData.Geometry.Vertices
-	minX, maxX := verts[0].Position[0], verts[0].Position[0]
-	minY, maxY := verts[0].Position[1], verts[0].Position[1]
+	minX, maxX := verts[0].Position.X, verts[0].Position.X
+	minY, maxY := verts[0].Position.Y, verts[0].Position.Y
 	for index := 1; index < len(verts); index++ {
-		x := verts[index].Position[0]
-		y := verts[index].Position[1]
+		x := verts[index].Position.X
+		y := verts[index].Position.Y
 		if x < minX {
 			minX = x
 		}
@@ -614,8 +614,8 @@ func (dc *DrawContext) renderWorldFallbackTopDown() {
 
 	for index := 0; index < len(verts); index += step {
 		v := verts[index]
-		sx := int(margin + (v.Position[0]-minX)*scale)
-		sy := int(float32(screenH) - (margin + (v.Position[1]-minY)*scale))
+		sx := int(margin + (v.Position.X-minX)*scale)
+		sy := int(float32(screenH) - (margin + (v.Position.Y-minY)*scale))
 		if sx < 0 || sx >= screenW || sy < 0 || sy >= screenH {
 			continue
 		}
@@ -808,7 +808,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	}
 }
 
-func projectWorldPointToScreen(pos [3]float32, vp types.Mat4, screenW, screenH int) (x int, y int, ok bool) {
+func projectWorldPointToScreen(pos types.Vec3, vp types.Mat4, screenW, screenH int) (x int, y int, ok bool) {
 	if screenW <= 0 || screenH <= 0 {
 		return 0, 0, false
 	}

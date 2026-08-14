@@ -43,7 +43,11 @@ func TestVMWorldCompileProgsResolvesRoot(t *testing.T) {
 	if err := os.Chdir(tmp); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(cwd)
+	defer func() {
+		if err := os.Chdir(cwd); err != nil {
+			t.Errorf("failed to restore cwd: %v", err)
+		}
+	}()
 
 	data, err := compileProgs()
 	if err != nil {

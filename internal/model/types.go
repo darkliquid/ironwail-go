@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // ModelType represents the type of a loaded model.
@@ -94,7 +95,7 @@ const (
 
 // MVertex represents an in-memory vertex.
 type MVertex struct {
-	Position [3]float32
+	Position types.Vec3
 }
 
 // Side constants for plane testing.
@@ -106,7 +107,7 @@ const (
 
 // MPlane represents an in-memory plane used for collision and rendering.
 type MPlane struct {
-	Normal   [3]float32
+	Normal   types.Vec3
 	Dist     float32
 	Type     uint8 // For texture axis selection and fast side tests
 	SignBits uint8 // Signx + signy<<1 + signz<<1
@@ -141,8 +142,8 @@ type MTexInfo struct {
 // MSurface represents an in-memory rendering surface.
 type MSurface struct {
 	Plane              *MPlane
-	Mins               [3]float32 // For frustum culling
-	Maxs               [3]float32
+	Mins               types.Vec3 // For frustum culling
+	Maxs               types.Vec3
 	Flags              int
 	VBOFirstVert       int // Index of this surface's first vert in the VBO
 	FirstEdge          int // Look up in model->surfedges[], negative numbers are backwards edges
@@ -194,8 +195,8 @@ type Hull struct {
 	Planes        []MPlane
 	FirstClipNode int
 	LastClipNode  int
-	ClipMins      [3]float32
-	ClipMaxs      [3]float32
+	ClipMins      types.Vec3
+	ClipMaxs      types.Vec3
 }
 
 // MSpriteFrame represents a single sprite frame.
@@ -252,10 +253,10 @@ type AliasSkinDesc struct {
 type AliasHeader struct {
 	Ident          int
 	Version        int
-	Scale          [3]float32
-	ScaleOrigin    [3]float32
+	Scale          types.Vec3
+	ScaleOrigin    types.Vec3
 	BoundingRadius float32
-	EyePosition    [3]float32
+	EyePosition    types.Vec3
 	NumSkins       int
 	SkinWidth      int
 	SkinHeight     int
@@ -347,13 +348,13 @@ type Model struct {
 	SortKey   uint32
 
 	// Volume occupied by the model graphics
-	Mins, Maxs   [3]float32
-	YMins, YMaxs [3]float32 // Bounds for entities with nonzero yaw
-	RMins, RMaxs [3]float32 // Bounds for entities with nonzero pitch or roll
+	Mins, Maxs   types.Vec3
+	YMins, YMaxs types.Vec3 // Bounds for entities with nonzero yaw
+	RMins, RMaxs types.Vec3 // Bounds for entities with nonzero pitch or roll
 
 	// Solid volume for clipping
 	ClipBox            bool
-	ClipMins, ClipMaxs [3]float32
+	ClipMins, ClipMaxs types.Vec3
 
 	// Brush model specific
 	FirstModelSurface, NumModelSurfaces int
@@ -413,8 +414,8 @@ type Model struct {
 }
 
 // SideFromPlane determines which side of a plane a point is on.
-func SideFromPlane(plane *MPlane, point [3]float32) int {
-	dot := plane.Normal[0]*point[0] + plane.Normal[1]*point[1] + plane.Normal[2]*point[2]
+func SideFromPlane(plane *MPlane, point types.Vec3) int {
+	dot := plane.Normal.Dot(point)
 	if dot < plane.Dist {
 		return SideBack
 	}

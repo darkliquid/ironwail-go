@@ -10,6 +10,7 @@ import (
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestRepairMissingWeaponSpawnParmsSelectsShotgunForFreshSpawn(t *testing.T) {
@@ -240,8 +241,8 @@ func TestWriteSpawnStaticToSignon_MatchesDirectSpawnStaticEncoding(t *testing.T)
 		Frame:      7,
 		Colormap:   2,
 		Skin:       3,
-		Origin:     [3]float32{10, 20, 30},
-		Angles:     [3]float32{45, 90, 180},
+		Origin:     qtypes.Vec3{X: 10, Y: 20, Z: 30},
+		Angles:     qtypes.Vec3{X: 45, Y: 90, Z: 180},
 	}
 
 	direct := NewMessageBuffer(64)
@@ -264,8 +265,8 @@ func TestWriteSpawnStaticToSignon_MatchesDirectSpawnStaticEncodingExtended(t *te
 		Frame:      400,
 		Colormap:   1,
 		Skin:       4,
-		Origin:     [3]float32{1, 2, 3},
-		Angles:     [3]float32{10, 20, 30},
+		Origin:     qtypes.Vec3{X: 1, Y: 2, Z: 3},
+		Angles:     qtypes.Vec3{X: 10, Y: 20, Z: 30},
 		Alpha:      200,
 		Scale:      24,
 	}

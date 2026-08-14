@@ -360,9 +360,9 @@ func (t *DebugTelemetry) FormatEntitySnapshot(snapshot DebugEntitySnapshot) stri
 		snapshot.TargetName,
 		snapshot.Target,
 		snapshot.Model,
-		snapshot.Origin[0],
-		snapshot.Origin[1],
-		snapshot.Origin[2],
+		snapshot.Origin.X,
+		snapshot.Origin.Y,
+		snapshot.Origin.Z,
 	)
 }
 

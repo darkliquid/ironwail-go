@@ -13,7 +13,7 @@ const SpriteUniformBufferSize = 96
 
 // SpriteQuadVertex is the GoGPU-local DTO for expanded sprite quad vertices.
 type SpriteQuadVertex struct {
-	Position [3]float32
+	Position types.Vec3
 	TexCoord [2]float32
 }
 
@@ -22,8 +22,8 @@ type SpriteDrawParams struct {
 	ModelID    string
 	SpriteData *model.MSprite
 	Frame      int
-	Origin     [3]float32
-	Angles     [3]float32
+	Origin     types.Vec3
+	Angles     types.Vec3
 	Alpha      float32
 	Scale      float32
 }
@@ -38,20 +38,20 @@ type ResolvedSpriteModel[Sprite any] struct {
 type SpriteDraw[Sprite any] struct {
 	Sprite Sprite
 	Frame  int
-	Origin [3]float32
-	Angles [3]float32
+	Origin types.Vec3
+	Angles types.Vec3
 	Alpha  float32
 	Scale  float32
 }
 
 // SpriteUniformBytes packs the GoGPU sprite draw uniform layout.
-func SpriteUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+func SpriteUniformBytes(vp types.Mat4, cameraOrigin types.Vec3, alpha float32, fogColor types.Vec3, fogDensity float32) []byte {
 	data := make([]byte, SpriteUniformBufferSize)
 	matrixBytes := types.Mat4ToBytes(vp)
 	copy(data[:64], matrixBytes[:])
-	putFloat32Slice(data[64:76], cameraOrigin[:])
+	putFloat32Slice(data[64:76], []float32{cameraOrigin.X, cameraOrigin.Y, cameraOrigin.Z})
 	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldimpl.FogUniformDensity(fogDensity)))
-	putFloat32Slice(data[80:92], fogColor[:])
+	putFloat32Slice(data[80:92], []float32{fogColor.X, fogColor.Y, fogColor.Z})
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
 	return data
 }
@@ -92,7 +92,7 @@ func ProjectSpriteQuadVerticesToWorldVertices[Vertex any](vertices []Vertex, pro
 			Position:      projected.Position,
 			TexCoord:      projected.TexCoord,
 			LightmapCoord: [2]float32{},
-			Normal:        [3]float32{0, 0, 1},
+			Normal:        types.Vec3{X: 0, Y: 0, Z: 1},
 		}
 	}
 	return out

@@ -10,13 +10,14 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/renderer/lightmap"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/wgpu"
 )
 
 func TestExtractFaceVertices_FlippedNormal(t *testing.T) {
 	tree := &bsp.Tree{
 		Planes: []bsp.DPlane{
-			{Normal: [3]float32{1, 0, 0}, Dist: 0},
+			{Normal: types.Vec3{X: 1, Y: 0, Z: 0}, Dist: 0},
 		},
 		Edges: []bsp.TreeEdge{
 			{V: [2]uint32{0, 1}},
@@ -25,9 +26,9 @@ func TestExtractFaceVertices_FlippedNormal(t *testing.T) {
 		},
 		Surfedges: []int32{0, 1, 2},
 		Vertexes: []bsp.DVertex{
-			{Point: [3]float32{0, 0, 0}},
-			{Point: [3]float32{0, 10, 0}},
-			{Point: [3]float32{0, 5, 10}},
+			{Point: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Point: types.Vec3{X: 0, Y: 10, Z: 0}},
+			{Point: types.Vec3{X: 0, Y: 5, Z: 10}},
 		},
 	}
 
@@ -44,7 +45,7 @@ func TestExtractFaceVertices_FlippedNormal(t *testing.T) {
 		t.Fatalf("extractFaceVertices failed: %v", err)
 	}
 
-	expectedNormal := [3]float32{1, 0, 0}
+	expectedNormal := types.Vec3{X: 1, Y: 0, Z: 0}
 	if vertsFront[0].Normal != expectedNormal {
 		t.Errorf("Front face normal = %v, want %v",
 			vertsFront[0].Normal, expectedNormal)
@@ -63,7 +64,7 @@ func TestExtractFaceVertices_FlippedNormal(t *testing.T) {
 		t.Fatalf("extractFaceVertices failed: %v", err)
 	}
 
-	expectedFlippedNormal := [3]float32{-1, 0, 0}
+	expectedFlippedNormal := types.Vec3{X: -1, Y: 0, Z: 0}
 	if vertsBack[0].Normal != expectedFlippedNormal {
 		t.Errorf("Back face normal = %v, want %v",
 			vertsBack[0].Normal, expectedFlippedNormal)

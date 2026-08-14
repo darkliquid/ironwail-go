@@ -45,16 +45,16 @@ func main() {
 		}
 		tmpl, err := template.New(page.filename).Parse(page.tmpl)
 		if err != nil {
-			f.Close()
+			_ = f.Close()
 			fmt.Fprintf(os.Stderr, "parse template %s: %v\n", page.filename, err)
 			os.Exit(1)
 		}
 		if err := tmpl.Execute(f, data); err != nil {
-			f.Close()
+			_ = f.Close()
 			fmt.Fprintf(os.Stderr, "execute template %s: %v\n", page.filename, err)
 			os.Exit(1)
 		}
-		f.Close()
+		_ = f.Close()
 		fmt.Printf("wrote %s\n", outPath)
 	}
 }
@@ -171,7 +171,7 @@ func markdownToHTML(md string) string {
 		// Headings
 		if heading, level := parseHeading(line); heading != "" {
 			id := headingToID(heading)
-			b.WriteString(fmt.Sprintf(`<h%d id="%s">%s</h%d>`+"\n", level, id, inlineMarkdown(heading, refLinks), level))
+			fmt.Fprintf(&b, `<h%d id="%s">%s</h%d>`+"\n", level, id, inlineMarkdown(heading, refLinks), level)
 			continue
 		}
 

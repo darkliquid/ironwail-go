@@ -8,6 +8,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/common"
 	"github.com/darkliquid/ironwail-go/internal/console"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func normalizeActiveWeapon(raw byte) int {
@@ -67,23 +68,50 @@ func (p *Parser) parseClientData(msg *common.SizeBuf, packetOffset int) error {
 		p.Client.StopPitchDrift()
 	}
 
-	punch := [3]float32{}
-	velocity := [3]float32{}
-	for i := 0; i < 3; i++ {
-		if bits&(inet.SU_PUNCH1<<uint(i)) != 0 {
-			v, err := readChar(msg, fmt.Sprintf("svc_clientdata: missing punch %d", i))
-			if err != nil {
-				return err
-			}
-			punch[i] = float32(v)
+	punch := types.Vec3{}
+	velocity := types.Vec3{}
+	if bits&inet.SU_PUNCH1 != 0 {
+		v, err := readChar(msg, "svc_clientdata: missing punch 0")
+		if err != nil {
+			return err
 		}
-		if bits&(inet.SU_VELOCITY1<<uint(i)) != 0 {
-			v, err := readChar(msg, fmt.Sprintf("svc_clientdata: missing velocity %d", i))
-			if err != nil {
-				return err
-			}
-			velocity[i] = float32(v) * 16
+		punch.X = float32(v)
+	}
+	if bits&inet.SU_PUNCH2 != 0 {
+		v, err := readChar(msg, "svc_clientdata: missing punch 1")
+		if err != nil {
+			return err
 		}
+		punch.Y = float32(v)
+	}
+	if bits&inet.SU_PUNCH3 != 0 {
+		v, err := readChar(msg, "svc_clientdata: missing punch 2")
+		if err != nil {
+			return err
+		}
+		punch.Z = float32(v)
+	}
+
+	if bits&inet.SU_VELOCITY1 != 0 {
+		v, err := readChar(msg, "svc_clientdata: missing velocity 0")
+		if err != nil {
+			return err
+		}
+		velocity.X = float32(v) * 16
+	}
+	if bits&inet.SU_VELOCITY2 != 0 {
+		v, err := readChar(msg, "svc_clientdata: missing velocity 1")
+		if err != nil {
+			return err
+		}
+		velocity.Y = float32(v) * 16
+	}
+	if bits&inet.SU_VELOCITY3 != 0 {
+		v, err := readChar(msg, "svc_clientdata: missing velocity 2")
+		if err != nil {
+			return err
+		}
+		velocity.Z = float32(v) * 16
 	}
 	p.Client.MVelocity[1] = p.Client.MVelocity[0]
 	p.Client.MVelocity[0] = velocity
@@ -253,7 +281,7 @@ func (p *Parser) recordPacketTrace(start, end int, name string) {
 	p.traceCount++
 }
 
-func (p *Parser) logSuspiciousClientData(msg *common.SizeBuf, start, end int, bits uint32, velocity, punch [3]float32) {
+func (p *Parser) logSuspiciousClientData(msg *common.SizeBuf, start, end int, bits uint32, velocity, punch types.Vec3) {
 	if !isSuspiciousClientData(velocity, punch) {
 		return
 	}
@@ -292,14 +320,9 @@ func (p *Parser) packetTraceSummary() string {
 	return b.String()
 }
 
-func isSuspiciousClientData(velocity, punch [3]float32) bool {
+func isSuspiciousClientData(velocity, punch types.Vec3) bool {
 	const suspiciousPunch = 90
-	for _, v := range punch {
-		if abs32(v) > suspiciousPunch {
-			return true
-		}
-	}
-	return false
+	return abs32(punch.X) > suspiciousPunch || abs32(punch.Y) > suspiciousPunch || abs32(punch.Z) > suspiciousPunch
 }
 
 func abs32(v float32) float32 {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type DemoFrame struct {
@@ -135,7 +136,7 @@ func (d *DemoState) StopRecording() error {
 }
 
 // WriteDemoFrame writes a single demo frame (message with view angles)
-func (d *DemoState) WriteDemoFrame(messageData []byte, viewAngles [3]float32) error {
+func (d *DemoState) WriteDemoFrame(messageData []byte, viewAngles types.Vec3) error {
 	if !d.Recording || d.Writer == nil {
 		return fmt.Errorf("not recording")
 	}
@@ -155,10 +156,14 @@ func (d *DemoState) WriteDemoFrame(messageData []byte, viewAngles [3]float32) er
 	}
 
 	// Write view angles (3 floats, 12 bytes, little endian)
-	for i := 0; i < 3; i++ {
-		if err := binary.Write(d.Writer, binary.LittleEndian, viewAngles[i]); err != nil {
-			return fmt.Errorf("failed to write view angle %d: %w", i, err)
-		}
+	if err := binary.Write(d.Writer, binary.LittleEndian, viewAngles.X); err != nil {
+		return fmt.Errorf("failed to write view angle pitch: %w", err)
+	}
+	if err := binary.Write(d.Writer, binary.LittleEndian, viewAngles.Y); err != nil {
+		return fmt.Errorf("failed to write view angle yaw: %w", err)
+	}
+	if err := binary.Write(d.Writer, binary.LittleEndian, viewAngles.Z); err != nil {
+		return fmt.Errorf("failed to write view angle roll: %w", err)
 	}
 
 	// Write message data
@@ -174,7 +179,7 @@ func (d *DemoState) WriteDemoFrame(messageData []byte, viewAngles [3]float32) er
 	return nil
 }
 
-func (d *DemoState) WriteDisconnectTrailer(viewAngles [3]float32) error {
+func (d *DemoState) WriteDisconnectTrailer(viewAngles types.Vec3) error {
 	return d.WriteDemoFrame([]byte{inet.SVCDisconnect}, viewAngles)
 }
 
@@ -293,9 +298,9 @@ func buildInitialStateFrame(c *Client) []byte {
 		msg = append(msg, byte(inet.SVCFog))
 		msg = append(msg,
 			byte(math.Round(float64(density*255))),
-			byte(math.Round(float64(color[0]*255))),
-			byte(math.Round(float64(color[1]*255))),
-			byte(math.Round(float64(color[2]*255))),
+			byte(math.Round(float64(color.X*255))),
+			byte(math.Round(float64(color.Y*255))),
+			byte(math.Round(float64(color.Z*255))),
 		)
 		msg = appendFloat(msg, 0)
 	}
@@ -323,17 +328,17 @@ func appendSpawnStaticMessage(dst []byte, ent inet.EntityState) []byte {
 func appendSpawnStaticSoundMessage(dst []byte, snd StaticSound) []byte {
 	if snd.SoundIndex > 255 {
 		dst = append(dst, byte(inet.SVCSpawnStaticSound2))
-		for i := range snd.Origin {
-			dst = appendCoord16(dst, snd.Origin[i])
-		}
+		dst = appendCoord16(dst, snd.Origin.X)
+		dst = appendCoord16(dst, snd.Origin.Y)
+		dst = appendCoord16(dst, snd.Origin.Z)
 		dst = appendShort(dst, int16(snd.SoundIndex))
 		dst = append(dst, byte(snd.Volume), byte(snd.Attenuation*64))
 		return dst
 	}
 	dst = append(dst, byte(inet.SVCSpawnStaticSound))
-	for i := range snd.Origin {
-		dst = appendCoord16(dst, snd.Origin[i])
-	}
+	dst = appendCoord16(dst, snd.Origin.X)
+	dst = appendCoord16(dst, snd.Origin.Y)
+	dst = appendCoord16(dst, snd.Origin.Z)
 	dst = append(dst, byte(snd.SoundIndex), byte(snd.Volume), byte(snd.Attenuation*64))
 	return dst
 }
@@ -371,10 +376,12 @@ func appendEntityState(dst []byte, ent inet.EntityState, extended bool, includeE
 	}
 	dst = append(dst, ent.Colormap, ent.Skin)
 	// Origins and angles interleaved: O1, A1, O2, A2, O3, A3
-	for i := range ent.Origin {
-		dst = appendCoord16(dst, ent.Origin[i])
-		dst = append(dst, byte(ent.Angles[i]*256.0/360.0))
-	}
+	dst = appendCoord16(dst, ent.Origin.X)
+	dst = append(dst, byte(ent.Angles.X*256.0/360.0))
+	dst = appendCoord16(dst, ent.Origin.Y)
+	dst = append(dst, byte(ent.Angles.Y*256.0/360.0))
+	dst = appendCoord16(dst, ent.Origin.Z)
+	dst = append(dst, byte(ent.Angles.Z*256.0/360.0))
 	if extended && bits&inet.BALPHA != 0 {
 		dst = append(dst, ent.Alpha)
 	}
@@ -650,7 +657,7 @@ func (d *DemoState) ShouldReadFrame(hostFrame int) bool {
 // ReadDemoFrame reads one frame from the demo file
 // Returns the message data, view angles, and any error
 // Returns io.EOF when the demo ends
-func (d *DemoState) ReadDemoFrame() (messageData []byte, viewAngles [3]float32, err error) {
+func (d *DemoState) ReadDemoFrame() (messageData []byte, viewAngles types.Vec3, err error) {
 	if !d.Playback || d.Reader == nil {
 		return nil, viewAngles, fmt.Errorf("not playing back")
 	}
@@ -675,11 +682,17 @@ func (d *DemoState) ReadDemoFrame() (messageData []byte, viewAngles [3]float32, 
 	}
 
 	// Read view angles
-	for i := 0; i < 3; i++ {
-		if err := binary.Read(d.Reader, binary.LittleEndian, &viewAngles[i]); err != nil {
-			return nil, viewAngles, fmt.Errorf("failed to read view angle: %w", err)
-		}
+	var rawAngles types.Vec3
+	if err := binary.Read(d.Reader, binary.LittleEndian, &rawAngles.X); err != nil {
+		return nil, viewAngles, fmt.Errorf("failed to read view angle pitch: %w", err)
 	}
+	if err := binary.Read(d.Reader, binary.LittleEndian, &rawAngles.Y); err != nil {
+		return nil, viewAngles, fmt.Errorf("failed to read view angle yaw: %w", err)
+	}
+	if err := binary.Read(d.Reader, binary.LittleEndian, &rawAngles.Z); err != nil {
+		return nil, viewAngles, fmt.Errorf("failed to read view angle roll: %w", err)
+	}
+	viewAngles = rawAngles
 
 	// Read message data
 	messageData = make([]byte, msgSize)

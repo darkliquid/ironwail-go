@@ -35,6 +35,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	types "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // StringEntFieldNames lists entity fields whose int32 values are indices
@@ -236,8 +237,8 @@ func (em *Manager) ED_Free(entNum int) error {
 			em.vm.SetEInt(entNum, qc.EntFieldModel, 0)
 			em.vm.SetEFloat(entNum, qc.EntFieldTakeDamage, 0)
 			em.vm.SetEFloat(entNum, qc.EntFieldFrame, 0)
-			em.vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{})
-			em.vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{})
+			em.vm.SetEVector(entNum, qc.EntFieldOrigin, qtypes.Vec3{})
+			em.vm.SetEVector(entNum, qc.EntFieldAngles, qtypes.Vec3{})
 			em.vm.SetEFloat(entNum, qc.EntFieldNextThink, -1)
 			em.vm.SetEFloat(entNum, qc.EntFieldSolid, 0)
 		}

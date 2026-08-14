@@ -6,7 +6,11 @@
 // EdictData) that back them.
 package qc
 
-import "math"
+import (
+	"math"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 // Edict represents a server entity for QuakeC integration.
 // Num is the entity number (0 = worldspawn).
@@ -93,11 +97,11 @@ func (vm *VM) EInt(edictNum int, fieldOfs int) int32 {
 
 // EVector returns a 3-component vector entity field.
 // The offset points to the first component.
-func (vm *VM) EVector(edictNum int, fieldOfs int) [3]float32 {
-	return [3]float32{
-		vm.EFloat(edictNum, fieldOfs),
-		vm.EFloat(edictNum, fieldOfs+1),
-		vm.EFloat(edictNum, fieldOfs+2),
+func (vm *VM) EVector(edictNum int, fieldOfs int) types.Vec3 {
+	return types.Vec3{
+		X: vm.EFloat(edictNum, fieldOfs),
+		Y: vm.EFloat(edictNum, fieldOfs+1),
+		Z: vm.EFloat(edictNum, fieldOfs+2),
 	}
 }
 
@@ -141,10 +145,10 @@ func (vm *VM) SetEInt(edictNum int, fieldOfs int, v int32) {
 }
 
 // SetEVector sets a 3-component vector entity field.
-func (vm *VM) SetEVector(edictNum int, fieldOfs int, v [3]float32) {
-	vm.SetEFloat(edictNum, fieldOfs, v[0])
-	vm.SetEFloat(edictNum, fieldOfs+1, v[1])
-	vm.SetEFloat(edictNum, fieldOfs+2, v[2])
+func (vm *VM) SetEVector(edictNum int, fieldOfs int, v types.Vec3) {
+	vm.SetEFloat(edictNum, fieldOfs, v.X)
+	vm.SetEFloat(edictNum, fieldOfs+1, v.Y)
+	vm.SetEFloat(edictNum, fieldOfs+2, v.Z)
 }
 
 // SetEString sets a string entity field by table index.

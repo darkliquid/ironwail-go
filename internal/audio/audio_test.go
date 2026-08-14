@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestSpatialize tests 3D sound spatialization.
@@ -16,13 +17,13 @@ import (
 func TestSpatialize(t *testing.T) {
 	sys := &System{}
 	sys.dma = &DMAInfo{Channels: 2}
-	sys.listener.Origin = [3]float32{0, 0, 0}
-	sys.listener.Right = [3]float32{1, 0, 0}
+	sys.listener.Origin = types.Vec3{X: 0, Y: 0, Z: 0}
+	sys.listener.Right = types.Vec3{X: 1, Y: 0, Z: 0}
 	sys.viewEntity = 1
 
 	ch := &Channel{
 		EntNum:    2,
-		Origin:    [3]float32{100, 0, 0},
+		Origin:    types.Vec3{X: 100, Y: 0, Z: 0},
 		DistMult:  0.001, // 1.0 / 1000.0
 		MasterVol: 255,
 	}
@@ -34,7 +35,7 @@ func TestSpatialize(t *testing.T) {
 	}
 
 	// Sound to the left
-	ch.Origin = [3]float32{-100, 0, 0}
+	ch.Origin = types.Vec3{X: -100, Y: 0, Z: 0}
 	sys.spatialize(ch)
 	if ch.LeftVol <= ch.RightVol {
 		t.Errorf("Expected LeftVol > RightVol for sound on the left, got R:%d L:%d", ch.RightVol, ch.LeftVol)
@@ -189,7 +190,7 @@ func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T)
 	sys.started = true
 	sys.totalChans = NumAmbients + MaxDynamicChannels
 	sys.dma = &DMAInfo{Channels: 2}
-	sys.listener.Right = [3]float32{1, 0, 0}
+	sys.listener.Right = types.Vec3{X: 1, Y: 0, Z: 0}
 
 	base := NumAmbients + MaxDynamicChannels
 	looped := &SFX{
@@ -209,12 +210,12 @@ func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T)
 		},
 	}
 
-	sys.StartStaticSound(nonLooped, [3]float32{0, 0, 0}, [3]float32{}, 1, 1)
+	sys.StartStaticSound(nonLooped, types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{}, 1, 1)
 	if got := sys.totalChans; got != base {
 		t.Fatalf("non-looped static sound allocated channel: totalChans = %d, want %d", got, base)
 	}
 
-	sys.StartStaticSound(looped, [3]float32{64, 0, 0}, [3]float32{}, 1, 1)
+	sys.StartStaticSound(looped, types.Vec3{X: 64, Y: 0, Z: 0}, types.Vec3{}, 1, 1)
 	if got := sys.totalChans; got != base+1 {
 		t.Fatalf("looped static sound did not allocate static channel: totalChans = %d, want %d", got, base+1)
 	}
@@ -225,7 +226,7 @@ func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T)
 		t.Fatalf("static channel DistMult = %g, want %g", got, want)
 	}
 
-	sys.StartStaticSound(looped, [3]float32{64, 0, 0}, [3]float32{}, 1, 9999)
+	sys.StartStaticSound(looped, types.Vec3{X: 64, Y: 0, Z: 0}, types.Vec3{}, 1, 9999)
 	if got := sys.totalChans; got != base+2 {
 		t.Fatalf("inaudible static sound should still persist in static range: totalChans = %d, want %d", got, base+2)
 	}
@@ -256,11 +257,11 @@ func TestStartSoundOffsetsIdenticalSoundStartedThisFrame(t *testing.T) {
 	sys.started = true
 	sys.totalChans = NumAmbients + MaxDynamicChannels
 	sys.dma = &DMAInfo{Channels: 2, Speed: 44100}
-	sys.listener.Right = [3]float32{1, 0, 0}
+	sys.listener.Right = types.Vec3{X: 1, Y: 0, Z: 0}
 	sfx := &SFX{Cache: &SoundCache{Length: 5000, LoopStart: -1, Width: 1, Data: make([]byte, 5000)}}
 
-	sys.StartSound(2, 0, sfx, [3]float32{0, 0, 0}, [3]float32{}, 1, 0)
-	sys.StartSound(3, 0, sfx, [3]float32{0, 0, 0}, [3]float32{}, 1, 0)
+	sys.StartSound(2, 0, sfx, types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{}, 1, 0)
+	sys.StartSound(3, 0, sfx, types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{}, 1, 0)
 
 	second := sys.channels[NumAmbients+1]
 	if second.SFX != sfx {
@@ -323,13 +324,13 @@ func TestSetViewEntityRespatializesExistingChannels(t *testing.T) {
 	sys.started = true
 	sys.dma = &DMAInfo{Channels: 2}
 	sys.totalChans = NumAmbients + MaxDynamicChannels
-	sys.listener.Right = [3]float32{1, 0, 0}
+	sys.listener.Right = types.Vec3{X: 1, Y: 0, Z: 0}
 
 	dyn := &sys.channels[NumAmbients]
 	*dyn = Channel{
 		SFX:       &SFX{Cache: &SoundCache{Length: 8, Width: 1, Data: make([]byte, 8)}},
 		EntNum:    5,
-		Origin:    [3]float32{128, 0, 0},
+		Origin:    types.Vec3{X: 128, Y: 0, Z: 0},
 		DistMult:  0,
 		MasterVol: 200,
 	}
@@ -352,13 +353,13 @@ func TestSetViewEntityRespatializesExistingChannels(t *testing.T) {
 func TestSpatializeTreatsEntityZeroAsViewEntityWhenDisconnected(t *testing.T) {
 	sys := NewSystem()
 	sys.dma = &DMAInfo{Channels: 2}
-	sys.listener.Origin = [3]float32{2048, 0, 0}
-	sys.listener.Right = [3]float32{1, 0, 0}
+	sys.listener.Origin = types.Vec3{X: 2048, Y: 0, Z: 0}
+	sys.listener.Right = types.Vec3{X: 1, Y: 0, Z: 0}
 	sys.viewEntity = 0
 
 	ch := &Channel{
 		EntNum:    0,
-		Origin:    [3]float32{},
+		Origin:    types.Vec3{},
 		DistMult:  1.0 / SoundNominalClipDist,
 		MasterVol: 200,
 	}
@@ -426,21 +427,21 @@ func TestUpdateCombinesIdenticalStaticSounds(t *testing.T) {
 
 	staticBase := NumAmbients + MaxDynamicChannels
 	sys.totalChans = staticBase + 3
-	sys.listener.Right = [3]float32{1, 0, 0}
+	sys.listener.Right = types.Vec3{X: 1, Y: 0, Z: 0}
 
 	loop := &SFX{Cache: &SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}}
 	other := &SFX{Cache: &SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}}
 
-	sys.channels[staticBase] = Channel{SFX: loop, Origin: [3]float32{32, 0, 0}, DistMult: 0, MasterVol: 80}
-	sys.channels[staticBase+1] = Channel{SFX: loop, Origin: [3]float32{-32, 0, 0}, DistMult: 0, MasterVol: 50}
-	sys.channels[staticBase+2] = Channel{SFX: other, Origin: [3]float32{0, 32, 0}, DistMult: 0, MasterVol: 70}
+	sys.channels[staticBase] = Channel{SFX: loop, Origin: types.Vec3{X: 32, Y: 0, Z: 0}, DistMult: 0, MasterVol: 80}
+	sys.channels[staticBase+1] = Channel{SFX: loop, Origin: types.Vec3{X: -32, Y: 0, Z: 0}, DistMult: 0, MasterVol: 50}
+	sys.channels[staticBase+2] = Channel{SFX: other, Origin: types.Vec3{X: 0, Y: 32, Z: 0}, DistMult: 0, MasterVol: 70}
 
-	expectedA := Channel{Origin: [3]float32{32, 0, 0}, DistMult: 0, MasterVol: 80}
-	expectedB := Channel{Origin: [3]float32{-32, 0, 0}, DistMult: 0, MasterVol: 50}
+	expectedA := Channel{Origin: types.Vec3{X: 32, Y: 0, Z: 0}, DistMult: 0, MasterVol: 80}
+	expectedB := Channel{Origin: types.Vec3{X: -32, Y: 0, Z: 0}, DistMult: 0, MasterVol: 50}
 	sys.spatialize(&expectedA)
 	sys.spatialize(&expectedB)
 
-	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{1, 0, 0}, [3]float32{})
+	sys.Update(types.Vec3{}, types.Vec3{}, types.Vec3{}, types.Vec3{X: 1, Y: 0, Z: 0}, types.Vec3{})
 
 	combined := sys.channels[staticBase]
 	dupe := sys.channels[staticBase+1]
@@ -789,7 +790,7 @@ func TestUpdateDoesNotCallGetPositionWhileLocked(t *testing.T) {
 	}
 	sys.mixer = NewMixer()
 
-	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
+	sys.Update(types.Vec3{}, types.Vec3{}, types.Vec3{}, types.Vec3{}, types.Vec3{})
 
 	expectedEvents := []string{"getpos", "lock", "unlock"}
 	if !slices.Equal(backend.events, expectedEvents) {
@@ -831,7 +832,7 @@ func TestUpdateCapsMixAheadToFullFrameRing(t *testing.T) {
 	sys.mixAhead = 1
 	sys.totalChans = NumAmbients + MaxDynamicChannels
 
-	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
+	sys.Update(types.Vec3{}, types.Vec3{}, types.Vec3{}, types.Vec3{}, types.Vec3{})
 
 	if mixer.paintedTime != 0 {
 		t.Fatalf("paintedTime = %d, want 0", mixer.paintedTime)
@@ -870,9 +871,9 @@ func TestUpdateSkipsPaintingBehindPlaybackCursorAfterClear(t *testing.T) {
 		LoopStart: -1,
 		Width:     2,
 		Data:      data,
-	}}, [3]float32{}, [3]float32{}, 1, 0)
+	}}, types.Vec3{}, types.Vec3{}, 1, 0)
 
-	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
+	sys.Update(types.Vec3{}, types.Vec3{}, types.Vec3{}, types.Vec3{}, types.Vec3{})
 
 	if got := sys.soundTime; got != 512 {
 		t.Fatalf("soundTime = %d, want 512", got)

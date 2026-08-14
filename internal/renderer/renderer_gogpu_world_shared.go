@@ -6,9 +6,9 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
-	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
-
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // WorldRuntime is the renderer-root contract that shared callers and tests use
@@ -17,7 +17,7 @@ type WorldRuntime interface {
 	UploadWorld(tree *bsp.Tree) error
 	ClearWorld()
 	HasWorldData() bool
-	WorldBounds() (min [3]float32, max [3]float32, ok bool)
+	WorldBounds() (min types.Vec3, max types.Vec3, ok bool)
 	SetExternalSkybox(name string, loadFile func(string) ([]byte, error))
 }
 
@@ -30,7 +30,7 @@ func worldFogUniformDensity(density float32) float32 {
 
 // blendFogStateTowards blends the previous fog state toward the target fog state by at most maxStep.
 // It provides a deterministic one-step transition seam so abrupt fog changes can avoid hard pops.
-func blendFogStateTowards(prevColor [3]float32, prevDensity float32, nextColor [3]float32, nextDensity float32, maxStep float32) ([3]float32, float32) {
+func blendFogStateTowards(prevColor types.Vec3, prevDensity float32, nextColor types.Vec3, nextDensity float32, maxStep float32) (types.Vec3, float32) {
 	return worldimpl.BlendFogStateTowards(prevColor, prevDensity, nextColor, nextDensity, maxStep)
 }
 
@@ -55,8 +55,8 @@ func worldFacePass(flags int32, alpha float32) worldRenderPass {
 	return worldimpl.FacePass(flags, alpha)
 }
 
-func worldFaceDistanceSq(center [3]float32, camera CameraState) float32 {
-	return worldimpl.FaceDistanceSq(center, [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z})
+func worldFaceDistanceSq(center types.Vec3, camera CameraState) float32 {
+	return worldimpl.FaceDistanceSq(center, camera.Origin)
 }
 
 func buildWorldLeafFaceLookup(tree *bsp.Tree, faceLookup map[int]int) [][]int {
@@ -81,7 +81,7 @@ func (s *worldVisibilityScratch) nextStamp(faceCount int) uint32 {
 	return s.stamp
 }
 
-func (s *worldVisibilityScratch) selectVisibleWorldFaces(tree *bsp.Tree, allFaces []WorldFace, leafFaces [][]int, cameraOrigin [3]float32) []WorldFace {
+func (s *worldVisibilityScratch) selectVisibleWorldFaces(tree *bsp.Tree, allFaces []WorldFace, leafFaces [][]int, cameraOrigin types.Vec3) []WorldFace {
 	if len(allFaces) == 0 {
 		s.faces = s.faces[:0]
 		return nil
@@ -189,7 +189,7 @@ func (s *worldVisibilityScratch) selectVisibleWorldFaces(tree *bsp.Tree, allFace
 	return faces
 }
 
-func selectVisibleWorldFaces(tree *bsp.Tree, allFaces []WorldFace, leafFaces [][]int, cameraOrigin [3]float32) []WorldFace {
+func selectVisibleWorldFaces(tree *bsp.Tree, allFaces []WorldFace, leafFaces [][]int, cameraOrigin types.Vec3) []WorldFace {
 	var scratch worldVisibilityScratch
 	return scratch.selectVisibleWorldFaces(tree, allFaces, leafFaces, cameraOrigin)
 }
@@ -335,7 +335,7 @@ func readWorldSkyFogCvar(fallback float32) float32 {
 	return worldimpl.ReadAlphaCvar(CvarRSkyFog, fallback)
 }
 
-func proceduralSkyGradientColors() (horizon, zenith [3]float32) {
+func proceduralSkyGradientColors() (horizon, zenith types.Vec3) {
 	return worldimpl.ProceduralSkyGradientColors()
 }
 

@@ -6,6 +6,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const debugViewTelemetryCVarName = "cl_debug_view"
@@ -14,9 +15,9 @@ type debugViewTelemetryState struct {
 	frame               uint64
 	currentLevel        int
 	levelLoaded         bool
-	lastEntityOrigin    [3]float32
-	lastViewOrigin      [3]float32
-	lastViewModelOrigin [3]float32
+	lastEntityOrigin    types.Vec3
+	lastViewOrigin      types.Vec3
+	lastViewModelOrigin types.Vec3
 	haveEntityOrigin    bool
 	haveViewOrigin      bool
 	haveViewModelOrigin bool
@@ -84,10 +85,10 @@ func (r runtimeOriginRejectReason) String() string {
 type runtimeOriginSelectTelemetry struct {
 	Source                   runtimeOriginSource
 	RejectReason             runtimeOriginRejectReason
-	AuthoritativeOrigin      [3]float32
-	PredictedOrigin          [3]float32
+	AuthoritativeOrigin      types.Vec3
+	PredictedOrigin          types.Vec3
 	PredictionValid          bool
-	FinalBaseOrigin          [3]float32
+	FinalBaseOrigin          types.Vec3
 	XYDelta                  [2]float32
 	PredictionErrorXY        [2]float32
 	XYOffsetThreshold        float32
@@ -201,11 +202,9 @@ func (g *Game) runtimeDebugViewLogRelinkPhase(phase string) {
 		return
 	}
 
-	entityDelta := [3]float32{}
+	entityDelta := types.Vec3{}
 	if g.debugView.haveEntityOrigin {
-		entityDelta[0] = state.Origin[0] - g.debugView.lastEntityOrigin[0]
-		entityDelta[1] = state.Origin[1] - g.debugView.lastEntityOrigin[1]
-		entityDelta[2] = state.Origin[2] - g.debugView.lastEntityOrigin[2]
+		entityDelta = state.Origin.Sub(g.debugView.lastEntityOrigin)
 	}
 	g.debugView.lastEntityOrigin = state.Origin
 	g.debugView.haveEntityOrigin = true
@@ -235,16 +234,14 @@ func (g *Game) runtimeDebugViewLogRelinkPhase(phase string) {
 	)
 }
 
-func (g *Game) runtimeDebugViewLogState(viewOrigin, viewAngles [3]float32) {
+func (g *Game) runtimeDebugViewLogState(viewOrigin, viewAngles types.Vec3) {
 	if !g.runtimeDebugViewEnabled(1) || g.Client == nil {
 		return
 	}
 
-	viewDelta := [3]float32{}
+	viewDelta := types.Vec3{}
 	if g.debugView.haveViewOrigin {
-		viewDelta[0] = viewOrigin[0] - g.debugView.lastViewOrigin[0]
-		viewDelta[1] = viewOrigin[1] - g.debugView.lastViewOrigin[1]
-		viewDelta[2] = viewOrigin[2] - g.debugView.lastViewOrigin[2]
+		viewDelta = viewOrigin.Sub(g.debugView.lastViewOrigin)
 	}
 	g.debugView.lastViewOrigin = viewOrigin
 	g.debugView.haveViewOrigin = true
@@ -361,11 +358,9 @@ func (g *Game) runtimeDebugViewLogViewModel(entity *renderer.AliasModelEntity) {
 	if !g.runtimeDebugViewEnabled(3) || entity == nil || g.debugView.viewModelFrame == g.debugView.frame {
 		return
 	}
-	viewModelDelta := [3]float32{}
+	viewModelDelta := types.Vec3{}
 	if g.debugView.haveViewModelOrigin {
-		viewModelDelta[0] = entity.Origin[0] - g.debugView.lastViewModelOrigin[0]
-		viewModelDelta[1] = entity.Origin[1] - g.debugView.lastViewModelOrigin[1]
-		viewModelDelta[2] = entity.Origin[2] - g.debugView.lastViewModelOrigin[2]
+		viewModelDelta = entity.Origin.Sub(g.debugView.lastViewModelOrigin)
 	}
 	g.debugView.lastViewModelOrigin = entity.Origin
 	g.debugView.haveViewModelOrigin = true
@@ -382,8 +377,8 @@ func (g *Game) runtimeDebugViewLogViewModel(entity *renderer.AliasModelEntity) {
 	)
 }
 
-func (g *Game) debugVec3(v [3]float32) string {
-	return fmt.Sprintf("(%.3f %.3f %.3f)", v[0], v[1], v[2])
+func (g *Game) debugVec3(v types.Vec3) string {
+	return fmt.Sprintf("(%.3f %.3f %.3f)", v.X, v.Y, v.Z)
 }
 
 func (g *Game) debugUserCmd(cmd cl.UserCmd) string {

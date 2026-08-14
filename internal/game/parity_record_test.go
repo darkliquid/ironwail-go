@@ -5,6 +5,8 @@ package game
 
 import (
 	"testing"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestRenderRecordHashDeterministic(t *testing.T) {
@@ -63,15 +65,15 @@ func TestRenderRecordHashDeterministic(t *testing.T) {
 func TestRenderRecordFromDumpState(t *testing.T) {
 	dump := DumpFrameState{
 		Frame:    1,
-		ViewOrg:  [3]float32{100.125, 200.25, 300.5},
+		ViewOrg:  types.Vec3{X: 100.125, Y: 200.25, Z: 300.5},
 		ViewLeaf: 5,
 		Visedicts: []DumpEdict{
 			{
 				ModelIndex: 3,
 				Frame:      1,
 				Skin:       0,
-				Origin:     [3]float32{10.0, 20.0, 30.0},
-				Angles:     [3]float32{0.0, 90.0, 0.0},
+				Origin:     types.Vec3{X: 10.0, Y: 20.0, Z: 30.0},
+				Angles:     types.Vec3{X: 0.0, Y: 90.0, Z: 0.0},
 			},
 		},
 	}

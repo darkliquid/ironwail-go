@@ -12,6 +12,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestCollectAliasEntitiesThreadsPlayerColorMap(t *testing.T) {
@@ -94,7 +95,7 @@ func TestCollectEntityEffectSourcesSkipsStaleDynamicEntities(t *testing.T) {
 	g.Client.MTime = [2]float64{1.1, 1.0}
 	g.Client.ModelPrecache = []string{"progs/player.mdl"}
 	g.Client.Entities = map[int]inet.EntityState{
-		1: {ModelIndex: 1, MsgTime: 1.0, Origin: [3]float32{1, 2, 3}, Effects: inet.EF_MUZZLEFLASH},
+		1: {ModelIndex: 1, MsgTime: 1.0, Origin: types.Vec3{X: 1, Y: 2, Z: 3}, Effects: inet.EF_MUZZLEFLASH},
 	}
 
 	sources := g.collectEntityEffectSources()
@@ -116,7 +117,7 @@ func TestCollectBrushEntitiesSkipsStaleBrushSubmodels(t *testing.T) {
 	g.Client.MTime = [2]float64{1.1, 1.0}
 	g.Client.ModelPrecache = []string{"maps/start.bsp", "*1"}
 	g.Client.Entities = map[int]inet.EntityState{
-		1: {ModelIndex: 2, MsgTime: 1.0, Origin: [3]float32{1, 2, 3}},
+		1: {ModelIndex: 2, MsgTime: 1.0, Origin: types.Vec3{X: 1, Y: 2, Z: 3}},
 	}
 	g.Server = &server.Server{WorldTree: &bsp.Tree{Models: []bsp.DModel{{}, {}}}}
 
@@ -141,8 +142,8 @@ func TestCollectBrushEntitiesDecodesProtocolAlphaAndScale(t *testing.T) {
 		1: {
 			ModelIndex: 2,
 			Frame:      3,
-			Origin:     [3]float32{1, 2, 3},
-			Angles:     [3]float32{10, 20, 30},
+			Origin:     types.Vec3{X: 1, Y: 2, Z: 3},
+			Angles:     types.Vec3{X: 10, Y: 20, Z: 30},
 			Alpha:      128,
 			Scale:      32,
 		},
@@ -153,7 +154,7 @@ func TestCollectBrushEntitiesDecodesProtocolAlphaAndScale(t *testing.T) {
 	if got := len(brushEntities); got != 1 {
 		t.Fatalf("collectBrushEntities len = %d, want 1", got)
 	}
-	if brushEntities[0].SubmodelIndex != 1 || brushEntities[0].Origin != [3]float32{1, 2, 3} {
+	if brushEntities[0].SubmodelIndex != 1 || brushEntities[0].Origin != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("brush entity = %#v, want submodel 1 at origin [1 2 3]", brushEntities[0])
 	}
 	if brushEntities[0].Frame != 3 {

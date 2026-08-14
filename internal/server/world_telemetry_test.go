@@ -8,6 +8,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestTouchLinksTelemetry(t *testing.T) {
@@ -71,20 +72,12 @@ func TestTouchLinksSyncsQCChangesBackToGoEdicts(t *testing.T) {
 
 		vm.SetEFloat(self, qc.EntFieldSolid, float32(SolidNot))
 
-		newOrigin := [3]float32{128, 0, 0}
+		newOrigin := qtypes.Vec3{X: 128, Y: 0, Z: 0}
 		otherMins := vm.EVector(other, qc.EntFieldMins)
 		otherMaxs := vm.EVector(other, qc.EntFieldMaxs)
 		vm.SetEVector(other, qc.EntFieldOrigin, newOrigin)
-		vm.SetEVector(other, qc.EntFieldAbsMin, [3]float32{
-			newOrigin[0] + otherMins[0],
-			newOrigin[1] + otherMins[1],
-			newOrigin[2] + otherMins[2],
-		})
-		vm.SetEVector(other, qc.EntFieldAbsMax, [3]float32{
-			newOrigin[0] + otherMaxs[0],
-			newOrigin[1] + otherMaxs[1],
-			newOrigin[2] + otherMaxs[2],
-		})
+		vm.SetEVector(other, qc.EntFieldAbsMin, newOrigin.Add(otherMins))
+		vm.SetEVector(other, qc.EntFieldAbsMax, newOrigin.Add(otherMaxs))
 	}
 	vm.Functions = []qc.DFunction{
 		{},
@@ -119,28 +112,28 @@ func TestTouchLinksSyncsQCChangesBackToGoEdicts(t *testing.T) {
 		t.Fatal("failed to allocate test edicts")
 	}
 
-	mover.SetOrigin(s, [3]float32{})
-	mover.SetMins(s, [3]float32{-16, -16, -16})
-	mover.SetMaxs(s, [3]float32{16, 16, 16})
+	mover.SetOrigin(s, qtypes.Vec3{})
+	mover.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	mover.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	mover.SetSolid(s, float32(SolidBBox))
 	s.LinkEdict(mover, false)
 
-	trigger.SetOrigin(s, [3]float32{})
-	trigger.SetMins(s, [3]float32{-8, -8, -8})
-	trigger.SetMaxs(s, [3]float32{8, 8, 8})
+	trigger.SetOrigin(s, qtypes.Vec3{})
+	trigger.SetMins(s, qtypes.Vec3{X: -8, Y: -8, Z: -8})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 8, Y: 8, Z: 8})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	trigger.SetTouch(s, 1)
 	s.LinkEdict(trigger, false)
 
 	s.touchLinks(mover)
 
-	if got := mover.Origin(s); got != [3]float32{128, 0, 0} {
+	if got := mover.Origin(s); got != (qtypes.Vec3{X: 128, Y: 0, Z: 0}) {
 		t.Fatalf("mover origin = %v", got)
 	}
-	if got := mover.AbsMin(s); got != [3]float32{112, -16, -16} {
+	if got := mover.AbsMin(s); got != (qtypes.Vec3{X: 112, Y: -16, Z: -16}) {
 		t.Fatalf("mover absmin = %v", got)
 	}
-	if got := mover.AbsMax(s); got != [3]float32{144, 16, 16} {
+	if got := mover.AbsMax(s); got != (qtypes.Vec3{X: 144, Y: 16, Z: 16}) {
 		t.Fatalf("mover absmax = %v", got)
 	}
 	if got := trigger.Solid(s); got != float32(SolidNot) {
@@ -180,9 +173,9 @@ func TestTouchLinksSyncsThirdPartyPusherChangesBackFromQCVM(t *testing.T) {
 		vm.SetEFloat(doorNum, qc.EntFieldNextThink, 0.5)
 		vm.SetEInt(doorNum, qc.EntFieldThink, 7)
 		vm.SetEFloat(doorNum, qc.EntFieldLTime, 0.25)
-		vm.SetEVector(doorNum, qc.EntFieldOrigin, [3]float32{64, 0, 0})
-		vm.SetEVector(doorNum, qc.EntFieldAbsMin, [3]float32{48, -16, -16})
-		vm.SetEVector(doorNum, qc.EntFieldAbsMax, [3]float32{80, 16, 16})
+		vm.SetEVector(doorNum, qc.EntFieldOrigin, qtypes.Vec3{X: 64, Y: 0, Z: 0})
+		vm.SetEVector(doorNum, qc.EntFieldAbsMin, qtypes.Vec3{X: 48, Y: -16, Z: -16})
+		vm.SetEVector(doorNum, qc.EntFieldAbsMax, qtypes.Vec3{X: 80, Y: 16, Z: 16})
 	}
 	vm.Functions = []qc.DFunction{
 		{},
@@ -201,23 +194,23 @@ func TestTouchLinksSyncsThirdPartyPusherChangesBackFromQCVM(t *testing.T) {
 		t.Fatal("failed to allocate test edicts")
 	}
 
-	mover.SetOrigin(s, [3]float32{})
-	mover.SetMins(s, [3]float32{-16, -16, -16})
-	mover.SetMaxs(s, [3]float32{16, 16, 16})
+	mover.SetOrigin(s, qtypes.Vec3{})
+	mover.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	mover.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	mover.SetSolid(s, float32(SolidBBox))
 	s.LinkEdict(mover, false)
 
-	trigger.SetOrigin(s, [3]float32{})
-	trigger.SetMins(s, [3]float32{-8, -8, -8})
-	trigger.SetMaxs(s, [3]float32{8, 8, 8})
+	trigger.SetOrigin(s, qtypes.Vec3{})
+	trigger.SetMins(s, qtypes.Vec3{X: -8, Y: -8, Z: -8})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 8, Y: 8, Z: 8})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	trigger.SetTouch(s, 1)
 	s.LinkEdict(trigger, false)
 
 	door.SetMoveType(s, float32(MoveTypePush))
 	door.SetSolid(s, float32(SolidBSP))
-	door.SetMins(s, [3]float32{-16, -16, -16})
-	door.SetMaxs(s, [3]float32{16, 16, 16})
+	door.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	door.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	s.LinkEdict(door, false)
 	doorNum = s.NumForEdict(door)
 
@@ -232,7 +225,7 @@ func TestTouchLinksSyncsThirdPartyPusherChangesBackFromQCVM(t *testing.T) {
 	if got := door.LTime(s); got != 0.25 {
 		t.Fatalf("door ltime = %v, want 0.25", got)
 	}
-	if got := door.Origin(s); got != [3]float32{64, 0, 0} {
+	if got := door.Origin(s); got != (qtypes.Vec3{X: 64, Y: 0, Z: 0}) {
 		t.Fatalf("door origin = %v, want [64 0 0]", got)
 	}
 	if door.AreaPrev == nil || door.AreaNext == nil {
@@ -261,9 +254,9 @@ func TestTouchLinksSyncsOwnerPusherStateIntoQCBeforeCallback(t *testing.T) {
 		if got := vm.EFloat(int(owner), qc.EntFieldNextThink); got != 0.5 {
 			return
 		}
-		vm.SetEVector(int(owner), qc.EntFieldOrigin, [3]float32{128, 0, 0})
-		vm.SetEVector(int(owner), qc.EntFieldAbsMin, [3]float32{112, -16, -16})
-		vm.SetEVector(int(owner), qc.EntFieldAbsMax, [3]float32{144, 16, 16})
+		vm.SetEVector(int(owner), qc.EntFieldOrigin, qtypes.Vec3{X: 128, Y: 0, Z: 0})
+		vm.SetEVector(int(owner), qc.EntFieldAbsMin, qtypes.Vec3{X: 112, Y: -16, Z: -16})
+		vm.SetEVector(int(owner), qc.EntFieldAbsMax, qtypes.Vec3{X: 144, Y: 16, Z: 16})
 	}
 	vm.Functions = []qc.DFunction{
 		{},
@@ -282,23 +275,23 @@ func TestTouchLinksSyncsOwnerPusherStateIntoQCBeforeCallback(t *testing.T) {
 		t.Fatal("failed to allocate test edicts")
 	}
 
-	mover.SetOrigin(s, [3]float32{})
-	mover.SetMins(s, [3]float32{-16, -16, -16})
-	mover.SetMaxs(s, [3]float32{16, 16, 16})
+	mover.SetOrigin(s, qtypes.Vec3{})
+	mover.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	mover.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	mover.SetSolid(s, float32(SolidBBox))
 	s.LinkEdict(mover, false)
 
-	trigger.SetOrigin(s, [3]float32{})
-	trigger.SetMins(s, [3]float32{-8, -8, -8})
-	trigger.SetMaxs(s, [3]float32{8, 8, 8})
+	trigger.SetOrigin(s, qtypes.Vec3{})
+	trigger.SetMins(s, qtypes.Vec3{X: -8, Y: -8, Z: -8})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 8, Y: 8, Z: 8})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	trigger.SetTouch(s, 1)
 	s.LinkEdict(trigger, false)
 
 	door.SetMoveType(s, float32(MoveTypePush))
 	door.SetSolid(s, float32(SolidBSP))
-	door.SetMins(s, [3]float32{-16, -16, -16})
-	door.SetMaxs(s, [3]float32{16, 16, 16})
+	door.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	door.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	door.SetNextThink(s, 0.5)
 	s.LinkEdict(door, false)
 
@@ -306,7 +299,7 @@ func TestTouchLinksSyncsOwnerPusherStateIntoQCBeforeCallback(t *testing.T) {
 
 	s.touchLinks(mover)
 
-	if got := door.Origin(s); got != [3]float32{128, 0, 0} {
+	if got := door.Origin(s); got != (qtypes.Vec3{X: 128, Y: 0, Z: 0}) {
 		t.Fatalf("door origin = %v, want [128 0 0]", got)
 	}
 }
@@ -334,29 +327,29 @@ func TestTouchLinksDoesNotClobberUnchangedPusherFromStaleQCVM(t *testing.T) {
 		t.Fatal("failed to allocate test edicts")
 	}
 
-	mover.SetOrigin(s, [3]float32{})
-	mover.SetMins(s, [3]float32{-16, -16, -16})
-	mover.SetMaxs(s, [3]float32{16, 16, 16})
+	mover.SetOrigin(s, qtypes.Vec3{})
+	mover.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	mover.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	mover.SetSolid(s, float32(SolidBBox))
 	s.LinkEdict(mover, false)
 
-	trigger.SetOrigin(s, [3]float32{})
-	trigger.SetMins(s, [3]float32{-8, -8, -8})
-	trigger.SetMaxs(s, [3]float32{8, 8, 8})
+	trigger.SetOrigin(s, qtypes.Vec3{})
+	trigger.SetMins(s, qtypes.Vec3{X: -8, Y: -8, Z: -8})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 8, Y: 8, Z: 8})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	trigger.SetTouch(s, 1)
 	s.LinkEdict(trigger, false)
 
 	door.SetMoveType(s, float32(MoveTypePush))
 	door.SetSolid(s, float32(SolidBSP))
-	door.SetMins(s, [3]float32{-16, -16, -16})
-	door.SetMaxs(s, [3]float32{16, 16, 16})
-	door.SetOrigin(s, [3]float32{64, 0, 0})
+	door.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	door.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
+	door.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
 	door.SetLTime(s, 48.84)
 	door.SetNextThink(s, 51.238)
 	s.touchLinks(mover)
 
-	if got := door.Origin(s); got != [3]float32{64, 0, 0} {
+	if got := door.Origin(s); got != (qtypes.Vec3{X: 64, Y: 0, Z: 0}) {
 		t.Fatalf("door origin clobbered during touchLinks: got %v", got)
 	}
 	if got := door.LTime(s); got != 48.84 {
@@ -393,15 +386,15 @@ func TestTouchLinksRestoresQCExecutionContextAfterCallback(t *testing.T) {
 		t.Fatal("failed to allocate test edicts")
 	}
 
-	mover.SetOrigin(s, [3]float32{})
-	mover.SetMins(s, [3]float32{-16, -16, -16})
-	mover.SetMaxs(s, [3]float32{16, 16, 16})
+	mover.SetOrigin(s, qtypes.Vec3{})
+	mover.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	mover.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	mover.SetSolid(s, float32(SolidBBox))
 	s.LinkEdict(mover, false)
 
-	trigger.SetOrigin(s, [3]float32{})
-	trigger.SetMins(s, [3]float32{-8, -8, -8})
-	trigger.SetMaxs(s, [3]float32{8, 8, 8})
+	trigger.SetOrigin(s, qtypes.Vec3{})
+	trigger.SetMins(s, qtypes.Vec3{X: -8, Y: -8, Z: -8})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 8, Y: 8, Z: 8})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	trigger.SetTouch(s, 1)
 	s.LinkEdict(trigger, false)
@@ -456,15 +449,15 @@ func TestTouchLinksDeduplicatesTriggerCallbacksWithinPhysicsFrame(t *testing.T) 
 		t.Fatal("failed to allocate test edicts")
 	}
 
-	mover.SetOrigin(s, [3]float32{})
-	mover.SetMins(s, [3]float32{-16, -16, -16})
-	mover.SetMaxs(s, [3]float32{16, 16, 16})
+	mover.SetOrigin(s, qtypes.Vec3{})
+	mover.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	mover.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	mover.SetSolid(s, float32(SolidBBox))
 	s.LinkEdict(mover, false)
 
-	trigger.SetOrigin(s, [3]float32{})
-	trigger.SetMins(s, [3]float32{-8, -8, -8})
-	trigger.SetMaxs(s, [3]float32{8, 8, 8})
+	trigger.SetOrigin(s, qtypes.Vec3{})
+	trigger.SetMins(s, qtypes.Vec3{X: -8, Y: -8, Z: -8})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 8, Y: 8, Z: 8})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	trigger.SetTouch(s, 1)
 	s.LinkEdict(trigger, false)

@@ -9,6 +9,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestAnimateWorldMaterialsFrame1 verifies that frame=1 selects the alternate
@@ -58,7 +59,7 @@ func TestWaterTranslucencyClassification(t *testing.T) {
 	if err != nil {
 		t.Skipf("qbj2 start.bsp not found: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	tree, err := bsp.LoadTree(f)
 	testutil.AssertNoError(t, err)
@@ -66,7 +67,7 @@ func TestWaterTranslucencyClassification(t *testing.T) {
 	geom, err := BuildWorldGeometry(tree)
 	testutil.AssertNoError(t, err)
 
-	cameraPos := [3]float32{-231.38, -1768.12, -2114.00}
+	cameraPos := types.Vec3{X: -231.38, Y: -1768.12, Z: -2114.00}
 	visibleFaces := selectVisibleWorldFaces(geom.Tree, geom.Faces, geom.LeafFaces, cameraPos)
 	liquidAlpha := worldLiquidAlphaSettingsForGeometry(geom)
 
@@ -82,7 +83,7 @@ func TestWaterTranslucencyClassification(t *testing.T) {
 			translucentLiquidCount++
 		} else {
 			nonLiquidCount++
-			if face.Center[2] < -2170 {
+			if face.Center.Z < -2170 {
 				submergedOpaqueCount++
 			}
 		}

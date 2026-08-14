@@ -12,6 +12,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestCmdDemoSeekClearsRewindBackstop(t *testing.T) {
@@ -32,7 +33,7 @@ func TestCmdDemoSeekClearsRewindBackstop(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 	for i := 0; i < 3; i++ {
-		if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{float32(i), 0, 0}); err != nil {
+		if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{X: float32(i), Y: 0, Z: 0}); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
 	}

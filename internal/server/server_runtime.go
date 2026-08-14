@@ -83,7 +83,7 @@ func (s *Server) SetCompatRNG(rng *compatrand.RNG) {
 func (s *Server) AllocEdict() *Edict {
 	for i, e := range s.Edicts {
 		if e.Free && (e.FreeTime < 2 || s.Time-e.FreeTime > 0.5) {
-			UnlinkEdict(e)
+			s.UnlinkEdict(e)
 			*e = Edict{Num: i}
 			s.NumEdicts = max(s.NumEdicts, i+1)
 			s.ensureQCVMEdictStorage()
@@ -109,7 +109,7 @@ func (s *Server) FreeEdict(e *Edict) {
 	if e == nil {
 		return
 	}
-	UnlinkEdict(e)
+	s.UnlinkEdict(e)
 	e.Alpha = inet.ENTALPHA_DEFAULT
 	e.Scale = inet.ENTSCALE_DEFAULT
 	e.Free = true

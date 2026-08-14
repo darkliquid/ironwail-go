@@ -8,6 +8,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestQbj3AliasDrawPipeline builds the exact vertex data the GPU shader would
@@ -98,7 +99,7 @@ func TestQbj3AliasDrawPipeline(t *testing.T) {
 				}
 				verts := buildAliasVerticesInterpolatedInto(scratch[:0], alias, m,
 					lerp.Pose1, lerp.Pose2, lerp.Blend,
-					[3]float32{0, 0, 0}, [3]float32{0, 0, 0}, 1, false)
+					types.Vec3{}, types.Vec3{}, 1, false)
 				if len(verts) == 0 {
 					t.Fatalf("%s frame %d: buildAliasVerticesInterpolatedInto returned no vertices", tc.mdl, frame)
 				}

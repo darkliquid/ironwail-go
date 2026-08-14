@@ -9,18 +9,19 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestClipVelocitySlidesOffSurface(t *testing.T) {
 	// Head-on into a wall: velocity along the normal is removed.
-	out := ClipVelocity([3]float32{100, 0, 0}, [3]float32{1, 0, 0}, 1)
-	if out[0] != 0 || out[1] != 0 || out[2] != 0 {
+	out := ClipVelocity(qtypes.Vec3{X: 100, Y: 0, Z: 0}, qtypes.Vec3{X: 1, Y: 0, Z: 0}, 1)
+	if out.X != 0 || out.Y != 0 || out.Z != 0 {
 		t.Errorf("ClipVelocity head-on = %v, want [0 0 0]", out)
 	}
 
 	// 45-degree slide: X is clipped, Y preserved.
-	out = ClipVelocity([3]float32{100, 100, 0}, [3]float32{1, 0, 0}, 1)
-	if out[0] != 0 || out[1] != 100 {
+	out = ClipVelocity(qtypes.Vec3{X: 100, Y: 100, Z: 0}, qtypes.Vec3{X: 1, Y: 0, Z: 0}, 1)
+	if out.X != 0 || out.Y != 100 {
 		t.Errorf("ClipVelocity slide = %v, want [0 100 0]", out)
 	}
 }
@@ -35,10 +36,10 @@ func TestSVCheckWaterDetectsSubmersion(t *testing.T) {
 	sys := NewSystem(col, &mockEntityStore{}, &handle{vm: vm})
 
 	ent := &srvtypes.Edict{Num: 1}
-	ent.SetMins(&handle{vm: vm}, [3]float32{-16, -16, -24})
-	ent.SetMaxs(&handle{vm: vm}, [3]float32{16, 16, 32})
-	ent.SetOrigin(&handle{vm: vm}, [3]float32{0, 0, 24})
-	ent.SetViewOfs(&handle{vm: vm}, [3]float32{0, 0, 22})
+	ent.SetMins(&handle{vm: vm}, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(&handle{vm: vm}, qtypes.Vec3{X: 16, Y: 16, Z: 32})
+	ent.SetOrigin(&handle{vm: vm}, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	ent.SetViewOfs(&handle{vm: vm}, qtypes.Vec3{X: 0, Y: 0, Z: 22})
 
 	if !sys.SV_CheckWater(ent) {
 		t.Error("SV_CheckWater = false, want true (entity in water)")
@@ -59,18 +60,18 @@ func TestPushEntityMovesOriginAndRelinks(t *testing.T) {
 	sys := NewSystem(col, &mockEntityStore{}, h)
 
 	ent := &srvtypes.Edict{Num: 1}
-	ent.SetOrigin(h, [3]float32{0, 0, 0})
-	ent.SetMins(h, [3]float32{-16, -16, -24})
-	ent.SetMaxs(h, [3]float32{16, 16, 32})
+	ent.SetOrigin(h, qtypes.Vec3{X: 0, Y: 0, Z: 0})
+	ent.SetMins(h, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(h, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetMoveType(h, float32(srvtypes.MoveTypeWalk))
 
-	trace := sys.PushEntity(ent, [3]float32{10, 0, 0})
+	trace := sys.PushEntity(ent, qtypes.Vec3{X: 10, Y: 0, Z: 0})
 
 	if trace.Fraction != 0.5 {
 		t.Errorf("PushEntity trace.Fraction = %v, want 0.5", trace.Fraction)
 	}
 	got := ent.Origin(h)
-	if got[0] != 10 || got[1] != 0 || got[2] != 0 {
+	if got.X != 10 || got.Y != 0 || got.Z != 0 {
 		t.Errorf("PushEntity origin = %v, want [10 0 0]", got)
 	}
 }

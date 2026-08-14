@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/server"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // setupE2ELoopback creates a fully-initialized Host+Server+loopback client
@@ -75,7 +76,7 @@ func TestE2ELoopbackMovement(t *testing.T) {
 	lc := subs.Client.(*localLoopbackClient)
 
 	// Set up forward input
-	clientState.ViewAngles = [3]float32{0, 0, 0}
+	clientState.ViewAngles = types.Vec3{X: 0, Y: 0, Z: 0}
 	clientState.ForwardSpeed = 400
 	clientState.SideSpeed = 350
 	clientState.InputForward.State = 1 // key held
@@ -129,7 +130,7 @@ func TestE2EHostFrameMovement(t *testing.T) {
 	t.Logf("After KeyDown: InputForward.State=%v Down=%v",
 		clientState.InputForward.State, clientState.InputForward.Down)
 
-	clientState.ViewAngles = [3]float32{0, 0, 0}
+	clientState.ViewAngles = types.Vec3{X: 0, Y: 0, Z: 0}
 	clientState.ForwardSpeed = 400
 	clientState.MoveSpeedKey = 1
 	clientState.SideSpeed = 350
@@ -167,9 +168,9 @@ func TestE2EHostFrameMovement(t *testing.T) {
 	t.Logf("Server entity Velocity: %v", srv.Static.Clients[0].Edict.Velocity(srv))
 
 	// The origin should have changed — player should have moved forward
-	dx := endOrigin[0] - startOrigin[0]
-	dy := endOrigin[1] - startOrigin[1]
-	dz := endOrigin[2] - startOrigin[2]
+	dx := endOrigin.X - startOrigin.X
+	dy := endOrigin.Y - startOrigin.Y
+	dz := endOrigin.Z - startOrigin.Z
 	totalDist := dx*dx + dy*dy
 	t.Logf("Displacement: dx=%v dy=%v dz=%v (lateral dist²=%v)", dx, dy, dz, totalDist)
 
@@ -231,7 +232,7 @@ func TestE2EJump(t *testing.T) {
 		flags := uint32(serverEnt.Flags(srv))
 		if i < 3 || flags&server.FlagOnGround != 0 {
 			t.Logf("  frame %d: z=%.3f vel_z=%.3f Flags=0x%x JumpReleased=%v",
-				i, serverEnt.Origin(srv)[2], serverEnt.Velocity(srv)[2],
+				i, serverEnt.Origin(srv).Z, serverEnt.Velocity(srv).Z,
 				flags, flags&server.FlagJumpReleased != 0)
 		}
 		if flags&server.FlagOnGround != 0 && !landed {
@@ -405,13 +406,13 @@ func TestE2EJump(t *testing.T) {
 		if err := srv.SubmitLoopbackCmd(0, clientState.ViewAngles, 0, 0, 0, 2, 0, float64(srv.Time)); err != nil {
 			t.Fatalf("SubmitLoopbackCmd: %v", err)
 		}
-		preZ := serverEnt.Origin(srv)[2]
+		preZ := serverEnt.Origin(srv).Z
 		if err := srv.Frame(1.0 / 72.0); err != nil {
 			t.Fatalf("Frame: %v", err)
 		}
 		t.Logf("After jump: z=%.3f (was %.3f) vel_z=%.3f Flags=0x%x",
-			serverEnt.Origin(srv)[2], preZ, serverEnt.Velocity(srv)[2], uint32(serverEnt.Flags(srv)))
-		if serverEnt.Velocity(srv)[2] > 0 {
+			serverEnt.Origin(srv).Z, preZ, serverEnt.Velocity(srv).Z, uint32(serverEnt.Flags(srv)))
+		if serverEnt.Velocity(srv).Z > 0 {
 			t.Logf("Jump successful!")
 		} else {
 			t.Error("Jump failed despite FL_JUMPRELEASED being set")
@@ -448,4 +449,4 @@ func (c *testFrameCallbacks) ProcessServer() {
 	}
 }
 func (c *testFrameCallbacks) UpdateScreen()                                     {}
-func (c *testFrameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {}
+func (c *testFrameCallbacks) UpdateAudio(origin, forward, right, up types.Vec3) {}

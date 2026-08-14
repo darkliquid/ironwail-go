@@ -457,7 +457,7 @@ func (r *Renderer) ReadbackWorldTexture() ([]byte, int, int, bool) {
 		slog.Warn("readback: map buffer failed", "err", err)
 		return nil, 0, 0, false
 	}
-	defer readbackBuffer.Unmap()
+	defer func() { _ = readbackBuffer.Unmap() }()
 
 	mappedRange, err := readbackBuffer.MappedRange(0, bufferSize)
 	if err != nil {
@@ -512,7 +512,7 @@ func (r *Renderer) CaptureScreenshot(filename string) error {
 		if err != nil {
 			return fmt.Errorf("capture screenshot fallback create: %w", err)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		return png.Encode(f, img)
 	}
 
@@ -548,7 +548,7 @@ func (r *Renderer) CaptureScreenshot(filename string) error {
 	if err != nil {
 		return fmt.Errorf("capture screenshot: create file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := png.Encode(f, img); err != nil {
 		return fmt.Errorf("capture screenshot: encode png: %w", err)

@@ -16,9 +16,9 @@ func (s *System) spatialize(ch *Channel) {
 	}
 
 	// calculate stereo separation and distance attenuation
-	sourceVec := VectorSubtract(ch.Origin, s.listener.Origin)
-	dist := VectorNormalize(&sourceVec) * ch.DistMult
-	dot := DotProduct(s.listener.Right, sourceVec)
+	sourceVec := ch.Origin.Sub(s.listener.Origin)
+	dist := sourceVec.Len() * ch.DistMult
+	dot := s.listener.Right.Dot(sourceVec.Normalize())
 
 	// Doppler effect disabled for C Ironwail parity
 	ch.Pitch = 1.0

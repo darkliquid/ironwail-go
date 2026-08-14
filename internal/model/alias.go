@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/engine/arena"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -114,37 +115,47 @@ func LoadAliasModelWithArena(r io.ReadSeeker, ar *arena.Arena) (*Model, error) {
 }
 
 type aliasBounds struct {
-	mins, maxs   [3]float32
-	ymins, ymaxs [3]float32
-	rmins, rmaxs [3]float32
+	mins, maxs   types.Vec3
+	ymins, ymaxs types.Vec3
+	rmins, rmaxs types.Vec3
 }
 
 func initAliasBounds() aliasBounds {
 	return aliasBounds{
-		mins: [3]float32{math.MaxFloat32, math.MaxFloat32, math.MaxFloat32},
-		maxs: [3]float32{-math.MaxFloat32, -math.MaxFloat32, -math.MaxFloat32},
+		mins: types.Vec3{X: math.MaxFloat32, Y: math.MaxFloat32, Z: math.MaxFloat32},
+		maxs: types.Vec3{X: -math.MaxFloat32, Y: -math.MaxFloat32, Z: -math.MaxFloat32},
 	}
 }
 
-func (b *aliasBounds) expand(v [3]float32) {
-	for i := 0; i < 3; i++ {
-		if v[i] < b.mins[i] {
-			b.mins[i] = v[i]
-		}
-		if v[i] > b.maxs[i] {
-			b.maxs[i] = v[i]
-		}
+func (b *aliasBounds) expand(v types.Vec3) {
+	if v.X < b.mins.X {
+		b.mins.X = v.X
+	}
+	if v.X > b.maxs.X {
+		b.maxs.X = v.X
+	}
+	if v.Y < b.mins.Y {
+		b.mins.Y = v.Y
+	}
+	if v.Y > b.maxs.Y {
+		b.maxs.Y = v.Y
+	}
+	if v.Z < b.mins.Z {
+		b.mins.Z = v.Z
+	}
+	if v.Z > b.maxs.Z {
+		b.maxs.Z = v.Z
 	}
 }
 
 func (b *aliasBounds) finalize(yawRadiusSquared, radiusSquared float32) {
 	radius := float32(math.Sqrt(float64(radiusSquared)))
-	b.rmins = [3]float32{-radius, -radius, -radius}
-	b.rmaxs = [3]float32{radius, radius, radius}
+	b.rmins = types.Vec3{X: -radius, Y: -radius, Z: -radius}
+	b.rmaxs = types.Vec3{X: radius, Y: radius, Z: radius}
 
 	yawRadius := float32(math.Sqrt(float64(yawRadiusSquared)))
-	b.ymins = [3]float32{-yawRadius, -yawRadius, b.mins[2]}
-	b.ymaxs = [3]float32{yawRadius, yawRadius, b.maxs[2]}
+	b.ymins = types.Vec3{X: -yawRadius, Y: -yawRadius, Z: b.mins.Z}
+	b.ymaxs = types.Vec3{X: yawRadius, Y: yawRadius, Z: b.maxs.Z}
 }
 
 func readAliasSkins(r io.ReadSeeker, ar *arena.Arena, numSkins, skinWidth, skinHeight int) ([][]byte, []AliasSkinDesc, error) {
@@ -233,7 +244,7 @@ func readAliasTriangles(r io.Reader, ar *arena.Arena, count int) ([]DTriangle, e
 	return tris, nil
 }
 
-func readAliasFrames(r io.Reader, ar *arena.Arena, numFrames, numVerts int, scale, origin [3]float32) ([]AliasFrameDesc, [][]TriVertX, int, aliasBounds, error) {
+func readAliasFrames(r io.Reader, ar *arena.Arena, numFrames, numVerts int, scale, origin types.Vec3) ([]AliasFrameDesc, [][]TriVertX, int, aliasBounds, error) {
 	frames := arena.Alloc[AliasFrameDesc](ar, numFrames)[:0]
 	poses := make([][]TriVertX, 0, numFrames)
 	bounds := initAliasBounds()
@@ -361,17 +372,17 @@ func readAliasPoseVerts(r io.Reader, ar *arena.Arena, count int) ([]TriVertX, er
 	return verts, nil
 }
 
-func updateAliasBounds(verts []TriVertX, scale, origin [3]float32, bounds *aliasBounds, yawRadiusSquared, radiusSquared *float32) {
+func updateAliasBounds(verts []TriVertX, scale, origin types.Vec3, bounds *aliasBounds, yawRadiusSquared, radiusSquared *float32) {
 	for _, v := range verts {
 		decoded := DecodeVertex(v, scale, origin)
 		bounds.expand(decoded)
 
-		dist := decoded[0]*decoded[0] + decoded[1]*decoded[1]
+		dist := decoded.X*decoded.X + decoded.Y*decoded.Y
 		if dist > *yawRadiusSquared {
 			*yawRadiusSquared = dist
 		}
 
-		dist += decoded[2] * decoded[2]
+		dist += decoded.Z * decoded.Z
 		if dist > *radiusSquared {
 			*radiusSquared = dist
 		}

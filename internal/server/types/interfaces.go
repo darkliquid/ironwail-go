@@ -3,6 +3,7 @@ package types
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/model"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -19,17 +20,17 @@ type CollisionModel interface {
 	CollisionClipNodes() []model.MClipNode
 	CollisionPlanes() []model.MPlane
 	IsClipBox() bool
-	CollisionClipMins() [3]float32
-	CollisionClipMaxs() [3]float32
+	CollisionClipMins() qtypes.Vec3
+	CollisionClipMaxs() qtypes.Vec3
 }
 
 // CollisionWorld defines the contract for BSP collision queries, trace sweeps, and spatial entity partitioning.
 type CollisionWorld interface {
-	SV_Move(start, mins, maxs, end [3]float32, moveType MoveType, passedict *Edict) TraceResult
+	SV_Move(start, mins, maxs, end qtypes.Vec3, moveType MoveType, passedict *Edict) TraceResult
 	SV_TestEntityPosition(ent *Edict) *Edict
-	SV_HullForEntity(ent *Edict, mins, maxs [3]float32) (*model.Hull, [3]float32)
+	SV_HullForEntity(ent *Edict, mins, maxs qtypes.Vec3) (*model.Hull, qtypes.Vec3)
 	LinkEdict(ent *Edict, touchTriggers bool)
-	PointContents(p [3]float32) int
+	PointContents(p qtypes.Vec3) int
 }
 
 // EntityStore defines edict allocation, retrieval, and lifetime bounds.
@@ -66,19 +67,19 @@ type PhysicsEngine interface {
 	CheckVelocity(ent *Edict)
 	AddGravity(ent *Edict)
 	SV_CheckWater(ent *Edict) bool
-	PushEntity(ent *Edict, push [3]float32) TraceResult
+	PushEntity(ent *Edict, push qtypes.Vec3) TraceResult
 }
 
 // MovementEngine encapsulates monster navigation and pathfinding.
 type MovementEngine interface {
 	CheckBottom(ent *Edict) bool
-	MoveStep(ent *Edict, move [3]float32, relink bool) bool
+	MoveStep(ent *Edict, move qtypes.Vec3, relink bool) bool
 	StepDirection(ent *Edict, yaw, dist float32) bool
 	MoveToGoal(ent *Edict, dist float32) bool
 }
 
 // NetworkBroadcaster defines the contract for network packet broadcasts and sound events.
 type NetworkBroadcaster interface {
-	StartParticle(org, dir [3]float32, color, count int)
+	StartParticle(org, dir qtypes.Vec3, color, count int)
 	StartSound(ent *Edict, channel int, sample string, volume int, attenuation float32)
 }

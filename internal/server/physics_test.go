@@ -13,6 +13,7 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func newPhysicsTestServer() *Server {
@@ -74,9 +75,9 @@ func newPushMoveElevatorTestServer(t *testing.T) (*Server, *Edict, *Edict) {
 	}
 	rider.SetMoveType(s, float32(MoveTypeWalk))
 	rider.SetSolid(s, float32(SolidSlideBox))
-	rider.SetMins(s, [3]float32{-16, -16, -24})
-	rider.SetMaxs(s, [3]float32{16, 16, 32})
-	rider.SetOrigin(s, [3]float32{0, 0, 31.99})
+	rider.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	rider.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
+	rider.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 31.99})
 
 	pusher := s.AllocEdict() // edict 2+: non-client pusher
 	if pusher == nil {
@@ -84,10 +85,10 @@ func newPushMoveElevatorTestServer(t *testing.T) (*Server, *Edict, *Edict) {
 	}
 	pusher.SetMoveType(s, float32(MoveTypePush))
 	pusher.SetSolid(s, float32(SolidBSP))
-	pusher.SetMins(s, [3]float32{-32, -32, -8})
-	pusher.SetMaxs(s, [3]float32{32, 32, 8})
-	pusher.SetOrigin(s, [3]float32{0, 0, 0})
-	pusher.SetVelocity(s, [3]float32{0, 0, 10})
+	pusher.SetMins(s, qtypes.Vec3{X: -32, Y: -32, Z: -8})
+	pusher.SetMaxs(s, qtypes.Vec3{X: 32, Y: 32, Z: 8})
+	pusher.SetOrigin(s, qtypes.Vec3{})
+	pusher.SetVelocity(s, qtypes.Vec3{X: 0, Y: 0, Z: 10})
 
 	s.LinkEdict(pusher, false)
 	rider.SetFlags(s, float32(uint32(rider.Flags(s))|FlagOnGround))
@@ -126,12 +127,12 @@ func TestPushMoveElevatorFixNudgesClientWhenEnabled(t *testing.T) {
 
 	s.PushMove(pusher, s.FrameTime)
 
-	if !(pusher.Origin(s)[2] > startPusher[2]) {
+	if !(pusher.Origin(s).Z > startPusher.Z) {
 		t.Fatalf("pusher did not advance with fix enabled: start=%v got=%v", startPusher, pusher.Origin(s))
 	}
-	wantRiderZ := startRider[2] + pusher.Velocity(s)[2]*s.FrameTime + DistEpsilon
-	if diff := rider.Origin(s)[2] - wantRiderZ; diff < -0.001 || diff > 0.001 {
-		t.Fatalf("rider z = %.5f, want %.5f (move + DistEpsilon nudge)", rider.Origin(s)[2], wantRiderZ)
+	wantRiderZ := startRider.Z + pusher.Velocity(s).Z*s.FrameTime + DistEpsilon
+	if diff := rider.Origin(s).Z - wantRiderZ; diff < -0.001 || diff > 0.001 {
+		t.Fatalf("rider z = %.5f, want %.5f (move + DistEpsilon nudge)", rider.Origin(s).Z, wantRiderZ)
 	}
 }
 
@@ -156,9 +157,9 @@ func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
 	if platform == nil {
 		t.Fatal("failed to alloc platform")
 	}
-	platform.SetOrigin(s, [3]float32{0, 0, 72})
-	platform.SetMins(s, [3]float32{-64, -64, -8})
-	platform.SetMaxs(s, [3]float32{64, 64, 8})
+	platform.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 72})
+	platform.SetMins(s, qtypes.Vec3{X: -64, Y: -64, Z: -8})
+	platform.SetMaxs(s, qtypes.Vec3{X: 64, Y: 64, Z: 8})
 	platform.SetSolid(s, float32(SolidBBox))
 	s.LinkEdict(platform, false)
 
@@ -166,12 +167,12 @@ func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
 	if ent == nil {
 		t.Fatal("failed to alloc mover")
 	}
-	ent.SetOrigin(s, [3]float32{0, 0, 112})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 112})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	ent.SetMoveType(s, float32(MoveTypeWalk))
-	ent.SetVelocity(s, [3]float32{0, 0, -200})
+	ent.SetVelocity(s, qtypes.Vec3{X: 0, Y: 0, Z: -200})
 	s.LinkEdict(ent, false)
 
 	blocked := s.FlyMove(ent, s.FrameTime, nil)
@@ -206,10 +207,10 @@ func TestPhysicsStepHardLandingStartsCanonicalSound(t *testing.T) {
 	}
 	ent.SetMoveType(s, float32(MoveTypeStep))
 	ent.SetSolid(s, float32(SolidSlideBox))
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
-	ent.SetOrigin(s, [3]float32{0, 0, 32})
-	ent.SetVelocity(s, [3]float32{0, 0, -120})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 32})
+	ent.SetVelocity(s, qtypes.Vec3{X: 0, Y: 0, Z: -120})
 	s.LinkEdict(ent, false)
 
 	s.PhysicsStep(ent)
@@ -244,10 +245,10 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 		ent.SetMoveType(s, float32(MoveTypeWalk))
 		ent.SetSolid(s, float32(SolidSlideBox))
 		ent.SetFlags(s, float32(FlagOnGround))
-		ent.SetMins(s, [3]float32{-16, -16, -24})
-		ent.SetMaxs(s, [3]float32{16, 16, 32})
-		ent.SetOrigin(s, [3]float32{0, 0, 24})
-		ent.SetVelocity(s, [3]float32{100, 0, 0})
+		ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+		ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
+		ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+		ent.SetVelocity(s, qtypes.Vec3{X: 100, Y: 0, Z: 0})
 		s.LinkEdict(ent, false)
 		return ent
 	}
@@ -257,9 +258,9 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 			t.Fatal("failed to allocate obstacle")
 		}
 		obstacle.SetSolid(s, float32(SolidBBox))
-		obstacle.SetOrigin(s, [3]float32{32, 0, 8})
-		obstacle.SetMins(s, [3]float32{-8, -32, -8})
-		obstacle.SetMaxs(s, [3]float32{8, 32, 8})
+		obstacle.SetOrigin(s, qtypes.Vec3{X: 32, Y: 0, Z: 8})
+		obstacle.SetMins(s, qtypes.Vec3{X: -8, Y: -32, Z: -8})
+		obstacle.SetMaxs(s, qtypes.Vec3{X: 8, Y: 32, Z: 8})
 		s.LinkEdict(obstacle, false)
 	}
 	newServerWithStep := func() *Server {
@@ -285,7 +286,7 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	noStepMover := newMover(noStep)
 	noStep.SV_WalkMove(noStepMover)
 
-	if !(stepMover.Origin(withStep)[0] > noStepMover.Origin(noStep)[0]+0.5) {
+	if !(stepMover.Origin(withStep).X > noStepMover.Origin(noStep).X+0.5) {
 		t.Fatalf("sv_nostep did not suppress step retry: stepped=%v nostep=%v", stepMover.Origin(withStep), noStepMover.Origin(noStep))
 	}
 }
@@ -305,9 +306,9 @@ func TestSVWalkMoveStepDownGroundsOnBSPContactForNonBSPMover(t *testing.T) {
 		t.Fatal("failed to allocate obstacle")
 	}
 	obstacle.SetSolid(s, float32(SolidBSP))
-	obstacle.SetOrigin(s, [3]float32{32, 0, 8})
-	obstacle.SetMins(s, [3]float32{-8, -32, -8})
-	obstacle.SetMaxs(s, [3]float32{8, 32, 8})
+	obstacle.SetOrigin(s, qtypes.Vec3{X: 32, Y: 0, Z: 8})
+	obstacle.SetMins(s, qtypes.Vec3{X: -8, Y: -32, Z: -8})
+	obstacle.SetMaxs(s, qtypes.Vec3{X: 8, Y: 32, Z: 8})
 	s.LinkEdict(obstacle, false)
 
 	ent := s.AllocEdict()
@@ -317,10 +318,10 @@ func TestSVWalkMoveStepDownGroundsOnBSPContactForNonBSPMover(t *testing.T) {
 	ent.SetMoveType(s, float32(MoveTypeWalk))
 	ent.SetSolid(s, float32(SolidSlideBox))
 	ent.SetFlags(s, float32(FlagOnGround))
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
-	ent.SetOrigin(s, [3]float32{0, 0, 24})
-	ent.SetVelocity(s, [3]float32{100, 0, 0})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	ent.SetVelocity(s, qtypes.Vec3{X: 100, Y: 0, Z: 0})
 	s.LinkEdict(ent, false)
 
 	withPhysicsCVars(t, s, map[string]string{"sv_nostep": "0"})
@@ -402,16 +403,16 @@ func TestPhysicsForceRetouchUsesFloatCountdown(t *testing.T) {
 		t.Fatal("failed to allocate edicts")
 	}
 
-	mover.SetOrigin(s, [3]float32{})
-	mover.SetMins(s, [3]float32{-16, -16, -16})
-	mover.SetMaxs(s, [3]float32{16, 16, 16})
+	mover.SetOrigin(s, qtypes.Vec3{})
+	mover.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	mover.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	mover.SetSolid(s, float32(SolidBBox))
 	mover.SetMoveType(s, float32(MoveTypeNone))
 	s.LinkEdict(mover, false)
 
-	trigger.SetOrigin(s, [3]float32{})
-	trigger.SetMins(s, [3]float32{-8, -8, -8})
-	trigger.SetMaxs(s, [3]float32{8, 8, 8})
+	trigger.SetOrigin(s, qtypes.Vec3{})
+	trigger.SetMins(s, qtypes.Vec3{X: -8, Y: -8, Z: -8})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 8, Y: 8, Z: 8})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	trigger.SetTouch(s, 1)
 	trigger.SetMoveType(s, float32(MoveTypeNone))
@@ -511,10 +512,10 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 		s.Static = &ServerStatic{MaxClients: 1}
 		clientEnt := allocPhysicsTestEdict(s)
 		clientEnt.SetMoveType(s, float32(MoveTypeNoClip))
-		clientEnt.SetVelocity(s, [3]float32{10, 0, 0})
+		clientEnt.SetVelocity(s, qtypes.Vec3{X: 10, Y: 0, Z: 0})
 		nonClientEnt := allocPhysicsTestEdict(s)
 		nonClientEnt.SetMoveType(s, float32(MoveTypeNoClip))
-		nonClientEnt.SetVelocity(s, [3]float32{20, 0, 0})
+		nonClientEnt.SetVelocity(s, qtypes.Vec3{X: 20, Y: 0, Z: 0})
 		s.Edicts = append(s.Edicts, clientEnt, nonClientEnt)
 		s.NumEdicts = len(s.Edicts)
 
@@ -534,10 +535,10 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 
 		s.Physics()
 
-		if clientEnt.Origin(s)[0] == 0 {
+		if clientEnt.Origin(s).X == 0 {
 			t.Fatalf("client entity did not move with freeze enabled: origin=%v", clientEnt.Origin(s))
 		}
-		if nonClientEnt.Origin(s)[0] != 0 {
+		if nonClientEnt.Origin(s).X != 0 {
 			t.Fatalf("non-client entity moved with freeze enabled: origin=%v", nonClientEnt.Origin(s))
 		}
 		if s.Time != before {
@@ -551,10 +552,10 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 
 		s.Physics()
 
-		if clientEnt.Origin(s)[0] == 0 {
+		if clientEnt.Origin(s).X == 0 {
 			t.Fatalf("client entity did not move with freeze disabled: origin=%v", clientEnt.Origin(s))
 		}
-		if nonClientEnt.Origin(s)[0] == 0 {
+		if nonClientEnt.Origin(s).X == 0 {
 			t.Fatalf("non-client entity did not move with freeze disabled: origin=%v", nonClientEnt.Origin(s))
 		}
 	})

@@ -7,6 +7,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/model"
 	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -219,8 +220,8 @@ type gpuAliasDraw struct {
 	pose2  int
 	blend  float32
 	skin   *gpuAliasSkin
-	origin [3]float32
-	angles [3]float32
+	origin types.Vec3
+	angles types.Vec3
 	alpha  float32
 	scale  float32
 	full   bool
@@ -239,14 +240,13 @@ type gpuSpriteModel struct {
 	frames     []gpuSpriteFrame
 	maxWidth   int
 	maxHeight  int
-	bounds     [3][2]float32
 }
 
 type gpuSpriteDraw struct {
 	sprite *gpuSpriteModel
 	frame  int
-	origin [3]float32
-	angles [3]float32
+	origin types.Vec3
+	angles types.Vec3
 	alpha  float32
 	scale  float32
 }

@@ -9,6 +9,7 @@ import (
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // Protocol identifiers (mirrored from server root for pure function params).
@@ -83,10 +84,12 @@ func WriteEntityState(msg *srvtypes.MessageBuffer, ent srvtypes.EntityState, ext
 	msg.PutByte(byte(ent.Colormap))
 	msg.PutByte(byte(ent.Skin))
 	// Origins and angles must be interleaved: O1, A1, O2, A2, O3, A3
-	for i := 0; i < 3; i++ {
-		msg.WriteCoord(ent.Origin[i], flags)
-		msg.WriteAngle(ent.Angles[i], flags)
-	}
+	msg.WriteCoord(ent.Origin.X, flags)
+	msg.WriteAngle(ent.Angles.X, flags)
+	msg.WriteCoord(ent.Origin.Y, flags)
+	msg.WriteAngle(ent.Angles.Y, flags)
+	msg.WriteCoord(ent.Origin.Z, flags)
+	msg.WriteAngle(ent.Angles.Z, flags)
 	if extended && bits&(1<<2) != 0 {
 		msg.PutByte(ent.Alpha)
 	}
@@ -98,7 +101,7 @@ func WriteEntityState(msg *srvtypes.MessageBuffer, ent srvtypes.EntityState, ext
 // EntitySendSortKey computes the distance-based sort key used for PVS entity
 // send ordering: nearer/larger entities send first, with the far bit set when
 // the entity is behind the view origin.
-func EntitySendSortKey(ent *srvtypes.Edict, origin, forward [3]float32, sh srvtypes.ServerHandle) int {
+func EntitySendSortKey(ent *srvtypes.Edict, origin, forward qtypes.Vec3, sh srvtypes.ServerHandle) int {
 	if ent == nil {
 		return 0
 	}
@@ -107,31 +110,64 @@ func EntitySendSortKey(ent *srvtypes.Edict, origin, forward [3]float32, sh srvty
 	sizeSq := float32(0)
 	absMin := ent.AbsMin(sh)
 	absMax := ent.AbsMax(sh)
-	for i := 0; i < 3; i++ {
-		clamped := origin[i]
-		if clamped < absMin[i] {
-			clamped = absMin[i]
-		} else if clamped > absMax[i] {
-			clamped = absMax[i]
-		}
-		delta := clamped - origin[i]
-		distSq += delta * delta
-		size := absMax[i] - absMin[i]
-		sizeSq += size * size
+
+	clampedX := origin.X
+	if clampedX < absMin.X {
+		clampedX = absMin.X
+	} else if clampedX > absMax.X {
+		clampedX = absMax.X
 	}
+	deltaX := clampedX - origin.X
+	distSq += deltaX * deltaX
+	sizeX := absMax.X - absMin.X
+	sizeSq += sizeX * sizeX
+
+	clampedY := origin.Y
+	if clampedY < absMin.Y {
+		clampedY = absMin.Y
+	} else if clampedY > absMax.Y {
+		clampedY = absMax.Y
+	}
+	deltaY := clampedY - origin.Y
+	distSq += deltaY * deltaY
+	sizeY := absMax.Y - absMin.Y
+	sizeSq += sizeY * sizeY
+
+	clampedZ := origin.Z
+	if clampedZ < absMin.Z {
+		clampedZ = absMin.Z
+	} else if clampedZ > absMax.Z {
+		clampedZ = absMax.Z
+	}
+	deltaZ := clampedZ - origin.Z
+	distSq += deltaZ * deltaZ
+	sizeZ := absMax.Z - absMin.Z
+	sizeSq += sizeZ * sizeZ
+
 	if sizeSq < 1 {
 		sizeSq = 1
 	}
 	dist := int(math.Min(255, 8*math.Sqrt(math.Sqrt(float64(distSq/sizeSq)))))
 
 	forwardDist := float32(0)
-	for i := 0; i < 3; i++ {
-		edge := absMax[i]
-		if forward[i] < 0 {
-			edge = absMin[i]
-		}
-		forwardDist += (edge - origin[i]) * forward[i]
+	edgeX := absMax.X
+	if forward.X < 0 {
+		edgeX = absMin.X
 	}
+	forwardDist += (edgeX - origin.X) * forward.X
+
+	edgeY := absMax.Y
+	if forward.Y < 0 {
+		edgeY = absMin.Y
+	}
+	forwardDist += (edgeY - origin.Y) * forward.Y
+
+	edgeZ := absMax.Z
+	if forward.Z < 0 {
+		edgeZ = absMin.Z
+	}
+	forwardDist += (edgeZ - origin.Z) * forward.Z
+
 	if forwardDist < 0 {
 		dist |= 128
 	}
@@ -150,22 +186,22 @@ func WriteEntityUpdate(msg *srvtypes.MessageBuffer, entNum int, state, baseline 
 	if entNum > 255 {
 		bits |= inet.U_LONGENTITY
 	}
-	if force || math.Abs(float64(state.Origin[0]-baseline.Origin[0])) > 0.1 {
+	if force || math.Abs(float64(state.Origin.X-baseline.Origin.X)) > 0.1 {
 		bits |= inet.U_ORIGIN1
 	}
-	if force || math.Abs(float64(state.Origin[1]-baseline.Origin[1])) > 0.1 {
+	if force || math.Abs(float64(state.Origin.Y-baseline.Origin.Y)) > 0.1 {
 		bits |= inet.U_ORIGIN2
 	}
-	if force || math.Abs(float64(state.Origin[2]-baseline.Origin[2])) > 0.1 {
+	if force || math.Abs(float64(state.Origin.Z-baseline.Origin.Z)) > 0.1 {
 		bits |= inet.U_ORIGIN3
 	}
-	if force || state.Angles[0] != baseline.Angles[0] {
+	if force || state.Angles.X != baseline.Angles.X {
 		bits |= inet.U_ANGLE1
 	}
-	if force || state.Angles[1] != baseline.Angles[1] {
+	if force || state.Angles.Y != baseline.Angles.Y {
 		bits |= inet.U_ANGLE2
 	}
-	if force || state.Angles[2] != baseline.Angles[2] {
+	if force || state.Angles.Z != baseline.Angles.Z {
 		bits |= inet.U_ANGLE3
 	}
 	if force || state.ModelIndex != baseline.ModelIndex {
@@ -258,22 +294,22 @@ func WriteEntityUpdate(msg *srvtypes.MessageBuffer, entNum int, state, baseline 
 	}
 	// Origins and angles are INTERLEAVED: O1, A1, O2, A2, O3, A3
 	if bits&inet.U_ORIGIN1 != 0 {
-		msg.WriteCoord(state.Origin[0], flags)
+		msg.WriteCoord(state.Origin.X, flags)
 	}
 	if bits&inet.U_ANGLE1 != 0 {
-		msg.WriteAngle(state.Angles[0], flags)
+		msg.WriteAngle(state.Angles.X, flags)
 	}
 	if bits&inet.U_ORIGIN2 != 0 {
-		msg.WriteCoord(state.Origin[1], flags)
+		msg.WriteCoord(state.Origin.Y, flags)
 	}
 	if bits&inet.U_ANGLE2 != 0 {
-		msg.WriteAngle(state.Angles[1], flags)
+		msg.WriteAngle(state.Angles.Y, flags)
 	}
 	if bits&inet.U_ORIGIN3 != 0 {
-		msg.WriteCoord(state.Origin[2], flags)
+		msg.WriteCoord(state.Origin.Z, flags)
 	}
 	if bits&inet.U_ANGLE3 != 0 {
-		msg.WriteAngle(state.Angles[2], flags)
+		msg.WriteAngle(state.Angles.Z, flags)
 	}
 	// FitzQuake extensions come AFTER origins/angles
 	if bits&inet.U_ALPHA != 0 {
@@ -313,18 +349,18 @@ func WriteSpawnStaticMessage(msg *srvtypes.MessageBuffer, ent srvtypes.EntitySta
 func WriteSpawnStaticSoundMessage(msg *srvtypes.MessageBuffer, snd srvtypes.StaticSound, flags uint32) {
 	if snd.SoundIndex > 255 {
 		msg.PutByte(byte(inet.SVCSpawnStaticSound2))
-		for i := 0; i < 3; i++ {
-			msg.WriteCoord(snd.Origin[i], flags)
-		}
+		msg.WriteCoord(snd.Origin.X, flags)
+		msg.WriteCoord(snd.Origin.Y, flags)
+		msg.WriteCoord(snd.Origin.Z, flags)
 		msg.WriteShort(int16(snd.SoundIndex))
 		msg.PutByte(byte(snd.Volume))
 		msg.PutByte(byte(snd.Attenuation * 64))
 		return
 	}
 	msg.PutByte(byte(inet.SVCSpawnStaticSound))
-	for i := 0; i < 3; i++ {
-		msg.WriteCoord(snd.Origin[i], flags)
-	}
+	msg.WriteCoord(snd.Origin.X, flags)
+	msg.WriteCoord(snd.Origin.Y, flags)
+	msg.WriteCoord(snd.Origin.Z, flags)
 	msg.PutByte(byte(snd.SoundIndex))
 	msg.PutByte(byte(snd.Volume))
 	msg.PutByte(byte(snd.Attenuation * 64))
@@ -383,7 +419,7 @@ func WriteSpawnSetAngle(msg *srvtypes.MessageBuffer, client *srvtypes.Client, fl
 	if useVAngle {
 		angles = client.Edict.VAngle(sh)
 	}
-	msg.WriteAngle(angles[0], flags)
-	msg.WriteAngle(angles[1], flags)
+	msg.WriteAngle(angles.X, flags)
+	msg.WriteAngle(angles.Y, flags)
 	msg.WriteAngle(0, flags)
 }

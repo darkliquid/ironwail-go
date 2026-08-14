@@ -12,6 +12,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	sgaudio "github.com/darkliquid/ironwail-go/internal/game/audio"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func (g *Game) resetRuntimeSoundState() {
@@ -148,11 +149,11 @@ func (g *Game) runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime f
 	return true, false, t
 }
 
-func (g *Game) pointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
+func (g *Game) pointInTreeLeaf(tree *bsp.Tree, point types.Vec3) (bsp.TreeLeaf, bool) {
 	return sgaudio.PointInTreeLeaf(tree, point)
 }
 
-func (g *Game) syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
+func (g *Game) syncRuntimeAmbientAudio(viewOrigin types.Vec3, frameTime float32) {
 	if g.Audio == nil {
 		return
 	}
@@ -226,10 +227,12 @@ func (g *Game) buildRuntimeStaticSoundKey(c *cl.Client) string {
 		b.WriteString(strconv.Itoa(snd.Volume))
 		b.WriteByte('\x1e')
 		b.WriteString(strconv.FormatUint(uint64(math.Float32bits(snd.Attenuation)), 16))
-		for i := 0; i < 3; i++ {
-			b.WriteByte('\x1e')
-			b.WriteString(strconv.FormatUint(uint64(math.Float32bits(snd.Origin[i])), 16))
-		}
+		b.WriteByte('\x1e')
+		b.WriteString(strconv.FormatUint(uint64(math.Float32bits(snd.Origin.X)), 16))
+		b.WriteByte('\x1e')
+		b.WriteString(strconv.FormatUint(uint64(math.Float32bits(snd.Origin.Y)), 16))
+		b.WriteByte('\x1e')
+		b.WriteString(strconv.FormatUint(uint64(math.Float32bits(snd.Origin.Z)), 16))
 	}
 	return b.String()
 }
@@ -262,7 +265,7 @@ func (g *Game) syncRuntimeStaticSounds() {
 		g.Audio.StartStaticSound(
 			sfx,
 			staticSound.Origin,
-			[3]float32{}, // Static sounds have no velocity
+			types.Vec3{}, // Static sounds have no velocity
 			float32(staticSound.Volume)/255.0,
 			staticSound.Attenuation,
 		)
@@ -331,7 +334,7 @@ func (g *Game) syncRuntimeMusic() {
 	}
 }
 
-func (g *Game) processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents cl.TransientEvents) {
+func (g *Game) processRuntimeAudioEvents(viewOrigin types.Vec3, transientEvents cl.TransientEvents) {
 	if g.Audio == nil {
 		return
 	}
@@ -364,7 +367,7 @@ func (g *Game) processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents 
 			entChannel,
 			sfx,
 			origin,
-			[3]float32{}, // Velocity unknown for most entities
+			types.Vec3{}, // Velocity unknown for most entities
 			float32(soundEvent.Volume)/255.0,
 			attenuation,
 		)

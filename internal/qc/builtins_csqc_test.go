@@ -1,6 +1,10 @@
 package qc
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 func TestCSQCDrawBuiltinsNoHooks(t *testing.T) {
 	SetCSQCDrawHooks(CSQCDrawHooks{})
@@ -22,7 +26,7 @@ func TestCSQCDrawBuiltinsNoHooks(t *testing.T) {
 	}
 
 	csqcDrawGetImageSize(vm)
-	if got := vm.GVector(OFSReturn); got != [3]float32{} {
+	if got := vm.GVector(OFSReturn); got != (types.Vec3{}) {
 		t.Fatalf("drawgetimagesize = %v, want zero", got)
 	}
 
@@ -171,14 +175,14 @@ func TestCSQCDrawBuiltinsUseHooks(t *testing.T) {
 
 	vm.SetGString(OFSParm0, "img")
 	csqcDrawGetImageSize(vm)
-	if got := vm.GVector(OFSReturn); got != [3]float32{320, 200, 0} {
+	if got := vm.GVector(OFSReturn); got != (types.Vec3{X: 320, Y: 200, Z: 0}) {
 		t.Fatalf("drawgetimagesize = %v, want 320x200", got)
 	}
 
-	vm.SetGVector(OFSParm0, [3]float32{1, 2, 0})
+	vm.SetGVector(OFSParm0, types.Vec3{X: 1, Y: 2, Z: 0})
 	vm.SetGFloat(OFSParm1, 65)
-	vm.SetGVector(OFSParm2, [3]float32{8, 8, 0})
-	vm.SetGVector(OFSParm3, [3]float32{0.1, 0.2, 0.3})
+	vm.SetGVector(OFSParm2, types.Vec3{X: 8, Y: 8, Z: 0})
+	vm.SetGVector(OFSParm3, types.Vec3{X: 0.1, Y: 0.2, Z: 0.3})
 	vm.SetGFloat(OFSParm4, 0.4)
 	vm.SetGFloat(OFSParm5, 5)
 	csqcDrawCharacter(vm)
@@ -186,10 +190,10 @@ func TestCSQCDrawBuiltinsUseHooks(t *testing.T) {
 		t.Fatalf("drawcharacter = %v, want 1", got)
 	}
 
-	vm.SetGVector(OFSParm0, [3]float32{11, 12, 0})
+	vm.SetGVector(OFSParm0, types.Vec3{X: 11, Y: 12, Z: 0})
 	vm.SetGString(OFSParm1, "hello")
-	vm.SetGVector(OFSParm2, [3]float32{9, 10, 0})
-	vm.SetGVector(OFSParm3, [3]float32{0.7, 0.8, 0.9})
+	vm.SetGVector(OFSParm2, types.Vec3{X: 9, Y: 10, Z: 0})
+	vm.SetGVector(OFSParm3, types.Vec3{X: 0.7, Y: 0.8, Z: 0.9})
 	vm.SetGFloat(OFSParm4, 0.6)
 	vm.SetGFloat(OFSParm5, 3)
 	csqcDrawRawString(vm)
@@ -201,10 +205,10 @@ func TestCSQCDrawBuiltinsUseHooks(t *testing.T) {
 		t.Fatalf("drawstring = %v, want 1", got)
 	}
 
-	vm.SetGVector(OFSParm0, [3]float32{21, 22, 0})
+	vm.SetGVector(OFSParm0, types.Vec3{X: 21, Y: 22, Z: 0})
 	vm.SetGString(OFSParm1, "hud")
-	vm.SetGVector(OFSParm2, [3]float32{100, 50, 0})
-	vm.SetGVector(OFSParm3, [3]float32{0.1, 0.2, 0.3})
+	vm.SetGVector(OFSParm2, types.Vec3{X: 100, Y: 50, Z: 0})
+	vm.SetGVector(OFSParm3, types.Vec3{X: 0.1, Y: 0.2, Z: 0.3})
 	vm.SetGFloat(OFSParm4, 0.4)
 	vm.SetGFloat(OFSParm5, 2)
 	csqcDrawPic(vm)
@@ -212,9 +216,9 @@ func TestCSQCDrawBuiltinsUseHooks(t *testing.T) {
 		t.Fatalf("drawpic = %v, want 1", got)
 	}
 
-	vm.SetGVector(OFSParm0, [3]float32{31, 32, 0})
-	vm.SetGVector(OFSParm1, [3]float32{200, 100, 0})
-	vm.SetGVector(OFSParm2, [3]float32{1, 0.5, 0.25})
+	vm.SetGVector(OFSParm0, types.Vec3{X: 31, Y: 32, Z: 0})
+	vm.SetGVector(OFSParm1, types.Vec3{X: 200, Y: 100, Z: 0})
+	vm.SetGVector(OFSParm2, types.Vec3{X: 1, Y: 0.5, Z: 0.25})
 	vm.SetGFloat(OFSParm3, 0.75)
 	vm.SetGFloat(OFSParm4, 4)
 	csqcDrawFill(vm)
@@ -238,18 +242,18 @@ func TestCSQCDrawBuiltinsUseHooks(t *testing.T) {
 
 	vm.SetGString(OFSParm0, "wide")
 	vm.SetGFloat(OFSParm1, 1)
-	vm.SetGVector(OFSParm2, [3]float32{8, 12, 0})
+	vm.SetGVector(OFSParm2, types.Vec3{X: 8, Y: 12, Z: 0})
 	csqcStringWidth(vm)
 	if got := vm.GFloat(OFSReturn); got != 42 {
 		t.Fatalf("stringwidth = %v, want 42", got)
 	}
 
-	vm.SetGVector(OFSParm0, [3]float32{50, 60, 0})
-	vm.SetGVector(OFSParm1, [3]float32{70, 80, 0})
+	vm.SetGVector(OFSParm0, types.Vec3{X: 50, Y: 60, Z: 0})
+	vm.SetGVector(OFSParm1, types.Vec3{X: 70, Y: 80, Z: 0})
 	vm.SetGString(OFSParm2, "sub")
-	vm.SetGVector(OFSParm3, [3]float32{1, 2, 0})
-	vm.SetGVector(OFSParm4, [3]float32{3, 4, 0})
-	vm.SetGVector(OFSParm5, [3]float32{0.25, 0.5, 0.75})
+	vm.SetGVector(OFSParm3, types.Vec3{X: 1, Y: 2, Z: 0})
+	vm.SetGVector(OFSParm4, types.Vec3{X: 3, Y: 4, Z: 0})
+	vm.SetGVector(OFSParm5, types.Vec3{X: 0.25, Y: 0.5, Z: 0.75})
 	vm.SetGFloat(OFSParm6, 0.9)
 	vm.SetGFloat(OFSParm7, 8)
 	csqcDrawSubPic(vm)

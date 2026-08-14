@@ -6,6 +6,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type convertibleBackendRef struct {
@@ -18,29 +19,34 @@ func (ref convertibleBackendRef) AliasMeshRef() MeshRef {
 }
 
 func TestInterpolateVertexPosition(t *testing.T) {
-	scale := [3]float32{1, 1, 1}
-	origin := [3]float32{}
+	scale := types.Vec3{X: 1, Y: 1, Z: 1}
+	origin := types.Vec3{}
 	vert1 := model.TriVertX{V: [3]byte{10, 20, 30}}
 	vert2 := model.TriVertX{V: [3]byte{20, 40, 60}}
 
 	tests := []struct {
 		name   string
 		factor float32
-		want   [3]float32
+		want   types.Vec3
 	}{
-		{name: "pose1", factor: 0, want: [3]float32{10, 20, 30}},
-		{name: "halfway", factor: 0.5, want: [3]float32{15, 30, 45}},
-		{name: "pose2", factor: 1, want: [3]float32{20, 40, 60}},
+		{name: "pose1", factor: 0, want: types.Vec3{X: 10, Y: 20, Z: 30}},
+		{name: "halfway", factor: 0.5, want: types.Vec3{X: 15, Y: 30, Z: 45}},
+		{name: "pose2", factor: 1, want: types.Vec3{X: 20, Y: 40, Z: 60}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := InterpolateVertexPosition(vert1, vert2, scale, origin, tt.factor)
-			for i := range got {
-				if math.Abs(float64(got[i]-tt.want[i])) > 0.01 {
-					t.Fatalf("axis %d = %f, want %f", i, got[i], tt.want[i])
-				}
+			if math.Abs(float64(got.X-tt.want.X)) > 0.01 {
+				t.Fatalf("axis x = %f, want %f", got.X, tt.want.X)
 			}
+			if math.Abs(float64(got.Y-tt.want.Y)) > 0.01 {
+				t.Fatalf("axis y = %f, want %f", got.Y, tt.want.Y)
+			}
+			if math.Abs(float64(got.Z-tt.want.Z)) > 0.01 {
+				t.Fatalf("axis z = %f, want %f", got.Z, tt.want.Z)
+			}
+
 		})
 	}
 }
@@ -54,20 +60,21 @@ func TestBuildVerticesInterpolated(t *testing.T) {
 		[]MeshRef{{VertexIndex: 0, TexCoord: [2]float32{0.25, 0.75}}},
 	)
 	hdr := &model.AliasHeader{
-		Scale:       [3]float32{1, 1, 1},
-		ScaleOrigin: [3]float32{},
+		Scale:       types.Vec3{X: 1, Y: 1, Z: 1},
+		ScaleOrigin: types.Vec3{},
 	}
 
-	got := BuildVerticesInterpolated(mesh, hdr, 0, 1, 0.5, [3]float32{10, 20, 30}, [3]float32{0, 90, 0}, 2, false)
+	got := BuildVerticesInterpolated(mesh, hdr, 0, 1, 0.5, types.Vec3{X: 10, Y: 20, Z: 30}, types.Vec3{X: 0, Y: 90, Z: 0}, 2, false)
 	if len(got) != 1 {
 		t.Fatalf("len(vertices) = %d, want 1", len(got))
 	}
 
-	wantPosition := [3]float32{10, 24, 30}
-	for i := range wantPosition {
-		if math.Abs(float64(got[0].Position[i]-wantPosition[i])) > 0.01 {
-			t.Fatalf("position[%d] = %f, want %f", i, got[0].Position[i], wantPosition[i])
-		}
+	wantPosition := types.Vec3{X: 10, Y: 24, Z: 30}
+	diffX := math.Abs(float64(got[0].Position.X - wantPosition.X))
+	diffY := math.Abs(float64(got[0].Position.Y - wantPosition.Y))
+	diffZ := math.Abs(float64(got[0].Position.Z - wantPosition.Z))
+	if diffX > 0.01 || diffY > 0.01 || diffZ > 0.01 {
+		t.Fatalf("position = %v, want %v", got[0].Position, wantPosition)
 	}
 	if got[0].TexCoord != ([2]float32{0.25, 0.75}) {
 		t.Fatalf("texcoord = %v", got[0].TexCoord)
@@ -83,15 +90,15 @@ func TestBuildVerticesInterpolatedInto(t *testing.T) {
 		[]MeshRef{{VertexIndex: 0, TexCoord: [2]float32{0.25, 0.75}}},
 	)
 	hdr := &model.AliasHeader{
-		Scale:       [3]float32{1, 1, 1},
-		ScaleOrigin: [3]float32{},
+		Scale:       types.Vec3{X: 1, Y: 1, Z: 1},
+		ScaleOrigin: types.Vec3{},
 	}
 	input := make([]worldimpl.WorldVertex, 0, 4)
 	input = append(input, worldimpl.WorldVertex{})
 	input = input[:0]
 	beforePtr := &input[:cap(input)][0]
 
-	got := BuildVerticesInterpolatedInto(input, mesh, hdr, 0, 1, 0.5, [3]float32{10, 20, 30}, [3]float32{0, 90, 0}, 2, false)
+	got := BuildVerticesInterpolatedInto(input, mesh, hdr, 0, 1, 0.5, types.Vec3{X: 10, Y: 20, Z: 30}, types.Vec3{X: 0, Y: 90, Z: 0}, 2, false)
 	if len(got) != 1 {
 		t.Fatalf("len(vertices) = %d, want 1", len(got))
 	}
@@ -100,15 +107,16 @@ func TestBuildVerticesInterpolatedInto(t *testing.T) {
 		t.Fatalf("expected BuildVerticesInterpolatedInto to reuse caller buffer")
 	}
 
-	wantPosition := [3]float32{10, 24, 30}
-	for i := range wantPosition {
-		if math.Abs(float64(got[0].Position[i]-wantPosition[i])) > 0.01 {
-			t.Fatalf("position[%d] = %f, want %f", i, got[0].Position[i], wantPosition[i])
-		}
+	wantPosition := types.Vec3{X: 10, Y: 24, Z: 30}
+	diffX := math.Abs(float64(got[0].Position.X - wantPosition.X))
+	diffY := math.Abs(float64(got[0].Position.Y - wantPosition.Y))
+	diffZ := math.Abs(float64(got[0].Position.Z - wantPosition.Z))
+	if diffX > 0.01 || diffY > 0.01 || diffZ > 0.01 {
+		t.Fatalf("position = %v, want %v", got[0].Position, wantPosition)
 	}
 
 	allocs := testing.AllocsPerRun(100, func() {
-		_ = BuildVerticesInterpolatedInto(input, mesh, hdr, 0, 1, 0.5, [3]float32{10, 20, 30}, [3]float32{0, 90, 0}, 2, false)
+		_ = BuildVerticesInterpolatedInto(input, mesh, hdr, 0, 1, 0.5, types.Vec3{X: 10, Y: 20, Z: 30}, types.Vec3{X: 0, Y: 90, Z: 0}, 2, false)
 	})
 	if allocs != 0 {
 		t.Fatalf("BuildVerticesInterpolatedInto allocated %.2f times per run, want 0", allocs)
@@ -123,19 +131,20 @@ func TestBuildVerticesUsesSinglePose(t *testing.T) {
 		[]MeshRef{{VertexIndex: 0, TexCoord: [2]float32{1, 0}}},
 	)
 	hdr := &model.AliasHeader{
-		Scale:       [3]float32{1, 1, 1},
-		ScaleOrigin: [3]float32{},
+		Scale:       types.Vec3{X: 1, Y: 1, Z: 1},
+		ScaleOrigin: types.Vec3{},
 	}
 
-	got := BuildVertices(mesh, hdr, 0, [3]float32{1, 2, 3}, [3]float32{}, true)
+	got := BuildVertices(mesh, hdr, 0, types.Vec3{X: 1, Y: 2, Z: 3}, types.Vec3{}, true)
 	if len(got) != 1 {
 		t.Fatalf("len(vertices) = %d, want 1", len(got))
 	}
-	want := [3]float32{3, 6, 9}
-	for i := range want {
-		if math.Abs(float64(got[0].Position[i]-want[i])) > 0.01 {
-			t.Fatalf("position[%d] = %f, want %f", i, got[0].Position[i], want[i])
-		}
+	want := types.Vec3{X: 3, Y: 6, Z: 9}
+	diffX := math.Abs(float64(got[0].Position.X - want.X))
+	diffY := math.Abs(float64(got[0].Position.Y - want.Y))
+	diffZ := math.Abs(float64(got[0].Position.Z - want.Z))
+	if diffX > 0.01 || diffY > 0.01 || diffZ > 0.01 {
+		t.Fatalf("position = %v, want %v", got[0].Position, want)
 	}
 }
 
@@ -153,12 +162,12 @@ func BenchmarkBuildVerticesInterpolatedInto(b *testing.B) {
 	}
 	mesh := MeshFromRefs(poses, refs)
 	hdr := &model.AliasHeader{
-		Scale:       [3]float32{1, 1, 1},
-		ScaleOrigin: [3]float32{0, 0, 0},
+		Scale:       types.Vec3{X: 1, Y: 1, Z: 1},
+		ScaleOrigin: types.Vec3{X: 0, Y: 0, Z: 0},
 	}
 	dst := make([]worldimpl.WorldVertex, 0, 1500)
-	angles := [3]float32{15, 45, 10}
-	origin := [3]float32{100, 200, 300}
+	angles := types.Vec3{X: 15, Y: 45, Z: 10}
+	origin := types.Vec3{X: 100, Y: 200, Z: 300}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -300,10 +309,10 @@ func TestSetupFrameInterpolation(t *testing.T) {
 // C Ironwail's R_EntityMatrix (gl_rmain.c:442) for the alias path (no pitch
 // pre-negation), with scale=1. Only the 3×3 rotation block is returned since
 // the viewmodel test below only checks rotation of a point at origin offset.
-func rEntityMatrixReference(angles [3]float32) [9]float32 {
-	pitch := float64(angles[0]) * math.Pi / 180
-	yaw := float64(angles[1]) * math.Pi / 180
-	roll := float64(angles[2]) * math.Pi / 180
+func rEntityMatrixReference(angles types.Vec3) [9]float32 {
+	pitch := float64(angles.X) * math.Pi / 180
+	yaw := float64(angles.Y) * math.Pi / 180
+	roll := float64(angles.Z) * math.Pi / 180
 	sy := math.Sin(yaw)
 	sp := math.Sin(pitch)
 	sr := math.Sin(roll)
@@ -326,11 +335,11 @@ func rEntityMatrixReference(angles [3]float32) [9]float32 {
 	}
 }
 
-func applyColMajor3x3(m [9]float32, v [3]float32) [3]float32 {
-	return [3]float32{
-		m[0]*v[0] + m[3]*v[1] + m[6]*v[2],
-		m[1]*v[0] + m[4]*v[1] + m[7]*v[2],
-		m[2]*v[0] + m[5]*v[1] + m[8]*v[2],
+func applyColMajor3x3(m [9]float32, v types.Vec3) types.Vec3 {
+	return types.Vec3{
+		X: m[0]*v.X + m[3]*v.Y + m[6]*v.Z,
+		Y: m[1]*v.X + m[4]*v.Y + m[7]*v.Z,
+		Z: m[2]*v.X + m[5]*v.Y + m[8]*v.Z,
 	}
 }
 
@@ -342,18 +351,18 @@ func applyColMajor3x3(m [9]float32, v [3]float32) [3]float32 {
 func TestRotateAnglesMatchesREntityMatrix(t *testing.T) {
 	cases := []struct {
 		name   string
-		angles [3]float32
+		angles types.Vec3
 	}{
-		{"identity", [3]float32{0, 0, 0}},
-		{"yaw only", [3]float32{0, 45, 0}},
-		{"pitch only", [3]float32{30, 0, 0}},
-		{"roll only", [3]float32{0, 0, 15}},
-		{"yaw+pitch looking up while facing east", [3]float32{60, 90, 0}},
-		{"yaw+pitch looking down turned 180", [3]float32{-60, 180, 0}},
-		{"full tilt", [3]float32{35, 110, 20}},
+		{"identity", types.Vec3{}},
+		{"yaw only", types.Vec3{Y: 45}},
+		{"pitch only", types.Vec3{X: 30}},
+		{"roll only", types.Vec3{Z: 15}},
+		{"yaw+pitch looking up while facing east", types.Vec3{X: 60, Y: 90}},
+		{"yaw+pitch looking down turned 180", types.Vec3{X: -60, Y: 180}},
+		{"full tilt", types.Vec3{X: 35, Y: 110, Z: 20}},
 	}
-	probes := [][3]float32{
-		{1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {0.5, -0.5, 0.25},
+	probes := []types.Vec3{
+		{X: 1, Y: 0, Z: 0}, {X: 0, Y: 1, Z: 0}, {X: 0, Y: 0, Z: 1}, {X: 0.5, Y: -0.5, Z: 0.25},
 	}
 	const eps = 1e-4
 	for _, tc := range cases {
@@ -362,11 +371,11 @@ func TestRotateAnglesMatchesREntityMatrix(t *testing.T) {
 			for _, p := range probes {
 				got := RotateAngles(p, tc.angles)
 				want := applyColMajor3x3(ref, p)
-				for i := 0; i < 3; i++ {
-					diff := float64(got[i] - want[i])
-					if diff < -eps || diff > eps {
-						t.Fatalf("angles=%v probe=%v: component %d got %f want %f", tc.angles, p, i, got[i], want[i])
-					}
+				diffX := float64(got.X - want.X)
+				diffY := float64(got.Y - want.Y)
+				diffZ := float64(got.Z - want.Z)
+				if math.Abs(diffX) > eps || math.Abs(diffY) > eps || math.Abs(diffZ) > eps {
+					t.Fatalf("angles=%v probe=%v: got %v want %v", tc.angles, p, got, want)
 				}
 			}
 		})

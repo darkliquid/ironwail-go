@@ -3,11 +3,12 @@ package net
 
 import (
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // Broadcaster handles particle and sound event emissions.
 type Broadcaster interface {
-	StartParticle(org, dir [3]float32, color, count int)
+	StartParticle(org, dir qtypes.Vec3, color, count int)
 	StartSound(ent *srvtypes.Edict, channel int, sample string, volume int, attenuation float32)
 }
 
@@ -24,7 +25,7 @@ func NewNetworkManager(b Broadcaster) *NetworkManager {
 }
 
 // StartParticle broadcasts a particle effect event to connected clients.
-func (n *NetworkManager) StartParticle(org, dir [3]float32, color, count int) {
+func (n *NetworkManager) StartParticle(org, dir qtypes.Vec3, color, count int) {
 	if n != nil && n.b != nil {
 		n.b.StartParticle(org, dir, color, count)
 	}

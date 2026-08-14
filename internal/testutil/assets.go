@@ -104,7 +104,7 @@ func EnsurePak0() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("download pak0.pak from %s failed: %w", Pak0URL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("download pak0.pak HTTP status %d", resp.StatusCode)
@@ -116,11 +116,15 @@ func EnsurePak0() (string, error) {
 		return "", fmt.Errorf("create tmp pak0 file: %w", err)
 	}
 
-	_, err = io.Copy(out, resp.Body)
-	out.Close()
-	if err != nil {
-		os.Remove(tmpFile)
-		return "", fmt.Errorf("download body copy failed: %w", err)
+	_, copyErr := io.Copy(out, resp.Body)
+	closeErr := out.Close()
+	if copyErr != nil {
+		_ = os.Remove(tmpFile)
+		return "", fmt.Errorf("download body copy failed: %w", copyErr)
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmpFile)
+		return "", fmt.Errorf("close tmp pak0 file: %w", closeErr)
 	}
 
 	if err := os.Rename(tmpFile, targetFile); err != nil {

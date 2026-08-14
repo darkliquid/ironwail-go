@@ -8,6 +8,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // spawnPickupServer boots a headless server on a real map so pickup behavior
@@ -82,7 +83,7 @@ func stepPickupFrames(t *testing.T, s *Server, n int) {
 	t.Helper()
 	const frameTime = 1.0 / 72.0
 	for i := 0; i < n; i++ {
-		_ = s.SubmitLoopbackCmd(0, [3]float32{0, 0, 0}, 0, 0, 0, 0, 0, float64(s.Time))
+		_ = s.SubmitLoopbackCmd(0, qtypes.Vec3{}, 0, 0, 0, 0, 0, float64(s.Time))
 		if err := s.Frame(frameTime); err != nil {
 			t.Fatalf("frame %d: %v", i, err)
 		}
@@ -116,7 +117,7 @@ func TestPickupWeaponGrantsItemAndHidesFromClient(t *testing.T) {
 	// pickup applies during LinkEdict itself; snapshot items beforehand.
 	before := uint32(player.Items(s))
 	org := weapon.Origin(s)
-	player.SetOrigin(s, [3]float32{org[0], org[1], org[2]})
+	player.SetOrigin(s, org)
 	s.LinkEdict(player, true)
 
 	stepPickupFrames(t, s, 3)
@@ -186,7 +187,7 @@ func TestPickupItemSettlesThenPickable(t *testing.T) {
 	player := cl.Edict
 	before := uint32(player.Items(s))
 	org := settled.Origin(s)
-	player.SetOrigin(s, [3]float32{org[0], org[1], org[2]})
+	player.SetOrigin(s, org)
 	s.LinkEdict(player, true)
 	stepPickupFrames(t, s, 4)
 	if uint32(player.Items(s)) == before {

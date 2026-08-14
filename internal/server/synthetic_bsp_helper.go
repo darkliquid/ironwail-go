@@ -4,6 +4,7 @@ package server
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // CreateSyntheticWorldModel returns a tiny world model with a single
@@ -17,17 +18,17 @@ func CreateSyntheticWorldModel() *model.Model {
 	hull.ClipNodes = make([]model.MClipNode, 1)
 
 	// Plane: z >= 0 is front (empty); z < 0 is back (solid)
-	hull.Planes[0] = model.MPlane{Normal: [3]float32{0, 0, 1}, Dist: 0, Type: 2}
+	hull.Planes[0] = model.MPlane{Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0, Type: 2}
 	hull.ClipNodes[0] = model.MClipNode{PlaneNum: 0, Children: [2]int{-1, -2}}
 
 	hull.FirstClipNode = 0
 	hull.LastClipNode = 0
-	hull.ClipMins = [3]float32{-512, -512, 0}
-	hull.ClipMaxs = [3]float32{512, 512, 512}
+	hull.ClipMins = types.Vec3{X: -512, Y: -512, Z: 0}
+	hull.ClipMaxs = types.Vec3{X: 512, Y: 512, Z: 512}
 
 	m.Hulls[0] = hull
-	m.Mins = [3]float32{-512, -512, 0}
-	m.Maxs = [3]float32{512, 512, 512}
+	m.Mins = types.Vec3{X: -512, Y: -512, Z: 0}
+	m.Maxs = types.Vec3{X: 512, Y: 512, Z: 512}
 	m.ClipBox = true
 	m.ClipMins = m.Mins
 	m.ClipMaxs = m.Maxs

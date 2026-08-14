@@ -11,6 +11,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestLocalLoopbackClientFrameAndSendCommand(t *testing.T) {
@@ -27,7 +28,7 @@ func TestLocalLoopbackClientFrameAndSendCommand(t *testing.T) {
 	lc.inner.State = cl.StateActive
 	lc.inner.Signon = cl.Signons
 	lc.inner.Time = 1.25
-	lc.inner.ViewAngles = [3]float32{0, 90, 0}
+	lc.inner.ViewAngles = types.Vec3{X: 0, Y: 90, Z: 0}
 	lc.inner.InputForward.State = 1
 	lc.inner.InputAttack.State = 3
 	lc.inner.InputJump.State = 3
@@ -92,7 +93,7 @@ func TestLocalLoopbackClientSendCommandLatchesButtonsAtSendTime(t *testing.T) {
 	lc.inner.State = cl.StateActive
 	lc.inner.Signon = cl.Signons
 	lc.inner.Time = 1.25
-	lc.inner.ViewAngles = [3]float32{0, 90, 0}
+	lc.inner.ViewAngles = types.Vec3{X: 0, Y: 90, Z: 0}
 
 	if err := lc.Frame(0.1); err != nil {
 		t.Fatalf("frame: %v", err)

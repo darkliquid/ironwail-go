@@ -5,28 +5,29 @@ import (
 	"testing"
 
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestBuildClassifiedBrushEntityDrawSplitsOpaqueAndAlphaTestFaces(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
 		Vertices: []worldimpl.WorldVertex{
-			{Position: [3]float32{0, 0, 0}},
-			{Position: [3]float32{1, 0, 0}},
-			{Position: [3]float32{0, 1, 0}},
-			{Position: [3]float32{1, 1, 0}},
-			{Position: [3]float32{2, 0, 0}},
+			{Position: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 0, Y: 1, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 1, Z: 0}},
+			{Position: types.Vec3{X: 2, Y: 0, Z: 0}},
 		},
 		Indices: []uint32{0, 1, 2, 1, 3, 2, 1, 4, 3},
 		Faces: []worldimpl.WorldFace{
-			{FirstIndex: 0, NumIndices: 3, Flags: 11, Center: [3]float32{0.5, 0.5, 0}},
-			{FirstIndex: 3, NumIndices: 3, Flags: 22, Center: [3]float32{1, 0.5, 0}},
-			{FirstIndex: 6, NumIndices: 3, Flags: 33, Center: [3]float32{1.5, 0.5, 0}},
+			{FirstIndex: 0, NumIndices: 3, Flags: 11, Center: types.Vec3{X: 0.5, Y: 0.5, Z: 0}},
+			{FirstIndex: 3, NumIndices: 3, Flags: 22, Center: types.Vec3{X: 1, Y: 0.5, Z: 0}},
+			{FirstIndex: 6, NumIndices: 3, Flags: 33, Center: types.Vec3{X: 1.5, Y: 0.5, Z: 0}},
 		},
 	}
 	entity := BrushEntityParams{
 		Alpha:  1,
 		Frame:  2,
-		Origin: [3]float32{5, 10, 0},
+		Origin: types.Vec3{X: 5, Y: 10, Z: 0},
 		Scale:  2,
 	}
 
@@ -52,7 +53,7 @@ func TestBuildClassifiedBrushEntityDrawSplitsOpaqueAndAlphaTestFaces(t *testing.
 	if len(draw.Vertices) != len(geom.Vertices) {
 		t.Fatalf("len(Vertices) = %d, want %d", len(draw.Vertices), len(geom.Vertices))
 	}
-	if draw.Vertices[1].Position != ([3]float32{7, 10, 0}) {
+	if draw.Vertices[1].Position != (types.Vec3{X: 7, Y: 10, Z: 0}) {
 		t.Fatalf("Vertices[1].Position = %v, want [7 10 0]", draw.Vertices[1].Position)
 	}
 	if !reflect.DeepEqual(draw.OpaqueIndices, []uint32{0, 1, 2, 1, 4, 3}) {
@@ -73,10 +74,10 @@ func TestBuildClassifiedBrushEntityDrawSplitsOpaqueAndAlphaTestFaces(t *testing.
 	if draw.AlphaTestFaces[0].FirstIndex != 0 || draw.AlphaTestFaces[0].NumIndices != 3 {
 		t.Fatalf("alpha-test face span = (%d,%d), want (0,3)", draw.AlphaTestFaces[0].FirstIndex, draw.AlphaTestFaces[0].NumIndices)
 	}
-	if draw.OpaqueCenters[0] != ([3]float32{6, 11, 0}) || draw.OpaqueCenters[1] != ([3]float32{8, 11, 0}) {
+	if draw.OpaqueCenters[0] != (types.Vec3{X: 6, Y: 11, Z: 0}) || draw.OpaqueCenters[1] != (types.Vec3{X: 8, Y: 11, Z: 0}) {
 		t.Fatalf("opaque centers = %v, want [[6 11 0] [8 11 0]]", draw.OpaqueCenters)
 	}
-	if draw.AlphaTestCenters[0] != ([3]float32{7, 11, 0}) {
+	if draw.AlphaTestCenters[0] != (types.Vec3{X: 7, Y: 11, Z: 0}) {
 		t.Fatalf("alpha-test center = %v, want [7 11 0]", draw.AlphaTestCenters[0])
 	}
 }
@@ -84,9 +85,9 @@ func TestBuildClassifiedBrushEntityDrawSplitsOpaqueAndAlphaTestFaces(t *testing.
 func TestBuildBrushEntityDrawCarriesModelLitWaterFlag(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
 		Vertices: []worldimpl.WorldVertex{
-			{Position: [3]float32{0, 0, 0}},
-			{Position: [3]float32{1, 0, 0}},
-			{Position: [3]float32{0, 1, 0}},
+			{Position: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 0, Y: 1, Z: 0}},
 		},
 		Indices:     []uint32{0, 1, 2},
 		Faces:       []worldimpl.WorldFace{{FirstIndex: 0, NumIndices: 3}},
@@ -105,7 +106,7 @@ func TestBuildBrushEntityDrawCarriesModelLitWaterFlag(t *testing.T) {
 
 func TestBuildClassifiedBrushEntityDrawRejectsNilClassifierAndZeroAlpha(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
-		Vertices: []worldimpl.WorldVertex{{Position: [3]float32{0, 0, 0}}},
+		Vertices: []worldimpl.WorldVertex{{Position: types.Vec3{X: 0, Y: 0, Z: 0}}},
 		Indices:  []uint32{0},
 		Faces:    []worldimpl.WorldFace{{FirstIndex: 0, NumIndices: 1}},
 	}
@@ -122,24 +123,24 @@ func TestBuildClassifiedBrushEntityDrawRejectsNilClassifierAndZeroAlpha(t *testi
 func TestFillBrushEntityDrawReusesVerticesIndicesAndCenters(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
 		Vertices: []worldimpl.WorldVertex{
-			{Position: [3]float32{0, 0, 0}},
-			{Position: [3]float32{1, 0, 0}},
-			{Position: [3]float32{0, 1, 0}},
-			{Position: [3]float32{1, 1, 0}},
+			{Position: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 0, Y: 1, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 1, Z: 0}},
 		},
 		Indices: []uint32{0, 1, 2, 1, 3, 2},
 		Faces: []worldimpl.WorldFace{
-			{FirstIndex: 0, NumIndices: 3, Flags: 1, Center: [3]float32{0.5, 0.5, 0}},
-			{FirstIndex: 3, NumIndices: 3, Flags: 2, Center: [3]float32{1, 0.5, 0}},
+			{FirstIndex: 0, NumIndices: 3, Flags: 1, Center: types.Vec3{X: 0.5, Y: 0.5, Z: 0}},
+			{FirstIndex: 3, NumIndices: 3, Flags: 2, Center: types.Vec3{X: 1, Y: 0.5, Z: 0}},
 		},
 	}
 	draw := &OpaqueBrushEntityDraw{
 		Vertices: make([]worldimpl.WorldVertex, 0, 8),
 		Indices:  make([]uint32, 0, 12),
 		Faces:    make([]worldimpl.WorldFace, 0, 8),
-		Centers:  make([][3]float32, 0, 8),
+		Centers:  make([]types.Vec3, 0, 8),
 	}
-	entity := BrushEntityParams{Alpha: 1, Origin: [3]float32{10, 0, 0}, Scale: 1}
+	entity := BrushEntityParams{Alpha: 1, Origin: types.Vec3{X: 10, Y: 0, Z: 0}, Scale: 1}
 	if !FillBrushEntityDraw(draw, entity, geom, func(worldimpl.WorldFace, float32) bool { return true }) {
 		t.Fatal("FillBrushEntityDraw returned false on first call")
 	}
@@ -164,7 +165,7 @@ func TestFillBrushEntityDrawReusesVerticesIndicesAndCenters(t *testing.T) {
 	if len(draw.Faces) != 1 || draw.Faces[0].FirstIndex != 0 || draw.Faces[0].NumIndices != 3 {
 		t.Fatalf("faces = %+v, want one face at span (0,3)", draw.Faces)
 	}
-	if len(draw.Centers) != 1 || draw.Centers[0] != ([3]float32{11, 0.5, 0}) {
+	if len(draw.Centers) != 1 || draw.Centers[0] != (types.Vec3{X: 11, Y: 0.5, Z: 0}) {
 		t.Fatalf("centers = %v, want [[11 0.5 0]]", draw.Centers)
 	}
 }
@@ -172,27 +173,27 @@ func TestFillBrushEntityDrawReusesVerticesIndicesAndCenters(t *testing.T) {
 func TestFillClassifiedBrushEntityDrawReusesClassifiedBuffers(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
 		Vertices: []worldimpl.WorldVertex{
-			{Position: [3]float32{0, 0, 0}},
-			{Position: [3]float32{1, 0, 0}},
-			{Position: [3]float32{0, 1, 0}},
-			{Position: [3]float32{1, 1, 0}},
+			{Position: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 0, Y: 1, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 1, Z: 0}},
 		},
 		Indices: []uint32{0, 1, 2, 1, 3, 2},
 		Faces: []worldimpl.WorldFace{
-			{FirstIndex: 0, NumIndices: 3, Flags: 1, Center: [3]float32{0.5, 0.5, 0}},
-			{FirstIndex: 3, NumIndices: 3, Flags: 2, Center: [3]float32{1, 0.5, 0}},
+			{FirstIndex: 0, NumIndices: 3, Flags: 1, Center: types.Vec3{X: 0.5, Y: 0.5, Z: 0}},
+			{FirstIndex: 3, NumIndices: 3, Flags: 2, Center: types.Vec3{X: 1, Y: 0.5, Z: 0}},
 		},
 	}
 	draw := &ClassifiedBrushEntityDraw{
 		Vertices:         make([]worldimpl.WorldVertex, 0, 8),
 		OpaqueIndices:    make([]uint32, 0, 12),
 		OpaqueFaces:      make([]worldimpl.WorldFace, 0, 8),
-		OpaqueCenters:    make([][3]float32, 0, 8),
+		OpaqueCenters:    make([]types.Vec3, 0, 8),
 		AlphaTestIndices: make([]uint32, 0, 12),
 		AlphaTestFaces:   make([]worldimpl.WorldFace, 0, 8),
-		AlphaTestCenters: make([][3]float32, 0, 8),
+		AlphaTestCenters: make([]types.Vec3, 0, 8),
 	}
-	entity := BrushEntityParams{Alpha: 1, Origin: [3]float32{5, 2, 0}, Scale: 1}
+	entity := BrushEntityParams{Alpha: 1, Origin: types.Vec3{X: 5, Y: 2, Z: 0}, Scale: 1}
 	if !FillClassifiedBrushEntityDraw(draw, entity, geom, func(face worldimpl.WorldFace, _ float32) BrushEntityFaceClass {
 		if face.Flags == 1 {
 			return BrushEntityFaceClassOpaque

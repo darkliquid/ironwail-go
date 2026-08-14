@@ -235,7 +235,7 @@ func TestCmdFogDensityRGBTimeClampsInputs(t *testing.T) {
 	if currentDensity < 0.49 || currentDensity > 0.51 {
 		t.Fatalf("CurrentFog density = %v, want ~0.5", currentDensity)
 	}
-	if currentColor[0] < 0.49 || currentColor[0] > 0.51 || currentColor[1] < 0.24 || currentColor[1] > 0.26 || currentColor[2] != 0 {
+	if currentColor.X < 0.49 || currentColor.X > 0.51 || currentColor.Y < 0.24 || currentColor.Y > 0.26 || currentColor.Z != 0 {
 		t.Fatalf("CurrentFog color = %v, want previous in-flight fade color", currentColor)
 	}
 }

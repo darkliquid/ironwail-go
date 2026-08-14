@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -139,7 +140,7 @@ func (s *System) PrecacheSound(name string, loader func() ([]byte, error)) *SFX 
 	return sfx
 }
 
-func (s *System) StartSound(entNum, entChannel int, sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
+func (s *System) StartSound(entNum, entChannel int, sfx *SFX, origin, velocity types.Vec3, vol, attenuation float32) {
 	if !s.started || s.nosound || sfx == nil || sfx.Cache == nil {
 		return
 	}
@@ -181,7 +182,7 @@ func (s *System) StopSound(entNum, entChannel int) {
 	}
 }
 
-func (s *System) StartStaticSound(sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
+func (s *System) StartStaticSound(sfx *SFX, origin, velocity types.Vec3, vol, attenuation float32) {
 	if !s.started || s.nosound || sfx == nil || sfx.Cache == nil || sfx.Cache.LoopStart < 0 {
 		return
 	}
@@ -208,15 +209,18 @@ func (s *System) StartStaticSound(sfx *SFX, origin, velocity [3]float32, vol, at
 
 	ch := &s.channels[chanIndex]
 	*ch = Channel{
-		SFX:         sfx,
-		Origin:      origin,
-		Velocity:    velocity,
-		DistMult:    (attenuation / 64) / SoundNominalClipDist,
-		MasterVol:   int(vol * 255),
-		End:         s.paintedTime + sfx.Cache.Length,
-		Pitch:       1.0,
-		PosFraction: 0,
+		SFX:       sfx,
+		Origin:    origin,
+		Velocity:  velocity,
+		DistMult:  (attenuation / 64) / SoundNominalClipDist,
+		MasterVol: int(vol * 255),
+		EntNum:    0,
+		Looping:   sfx.Cache.LoopStart,
+		Pos:       0,
+		Pitch:     1.0,
+		End:       0x7fffffff,
 	}
+
 	s.spatialize(ch)
 }
 
@@ -277,7 +281,7 @@ func (s *System) StopAllSounds(clear bool) {
 	}
 }
 
-func (s *System) SetListener(origin, velocity, forward, right, up [3]float32) {
+func (s *System) SetListener(origin, velocity, forward, right, up types.Vec3) {
 	if !s.started {
 		return
 	}
@@ -342,7 +346,7 @@ func (s *System) SetAmbientParams(levelScale, fadeRate float32) {
 	s.ambientCustom = true
 }
 
-func (s *System) Update(origin, velocity, forward, right, up [3]float32) {
+func (s *System) Update(origin, velocity, forward, right, up types.Vec3) {
 	if !s.started || s.blocked > 0 {
 		return
 	}

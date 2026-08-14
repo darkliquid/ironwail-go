@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestParityNarrativeDoorChainOrderedHops is the H2 narrative-chain truth
@@ -32,10 +33,10 @@ func TestParityNarrativeDoorChainOrderedHops(t *testing.T) {
 	for _, door := range []*Edict{owner, half} {
 		door.SetMoveType(s, float32(MoveTypePush))
 		door.SetSolid(s, float32(SolidBSP))
-		door.SetOrigin(s, [3]float32{0, 0, 0})
-		door.SetMins(s, [3]float32{-32, -32, 0})
-		door.SetMaxs(s, [3]float32{32, 32, 72})
-		door.SetVelocity(s, [3]float32{0, 0, 100})
+		door.SetOrigin(s, qtypes.Vec3{})
+		door.SetMins(s, qtypes.Vec3{X: -32, Y: -32, Z: 0})
+		door.SetMaxs(s, qtypes.Vec3{X: 32, Y: 32, Z: 72})
+		door.SetVelocity(s, qtypes.Vec3{X: 0, Y: 0, Z: 100})
 		s.LinkEdict(door, false)
 	}
 	owner.SetEnemy(s, int32(s.NumForEdict(half)))

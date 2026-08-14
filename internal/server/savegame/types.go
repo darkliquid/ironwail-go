@@ -2,7 +2,10 @@
 // save/load system.
 package savegame
 
-import "github.com/darkliquid/ironwail-go/internal/server/types"
+import (
+	"github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 // NumSpawnParms is the number of per-player spawn parameters carried
 // across level transitions. Matches the original Quake constant.
@@ -93,7 +96,7 @@ type SaveGlobalState struct {
 	Name   string
 	Type   uint16
 	Float  float32
-	Vector [3]float32
+	Vector qtypes.Vec3
 	Int    int32
 	String string
 }

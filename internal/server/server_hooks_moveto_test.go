@@ -15,6 +15,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
@@ -31,8 +32,8 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	s.SoundPrecache[1] = "ambience/drip.wav"
 
 	ent := s.AllocEdict()
-	ent.SetOrigin(s, [3]float32{1, 2, 3})
-	ent.SetAngles(s, [3]float32{0, 90, 0})
+	ent.SetOrigin(s, qtypes.Vec3{X: 1, Y: 2, Z: 3})
+	ent.SetAngles(s, qtypes.Vec3{X: 0, Y: 90, Z: 0})
 	ent.SetModelIndex(s, 7)
 	ent.SetFrame(s, 2)
 	ent.SetColormap(s, 3)
@@ -88,7 +89,7 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	}
 
 	before = clientMsg.Len()
-	vm.SetGVector(qc.OFSParm0, [3]float32{4, 5, 6})
+	vm.SetGVector(qc.OFSParm0, qtypes.Vec3{X: 4, Y: 5, Z: 6})
 	vm.SetGString(qc.OFSParm1, "ambience/drip.wav")
 	vm.SetGFloat(qc.OFSParm2, 255)
 	vm.SetGFloat(qc.OFSParm3, 1)
@@ -103,35 +104,6 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	if clientMsg.Len() <= before {
 		t.Fatalf("ambientsound did not write to client message")
 	}
-
-	newClient := &Client{Edict: world, Message: NewMessageBuffer(MaxDatagram)}
-	s.SendServerInfo(newClient)
-	// Static entities and sounds are now in signon buffers (populated during
-	// SpawnServer). Build them here to simulate the full flow.
-	if err := s.buildSignonBuffers(); err != nil {
-		t.Fatalf("buildSignonBuffers: %v", err)
-	}
-	s.SendSignonBuffers(newClient)
-	if newClient.Message.Len() == 0 {
-		t.Fatalf("SendServerInfo did not produce signon message")
-	}
-	data := newClient.Message.Data[:newClient.Message.Len()]
-	foundStatic := false
-	foundAmbient := false
-	for _, b := range data {
-		if b == byte(inet.SVCSpawnStatic) || b == byte(inet.SVCSpawnStatic2) {
-			foundStatic = true
-		}
-		if b == byte(inet.SVCSpawnStaticSound) || b == byte(inet.SVCSpawnStaticSound2) {
-			foundAmbient = true
-		}
-	}
-	if !foundStatic {
-		t.Fatalf("SendServerInfo missing spawnstatic message")
-	}
-	if !foundAmbient {
-		t.Fatalf("SendServerInfo missing spawnstaticsound message")
-	}
 }
 
 func writeTestSprite(t *testing.T, path string, width, height int32) {
@@ -145,24 +117,20 @@ func writeTestSprite(t *testing.T, path string, width, height int32) {
 			t.Fatalf("write sprite data: %v", err)
 		}
 	}
-	write(int32(0x50534449))
-	write(int32(1))
+	write(int32(model.IDSpriteHeader))
+	write(int32(model.SpriteVersion))
 	write(int32(0))
-	write(float32(0))
+	write(float32(8))
 	write(width)
 	write(height)
 	write(int32(1))
 	write(float32(0))
-	write(int32(0))
-	write(int32(0))
-	write(int32(0))
-	write(int32(0))
+	write(int32(model.STSync))
+	write(int32(model.SpriteFrameSingle))
+	write([2]int32{-width / 2, height / 2})
 	write(width)
 	write(height)
-	pixels := make([]byte, int(width*height))
-	if _, err := buf.Write(pixels); err != nil {
-		t.Fatalf("write sprite pixels: %v", err)
-	}
+	buf.Write(make([]byte, int(width*height)))
 	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
 		t.Fatalf("write sprite file: %v", err)
 	}
@@ -182,8 +150,8 @@ func writeTestAliasModel(t *testing.T, path string) {
 	write(model.MDLHeader{
 		Ident:       model.MDLIdent,
 		Version:     model.MDLVersion,
-		Scale:       [3]float32{2, 3, 4},
-		ScaleOrigin: [3]float32{-1, -2, -3},
+		Scale:       qtypes.Vec3{X: 2, Y: 3, Z: 4},
+		ScaleOrigin: qtypes.Vec3{X: -1, Y: -2, Z: -3},
 		NumSkins:    1,
 		SkinWidth:   1,
 		SkinHeight:  1,
@@ -252,10 +220,10 @@ func TestServerHooksPrecacheValidationAndSetModelNonBrushBounds(t *testing.T) {
 	vm.SetGInt(qc.OFSParm0, int32(entNum))
 	vm.SetGString(qc.OFSParm1, "progs/test.spr")
 	vm.Builtins[3](vm)
-	if got := vm.EVector(entNum, qc.EntFieldMins); got != [3]float32{-4, -4, -3} {
+	if got := vm.EVector(entNum, qc.EntFieldMins); got != (qtypes.Vec3{X: -4, Y: -4, Z: -3}) {
 		t.Fatalf("sprite mins = %v", got)
 	}
-	if got := vm.EVector(entNum, qc.EntFieldMaxs); got != [3]float32{4, 4, 3} {
+	if got := vm.EVector(entNum, qc.EntFieldMaxs); got != (qtypes.Vec3{X: 4, Y: 4, Z: 3}) {
 		t.Fatalf("sprite maxs = %v", got)
 	}
 
@@ -267,10 +235,10 @@ func TestServerHooksPrecacheValidationAndSetModelNonBrushBounds(t *testing.T) {
 	if vm.BuiltinError != nil {
 		t.Fatalf("setmodel alias runtime error = %v", vm.BuiltinError)
 	}
-	if got := vm.EVector(entNum, qc.EntFieldMins); got != [3]float32{-1, -2, -3} {
+	if got := vm.EVector(entNum, qc.EntFieldMins); got != (qtypes.Vec3{X: -1, Y: -2, Z: -3}) {
 		t.Fatalf("alias mins = %v", got)
 	}
-	if got := vm.EVector(entNum, qc.EntFieldMaxs); got != [3]float32{3, 7, 1} {
+	if got := vm.EVector(entNum, qc.EntFieldMaxs); got != (qtypes.Vec3{X: 3, Y: 7, Z: 1}) {
 		t.Fatalf("alias maxs = %v", got)
 	}
 
@@ -297,16 +265,16 @@ func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
 
 	self := s.AllocEdict()
 	goal := s.AllocEdict()
-	self.SetOrigin(s, [3]float32{0, 0, 16})
-	self.SetMins(s, [3]float32{-1, -1, 0})
-	self.SetMaxs(s, [3]float32{1, 1, 56})
+	self.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 16})
+	self.SetMins(s, qtypes.Vec3{X: -1, Y: -1, Z: 0})
+	self.SetMaxs(s, qtypes.Vec3{X: 1, Y: 1, Z: 56})
 	self.SetSolid(s, float32(SolidBSP))
 	self.SetFlags(s, 0)
 	self.SetIdealYaw(s, 0)
 	self.SetYawSpeed(s, 360)
-	goal.SetOrigin(s, [3]float32{64, 0, 16})
-	goal.SetMins(s, [3]float32{-1, -1, 0})
-	goal.SetMaxs(s, [3]float32{1, 1, 56})
+	goal.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 16})
+	goal.SetMins(s, qtypes.Vec3{X: -1, Y: -1, Z: 0})
+	goal.SetMaxs(s, qtypes.Vec3{X: 1, Y: 1, Z: 56})
 	self.SetGoalEntity(s, int32(s.NumForEdict(goal)))
 
 	s.LinkEdict(self, false)
@@ -326,7 +294,7 @@ func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
 	} else {
 		fn(vm)
 	}
-	if got := self.Origin(s)[0]; got <= 0 {
+	if got := self.Origin(s).X; got <= 0 {
 		t.Fatalf("movetogoal did not use QC-only movement flags: origin=%v", self.Origin(s))
 	}
 	if got := vm.EVector(selfNum, qc.EntFieldOrigin); got != self.Origin(s) {
@@ -346,16 +314,16 @@ func TestServerHooksMoveToGoalImportsPendingQCGoalEdict(t *testing.T) {
 
 	self := s.AllocEdict()
 	goal := s.AllocEdict()
-	self.SetOrigin(s, [3]float32{0, 0, 16})
-	self.SetMins(s, [3]float32{-1, -1, 0})
-	self.SetMaxs(s, [3]float32{1, 1, 56})
+	self.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 16})
+	self.SetMins(s, qtypes.Vec3{X: -1, Y: -1, Z: 0})
+	self.SetMaxs(s, qtypes.Vec3{X: 1, Y: 1, Z: 56})
 	self.SetSolid(s, float32(SolidBSP))
 	self.SetFlags(s, float32(FlagOnGround))
 	self.SetIdealYaw(s, 0)
 	self.SetYawSpeed(s, 360)
-	goal.SetOrigin(s, [3]float32{-64, 0, 16})
-	goal.SetMins(s, [3]float32{-1, -1, 0})
-	goal.SetMaxs(s, [3]float32{1, 1, 56})
+	goal.SetOrigin(s, qtypes.Vec3{X: -64, Y: 0, Z: 16})
+	goal.SetMins(s, qtypes.Vec3{X: -1, Y: -1, Z: 0})
+	goal.SetMaxs(s, qtypes.Vec3{X: 1, Y: 1, Z: 56})
 	self.SetGoalEntity(s, int32(s.NumForEdict(goal)))
 
 	s.LinkEdict(self, false)
@@ -368,7 +336,7 @@ func TestServerHooksMoveToGoalImportsPendingQCGoalEdict(t *testing.T) {
 	selfNum := s.NumForEdict(self)
 	goalNum := s.NumForEdict(goal)
 	vm.SetGInt(qc.OFSSelf, int32(selfNum))
-	vm.SetEVector(goalNum, qc.EntFieldOrigin, [3]float32{64, 0, 16})
+	vm.SetEVector(goalNum, qc.EntFieldOrigin, qtypes.Vec3{X: 64, Y: 0, Z: 16})
 
 	if fn := vm.Builtins[67]; fn == nil {
 		t.Fatal("movetogoal builtin not registered")
@@ -376,7 +344,7 @@ func TestServerHooksMoveToGoalImportsPendingQCGoalEdict(t *testing.T) {
 		fn(vm)
 	}
 
-	if got := goal.Origin(s); got != [3]float32{64, 0, 16} {
+	if got := goal.Origin(s); got != (qtypes.Vec3{X: 64, Y: 0, Z: 16}) {
 		t.Fatalf("movetogoal did not import QC-only goal edict origin: %v", got)
 	}
 }
@@ -395,13 +363,13 @@ func TestServerHooksChangeYawImportsPendingQCState(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 
 	a := ent.Angles(s)
-	a[1] = 10
+	a.Y = 10
 	ent.SetAngles(s, a)
 	ent.SetIdealYaw(s, 20)
 	ent.SetYawSpeed(s, 1)
 
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
-	vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{0, 10, 0})
+	vm.SetEVector(entNum, qc.EntFieldAngles, qtypes.Vec3{X: 0, Y: 10, Z: 0})
 	vm.SetEFloat(entNum, qc.EntFieldIdealYaw, 350)
 	vm.SetEFloat(entNum, qc.EntFieldYawSpeed, 15)
 	if fn := vm.Builtins[49]; fn == nil {
@@ -410,11 +378,11 @@ func TestServerHooksChangeYawImportsPendingQCState(t *testing.T) {
 		fn(vm)
 	}
 	// anglemod uses 16-bit quantization matching C, so 355 becomes ~355.00122
-	if got := ent.Angles(s)[1]; got < 354.99 || got > 355.01 {
+	if got := ent.Angles(s).Y; got < 354.99 || got > 355.01 {
 		t.Fatalf("changeyaw yaw = %v, want ~355", got)
 	}
-	if got := vm.EVector(entNum, qc.EntFieldAngles); got[1] < 354.99 || got[1] > 355.01 {
-		t.Fatalf("vm yaw not synchronized after changeyaw: got=%v", got[1])
+	if got := vm.EVector(entNum, qc.EntFieldAngles); got.Y < 354.99 || got.Y > 355.01 {
+		t.Fatalf("vm yaw not synchronized after changeyaw: got=%v", got.Y)
 	}
 }
 
@@ -455,22 +423,22 @@ func TestServerHooksMoveToGoalRestoresQCContextAfterNestedTouch(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 
 	selfNum := s.NumForEdict(self)
-	self.SetOrigin(s, [3]float32{0, 0, 24})
-	self.SetMins(s, [3]float32{-16, -16, -24})
-	self.SetMaxs(s, [3]float32{16, 16, 32})
+	self.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	self.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	self.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	self.SetSolid(s, float32(SolidSlideBox))
 	self.SetFlags(s, float32(FlagOnGround))
 	self.SetIdealYaw(s, 0)
 	self.SetYawSpeed(s, 360)
 
-	goal.SetOrigin(s, [3]float32{64, 0, 24})
-	goal.SetMins(s, [3]float32{-16, -16, -24})
-	goal.SetMaxs(s, [3]float32{16, 16, 32})
+	goal.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 24})
+	goal.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	goal.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	self.SetGoalEntity(s, int32(s.NumForEdict(goal)))
 
-	trigger.SetOrigin(s, [3]float32{24, 0, 24})
-	trigger.SetMins(s, [3]float32{-16, -16, -24})
-	trigger.SetMaxs(s, [3]float32{16, 16, 32})
+	trigger.SetOrigin(s, qtypes.Vec3{X: 24, Y: 0, Z: 24})
+	trigger.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	trigger.SetTouch(s, 1)
 

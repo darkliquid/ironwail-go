@@ -2,6 +2,7 @@ package renderer
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/renderer/decal"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // decalDraw is a mark paired with its squared distance to the camera, used by
@@ -20,7 +21,7 @@ func prepareDecalDraws(marks []DecalMarkEntity, camera CameraState) []decalDraw 
 	for i := range marks {
 		entities = append(entities, marks[i])
 	}
-	prepared := decal.PrepareDraws(entities, [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z})
+	prepared := decal.PrepareDraws(entities, camera.Origin)
 	out := make([]decalDraw, 0, len(prepared))
 	for _, draw := range prepared {
 		out = append(out, decalDraw{mark: draw.Mark.(DecalMarkEntity), distanceSq: draw.DistanceSq})
@@ -28,6 +29,6 @@ func prepareDecalDraws(marks []DecalMarkEntity, camera CameraState) []decalDraw 
 	return out
 }
 
-func buildDecalQuad(mark DecalMarkEntity) ([4][3]float32, bool) {
+func buildDecalQuad(mark DecalMarkEntity) ([4]types.Vec3, bool) {
 	return decal.BuildQuad(mark)
 }

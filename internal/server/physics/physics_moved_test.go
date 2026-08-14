@@ -11,6 +11,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // newMockLeafSystem builds a System wired to the mock collision world, edict
@@ -38,15 +39,15 @@ func TestPhysicsNoClipMovesOriginAndAngles(t *testing.T) {
 	sys, _, h := newMockLeafSystem(t, &mockCollisionWorld{}, facade)
 
 	ent := &srvtypes.Edict{Num: 1}
-	ent.SetVelocity(h, [3]float32{10, -5, 2})
-	ent.SetAVelocity(h, [3]float32{0, 90, 0})
+	ent.SetVelocity(h, qtypes.Vec3{X: 10, Y: -5, Z: 2})
+	ent.SetAVelocity(h, qtypes.Vec3{X: 0, Y: 90, Z: 0})
 
 	sys.PhysicsNoClip(ent)
 
-	if got := ent.Origin(h); got != [3]float32{1, -0.5, 0.2} {
+	if got := ent.Origin(h); got != (qtypes.Vec3{X: 1, Y: -0.5, Z: 0.2}) {
 		t.Fatalf("origin = %v", got)
 	}
-	if got := ent.Angles(h); got != [3]float32{0, 9, 0} {
+	if got := ent.Angles(h); got != (qtypes.Vec3{X: 0, Y: 9, Z: 0}) {
 		t.Fatalf("angles = %v", got)
 	}
 }
@@ -80,12 +81,12 @@ func TestPhysicsTossOnGroundDoesNotMove(t *testing.T) {
 
 	ent := &srvtypes.Edict{Num: 1}
 	ent.SetFlags(h, float32(srvtypes.FlagOnGround))
-	ent.SetOrigin(h, [3]float32{1, 2, 3})
-	ent.SetVelocity(h, [3]float32{50, 60, 70})
+	ent.SetOrigin(h, qtypes.Vec3{X: 1, Y: 2, Z: 3})
+	ent.SetVelocity(h, qtypes.Vec3{X: 50, Y: 60, Z: 70})
 
 	sys.PhysicsToss(ent)
 
-	if ent.Origin(h) != [3]float32{1, 2, 3} {
+	if ent.Origin(h) != (qtypes.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("origin changed on ground toss: %v", ent.Origin(h))
 	}
 }
@@ -100,12 +101,12 @@ func TestPhysicsStepOnGroundSkipsFreefall(t *testing.T) {
 
 	ent := &srvtypes.Edict{Num: 1}
 	ent.SetFlags(h, float32(srvtypes.FlagOnGround))
-	ent.SetVelocity(h, [3]float32{0, 0, 42})
+	ent.SetVelocity(h, qtypes.Vec3{X: 0, Y: 0, Z: 42})
 
 	sys.PhysicsStep(ent)
 
-	if ent.Velocity(h)[2] != 42 {
-		t.Fatalf("z velocity changed: %v", ent.Velocity(h)[2])
+	if ent.Velocity(h).Z != 42 {
+		t.Fatalf("z velocity changed: %v", ent.Velocity(h).Z)
 	}
 }
 
@@ -125,28 +126,28 @@ func newTestVM(t *testing.T) *qc.VM {
 // threshold does not request unstick, only strictly inside does.
 // Where in C: SV_WalkMove in sv_phys.c
 func TestWalkMoveNeedsUnstickUsesDistEpsilonThreshold(t *testing.T) {
-	oldOrg := [3]float32{100, 200, 0}
+	oldOrg := qtypes.Vec3{X: 100, Y: 200, Z: 0}
 	distEps := srvtypes.DistEpsilon
 
 	// Strictly inside threshold on both axes should request unstick.
-	inside := [3]float32{100 + distEps - 0.0001, 200 - distEps + 0.0001, 0}
+	inside := qtypes.Vec3{X: 100 + distEps - 0.0001, Y: 200 - distEps + 0.0001, Z: 0}
 	if !srvtypes.WalkMoveNeedsUnstick(oldOrg, inside) {
 		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = false, want true", oldOrg, inside)
 	}
 
 	// Exact threshold should not request unstick (strict '<' parity with C code).
-	xEdge := [3]float32{100 + distEps, 200, 0}
+	xEdge := qtypes.Vec3{X: 100 + distEps, Y: 200, Z: 0}
 	if srvtypes.WalkMoveNeedsUnstick(oldOrg, xEdge) {
 		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, xEdge)
 	}
 
-	yEdge := [3]float32{100, 200 - distEps, 0}
+	yEdge := qtypes.Vec3{X: 100, Y: 200 - distEps, Z: 0}
 	if srvtypes.WalkMoveNeedsUnstick(oldOrg, yEdge) {
 		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, yEdge)
 	}
 
 	// Outside threshold on either axis should not request unstick.
-	outside := [3]float32{100 + distEps + 0.0001, 200, 0}
+	outside := qtypes.Vec3{X: 100 + distEps + 0.0001, Y: 200, Z: 0}
 	if srvtypes.WalkMoveNeedsUnstick(oldOrg, outside) {
 		t.Fatalf("WalkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, outside)
 	}

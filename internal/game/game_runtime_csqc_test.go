@@ -7,6 +7,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestBuildCSQCDrawHooksUsesNamedPicsAndScales(t *testing.T) {
@@ -190,7 +191,7 @@ func TestBuildCSQCFrameStatePopulatesCSQCExtGlobals(t *testing.T) {
 	g.Client.Intermission = 2
 	g.Client.CompletedTime = 8.25
 	g.Client.ViewEntity = 3
-	g.Client.ViewAngles = [3]float32{1, 2, 3}
+	g.Client.ViewAngles = types.Vec3{X: 1, Y: 2, Z: 3}
 	g.Client.CommandSequence = 17
 
 	state := g.buildCSQCFrameState()
@@ -215,7 +216,7 @@ func TestBuildCSQCFrameStatePopulatesCSQCExtGlobals(t *testing.T) {
 	if state.ClientCommandFrame != 17 {
 		t.Fatalf("state.ClientCommandFrame = %v, want 17", state.ClientCommandFrame)
 	}
-	if state.ViewAngles != [3]float32{1, 2, 3} {
+	if state.ViewAngles != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("state.ViewAngles = %v, want [1 2 3]", state.ViewAngles)
 	}
 }

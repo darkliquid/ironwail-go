@@ -15,15 +15,16 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	types "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // parseVec3 is used by walkable_point_diagnostics_test.go for test vectors.
 var vec3Replacer = strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
 
-// parseVec3 parses a space-separated "x y z" string into a [3]float32
+// parseVec3 parses a space-separated "x y z" string into a types.Vec3
 // vector (root copy, used by savegame/testing).
-func parseVec3(raw string) ([3]float32, error) {
-	var out [3]float32
+func parseVec3(raw string) (qtypes.Vec3, error) {
+	var out qtypes.Vec3
 	normalized := vec3Replacer.Replace(strings.TrimSpace(raw))
 	if normalized == "" {
 		return out, nil
@@ -31,7 +32,7 @@ func parseVec3(raw string) ([3]float32, error) {
 	parts := strings.Split(normalized, " ")
 	component := 0
 	for _, part := range parts {
-		if component >= len(out) {
+		if component >= 3 {
 			break
 		}
 		if part == "" {
@@ -40,9 +41,16 @@ func parseVec3(raw string) ([3]float32, error) {
 		}
 		v, err := strconv.ParseFloat(part, 32)
 		if err != nil {
-			return [3]float32{}, err
+			return qtypes.Vec3{}, err
 		}
-		out[component] = float32(v)
+		switch component {
+		case 0:
+			out.X = float32(v)
+		case 1:
+			out.Y = float32(v)
+		case 2:
+			out.Z = float32(v)
+		}
 		component++
 	}
 	return out, nil

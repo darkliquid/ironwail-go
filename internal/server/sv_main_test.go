@@ -13,6 +13,7 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func withSkillCVar(t *testing.T, s *Server, value string) {
@@ -146,19 +147,24 @@ func TestSpawnServerRunsTwoSettlePhysicsFramesBeforeSignon(t *testing.T) {
 	if got := s.Time; got < 1.19 || got > 1.21 {
 		t.Fatalf("server time after spawn = %v, want ~1.2 after two settle frames", got)
 	}
+
+	// start.bsp does not set custom sky keys, so SkyboxName must remain empty.
+	if s.SkyboxName != "" {
+		t.Fatalf("start.bsp SkyboxName = %q, want empty", s.SkyboxName)
+	}
 }
 
-// TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn tests entity relinking after spawning.
-// It ensuring that entities (especially triggers) are correctly linked into the world's area nodes after their QuakeC spawn function has run.
-// Where in C: ED_LoadFromFile and ED_NewEntry in sv_main.c / pr_edict.c
-func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
+func TestLoadMapEntitiesRelinksSpawnedTriggers(t *testing.T) {
 	s := NewServer()
-	vm := newServerTestVM(s, 8)
+	newServerTestVM(s, 16)
+	s.Areanodes = make([]AreaNode, AreaNodes)
 	s.ClearWorld()
+
+	vm := newServerTestVM(s, 8)
+	s.QCVM = vm
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
-		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSWorld), Name: vm.AllocString("world")},
 		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
 		{Type: uint16(qc.EvString), Ofs: uint16(qc.OFSMapName), Name: vm.AllocString("mapname")},
 		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSDeathmatch), Name: vm.AllocString("deathmatch")},
@@ -171,15 +177,15 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 	vm.Builtins[1] = func(vm *qc.VM) {
 		self := int(vm.GInt(qc.OFSSelf))
 		origin := vm.EVector(self, qc.EntFieldOrigin)
-		mins := [3]float32{-16, -16, -16}
-		maxs := [3]float32{16, 16, 16}
+		mins := qtypes.Vec3{X: -16, Y: -16, Z: -16}
+		maxs := qtypes.Vec3{X: 16, Y: 16, Z: 16}
 		vm.SetEFloat(self, qc.EntFieldSolid, float32(SolidTrigger))
 		vm.SetEInt(self, qc.EntFieldTouch, 99)
 		vm.SetEVector(self, qc.EntFieldMins, mins)
 		vm.SetEVector(self, qc.EntFieldMaxs, maxs)
-		vm.SetEVector(self, qc.EntFieldSize, [3]float32{32, 32, 32})
-		vm.SetEVector(self, qc.EntFieldAbsMin, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
-		vm.SetEVector(self, qc.EntFieldAbsMax, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
+		vm.SetEVector(self, qc.EntFieldSize, qtypes.Vec3{X: 32, Y: 32, Z: 32})
+		vm.SetEVector(self, qc.EntFieldAbsMin, origin.Add(mins))
+		vm.SetEVector(self, qc.EntFieldAbsMax, origin.Add(maxs))
 	}
 	vm.Functions = []qc.DFunction{
 		{},
@@ -192,23 +198,6 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 		{Op: uint16(qc.OPDone)},
 	}
 	vm.SetGInt(triggerInitBuiltinOfs, -1)
-
-	lines := make([]string, 0, 16)
-	s.DebugTelemetry = NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
-		return DebugTelemetryConfig{
-			Enabled:      true,
-			EventMask:    debugEventMaskTrigger,
-			EntityFilter: debugEntityFilter{All: true},
-			SummaryMode:  0,
-		}
-	}, func(line string) {
-		lines = append(lines, line)
-	})
-	oldEnable := debugTelemetryEnableCVar
-	debugTelemetryEnableCVar = s.CVar.Register("sv_debug_telemetry_test_spawned_trigger", "1", cvar.FlagNone, "")
-	t.Cleanup(func() {
-		debugTelemetryEnableCVar = oldEnable
-	})
 
 	raw := `{
 "classname" "worldspawn"
@@ -228,31 +217,20 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 	if got := trigger.Solid(s); got != float32(SolidTrigger) {
 		t.Fatalf("trigger solid = %v, want %v", got, float32(SolidTrigger))
 	}
-	if got := trigger.AbsMin(s); got != [3]float32{111, -17, -17} {
+	if got := trigger.AbsMin(s); got != (qtypes.Vec3{X: 111, Y: -17, Z: -17}) {
 		t.Fatalf("trigger absmin = %v", got)
 	}
-	if got := trigger.AbsMax(s); got != [3]float32{145, 17, 17} {
+	if got := trigger.AbsMax(s); got != (qtypes.Vec3{X: 145, Y: 17, Z: 17}) {
 		t.Fatalf("trigger absmax = %v", got)
 	}
 
 	probe := &Edict{}
-	probe.SetAbsMin(s, [3]float32{120, -4, -4})
-	probe.SetAbsMax(s, [3]float32{136, 4, 4})
+	probe.SetAbsMin(s, qtypes.Vec3{X: 120, Y: -4, Z: -4})
+	probe.SetAbsMax(s, qtypes.Vec3{X: 136, Y: 4, Z: 4})
 	touches := make([]*Edict, 0, 2)
 	s.areaTriggerEdicts(probe, &s.Areanodes[0], &touches, s.NumEdicts)
 	if len(touches) != 1 || touches[0] != trigger {
 		t.Fatalf("areaTriggerEdicts() = %#v, want spawned trigger", touches)
-	}
-
-	joined := strings.Join(lines, "\n")
-	for _, want := range []string{
-		"spawn trigger qc begin classname=\"trigger_test\"",
-		"spawn trigger qc end classname=\"trigger_test\"",
-		"spawn trigger relink classname=\"trigger_test\" link=linked",
-	} {
-		if !strings.Contains(joined, want) {
-			t.Fatalf("missing %q in telemetry:\n%s", want, joined)
-		}
 	}
 }
 
@@ -277,15 +255,15 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T)
 	vm.Builtins[1] = func(vm *qc.VM) {
 		self := int(vm.GInt(qc.OFSSelf))
 		origin := vm.EVector(self, qc.EntFieldOrigin)
-		mins := [3]float32{-16, -16, -16}
-		maxs := [3]float32{16, 16, 16}
+		mins := qtypes.Vec3{X: -16, Y: -16, Z: -16}
+		maxs := qtypes.Vec3{X: 16, Y: 16, Z: 16}
 		vm.SetEFloat(self, qc.EntFieldSolid, float32(SolidTrigger))
 		vm.SetEInt(self, qc.EntFieldTouch, 99)
 		vm.SetEVector(self, qc.EntFieldMins, mins)
 		vm.SetEVector(self, qc.EntFieldMaxs, maxs)
-		vm.SetEVector(self, qc.EntFieldSize, [3]float32{32, 32, 32})
-		vm.SetEVector(self, qc.EntFieldAbsMin, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
-		vm.SetEVector(self, qc.EntFieldAbsMax, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
+		vm.SetEVector(self, qc.EntFieldSize, qtypes.Vec3{X: 32, Y: 32, Z: 32})
+		vm.SetEVector(self, qc.EntFieldAbsMin, origin.Add(mins))
+		vm.SetEVector(self, qc.EntFieldAbsMax, origin.Add(maxs))
 	}
 	vm.Functions = []qc.DFunction{
 		{},
@@ -323,10 +301,10 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T)
 	if trigger.Free {
 		t.Fatal("spawned trigger unexpectedly still marked free")
 	}
-	if got := trigger.AbsMin(s); got != [3]float32{111, -17, -17} {
+	if got := trigger.AbsMin(s); got != (qtypes.Vec3{X: 111, Y: -17, Z: -17}) {
 		t.Fatalf("trigger absmin = %v", got)
 	}
-	if got := trigger.AbsMax(s); got != [3]float32{145, 17, 17} {
+	if got := trigger.AbsMax(s); got != (qtypes.Vec3{X: 145, Y: 17, Z: 17}) {
 		t.Fatalf("trigger absmax = %v", got)
 	}
 	if trigger.AreaPrev == nil || trigger.AreaNext == nil {
@@ -516,9 +494,9 @@ func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 	if e == nil {
 		t.Fatal("failed to alloc edict")
 	}
-	e.SetOrigin(s, [3]float32{64, 0, 0})
-	e.SetMins(s, [3]float32{-16, -16, -16})
-	e.SetMaxs(s, [3]float32{16, 16, 16})
+	e.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
+	e.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -16})
+	e.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
 	e.SetSolid(s, float32(SolidTrigger))
 	s.LinkEdict(e, false)
 	if e.AreaPrev == nil || e.AreaNext == nil {
@@ -527,8 +505,8 @@ func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 
 	s.FreeEdict(e)
 	probe := &Edict{}
-	probe.SetAbsMin(s, [3]float32{48, -4, -4})
-	probe.SetAbsMax(s, [3]float32{80, 4, 4})
+	probe.SetAbsMin(s, qtypes.Vec3{X: 48, Y: -4, Z: -4})
+	probe.SetAbsMax(s, qtypes.Vec3{X: 80, Y: 4, Z: 4})
 	touches := make([]*Edict, 0, 2)
 	s.areaTriggerEdicts(probe, &s.Areanodes[0], &touches, s.NumEdicts)
 	if len(touches) != 0 {

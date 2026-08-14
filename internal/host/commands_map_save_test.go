@@ -12,6 +12,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestCmdMapnamePrintsServerMap(t *testing.T) {
@@ -471,9 +472,9 @@ func TestCmdEdictCountPrintsCanonicalSummary(t *testing.T) {
 	if grounded == nil {
 		t.Fatal("AllocEdict grounded = nil")
 	}
-	grounded.SetOrigin(srv, [3]float32{0, 0, 24})
-	grounded.SetMins(srv, [3]float32{-16, -16, -24})
-	grounded.SetMaxs(srv, [3]float32{16, 16, 32})
+	grounded.SetOrigin(srv, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	grounded.SetMins(srv, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	grounded.SetMaxs(srv, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	grounded.SetSolid(srv, float32(server.SolidSlideBox))
 	grounded.SetMoveType(srv, float32(server.MoveTypeStep))
 	srv.WorldModel = server.CreateSyntheticWorldModel()
@@ -487,9 +488,9 @@ func TestCmdEdictCountPrintsCanonicalSummary(t *testing.T) {
 	if air == nil {
 		t.Fatal("AllocEdict air = nil")
 	}
-	air.SetOrigin(srv, [3]float32{0, 0, 256})
-	air.SetMins(srv, [3]float32{-16, -16, -24})
-	air.SetMaxs(srv, [3]float32{16, 16, 32})
+	air.SetOrigin(srv, qtypes.Vec3{X: 0, Y: 0, Z: 256})
+	air.SetMins(srv, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	air.SetMaxs(srv, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	air.SetSolid(srv, float32(server.SolidSlideBox))
 	srv.LinkEdict(air, false)
 	if srv.CheckBottom(air) {

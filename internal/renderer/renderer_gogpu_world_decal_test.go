@@ -8,12 +8,13 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestGoGPUDecalMarkParamsPreserveGeometry(t *testing.T) {
 	mark := DecalMarkEntity{
-		Origin:   [3]float32{1, 2, 3},
-		Normal:   [3]float32{0, 0, 1},
+		Origin:   types.Vec3{X: 1, Y: 2, Z: 3},
+		Normal:   types.Vec3{X: 0, Y: 0, Z: 1},
 		Size:     16,
 		Rotation: 0.25,
 		Variant:  DecalVariantScorch,
@@ -35,12 +36,12 @@ func TestGoGPUDecalMarkParamsPreserveGeometry(t *testing.T) {
 func TestGoGPUPreparedDecalMarkClampsFinalColorAndAlpha(t *testing.T) {
 	draw := decalDraw{
 		mark: DecalMarkEntity{
-			Origin:   [3]float32{1, 2, 3},
-			Normal:   [3]float32{0, 0, 1},
+			Origin:   types.Vec3{X: 1, Y: 2, Z: 3},
+			Normal:   types.Vec3{X: 0, Y: 0, Z: 1},
 			Size:     12,
 			Rotation: 0.5,
 			Alpha:    1.5,
-			Color:    [3]float32{-0.25, 0.4, 2.0},
+			Color:    types.Vec3{X: -0.25, Y: 0.4, Z: 2.0},
 			Variant:  DecalVariantMagic,
 		},
 	}
@@ -60,8 +61,8 @@ func TestGoGPUPreparedDecalMarkClampsFinalColorAndAlpha(t *testing.T) {
 
 func TestGoGPUDecalQuadUsesRootBuilder(t *testing.T) {
 	params := worldgogpu.DecalMarkParams{
-		Origin:   [3]float32{100, 200, 300},
-		Normal:   [3]float32{0, 0, 1},
+		Origin:   types.Vec3{X: 100, Y: 200, Z: 300},
+		Normal:   types.Vec3{X: 0, Y: 0, Z: 1},
 		Size:     16,
 		Rotation: 0.75,
 		Variant:  int(DecalVariantChip),
@@ -85,12 +86,12 @@ func TestGoGPUDecalQuadUsesRootBuilder(t *testing.T) {
 func TestPrepareGoGPUDecalHALDrawsUsesRootAdapterSeam(t *testing.T) {
 	draws := []decalDraw{{
 		mark: DecalMarkEntity{
-			Origin:   [3]float32{10, 20, 30},
-			Normal:   [3]float32{0, 0, 1},
+			Origin:   types.Vec3{X: 10, Y: 20, Z: 30},
+			Normal:   types.Vec3{X: 0, Y: 0, Z: 1},
 			Size:     8,
 			Rotation: 0.5,
 			Alpha:    1.5,
-			Color:    [3]float32{-0.25, 0.4, 2.0},
+			Color:    types.Vec3{X: -0.25, Y: 0.4, Z: 2.0},
 			Variant:  DecalVariantScorch,
 		},
 	}}
@@ -124,10 +125,10 @@ func TestPrepareGoGPUDecalHALDrawsUsesRootAdapterSeam(t *testing.T) {
 func TestAliasVertexBytesIntoReusesBuffer(t *testing.T) {
 	vertices := []WorldVertex{
 		{
-			Position:      [3]float32{1, 2, 3},
+			Position:      types.Vec3{X: 1, Y: 2, Z: 3},
 			TexCoord:      [2]float32{0.25, 0.75},
 			LightmapCoord: [2]float32{0.5, 0.125},
-			Normal:        [3]float32{0, 0, 1},
+			Normal:        types.Vec3{X: 0, Y: 0, Z: 1},
 		},
 	}
 	scratch := make([]byte, 0, len(vertices)*aliasVertexStride)
@@ -160,8 +161,8 @@ func TestBuildAliasVerticesInterpolatedIntoReusesBuffer(t *testing.T) {
 	}
 	mdl := &model.Model{
 		AliasHeader: &model.AliasHeader{
-			Scale:       [3]float32{1, 1, 1},
-			ScaleOrigin: [3]float32{},
+			Scale:       types.Vec3{X: 1, Y: 1, Z: 1},
+			ScaleOrigin: types.Vec3{},
 		},
 	}
 	input := make([]WorldVertex, 0, 4)
@@ -169,7 +170,7 @@ func TestBuildAliasVerticesInterpolatedIntoReusesBuffer(t *testing.T) {
 	input = input[:0]
 	before := &input[:cap(input)][0]
 
-	got := buildAliasVerticesInterpolatedInto(input, alias, mdl, 0, 1, 0.5, [3]float32{10, 20, 30}, [3]float32{0, 90, 0}, 2, false)
+	got := buildAliasVerticesInterpolatedInto(input, alias, mdl, 0, 1, 0.5, types.Vec3{X: 10, Y: 20, Z: 30}, types.Vec3{X: 0, Y: 90, Z: 0}, 2, false)
 	if len(got) != 1 {
 		t.Fatalf("len(buildAliasVerticesInterpolatedInto()) = %d, want 1", len(got))
 	}
@@ -179,7 +180,7 @@ func TestBuildAliasVerticesInterpolatedIntoReusesBuffer(t *testing.T) {
 	}
 
 	allocs := testing.AllocsPerRun(100, func() {
-		_ = buildAliasVerticesInterpolatedInto(input, alias, mdl, 0, 1, 0.5, [3]float32{10, 20, 30}, [3]float32{0, 90, 0}, 2, false)
+		_ = buildAliasVerticesInterpolatedInto(input, alias, mdl, 0, 1, 0.5, types.Vec3{X: 10, Y: 20, Z: 30}, types.Vec3{X: 0, Y: 90, Z: 0}, 2, false)
 	})
 	if allocs != 0 {
 		t.Fatalf("buildAliasVerticesInterpolatedInto allocated %.2f times per run, want 0", allocs)

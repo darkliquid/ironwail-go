@@ -52,14 +52,14 @@ func TestDriftPitchUsesCenterSpeedAcceleration(t *testing.T) {
 	c.PitchVel = 100
 	c.CenterSpeed = 300
 	c.IdealPitch = 30
-	c.ViewAngles[0] = 0
+	c.ViewAngles.X = 0
 
 	c.DriftPitch(0.1, 0)
 
 	if math.Abs(float64(c.PitchVel-130)) > 0.0001 {
 		t.Fatalf("PitchVel = %.3f, want 130", c.PitchVel)
 	}
-	if math.Abs(float64(c.ViewAngles[0]-10)) > 0.0001 {
-		t.Fatalf("ViewAngles[0] = %.3f, want 10", c.ViewAngles[0])
+	if math.Abs(float64(c.ViewAngles.X-10)) > 0.0001 {
+		t.Fatalf("ViewAngles.X = %.3f, want 10", c.ViewAngles.X)
 	}
 }

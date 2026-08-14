@@ -1,5 +1,7 @@
 package client
 
+import "github.com/darkliquid/ironwail-go/pkg/types"
+
 type LerpTelemetryReason uint8
 
 const (
@@ -57,14 +59,14 @@ type PredictionReplayTelemetry struct {
 	EntityNum                int
 	EntityFound              bool
 	Valid                    bool
-	ServerBaseOrigin         [3]float32
-	ServerBaseVelocity       [3]float32
+	ServerBaseOrigin         types.Vec3
+	ServerBaseVelocity       types.Vec3
 	ServerBaseChanged        bool
-	PreviousPredictedOrigin  [3]float32
-	RebasedPredictedOrigin   [3]float32
-	RebasedPredictedVelocity [3]float32
-	OutputPredictedOrigin    [3]float32
-	OutputPredictedVelocity  [3]float32
+	PreviousPredictedOrigin  types.Vec3
+	RebasedPredictedOrigin   types.Vec3
+	RebasedPredictedVelocity types.Vec3
+	OutputPredictedOrigin    types.Vec3
+	OutputPredictedVelocity  types.Vec3
 	CommandCountBeforeAck    int
 	CommandCountAfterAck     int
 	ReplayedCommandCount     int

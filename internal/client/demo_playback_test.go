@@ -10,6 +10,7 @@ import (
 	"time"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestDemoPlaybackNonExistentFile(t *testing.T) {
@@ -33,7 +34,7 @@ func TestDemoCannotRecordDuringPlayback(t *testing.T) {
 	if err := demo.StartDemoRecording("test_conflict", 0); err != nil {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
-	_ = demo.WriteDemoFrame([]byte{0x01}, [3]float32{0, 0, 0})
+	_ = demo.WriteDemoFrame([]byte{0x01}, types.Vec3{})
 	if err := demo.StopRecording(); err != nil {
 		t.Fatalf("StopRecording failed: %v", err)
 	}
@@ -103,7 +104,7 @@ func TestDemoFrameCount(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 	for i := 0; i < 5; i++ {
-		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{0, 0, 0}); err != nil {
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, types.Vec3{}); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
 	}
@@ -136,7 +137,7 @@ func TestDemoProgress(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 	for i := 0; i < 4; i++ {
-		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{0, 0, 0}); err != nil {
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, types.Vec3{}); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
 	}
@@ -324,7 +325,7 @@ func TestDemoFrameForTime(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 	for i := 0; i < 144; i++ { // 2 seconds at 72 Hz
-		if err := demo.WriteDemoFrame([]byte{byte(i % 256)}, [3]float32{0, 0, 0}); err != nil {
+		if err := demo.WriteDemoFrame([]byte{byte(i % 256)}, types.Vec3{}); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
 	}
@@ -387,7 +388,7 @@ func TestDemoSeekToFrame0(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 	for i := 0; i < 3; i++ {
-		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{float32(i), 0, 0}); err != nil {
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, types.Vec3{X: float32(i), Y: 0, Z: 0}); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
 	}
@@ -426,8 +427,8 @@ func TestDemoSeekToFrame0(t *testing.T) {
 	if !bytes.Equal(msg, []byte{0}) {
 		t.Fatalf("frame 0 message = %v, want [0]", msg)
 	}
-	if angles[0] != 0 {
-		t.Fatalf("frame 0 angle = %v, want 0", angles[0])
+	if angles.X != 0 {
+		t.Fatalf("frame 0 angle = %v, want 0", angles.X)
 	}
 }
 
@@ -442,7 +443,7 @@ func TestDemoSeekPastEnd(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 	for i := 0; i < 3; i++ {
-		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{0, 0, 0}); err != nil {
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, types.Vec3{}); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
 	}
@@ -503,7 +504,7 @@ func TestDemoRecordingNegativeTrack(t *testing.T) {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
 
-	if err := demo.WriteDemoFrame([]byte{0x01}, [3]float32{}); err != nil {
+	if err := demo.WriteDemoFrame([]byte{0x01}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame failed: %v", err)
 	}
 	if err := demo.StopRecording(); err != nil {
@@ -539,13 +540,13 @@ func TestDemoRecordingMidLevelSnapshot(t *testing.T) {
 		CDTrack:    3,
 		LoopTrack:  3,
 		ViewEntity: 1,
-		ViewAngles: [3]float32{10, 20, 30},
+		ViewAngles: types.Vec3{X: 10, Y: 20, Z: 30},
 	}
 
 	if err := demo.WriteInitialStateSnapshot(c); err != nil {
 		t.Fatalf("WriteInitialStateSnapshot failed: %v", err)
 	}
-	if err := demo.WriteDisconnectTrailer([3]float32{}); err != nil {
+	if err := demo.WriteDisconnectTrailer(types.Vec3{}); err != nil {
 		t.Fatalf("WriteDisconnectTrailer failed: %v", err)
 	}
 	if err := demo.StopRecording(); err != nil {
@@ -585,12 +586,12 @@ func TestDemoDisconnectDuringRecording(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{float32(i), 0, 0}); err != nil {
-			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, types.Vec3{X: float32(i), Y: 0, Z: 0}); err != nil {
+			t.Fatalf("WriteDemoFrame failed: %v", err)
 		}
 	}
 
-	if err := demo.WriteDisconnectTrailer([3]float32{}); err != nil {
+	if err := demo.WriteDisconnectTrailer(types.Vec3{}); err != nil {
 		t.Fatalf("WriteDisconnectTrailer failed: %v", err)
 	}
 	if err := demo.StopRecording(); err != nil {

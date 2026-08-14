@@ -138,18 +138,18 @@ func (h *Host) CmdTracepos(subs *Subsystems) {
 
 	srv, _ := subs.Server.(*server.Server)
 	entVAngle := ent.VAngle(srv)
-	forward, _, _ := qtypes.AngleVectors(qtypes.Vec3{X: entVAngle[0], Y: entVAngle[1], Z: entVAngle[2]})
+	forward, _, _ := qtypes.AngleVectors(entVAngle)
 	start := ent.Origin(srv)
-	start[2] += 22 // eye height
-	end := [3]float32{
-		start[0] + forward.X*8192,
-		start[1] + forward.Y*8192,
-		start[2] + forward.Z*8192,
+	start.Z += 22 // eye height
+	end := qtypes.Vec3{
+		X: start.X + forward.X*8192,
+		Y: start.Y + forward.Y*8192,
+		Z: start.Z + forward.Z*8192,
 	}
 
-	trace := srv.Move(start, [3]float32{}, [3]float32{}, end, server.MoveType(server.MoveNormal), ent)
+	trace := srv.Move(start, qtypes.Vec3{}, qtypes.Vec3{}, end, server.MoveType(server.MoveNormal), ent)
 
-	subs.Console.Print(fmt.Sprintf("trace at: %.1f %.1f %.1f\n", trace.EndPos[0], trace.EndPos[1], trace.EndPos[2]))
+	subs.Console.Print(fmt.Sprintf("trace at: %.1f %.1f %.1f\n", trace.EndPos.X, trace.EndPos.Y, trace.EndPos.Z))
 	subs.Console.Print(fmt.Sprintf("fraction: %.4f\n", trace.Fraction))
 	if trace.Entity != nil {
 		entNum := srv.NumForEdict(trace.Entity)
@@ -158,7 +158,7 @@ func (h *Host) CmdTracepos(subs *Subsystems) {
 	} else {
 		subs.Console.Print("hit world\n")
 	}
-	subs.Console.Print(fmt.Sprintf("plane normal: %.2f %.2f %.2f\n", trace.PlaneNormal[0], trace.PlaneNormal[1], trace.PlaneNormal[2]))
+	subs.Console.Print(fmt.Sprintf("plane normal: %.2f %.2f %.2f\n", trace.PlaneNormal.X, trace.PlaneNormal.Y, trace.PlaneNormal.Z))
 }
 
 func (h *Host) CmdSoundinfo(subs *Subsystems) {
@@ -198,9 +198,9 @@ func (h *Host) CmdFog(args []string, subs *Subsystems) {
 		subs.Console.Print("   fog <density> <red> <green> <blue>\n")
 		subs.Console.Print("current values:\n")
 		subs.Console.Print(fmt.Sprintf("   \"density\" is \"%g\"\n", density))
-		subs.Console.Print(fmt.Sprintf("   \"red\"     is \"%g\"\n", color[0]))
-		subs.Console.Print(fmt.Sprintf("   \"green\"   is \"%g\"\n", color[1]))
-		subs.Console.Print(fmt.Sprintf("   \"blue\"    is \"%g\"\n", color[2]))
+		subs.Console.Print(fmt.Sprintf("   \"red\"     is \"%g\"\n", color.X))
+		subs.Console.Print(fmt.Sprintf("   \"green\"   is \"%g\"\n", color.Y))
+		subs.Console.Print(fmt.Sprintf("   \"blue\"    is \"%g\"\n", color.Z))
 		return
 	case 1:
 		targetDensity = parseFogFloat(args[0])
@@ -208,24 +208,24 @@ func (h *Host) CmdFog(args []string, subs *Subsystems) {
 		targetDensity = parseFogFloat(args[0])
 		fadeTime = parseFogFloat(args[1])
 	case 3:
-		targetColor = [3]float32{
-			parseFogFloat(args[0]),
-			parseFogFloat(args[1]),
-			parseFogFloat(args[2]),
+		targetColor = qtypes.Vec3{
+			X: parseFogFloat(args[0]),
+			Y: parseFogFloat(args[1]),
+			Z: parseFogFloat(args[2]),
 		}
 	case 4:
 		targetDensity = parseFogFloat(args[0])
-		targetColor = [3]float32{
-			parseFogFloat(args[1]),
-			parseFogFloat(args[2]),
-			parseFogFloat(args[3]),
+		targetColor = qtypes.Vec3{
+			X: parseFogFloat(args[1]),
+			Y: parseFogFloat(args[2]),
+			Z: parseFogFloat(args[3]),
 		}
 	case 5:
 		targetDensity = parseFogFloat(args[0])
-		targetColor = [3]float32{
-			parseFogFloat(args[1]),
-			parseFogFloat(args[2]),
-			parseFogFloat(args[3]),
+		targetColor = qtypes.Vec3{
+			X: parseFogFloat(args[1]),
+			Y: parseFogFloat(args[2]),
+			Z: parseFogFloat(args[3]),
 		}
 		fadeTime = parseFogFloat(args[4])
 	}
@@ -233,13 +233,20 @@ func (h *Host) CmdFog(args []string, subs *Subsystems) {
 	if targetDensity < 0 {
 		targetDensity = 0
 	}
-	for i := range targetColor {
-		if targetColor[i] < 0 {
-			targetColor[i] = 0
-		}
-		if targetColor[i] > 1 {
-			targetColor[i] = 1
-		}
+	if targetColor.X < 0 {
+		targetColor.X = 0
+	} else if targetColor.X > 1 {
+		targetColor.X = 1
+	}
+	if targetColor.Y < 0 {
+		targetColor.Y = 0
+	} else if targetColor.Y > 1 {
+		targetColor.Y = 1
+	}
+	if targetColor.Z < 0 {
+		targetColor.Z = 0
+	} else if targetColor.Z > 1 {
+		targetColor.Z = 1
 	}
 
 	state.SetFogStateFloat(targetDensity, targetColor, fadeTime)

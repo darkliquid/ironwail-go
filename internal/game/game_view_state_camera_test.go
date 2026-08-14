@@ -12,6 +12,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestRuntimeCameraStateResetsStairSmoothingOnTeleport(t *testing.T) {
@@ -31,11 +32,11 @@ func TestRuntimeCameraStateResetsStairSmoothingOnTeleport(t *testing.T) {
 	g.Client.Stats[inet.StatHealth] = 100
 	g.Client.OnGround = true
 	g.Client.LocalViewTeleport = true
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{0, 0, 300}}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 0, Y: 0, Z: 300}}
 	g.viewCalc.oldZ = 100
 	g.viewCalc.oldZInit = true
 
-	camera := g.runtimeCameraState([3]float32{0, 0, 322}, [3]float32{0, 0, 0})
+	camera := g.runtimeCameraState(types.Vec3{X: 0, Y: 0, Z: 322}, types.Vec3{X: 0, Y: 0, Z: 0})
 	if math.Abs(float64(camera.Origin.Z-(322+1.0/32.0))) > 0.001 {
 		t.Fatalf("camera origin z = %v, want snapped z %v", camera.Origin.Z, 322+1.0/32.0)
 	}
@@ -67,13 +68,13 @@ func TestCollectViewModelEntityResetsWeaponOffsetOnTeleport(t *testing.T) {
 	g.Client.State = cl.StateActive
 	g.Client.ViewEntity = 1
 	g.Client.ViewHeight = 22
-	g.Client.ViewAngles = [3]float32{0, 0, 0}
+	g.Client.ViewAngles = types.Vec3{X: 0, Y: 0, Z: 0}
 	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
 	g.Client.Stats[inet.StatHealth] = 100
 	g.Client.Stats[inet.StatWeapon] = 1
 	g.Client.Stats[inet.StatWeaponFrame] = 0
 	g.Client.LocalViewTeleport = true
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 100, Y: 200, Z: 300}}
 	g.Menu = menu.NewManager(nil, nil, nil)
 	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
 	g.AliasModelCache = map[string]*model.Model{
@@ -89,7 +90,7 @@ func TestCollectViewModelEntityResetsWeaponOffsetOnTeleport(t *testing.T) {
 	if entity == nil {
 		t.Fatal("g.collectViewModelEntity() = nil, want entity")
 	}
-	if entity.Origin != [3]float32{100, 200, 322} {
+	if entity.Origin != (types.Vec3{X: 100, Y: 200, Z: 322}) {
 		t.Fatalf("viewmodel origin = %v, want hard-snapped eye origin", entity.Origin)
 	}
 }
@@ -104,7 +105,7 @@ func TestRuntimeCameraStateCarriesClientTime(t *testing.T) {
 	g.Client = cl.NewClient()
 	g.Client.Time = 12.5
 
-	camera := g.runtimeCameraState([3]float32{1, 2, 3}, [3]float32{4, 5, 6})
+	camera := g.runtimeCameraState(types.Vec3{X: 1, Y: 2, Z: 3}, types.Vec3{X: 4, Y: 5, Z: 6})
 	if camera.Time != 12.5 {
 		t.Fatalf("runtimeCameraState time = %v, want 12.5", camera.Time)
 	}
@@ -119,9 +120,9 @@ func TestRuntimeCameraStateAppliesPunchAnglesOutsideIntermission(t *testing.T) {
 
 	g.Client = cl.NewClient()
 	g.Client.Stats[inet.StatHealth] = 100 // Alive player
-	g.Client.PunchAngle = [3]float32{1, -2, 3}
+	g.Client.PunchAngle = types.Vec3{X: 1, Y: -2, Z: 3}
 
-	camera := g.runtimeCameraState([3]float32{1, 2, 3}, [3]float32{10, 20, 30})
+	camera := g.runtimeCameraState(types.Vec3{X: 1, Y: 2, Z: 3}, types.Vec3{X: 10, Y: 20, Z: 30})
 	if camera.Angles.X != 11 || camera.Angles.Y != 18 || camera.Angles.Z != 33 {
 		t.Fatalf("runtimeCameraState angles = %v, want {11 18 33}", camera.Angles)
 	}
@@ -136,9 +137,9 @@ func TestRuntimeCameraStateSkipsPunchAnglesDuringIntermission(t *testing.T) {
 
 	g.Client = cl.NewClient()
 	g.Client.Intermission = 1
-	g.Client.PunchAngle = [3]float32{1, -2, 3}
+	g.Client.PunchAngle = types.Vec3{X: 1, Y: -2, Z: 3}
 
-	camera := g.runtimeCameraState([3]float32{1, 2, 3}, [3]float32{10, 20, 30})
+	camera := g.runtimeCameraState(types.Vec3{X: 1, Y: 2, Z: 3}, types.Vec3{X: 10, Y: 20, Z: 30})
 	if camera.Angles.X != 10 || camera.Angles.Y != 20 || camera.Angles.Z != 30 {
 		t.Fatalf("runtimeCameraState angles = %v, want {10 20 30}", camera.Angles)
 	}
@@ -153,12 +154,12 @@ func TestRuntimeViewStateUsesLiveViewAnglesWithoutInterpolation(t *testing.T) {
 
 	g.Client = cl.NewClient()
 	g.Client.ViewEntity = 1
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{32, 64, 96}}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 32, Y: 64, Z: 96}}
 	g.Client.ViewHeight = 22
-	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
-	g.Client.ViewAngles = [3]float32{45, 135, 225}
-	g.Client.MViewAngles[1] = [3]float32{0, 0, 0}
-	g.Client.MViewAngles[0] = [3]float32{10, 20, 30}
+	g.Client.PredictedOrigin = types.Vec3{X: 32, Y: 64, Z: 96}
+	g.Client.ViewAngles = types.Vec3{X: 45, Y: 135, Z: 225}
+	g.Client.MViewAngles[1] = types.Vec3{X: 0, Y: 0, Z: 0}
+	g.Client.MViewAngles[0] = types.Vec3{X: 10, Y: 20, Z: 30}
 	g.Client.MTime[1] = 1.0
 	g.Client.MTime[0] = 1.1
 	g.Client.Time = 1.05
@@ -179,12 +180,12 @@ func TestRuntimeViewStateUsesForcedAnglesWithoutInterpolation(t *testing.T) {
 
 	g.Client = cl.NewClient()
 	g.Client.ViewEntity = 1
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{32, 64, 96}}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 32, Y: 64, Z: 96}}
 	g.Client.ViewHeight = 22
-	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
-	g.Client.ViewAngles = [3]float32{45, 135, 225}
-	g.Client.MViewAngles[1] = [3]float32{0, 0, 0}
-	g.Client.MViewAngles[0] = [3]float32{10, 20, 30}
+	g.Client.PredictedOrigin = types.Vec3{X: 32, Y: 64, Z: 96}
+	g.Client.ViewAngles = types.Vec3{X: 45, Y: 135, Z: 225}
+	g.Client.MViewAngles[1] = types.Vec3{X: 0, Y: 0, Z: 0}
+	g.Client.MViewAngles[0] = types.Vec3{X: 10, Y: 20, Z: 30}
 	g.Client.MTime[1] = 1.0
 	g.Client.MTime[0] = 1.1
 	g.Client.Time = 1.05
@@ -206,12 +207,12 @@ func TestRuntimeViewStateUsesDemoViewAnglesWithoutDoubleInterpolation(t *testing
 
 	g.Client = cl.NewClient()
 	g.Client.ViewEntity = 1
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{32, 64, 96}}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 32, Y: 64, Z: 96}}
 	g.Client.ViewHeight = 22
-	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
-	g.Client.ViewAngles = [3]float32{5, 10, 15}
-	g.Client.MViewAngles[1] = [3]float32{0, 0, 0}
-	g.Client.MViewAngles[0] = [3]float32{10, 20, 30}
+	g.Client.PredictedOrigin = types.Vec3{X: 32, Y: 64, Z: 96}
+	g.Client.ViewAngles = types.Vec3{X: 5, Y: 10, Z: 15}
+	g.Client.MViewAngles[1] = types.Vec3{X: 0, Y: 0, Z: 0}
+	g.Client.MViewAngles[0] = types.Vec3{X: 10, Y: 20, Z: 30}
 	g.Client.MTime[1] = 1.0
 	g.Client.MTime[0] = 1.1
 	g.Client.Time = 1.05
@@ -237,12 +238,12 @@ func TestRuntimeCameraStateInterpolatesPunchAngles(t *testing.T) {
 	g.Client = cl.NewClient()
 	g.Client.Stats[inet.StatHealth] = 100 // Alive player
 	g.Client.Intermission = 0
-	g.Client.PunchAngles[1] = [3]float32{0, 0, 0}
-	g.Client.PunchAngles[0] = [3]float32{10, 0, 0}
+	g.Client.PunchAngles[1] = types.Vec3{X: 0, Y: 0, Z: 0}
+	g.Client.PunchAngles[0] = types.Vec3{X: 10, Y: 0, Z: 0}
 	g.Client.PunchTime = 1.0
 	g.Client.Time = 1.05
 
-	camera := g.runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
+	camera := g.runtimeCameraState(types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{X: 1, Y: 2, Z: 3})
 	if camera.Angles.X < 5.9 || camera.Angles.X > 6.1 {
 		t.Fatalf("runtimeCameraState punch interpolation = %v, want ~6", camera.Angles.X)
 	}
@@ -261,13 +262,13 @@ func TestRuntimeCameraStateGunKickModeRaw(t *testing.T) {
 	g.Client = cl.NewClient()
 	g.Client.Stats[inet.StatHealth] = 100 // Alive player
 	g.Client.Intermission = 0
-	g.Client.PunchAngle = [3]float32{2, -4, 6}
-	g.Client.PunchAngles[1] = [3]float32{0, 0, 0}
-	g.Client.PunchAngles[0] = [3]float32{10, 0, 0}
+	g.Client.PunchAngle = types.Vec3{X: 2, Y: -4, Z: 6}
+	g.Client.PunchAngles[1] = types.Vec3{X: 0, Y: 0, Z: 0}
+	g.Client.PunchAngles[0] = types.Vec3{X: 10, Y: 0, Z: 0}
 	g.Client.PunchTime = 1.0
 	g.Client.Time = 1.05
 
-	camera := g.runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
+	camera := g.runtimeCameraState(types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{X: 1, Y: 2, Z: 3})
 	if camera.Angles.X != 3 || camera.Angles.Y != -2 || camera.Angles.Z != 9 {
 		t.Fatalf("runtimeCameraState raw punch = %v, want {3 -2 9}", camera.Angles)
 	}
@@ -286,9 +287,9 @@ func TestRuntimeCameraStateGunKickModeOff(t *testing.T) {
 	g.Client = cl.NewClient()
 	g.Client.Stats[inet.StatHealth] = 100 // Alive player
 	g.Client.Intermission = 0
-	g.Client.PunchAngle = [3]float32{2, -4, 6}
+	g.Client.PunchAngle = types.Vec3{X: 2, Y: -4, Z: 6}
 
-	camera := g.runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
+	camera := g.runtimeCameraState(types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{X: 1, Y: 2, Z: 3})
 	if camera.Angles.X != 1 || camera.Angles.Y != 2 || camera.Angles.Z != 3 {
 		t.Fatalf("runtimeCameraState with gunkick off = %v, want {1 2 3}", camera.Angles)
 	}
@@ -304,9 +305,9 @@ func TestRuntimeCameraStateDeadPlayerRoll(t *testing.T) {
 	g.Client = cl.NewClient()
 	g.Client.Stats[inet.StatHealth] = 0 // Dead player
 	g.Client.Intermission = 0
-	g.Client.PunchAngle = [3]float32{10, 10, 10}
+	g.Client.PunchAngle = types.Vec3{X: 10, Y: 10, Z: 10}
 
-	camera := g.runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
+	camera := g.runtimeCameraState(types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{X: 1, Y: 2, Z: 3})
 	// Dead players should have roll = 80 and ignore other view effects.
 	if camera.Angles.Z != 80 {
 		t.Fatalf("runtimeCameraState dead player roll = %v, want 80", camera.Angles.Z)
@@ -347,7 +348,7 @@ func TestRuntimeCameraStateAppliesChaseCameraWhenActive(t *testing.T) {
 	g.Host.CVar.Set("chase_up", "16")
 	g.Host.CVar.Set("chase_right", "0")
 
-	camera := g.runtimeCameraState([3]float32{0, 0, 0}, [3]float32{0, 0, 0})
+	camera := g.runtimeCameraState(types.Vec3{X: 0, Y: 0, Z: 0}, types.Vec3{X: 0, Y: 0, Z: 0})
 	if math.Abs(float64(camera.Origin.X+100)) > 0.001 || math.Abs(float64(camera.Origin.Y)) > 0.001 || math.Abs(float64(camera.Origin.Z-16)) > 0.001 {
 		t.Fatalf("runtimeCameraState chase origin = %v, want {-100 0 16}", camera.Origin)
 	}
@@ -368,17 +369,17 @@ func TestRuntimeViewStateInterpolatesYawAcrossWrap(t *testing.T) {
 
 	g.Client = cl.NewClient()
 	g.Client.ViewHeight = 22
-	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
-	g.Client.MViewAngles[1] = [3]float32{0, 350, 0}
-	g.Client.MViewAngles[0] = [3]float32{0, 10, 0}
+	g.Client.PredictedOrigin = types.Vec3{X: 32, Y: 64, Z: 96}
+	g.Client.MViewAngles[1] = types.Vec3{X: 0, Y: 350, Z: 0}
+	g.Client.MViewAngles[0] = types.Vec3{X: 0, Y: 10, Z: 0}
 	g.Client.MTime[1] = 1.0
 	g.Client.MTime[0] = 1.1
 	g.Client.Time = 1.05
 	markCurrentPredictionFresh(g.Client)
 
 	_, angles := g.runtimeViewState()
-	if math.Abs(float64(angles[1]-360)) > 0.01 && math.Abs(float64(angles[1])) > 0.01 {
-		t.Fatalf("runtimeViewState wrapped yaw = %v, want 0/360 short-path interpolation", angles[1])
+	if math.Abs(float64(angles.Y-360)) > 0.01 && math.Abs(float64(angles.Y)) > 0.01 {
+		t.Fatalf("runtimeViewState wrapped yaw = %v, want 0/360 short-path interpolation", angles.Y)
 	}
 }
 
@@ -406,14 +407,14 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 
 	g.Client = cl.NewClient()
 	g.Client.ViewEntity = 1
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 100, Y: 200, Z: 300}}
 	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
 	g.Client.Stats[inet.StatHealth] = 100
 	g.Client.Stats[inet.StatWeapon] = 1
 	g.Client.Stats[inet.StatWeaponFrame] = 1
-	g.Client.ViewAngles = [3]float32{12, 34, 0}
+	g.Client.ViewAngles = types.Vec3{X: 12, Y: 34, Z: 0}
 	g.Client.ViewHeight = 28
-	g.Client.PredictedOrigin = [3]float32{100, 200, 300}
+	g.Client.PredictedOrigin = types.Vec3{X: 100, Y: 200, Z: 300}
 	markCurrentPredictionFresh(g.Client)
 	g.Menu = menu.NewManager(nil, nil, nil)
 	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
@@ -428,15 +429,15 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 	if entity == nil {
 		t.Fatal("g.collectViewModelEntity() = nil, want entity")
 	}
-	if entity.Origin != [3]float32{100, 200, 328} {
+	if entity.Origin != (types.Vec3{X: 100, Y: 200, Z: 328}) {
 		t.Fatalf("viewmodel origin = %v, want eye origin [100 200 328]", entity.Origin)
 	}
 	// viewCalcGunAngle negates pitch: -(12 + 0) = -12.
-	if entity.Angles[0] != -12 {
-		t.Fatalf("viewmodel pitch = %v, want -12", entity.Angles[0])
+	if entity.Angles.X != -12 {
+		t.Fatalf("viewmodel pitch = %v, want -12", entity.Angles.X)
 	}
-	if entity.Angles[1] != 34 {
-		t.Fatalf("viewmodel yaw = %v, want 34", entity.Angles[1])
+	if entity.Angles.Y != 34 {
+		t.Fatalf("viewmodel yaw = %v, want 34", entity.Angles.Y)
 	}
 	if entity.Frame != 1 {
 		t.Fatalf("viewmodel frame = %d, want 1", entity.Frame)
@@ -620,10 +621,10 @@ func TestCollectViewModelEntityAppliesPunchAndDamageKickAngles(t *testing.T) {
 	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
 	g.Client.Stats[inet.StatHealth] = 100
 	g.Client.Stats[inet.StatWeapon] = 1
-	g.Client.ViewAngles = [3]float32{12, 34, 0}
-	g.Client.PunchAngle = [3]float32{2, 3, 4}
+	g.Client.ViewAngles = types.Vec3{X: 12, Y: 34, Z: 0}
+	g.Client.PunchAngle = types.Vec3{X: 2, Y: 3, Z: 4}
 	g.Client.ViewHeight = 28
-	g.Client.PredictedOrigin = [3]float32{100, 200, 300}
+	g.Client.PredictedOrigin = types.Vec3{X: 100, Y: 200, Z: 300}
 	markCurrentPredictionFresh(g.Client)
 	g.Menu = menu.NewManager(nil, nil, nil)
 	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
@@ -641,14 +642,14 @@ func TestCollectViewModelEntityAppliesPunchAndDamageKickAngles(t *testing.T) {
 	if entity == nil {
 		t.Fatal("g.collectViewModelEntity() = nil, want entity")
 	}
-	if entity.Angles[0] != -12 {
-		t.Fatalf("viewmodel pitch = %v, want -12", entity.Angles[0])
+	if entity.Angles.X != -12 {
+		t.Fatalf("viewmodel pitch = %v, want -12", entity.Angles.X)
 	}
-	if entity.Angles[1] != 34 {
-		t.Fatalf("viewmodel yaw = %v, want 34", entity.Angles[1])
+	if entity.Angles.Y != 34 {
+		t.Fatalf("viewmodel yaw = %v, want 34", entity.Angles.Y)
 	}
-	if entity.Angles[2] != 0 {
-		t.Fatalf("viewmodel roll = %v, want 0", entity.Angles[2])
+	if entity.Angles.Z != 0 {
+		t.Fatalf("viewmodel roll = %v, want 0", entity.Angles.Z)
 	}
 }
 

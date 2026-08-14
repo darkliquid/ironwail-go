@@ -15,6 +15,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type texEntry struct {
@@ -410,8 +411,8 @@ func runInfo(tree *bsp.Tree, mapPath, gamedir string) {
 					vi = tree.Edges[-se].V[1]
 				}
 				p := tree.Vertexes[vi].Point
-				u := float64(p[0])*float64(ti.Vecs[0][0]) + float64(p[1])*float64(ti.Vecs[0][1]) + float64(p[2])*float64(ti.Vecs[0][2]) + float64(ti.Vecs[0][3])
-				v := float64(p[0])*float64(ti.Vecs[1][0]) + float64(p[1])*float64(ti.Vecs[1][1]) + float64(p[2])*float64(ti.Vecs[1][2]) + float64(ti.Vecs[1][3])
+				u := float64(p.X)*float64(ti.Vecs[0][0]) + float64(p.Y)*float64(ti.Vecs[0][1]) + float64(p.Z)*float64(ti.Vecs[0][2]) + float64(ti.Vecs[0][3])
+				v := float64(p.X)*float64(ti.Vecs[1][0]) + float64(p.Y)*float64(ti.Vecs[1][1]) + float64(p.Z)*float64(ti.Vecs[1][2]) + float64(ti.Vecs[1][3])
 				if u < minU {
 					minU = u
 				}
@@ -498,7 +499,7 @@ func runEntities(tree *bsp.Tree, classFilter string) {
 }
 
 func runPoint(tree *bsp.Tree, x, y, z float32) {
-	pos := [3]float32{x, y, z}
+	pos := types.Vec3{X: x, Y: y, Z: z}
 	fmt.Printf("=== BSP Point Query (%.2f, %.2f, %.2f) ===\n", x, y, z)
 	leaf := tree.PointInLeaf(pos)
 	if leaf == nil {
@@ -527,19 +528,19 @@ func runWaterpools(tree *bsp.Tree) {
 	for i, leaf := range tree.Leafs {
 		if leaf.Contents == -3 { // CONTENTS_WATER
 			waterLeaves++
-			dz := float32(leaf.BoundsMax[2] - leaf.BoundsMin[2])
+			dz := float32(leaf.BoundsMax.Z - leaf.BoundsMin.Z)
 			if dz > 32 {
-				cx := float32(leaf.BoundsMin[0]+leaf.BoundsMax[0]) * 0.5
-				cy := float32(leaf.BoundsMin[1]+leaf.BoundsMax[1]) * 0.5
-				czAir := float32(leaf.BoundsMax[2]) + 40.0
-				czFloor := float32(leaf.BoundsMin[2]) - 10.0
-				floorLeaf := tree.PointInLeaf([3]float32{cx, cy, czFloor})
+				cx := float32(leaf.BoundsMin.X+leaf.BoundsMax.X) * 0.5
+				cy := float32(leaf.BoundsMin.Y+leaf.BoundsMax.Y) * 0.5
+				czAir := float32(leaf.BoundsMax.Z) + 40.0
+				czFloor := float32(leaf.BoundsMin.Z) - 10.0
+				floorLeaf := tree.PointInLeaf(types.Vec3{X: cx, Y: cy, Z: czFloor})
 				floorContents := int32(-1)
 				if floorLeaf != nil {
 					floorContents = floorLeaf.Contents
 				}
 				fmt.Printf("Water Leaf #%d: Mins=(%.1f, %.1f, %.1f) Maxs=(%.1f, %.1f, %.1f) Height=%.1f | AirCam=(%.1f, %.1f, %.1f) FloorLeafContents=%d\n",
-					i, leaf.BoundsMin[0], leaf.BoundsMin[1], leaf.BoundsMin[2], leaf.BoundsMax[0], leaf.BoundsMax[1], leaf.BoundsMax[2], dz, cx, cy, czAir, floorContents)
+					i, leaf.BoundsMin.X, leaf.BoundsMin.Y, leaf.BoundsMin.Z, leaf.BoundsMax.X, leaf.BoundsMax.Y, leaf.BoundsMax.Z, dz, cx, cy, czAir, floorContents)
 			}
 		}
 	}
@@ -603,11 +604,11 @@ func runFace(tree *bsp.Tree, faceIdx int) {
 			vi = tree.Edges[-se].V[1]
 		}
 		p := tree.Vertexes[vi].Point
-		fmt.Printf("  V[%2d]: (%.2f, %.2f, %.2f)", j, p[0], p[1], p[2])
+		fmt.Printf("  V[%2d]: (%.2f, %.2f, %.2f)", j, p.X, p.Y, p.Z)
 
 		if ti != nil {
-			u := float64(p[0])*float64(ti.Vecs[0][0]) + float64(p[1])*float64(ti.Vecs[0][1]) + float64(p[2])*float64(ti.Vecs[0][2]) + float64(ti.Vecs[0][3])
-			v := float64(p[0])*float64(ti.Vecs[1][0]) + float64(p[1])*float64(ti.Vecs[1][1]) + float64(p[2])*float64(ti.Vecs[1][2]) + float64(ti.Vecs[1][3])
+			u := float64(p.X)*float64(ti.Vecs[0][0]) + float64(p.Y)*float64(ti.Vecs[0][1]) + float64(p.Z)*float64(ti.Vecs[0][2]) + float64(ti.Vecs[0][3])
+			v := float64(p.X)*float64(ti.Vecs[1][0]) + float64(p.Y)*float64(ti.Vecs[1][1]) + float64(p.Z)*float64(ti.Vecs[1][2]) + float64(ti.Vecs[1][3])
 			fmt.Printf(" -> UV: (%.2f, %.2f)", u, v)
 			if u < minU {
 				minU = u

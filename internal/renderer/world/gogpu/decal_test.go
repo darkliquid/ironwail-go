@@ -37,11 +37,11 @@ func TestDecalUniformBytes(t *testing.T) {
 }
 
 func TestBuildDecalVertices(t *testing.T) {
-	corners := [4][3]float32{
-		{1, 2, 3},
-		{4, 5, 6},
-		{7, 8, 9},
-		{10, 11, 12},
+	corners := [4]types.Vec3{
+		{X: 1, Y: 2, Z: 3},
+		{X: 4, Y: 5, Z: 6},
+		{X: 7, Y: 8, Z: 9},
+		{X: 10, Y: 11, Z: 12},
 	}
 	color := [4]float32{0.1, 0.2, 0.3, 0.4}
 
@@ -71,7 +71,7 @@ func TestBuildDecalVertices(t *testing.T) {
 
 func TestDecalVertexBytes(t *testing.T) {
 	vertices := []DecalVertex{{
-		Position: [3]float32{1, 2, 3},
+		Position: types.Vec3{X: 1, Y: 2, Z: 3},
 		TexCoord: [2]float32{0.25, 0.75},
 		Color:    [4]float32{0.1, 0.2, 0.3, 0.4},
 	}}
@@ -100,11 +100,11 @@ func TestDecalVertexBytes(t *testing.T) {
 }
 
 func TestPrepareDecalDraw(t *testing.T) {
-	corners := [4][3]float32{
-		{1, 2, 3},
-		{4, 5, 6},
-		{7, 8, 9},
-		{10, 11, 12},
+	corners := [4]types.Vec3{
+		{X: 1, Y: 2, Z: 3},
+		{X: 4, Y: 5, Z: 6},
+		{X: 7, Y: 8, Z: 9},
+		{X: 10, Y: 11, Z: 12},
 	}
 	color := [4]float32{0.1, 0.2, 0.3, 0.4}
 
@@ -128,21 +128,21 @@ func TestPrepareDecalDraw(t *testing.T) {
 
 func TestPrepareDecalDrawFromMark(t *testing.T) {
 	params := DecalMarkParams{
-		Origin:   [3]float32{1, 2, 3},
-		Normal:   [3]float32{0, 0, 1},
+		Origin:   types.Vec3{X: 1, Y: 2, Z: 3},
+		Normal:   types.Vec3{X: 0, Y: 0, Z: 1},
 		Size:     16,
 		Rotation: 0.5,
 		Variant:  2,
 	}
 	color := [4]float32{0.2, 0.3, 0.4, 0.5}
 	var gotParams DecalMarkParams
-	got := PrepareDecalDrawFromMark(params, color, func(in DecalMarkParams) ([4][3]float32, bool) {
+	got := PrepareDecalDrawFromMark(params, color, func(in DecalMarkParams) ([4]types.Vec3, bool) {
 		gotParams = in
-		return [4][3]float32{
-			{1, 2, 3},
-			{4, 5, 6},
-			{7, 8, 9},
-			{10, 11, 12},
+		return [4]types.Vec3{
+			{X: 1, Y: 2, Z: 3},
+			{X: 4, Y: 5, Z: 6},
+			{X: 7, Y: 8, Z: 9},
+			{X: 10, Y: 11, Z: 12},
 		}, true
 	})
 	if gotParams != params {
@@ -162,8 +162,8 @@ func TestPrepareDecalDrawFromMarkRejectsMissingQuadBuilderOrQuad(t *testing.T) {
 	if got := PrepareDecalDrawFromMark(params, color, nil); got.VertexCount != 0 || len(got.VertexBytes) != 0 {
 		t.Fatal("PrepareDecalDrawFromMark should reject nil builders")
 	}
-	if got := PrepareDecalDrawFromMark(params, color, func(DecalMarkParams) ([4][3]float32, bool) {
-		return [4][3]float32{}, false
+	if got := PrepareDecalDrawFromMark(params, color, func(DecalMarkParams) ([4]types.Vec3, bool) {
+		return [4]types.Vec3{}, false
 	}); got.VertexCount != 0 || len(got.VertexBytes) != 0 {
 		t.Fatal("PrepareDecalDrawFromMark should reject failed quad builds")
 	}
@@ -173,8 +173,8 @@ func TestPrepareDecalDraws(t *testing.T) {
 	marks := []DecalPreparedMark{
 		{
 			Params: DecalMarkParams{
-				Origin:   [3]float32{1, 2, 3},
-				Normal:   [3]float32{0, 0, 1},
+				Origin:   types.Vec3{X: 1, Y: 2, Z: 3},
+				Normal:   types.Vec3{X: 0, Y: 0, Z: 1},
 				Size:     16,
 				Rotation: 0.5,
 				Variant:  1,
@@ -183,8 +183,8 @@ func TestPrepareDecalDraws(t *testing.T) {
 		},
 		{
 			Params: DecalMarkParams{
-				Origin:   [3]float32{4, 5, 6},
-				Normal:   [3]float32{0, 1, 0},
+				Origin:   types.Vec3{X: 4, Y: 5, Z: 6},
+				Normal:   types.Vec3{X: 0, Y: 1, Z: 0},
 				Size:     24,
 				Rotation: 0.25,
 				Variant:  2,
@@ -193,8 +193,8 @@ func TestPrepareDecalDraws(t *testing.T) {
 		},
 		{
 			Params: DecalMarkParams{
-				Origin:  [3]float32{7, 8, 9},
-				Normal:  [3]float32{1, 0, 0},
+				Origin:  types.Vec3{X: 7, Y: 8, Z: 9},
+				Normal:  types.Vec3{X: 1, Y: 0, Z: 0},
 				Size:    12,
 				Variant: 3,
 			},
@@ -202,15 +202,15 @@ func TestPrepareDecalDraws(t *testing.T) {
 		},
 	}
 	gotParams := make([]DecalMarkParams, 0, len(marks))
-	draws := PrepareDecalDraws(marks, func(in DecalMarkParams) ([4][3]float32, bool) {
+	draws := PrepareDecalDraws(marks, func(in DecalMarkParams) ([4]types.Vec3, bool) {
 		gotParams = append(gotParams, in)
 		switch len(gotParams) {
 		case 1:
-			return [4][3]float32{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}}, true
+			return [4]types.Vec3{{X: 1, Y: 2, Z: 3}, {X: 4, Y: 5, Z: 6}, {X: 7, Y: 8, Z: 9}, {X: 10, Y: 11, Z: 12}}, true
 		case 2:
-			return [4][3]float32{}, false
+			return [4]types.Vec3{}, false
 		default:
-			return [4][3]float32{{2, 3, 4}, {5, 6, 7}, {8, 9, 10}, {11, 12, 13}}, true
+			return [4]types.Vec3{{X: 2, Y: 3, Z: 4}, {X: 5, Y: 6, Z: 7}, {X: 8, Y: 9, Z: 10}, {X: 11, Y: 12, Z: 13}}, true
 		}
 	})
 	if len(gotParams) != len(marks) {
@@ -246,9 +246,9 @@ func TestPrepareDecalDrawsRejectsMissingBuilderOrMarks(t *testing.T) {
 		Params: DecalMarkParams{Variant: 1},
 		Color:  [4]float32{1, 1, 1, 1},
 	}
-	if got := PrepareDecalDraws(nil, func(DecalMarkParams) ([4][3]float32, bool) {
+	if got := PrepareDecalDraws(nil, func(DecalMarkParams) ([4]types.Vec3, bool) {
 		t.Fatal("builder should not be called for nil marks")
-		return [4][3]float32{}, false
+		return [4]types.Vec3{}, false
 	}); got != nil {
 		t.Fatalf("PrepareDecalDraws(nil, builder) = %v, want nil", got)
 	}
@@ -266,16 +266,16 @@ func TestPrepareDecalDrawsWithAdapter(t *testing.T) {
 
 	input := []rootDecalDraw{
 		{
-			mark:  DecalMarkParams{Origin: [3]float32{1, 2, 3}, Normal: [3]float32{0, 0, 1}, Size: 16, Rotation: 0.5, Variant: 1},
+			mark:  DecalMarkParams{Origin: types.Vec3{X: 1, Y: 2, Z: 3}, Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Size: 16, Rotation: 0.5, Variant: 1},
 			color: [4]float32{0.1, 0.2, 0.3, 0.4},
 		},
 		{
-			mark:  DecalMarkParams{Origin: [3]float32{4, 5, 6}, Normal: [3]float32{0, 1, 0}, Size: 12, Rotation: 0.25, Variant: 2},
+			mark:  DecalMarkParams{Origin: types.Vec3{X: 4, Y: 5, Z: 6}, Normal: types.Vec3{X: 0, Y: 1, Z: 0}, Size: 12, Rotation: 0.25, Variant: 2},
 			color: [4]float32{0.5, 0.6, 0.7, 0.8},
 			drop:  true,
 		},
 		{
-			mark:  DecalMarkParams{Origin: [3]float32{7, 8, 9}, Normal: [3]float32{1, 0, 0}, Size: 20, Variant: 3},
+			mark:  DecalMarkParams{Origin: types.Vec3{X: 7, Y: 8, Z: 9}, Normal: types.Vec3{X: 1, Y: 0, Z: 0}, Size: 20, Variant: 3},
 			color: [4]float32{0.9, 0.8, 0.7, 0.6},
 		},
 	}
@@ -289,13 +289,13 @@ func TestPrepareDecalDrawsWithAdapter(t *testing.T) {
 		prepared := DecalPreparedMark{Params: mark.mark, Color: mark.color}
 		adapted = append(adapted, prepared)
 		return prepared, true
-	}, func(params DecalMarkParams) ([4][3]float32, bool) {
+	}, func(params DecalMarkParams) ([4]types.Vec3, bool) {
 		built = append(built, params)
 		switch len(built) {
 		case 1:
-			return [4][3]float32{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}}, true
+			return [4]types.Vec3{{X: 1, Y: 2, Z: 3}, {X: 4, Y: 5, Z: 6}, {X: 7, Y: 8, Z: 9}, {X: 10, Y: 11, Z: 12}}, true
 		default:
-			return [4][3]float32{{2, 3, 4}, {5, 6, 7}, {8, 9, 10}, {11, 12, 13}}, true
+			return [4]types.Vec3{{X: 2, Y: 3, Z: 4}, {X: 5, Y: 6, Z: 7}, {X: 8, Y: 9, Z: 10}, {X: 11, Y: 12, Z: 13}}, true
 		}
 	})
 
@@ -331,9 +331,9 @@ func TestPrepareDecalDrawsWithAdapter(t *testing.T) {
 func TestPrepareDecalDrawsWithAdapterRejectsMissingInputs(t *testing.T) {
 	type rootDecalDraw struct{ mark DecalMarkParams }
 
-	builder := func(DecalMarkParams) ([4][3]float32, bool) {
+	builder := func(DecalMarkParams) ([4]types.Vec3, bool) {
 		t.Fatal("builder should not be called")
-		return [4][3]float32{}, false
+		return [4]types.Vec3{}, false
 	}
 	adapter := func(rootDecalDraw) (DecalPreparedMark, bool) {
 		t.Fatal("adapter should not be called")

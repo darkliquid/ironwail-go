@@ -7,6 +7,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestRecursiveHullCheckTransitionsFromSolidToOpen tests the recursive hull collision check algorithm with synthetic data.
@@ -20,20 +21,20 @@ func TestRecursiveHullCheckTransitionsFromSolidToOpen(t *testing.T) {
 			{PlaneNum: 0, Children: [2]int{bsp.ContentsSolid, bsp.ContentsEmpty}},
 		},
 		Planes: []model.MPlane{
-			{Normal: [3]float32{0, 0, 1}, Dist: 1, Type: 2}, // z = 1
+			{Normal: qtypes.Vec3{X: 0, Y: 0, Z: 1}, Dist: 1, Type: 2}, // z = 1
 		},
 	}
 
-	start := [3]float32{2, 0, 3}
-	end := [3]float32{2, 0, -3}
+	start := qtypes.Vec3{X: 2, Y: 0, Z: 3}
+	end := qtypes.Vec3{X: 2, Y: 0, Z: -3}
 
 	sawOpen := false
 	for i := 0; i <= 256; i++ {
 		frac := float32(i) / 256
-		point := [3]float32{
-			start[0] + (end[0]-start[0])*frac,
-			start[1] + (end[1]-start[1])*frac,
-			start[2] + (end[2]-start[2])*frac,
+		point := qtypes.Vec3{
+			X: start.X + (end.X-start.X)*frac,
+			Y: start.Y + (end.Y-start.Y)*frac,
+			Z: start.Z + (end.Z-start.Z)*frac,
 		}
 		if got := hullPointContents(hull, hull.FirstClipNode, point); got != bsp.ContentsSolid {
 			sawOpen = true

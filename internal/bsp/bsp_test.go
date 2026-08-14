@@ -376,7 +376,7 @@ func TestLoadTree2PSBNodeStride(t *testing.T) {
 		t.Fatalf("node count = %d, want 1", len(tree.Nodes))
 	}
 	node := tree.Nodes[0]
-	if node.BoundsMin[0] != -10 || node.BoundsMax[0] != 10 || node.FirstFace != 2 || node.NumFaces != 3 {
+	if node.BoundsMin.X != -10 || node.BoundsMax.X != 10 || node.FirstFace != 2 || node.NumFaces != 3 {
 		t.Fatalf("decoded node = %+v", node)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/hud"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // applyDemoPlaybackViewAngles shifts the double-buffered demo view angles
@@ -24,7 +25,7 @@ import (
 // render frame. Overwriting ViewAngles with the raw new packet angle snaps
 // the camera to the keyframe and bypasses the interpolation, producing
 // visible judder during view rotation in demo playback.
-func (g *Game) applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles [3]float32) {
+func (g *Game) applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles types.Vec3) {
 	if clientState == nil {
 		return
 	}
@@ -122,7 +123,7 @@ func (g *Game) syncRuntimeVisualEffects(dt float64, transientEvents cl.Transient
 	// Mirrors C Ironwail V_ParseDamage damage kick calculation (view.c:329-345).
 	if g.Client.DamageTaken > 0 || g.Client.DamageSaved > 0 {
 		if entityOrigin, ok := g.runtimeAuthoritativePlayerOrigin(); ok {
-			var entityAngles [3]float32
+			var entityAngles types.Vec3
 			// Get player entity angles from ViewEntity.
 			if g.Client.ViewEntity != 0 {
 				if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok {

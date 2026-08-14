@@ -5,6 +5,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type AreaNode = srvtypes.AreaNode
@@ -29,7 +30,7 @@ func (c *System) Areanodes() []AreaNode {
 	return c.areanodes
 }
 
-func (c *System) createAreaNode(depth int, mins, maxs [3]float32) *AreaNode {
+func (c *System) createAreaNode(depth int, mins, maxs qtypes.Vec3) *AreaNode {
 	if len(c.areanodes) <= c.numAreaNodes {
 		return nil
 	}
@@ -49,27 +50,28 @@ func (c *System) createAreaNode(depth int, mins, maxs [3]float32) *AreaNode {
 		return node
 	}
 
-	size := [3]float32{
-		maxs[0] - mins[0],
-		maxs[1] - mins[1],
-		maxs[2] - mins[2],
-	}
+	size := maxs.Sub(mins)
 
-	if size[0] > size[1] {
+	if size.X > size.Y {
 		node.Axis = 0
+		node.Dist = 0.5 * (maxs.X + mins.X)
 	} else {
 		node.Axis = 1
+		node.Dist = 0.5 * (maxs.Y + mins.Y)
 	}
-
-	node.Dist = 0.5 * (maxs[node.Axis] + mins[node.Axis])
 
 	mins1 := mins
 	maxs1 := maxs
 	mins2 := mins
 	maxs2 := maxs
 
-	maxs1[node.Axis] = node.Dist
-	mins2[node.Axis] = node.Dist
+	if node.Axis == 0 {
+		maxs1.X = node.Dist
+		mins2.X = node.Dist
+	} else {
+		maxs1.Y = node.Dist
+		mins2.Y = node.Dist
+	}
 
 	node.Children[0] = c.createAreaNode(depth+1, mins2, maxs2)
 	node.Children[1] = c.createAreaNode(depth+1, mins1, maxs1)
@@ -87,7 +89,7 @@ func (c *System) ClearWorld() {
 
 	c.numAreaNodes = 0
 
-	var mins, maxs [3]float32
+	var mins, maxs qtypes.Vec3
 	if c.world != nil && !isNilCollisionModel(c.world.GetWorldModel()) {
 		mins = c.world.GetWorldModel().CollisionClipMins()
 		maxs = c.world.GetWorldModel().CollisionClipMaxs()
@@ -126,21 +128,15 @@ func (c *System) LinkEdict(ent *srvtypes.Edict, touchTriggers bool) {
 	origin := ent.Origin(sh)
 	mins := ent.Mins(sh)
 	maxes := ent.Maxs(sh)
-	absMin := [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]}
-	absMax := [3]float32{origin[0] + maxes[0], origin[1] + maxes[1], origin[2] + maxes[2]}
+	absMin := origin.Add(mins)
+	absMax := origin.Add(maxes)
 
 	if uint32(ent.Flags(sh))&srvtypes.FlagItem != 0 {
-		absMin[0] -= 15
-		absMin[1] -= 15
-		absMax[0] += 15
-		absMax[1] += 15
+		absMin = absMin.Add(qtypes.Vec3{X: -15, Y: -15, Z: 0})
+		absMax = absMax.Add(qtypes.Vec3{X: 15, Y: 15, Z: 0})
 	} else {
-		absMin[0] -= 1
-		absMin[1] -= 1
-		absMin[2] -= 1
-		absMax[0] += 1
-		absMax[1] += 1
-		absMax[2] += 1
+		absMin = absMin.Add(qtypes.Vec3{X: -1, Y: -1, Z: -1})
+		absMax = absMax.Add(qtypes.Vec3{X: 1, Y: 1, Z: 1})
 	}
 	ent.SetAbsMin(sh, absMin)
 	ent.SetAbsMax(sh, absMax)
@@ -155,12 +151,18 @@ func (c *System) LinkEdict(ent *srvtypes.Edict, touchTriggers bool) {
 
 	node := &c.areanodes[0]
 	for node.Axis != -1 {
-		if absMin[node.Axis] > node.Dist {
+		var minVal, maxVal float32
+		if node.Axis == 0 {
+			minVal, maxVal = absMin.X, absMax.X
+		} else {
+			minVal, maxVal = absMin.Y, absMax.Y
+		}
+		if minVal > node.Dist {
 			if node.Children[0] == nil {
 				break
 			}
 			node = node.Children[0]
-		} else if absMax[node.Axis] < node.Dist {
+		} else if maxVal < node.Dist {
 			if node.Children[1] == nil {
 				break
 			}
@@ -252,12 +254,12 @@ func (c *System) areaTriggerEdicts(ent *srvtypes.Edict, node *AreaNode, list *[]
 		}
 		touchAbsMin := touch.AbsMin(sh)
 		touchAbsMax := touch.AbsMax(sh)
-		if entAbsMin[0] > touchAbsMax[0] ||
-			entAbsMin[1] > touchAbsMax[1] ||
-			entAbsMin[2] > touchAbsMax[2] ||
-			entAbsMax[0] < touchAbsMin[0] ||
-			entAbsMax[1] < touchAbsMin[1] ||
-			entAbsMax[2] < touchAbsMin[2] {
+		if entAbsMin.X > touchAbsMax.X ||
+			entAbsMin.Y > touchAbsMax.Y ||
+			entAbsMin.Z > touchAbsMax.Z ||
+			entAbsMax.X < touchAbsMin.X ||
+			entAbsMax.Y < touchAbsMin.Y ||
+			entAbsMax.Z < touchAbsMin.Z {
 			continue
 		}
 
@@ -271,10 +273,17 @@ func (c *System) areaTriggerEdicts(ent *srvtypes.Edict, node *AreaNode, list *[]
 		return
 	}
 
-	if entAbsMax[node.Axis] > node.Dist && node.Children[0] != nil {
+	var minVal, maxVal float32
+	if node.Axis == 0 {
+		minVal, maxVal = entAbsMin.X, entAbsMax.X
+	} else {
+		minVal, maxVal = entAbsMin.Y, entAbsMax.Y
+	}
+
+	if maxVal > node.Dist && node.Children[0] != nil {
 		c.areaTriggerEdicts(ent, node.Children[0], list, listCap)
 	}
-	if entAbsMin[node.Axis] < node.Dist && node.Children[1] != nil {
+	if minVal < node.Dist && node.Children[1] != nil {
 		c.areaTriggerEdicts(ent, node.Children[1], list, listCap)
 	}
 }

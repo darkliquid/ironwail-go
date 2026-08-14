@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 var debugViewTelemetryCVar *cvar.CVar
@@ -81,10 +82,10 @@ func (r runtimeOriginRejectReason) String() string {
 type runtimeOriginSelectTelemetry struct {
 	Source                   runtimeOriginSource
 	RejectReason             runtimeOriginRejectReason
-	AuthoritativeOrigin      [3]float32
-	PredictedOrigin          [3]float32
+	AuthoritativeOrigin      types.Vec3
+	PredictedOrigin          types.Vec3
 	PredictionValid          bool
-	FinalBaseOrigin          [3]float32
+	FinalBaseOrigin          types.Vec3
 	XYDelta                  [2]float32
 	PredictionErrorXY        [2]float32
 	XYOffsetThreshold        float32

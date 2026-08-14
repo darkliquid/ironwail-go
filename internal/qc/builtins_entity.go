@@ -173,10 +173,7 @@ func findradius(vm *VM) {
 	radSq := rad * rad
 	for entNum := 1; entNum < vm.NumEdicts; entNum++ {
 		entOrg := vm.EVector(entNum, EntFieldOrigin)
-		dx := entOrg[0] - org[0]
-		dy := entOrg[1] - org[1]
-		dz := entOrg[2] - org[2]
-		if dx*dx+dy*dy+dz*dz <= radSq {
+		if entOrg.DistanceSq(org) <= radSq {
 			vm.SetGInt(OFSReturn, int32(entNum))
 			return
 		}
@@ -203,13 +200,9 @@ func setorigin(vm *VM) {
 
 	mins := vm.EVector(entNum, EntFieldMins)
 	maxs := vm.EVector(entNum, EntFieldMaxs)
-	vm.SetEVector(entNum, EntFieldAbsMin, [3]float32{org[0] + mins[0], org[1] + mins[1], org[2] + mins[2]})
-	vm.SetEVector(entNum, EntFieldAbsMax, [3]float32{org[0] + maxs[0], org[1] + maxs[1], org[2] + maxs[2]})
+	vm.SetEVector(entNum, EntFieldAbsMin, org.Add(mins))
+	vm.SetEVector(entNum, EntFieldAbsMax, org.Add(maxs))
 }
-
-// setsize sets an entity's bounding box.
-//
-// QuakeC signature: void(entity e, vector min, vector max) setsize
 
 // setsize sets an entity's bounding box.
 //
@@ -225,17 +218,11 @@ func setsize(vm *VM) {
 
 	vm.SetEVector(entNum, EntFieldMins, mins)
 	vm.SetEVector(entNum, EntFieldMaxs, maxs)
-
-	size := [3]float32{
-		maxs[0] - mins[0],
-		maxs[1] - mins[1],
-		maxs[2] - mins[2],
-	}
-	vm.SetEVector(entNum, EntFieldSize, size)
+	vm.SetEVector(entNum, EntFieldSize, maxs.Sub(mins))
 
 	origin := vm.EVector(entNum, EntFieldOrigin)
-	vm.SetEVector(entNum, EntFieldAbsMin, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
-	vm.SetEVector(entNum, EntFieldAbsMax, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
+	vm.SetEVector(entNum, EntFieldAbsMin, origin.Add(mins))
+	vm.SetEVector(entNum, EntFieldAbsMax, origin.Add(maxs))
 }
 
 // setmodel sets the model for an entity.

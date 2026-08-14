@@ -1,10 +1,10 @@
-// audio_test.go verifies the pure game-layer audio helpers in isolation.
 package audio
 
 import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestUnderwaterIntensity(t *testing.T) {
@@ -27,7 +27,7 @@ func TestUnderwaterIntensity(t *testing.T) {
 
 func TestPointInTreeLeafSingleNode(t *testing.T) {
 	tree := &bsp.Tree{
-		Planes: []bsp.DPlane{{Normal: [3]float32{0, 0, 1}, Dist: 0}},
+		Planes: []bsp.DPlane{{Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0}},
 		Nodes:  []bsp.TreeNode{{PlaneNum: 0, Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 0}, {IsLeaf: true, Index: 1}}}},
 		Leafs: []bsp.TreeLeaf{
 			{Contents: int32(bsp.ContentsEmpty)},
@@ -36,7 +36,7 @@ func TestPointInTreeLeafSingleNode(t *testing.T) {
 	}
 
 	// Below z=0 plane -> side 1 -> leaf 1 (solid).
-	leaf, ok := PointInTreeLeaf(tree, [3]float32{0, 0, -10})
+	leaf, ok := PointInTreeLeaf(tree, types.Vec3{X: 0, Y: 0, Z: -10})
 	if !ok {
 		t.Fatal("PointInTreeLeaf failed on valid tree")
 	}
@@ -45,7 +45,7 @@ func TestPointInTreeLeafSingleNode(t *testing.T) {
 	}
 
 	// Above z=0 plane -> side 0 -> leaf 0 (empty).
-	leaf, ok = PointInTreeLeaf(tree, [3]float32{0, 0, 10})
+	leaf, ok = PointInTreeLeaf(tree, types.Vec3{X: 0, Y: 0, Z: 10})
 	if !ok {
 		t.Fatal("PointInTreeLeaf failed on upper side")
 	}
@@ -55,11 +55,11 @@ func TestPointInTreeLeafSingleNode(t *testing.T) {
 }
 
 func TestPointInTreeLeafInvalidTree(t *testing.T) {
-	if _, ok := PointInTreeLeaf(nil, [3]float32{0, 0, 0}); ok {
+	if _, ok := PointInTreeLeaf(nil, types.Vec3{}); ok {
 		t.Error("PointInTreeLeaf(nil tree) = ok, want false")
 	}
 	tree := &bsp.Tree{Planes: []bsp.DPlane{{}}, Nodes: []bsp.TreeNode{{Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 99}}}}}
-	if _, ok := PointInTreeLeaf(tree, [3]float32{0, 0, 0}); ok {
+	if _, ok := PointInTreeLeaf(tree, types.Vec3{}); ok {
 		t.Error("PointInTreeLeaf(out-of-range leaf) = ok, want false")
 	}
 }

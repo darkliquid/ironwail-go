@@ -6,6 +6,10 @@
 // thin *Server delegators so existing call sites compile unchanged.
 package server
 
+import (
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
+
 // CheckVelocity clamps an entity's velocity components to MaxVelocity bounds.
 func (s *Server) CheckVelocity(ent *Edict) {
 	s.ensurePhysicsSys()
@@ -51,7 +55,7 @@ func (s *Server) FlyMove(ent *Edict, time float32, steptrace *TraceResult) int {
 }
 
 // PushEntity moves an entity by a push vector, clipping against solid geometry.
-func (s *Server) PushEntity(ent *Edict, push [3]float32) TraceResult {
+func (s *Server) PushEntity(ent *Edict, push types.Vec3) TraceResult {
 	s.ensurePhysicsSys()
 	return s.PhysicsSys.PushEntity(ent, push)
 }
@@ -86,7 +90,7 @@ func (s *Server) SV_CheckAllEnts() {
 }
 
 // SV_TryUnstick attempts to unstick an entity by nudging in 8 directions.
-func (s *Server) SV_TryUnstick(ent *Edict, oldVel [3]float32) int {
+func (s *Server) SV_TryUnstick(ent *Edict, oldVel types.Vec3) int {
 	s.ensurePhysicsSys()
 	return s.PhysicsSys.SV_TryUnstick(ent, oldVel)
 }

@@ -62,24 +62,24 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		boundsMax := geom.Vertices[0].Position
 		for index := 1; index < len(geom.Vertices); index++ {
 			position := geom.Vertices[index].Position
-			if position[0] < boundsMin[0] {
-				boundsMin[0] = position[0]
+			if position.X < boundsMin.X {
+				boundsMin.X = position.X
 			}
-			if position[1] < boundsMin[1] {
-				boundsMin[1] = position[1]
+			if position.Y < boundsMin.Y {
+				boundsMin.Y = position.Y
 			}
-			if position[2] < boundsMin[2] {
-				boundsMin[2] = position[2]
+			if position.Z < boundsMin.Z {
+				boundsMin.Z = position.Z
 			}
 
-			if position[0] > boundsMax[0] {
-				boundsMax[0] = position[0]
+			if position.X > boundsMax.X {
+				boundsMax.X = position.X
 			}
-			if position[1] > boundsMax[1] {
-				boundsMax[1] = position[1]
+			if position.Y > boundsMax.Y {
+				boundsMax.Y = position.Y
 			}
-			if position[2] > boundsMax[2] {
-				boundsMax[2] = position[2]
+			if position.Z > boundsMax.Z {
+				boundsMax.Z = position.Z
 			}
 		}
 

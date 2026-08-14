@@ -58,10 +58,13 @@ func svDebugPushDumpTriggersOnce(s *Server) {
 			continue
 		}
 		cn := qcString(s.QCVM, e.ClassName(s))
+		absMin := e.AbsMin(s)
+		absMax := e.AbsMax(s)
+		org := e.Origin(s)
 		SvdbgPushLogf("trigger_dump edict=%d classname=%q touch=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f) origin=(%.1f %.1f %.1f)",
 			i, cn, e.Touch(s),
-			e.AbsMin(s)[0], e.AbsMin(s)[1], e.AbsMin(s)[2],
-			e.AbsMax(s)[0], e.AbsMax(s)[1], e.AbsMax(s)[2],
-			e.Origin(s)[0], e.Origin(s)[1], e.Origin(s)[2])
+			absMin.X, absMin.Y, absMin.Z,
+			absMax.X, absMax.Y, absMax.Z,
+			org.X, org.Y, org.Z)
 	}
 }

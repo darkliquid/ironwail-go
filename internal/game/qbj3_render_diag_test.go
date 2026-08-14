@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestQbj3RenderLayerCollectsWeaponAndKeycard builds the exact client state
@@ -58,7 +59,7 @@ func TestQbj3RenderLayerCollectsWeaponAndKeycard(t *testing.T) {
 	g.Client.State = cl.StateActive
 	g.Client.ViewEntity = 1
 	g.Client.ViewHeight = 22
-	g.Client.ViewAngles = [3]float32{0, 0, 0}
+	g.Client.ViewAngles = types.Vec3{X: 0, Y: 0, Z: 0}
 	g.Client.ViewEntAlpha = inet.ENTALPHA_DEFAULT
 	g.Client.Intermission = 0
 
@@ -74,8 +75,8 @@ func TestQbj3RenderLayerCollectsWeaponAndKeycard(t *testing.T) {
 	g.Client.Stats[inet.StatWeapon] = 88
 	g.Client.Stats[inet.StatWeaponFrame] = 1
 	g.Client.Stats[inet.StatActiveWeapon] = 4096
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{0, 0, 0}, ModelIndex: 85}
-	g.Client.Entities[16] = inet.EntityState{Origin: [3]float32{1024, 0, 504}, ModelIndex: 174}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 0, Y: 0, Z: 0}, ModelIndex: 85}
+	g.Client.Entities[16] = inet.EntityState{Origin: types.Vec3{X: 1024, Y: 0, Z: 504}, ModelIndex: 174}
 
 	g.Host = originalHost
 	g.Host.CVar.Set("r_drawentities", "1")

@@ -6,6 +6,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestDrawRuntimeClockAndFPSUseBottomRightCanvasForClassicHUD(t *testing.T) {
@@ -67,13 +68,13 @@ func TestDrawRuntimeSpeedUsesCrosshairCanvas(t *testing.T) {
 		ViewSize:     100,
 		ShowSpeed:    true,
 		ShowSpeedOfs: 10,
-		Velocity:     [3]float32{300, 400, 200},
+		Velocity:     types.Vec3{X: 300, Y: 400, Z: 200},
 	}
 	speed := &SpeedOverlay{}
 
 	g.drawRuntimeSpeed(dc, state, speed)
 	state.RealTime = 0.10
-	state.Velocity = [3]float32{}
+	state.Velocity = types.Vec3{}
 	g.drawRuntimeSpeed(dc, state, speed)
 
 	if len(dc.chars) != len("500") {

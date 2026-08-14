@@ -50,28 +50,43 @@ import (
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	srvnet "github.com/darkliquid/ironwail-go/internal/server/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
-func (s *Server) StartParticle(org, dir [3]float32, color, count int) {
+func (s *Server) StartParticle(org, dir types.Vec3, color, count int) {
 	if s.Datagram.Len() > MaxDatagram-18 {
 		return
 	}
 
 	s.Datagram.PutByte(byte(inet.SVCParticle))
 	flags := uint32(s.ProtocolFlags())
-	s.Datagram.WriteCoord(org[0], flags)
-	s.Datagram.WriteCoord(org[1], flags)
-	s.Datagram.WriteCoord(org[2], flags)
+	s.Datagram.WriteCoord(org.X, flags)
+	s.Datagram.WriteCoord(org.Y, flags)
+	s.Datagram.WriteCoord(org.Z, flags)
 
-	for i := 0; i < 3; i++ {
-		v := int(dir[i] * 16)
-		if v > 127 {
-			v = 127
-		} else if v < -128 {
-			v = -128
-		}
-		s.Datagram.WriteChar(int8(v))
+	vX := int(dir.X * 16)
+	if vX > 127 {
+		vX = 127
+	} else if vX < -128 {
+		vX = -128
 	}
+	s.Datagram.WriteChar(int8(vX))
+
+	vY := int(dir.Y * 16)
+	if vY > 127 {
+		vY = 127
+	} else if vY < -128 {
+		vY = -128
+	}
+	s.Datagram.WriteChar(int8(vY))
+
+	vZ := int(dir.Z * 16)
+	if vZ > 127 {
+		vZ = 127
+	} else if vZ < -128 {
+		vZ = -128
+	}
+	s.Datagram.WriteChar(int8(vZ))
 
 	s.Datagram.PutByte(byte(count))
 	s.Datagram.PutByte(byte(color))
@@ -151,9 +166,9 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 	org := ent.Origin(s)
 	mins := ent.Mins(s)
 	maxs := ent.Maxs(s)
-	for i := 0; i < 3; i++ {
-		s.Datagram.WriteCoord(org[i]+0.5*(mins[i]+maxs[i]), flags)
-	}
+	s.Datagram.WriteCoord(org.X+0.5*(mins.X+maxs.X), flags)
+	s.Datagram.WriteCoord(org.Y+0.5*(mins.Y+maxs.Y), flags)
+	s.Datagram.WriteCoord(org.Z+0.5*(mins.Z+maxs.Z), flags)
 }
 
 // FindSound returns the precache index for a sound sample name used by network sound messages.
@@ -297,22 +312,18 @@ type entitySendCandidate struct {
 	sortKey       int
 }
 
-func (s *Server) entitySendSortBasis(client *Client) (origin, forward [3]float32, ok bool) {
+func (s *Server) entitySendSortBasis(client *Client) (origin, forward types.Vec3, ok bool) {
 	if client == nil || client.Edict == nil {
 		return origin, forward, false
 	}
-	origin = client.Edict.Origin(s)
-	vOfs := client.Edict.ViewOfs(s)
-	origin[0] += vOfs[0]
-	origin[1] += vOfs[1]
-	origin[2] += vOfs[2]
-	var right, up [3]float32
+	origin = client.Edict.Origin(s).Add(client.Edict.ViewOfs(s))
+	var right, up types.Vec3
 	vAng := client.Edict.VAngle(s)
 	AngleVectors(vAng, &forward, &right, &up)
 	return origin, forward, true
 }
 
-func (s *Server) entitySendSortKey(ent *Edict, origin, forward [3]float32) int {
+func (s *Server) entitySendSortKey(ent *Edict, origin, forward types.Vec3) int {
 	return srvnet.EntitySendSortKey(ent, origin, forward, s)
 }
 
@@ -500,11 +511,7 @@ func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	// Build PVS for this client
 	client.FatPVS = nil
 	if client.Edict != nil {
-		org := client.Edict.Origin(s)
-		vOfs := client.Edict.ViewOfs(s)
-		org[0] += vOfs[0]
-		org[1] += vOfs[1]
-		org[2] += vOfs[2]
+		org := client.Edict.Origin(s).Add(client.Edict.ViewOfs(s))
 		s.SV_AddToFatPVS(org, client)
 	}
 

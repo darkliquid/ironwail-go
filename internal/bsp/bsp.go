@@ -31,6 +31,8 @@ package bsp
 import (
 	"encoding/binary"
 	"io"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // BSP version constants
@@ -160,9 +162,9 @@ type DHeader struct {
 // The first model (index 0) is the world, and subsequent models
 // are brush entities like doors and platforms.
 type DModel struct {
-	BoundsMin [3]float32
-	BoundsMax [3]float32
-	Origin    [3]float32
+	BoundsMin types.Vec3
+	BoundsMax types.Vec3
+	Origin    types.Vec3
 	HeadNode  [MaxMapHulls]int32
 	VisLeafs  int32 // Not including solid leaf 0
 	FirstFace int32
@@ -197,13 +199,13 @@ type Miptex64 struct {
 
 // DVertex represents a vertex in the BSP.
 type DVertex struct {
-	Point [3]float32
+	Point types.Vec3
 }
 
 // DPlane represents a plane in the BSP tree.
 // Planes are used for spatial partitioning.
 type DPlane struct {
-	Normal [3]float32
+	Normal types.Vec3
 	Dist   float32
 	Type   int32 // PlaneX - PlaneAnyZ
 }
@@ -233,8 +235,8 @@ type DL1Node struct {
 type DL2Node struct {
 	PlaneNum  int32
 	Children  [2]int32
-	BoundsMin [3]float32
-	BoundsMax [3]float32
+	BoundsMin types.Vec3
+	BoundsMax types.Vec3
 	FirstFace uint32
 	NumFaces  uint32
 }
@@ -319,8 +321,8 @@ type DL1Leaf struct {
 type DL2Leaf struct {
 	Contents         int32
 	VisOfs           int32
-	BoundsMin        [3]float32
-	BoundsMax        [3]float32
+	BoundsMin        types.Vec3
+	BoundsMax        types.Vec3
 	FirstMarkSurface uint32
 	NumMarkSurfaces  uint32
 	AmbientLevel     [NumAmbients]uint8

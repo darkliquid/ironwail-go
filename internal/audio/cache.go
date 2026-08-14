@@ -3,10 +3,6 @@
 
 package audio
 
-import (
-	"math"
-)
-
 // SFXCache manages loaded sound effects.
 type SFXCache struct {
 	sounds    [MaxSFX]*SFX
@@ -121,43 +117,6 @@ func (c *SFXCache) resample(cache *SoundCache, data []byte, inSamples, inWidth i
 	}
 }
 
-// ResampleSfx resamples sound data from one sample rate to another.
-func ResampleSfx(cache *SoundCache, inRate, inWidth int, data []byte, outRate int) {
-	stepScale := float64(inRate) / float64(outRate)
-	outCount := int(float64(cache.Length) / stepScale)
-
-	cache.Length = outCount
-	if cache.LoopStart >= 0 {
-		cache.LoopStart = int(float64(cache.LoopStart) / stepScale)
-	}
-	cache.Speed = outRate
-
-	srcSample := 0
-	sampleFrac := 0
-	fracStep := int(stepScale * 256)
-
-	for i := 0; i < outCount; i++ {
-		var sample int
-
-		if inWidth == 2 {
-			sample = int(int16(uint16(data[srcSample*2]) | uint16(data[srcSample*2+1])<<8))
-		} else {
-			sample = (int(data[srcSample]) - 128) << 8
-		}
-
-		if cache.Width == 2 {
-			cache.Data[i*2] = byte(sample)
-			cache.Data[i*2+1] = byte(sample >> 8)
-		} else {
-			cache.Data[i] = byte(sample >> 8)
-		}
-
-		sampleFrac += fracStep
-		srcSample += sampleFrac >> 8
-		sampleFrac &= 255
-	}
-}
-
 // InitScaleTable precomputes the volume scaling table for 8-bit mixing.
 func InitScaleTable(table *ScaleTable, volume float64) {
 	for i := 0; i < 32; i++ {
@@ -186,26 +145,4 @@ func ClampInt(val, min, max int) int {
 // Lerp performs linear interpolation.
 func Lerp(a, b, t float32) float32 {
 	return a + t*(b-a)
-}
-
-// VectorNormalize normalizes a vector and returns its length.
-func VectorNormalize(v *[3]float32) float32 {
-	length := float32(math.Sqrt(float64(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])))
-	if length > 0 {
-		inv := 1.0 / length
-		v[0] *= inv
-		v[1] *= inv
-		v[2] *= inv
-	}
-	return length
-}
-
-// VectorSubtract subtracts two vectors.
-func VectorSubtract(a, b [3]float32) [3]float32 {
-	return [3]float32{a[0] - b[0], a[1] - b[1], a[2] - b[2]}
-}
-
-// DotProduct computes the dot product of two vectors.
-func DotProduct(a, b [3]float32) float32 {
-	return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
 }

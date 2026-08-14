@@ -19,6 +19,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/host"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // gameCallbacks implements host.FrameCallbacks to drive server+client each frame.
@@ -349,7 +350,7 @@ func (g *Game) syncAudioViewEntity() {
 	g.Audio.SetViewEntity(viewEntity)
 }
 
-func (cb gameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {
+func (cb gameCallbacks) UpdateAudio(origin, forward, right, up types.Vec3) {
 	g := cb.g
 	if g == nil {
 		return
@@ -361,7 +362,7 @@ func (cb gameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {
 		g.Audio.UpdateFromCVars(g.Host.CVar)
 	}
 	g.syncAudioViewEntity()
-	g.Audio.SetListener(origin, [3]float32{}, forward, right, up)
+	g.Audio.SetListener(origin, types.Vec3{}, forward, right, up)
 }
 
 func (g *Game) HeadlessGameLoop() {
@@ -529,7 +530,7 @@ func (g *Game) RunRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents 
 	if g.Audio != nil {
 		forward, right, up := g.runtimeAngleVectors(viewAngles)
 		g.syncAudioViewEntity()
-		viewVelocity := [3]float32{}
+		viewVelocity := types.Vec3{}
 		if g.Client != nil {
 			viewVelocity = g.Client.GetPredictedVelocity()
 		}

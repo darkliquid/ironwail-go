@@ -8,6 +8,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestFindTouchedLeafsSkipsSolidLeafZero(t *testing.T) {
@@ -43,7 +44,7 @@ func TestFindTouchedLeafsUsesBoxOnPlaneSideForNonAxialPlanes(t *testing.T) {
 	newServerTestVM(s, 8)
 	invSqrt2 := float32(1 / math.Sqrt2)
 	s.WorldTree = &bsp.Tree{
-		Planes: []bsp.DPlane{{Normal: [3]float32{invSqrt2, -invSqrt2, 0}, Dist: 0, Type: 3}},
+		Planes: []bsp.DPlane{{Normal: qtypes.Vec3{X: invSqrt2, Y: -invSqrt2, Z: 0}, Dist: 0, Type: 3}},
 		Nodes: []bsp.TreeNode{{
 			PlaneNum: 0,
 			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 2}},
@@ -55,11 +56,11 @@ func TestFindTouchedLeafsUsesBoxOnPlaneSideForNonAxialPlanes(t *testing.T) {
 		},
 	}
 	s.WorldModel = &model.Model{
-		Planes: []model.MPlane{{Normal: [3]float32{invSqrt2, -invSqrt2, 0}, Dist: 0, Type: 3}},
+		Planes: []model.MPlane{{Normal: qtypes.Vec3{X: invSqrt2, Y: -invSqrt2, Z: 0}, Dist: 0, Type: 3}},
 	}
 
 	ent := &Edict{}
-	ent.SetAbsMax(s, [3]float32{4, 3, 1})
+	ent.SetAbsMax(s, qtypes.Vec3{X: 4, Y: 3, Z: 1})
 
 	s.findTouchedLeafs(ent, bsp.TreeChild{Index: 0, IsLeaf: false})
 

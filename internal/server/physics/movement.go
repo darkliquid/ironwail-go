@@ -6,6 +6,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -14,7 +15,7 @@ const (
 )
 
 func changeYaw(ent *srvtypes.Edict, sh srvtypes.ServerHandle) {
-	current := srvtypes.AngleMod(ent.Angles(sh)[1])
+	current := srvtypes.AngleMod(ent.Angles(sh).Y)
 	ideal := ent.IdealYaw(sh)
 	speed := ent.YawSpeed(sh)
 
@@ -40,34 +41,34 @@ func changeYaw(ent *srvtypes.Edict, sh srvtypes.ServerHandle) {
 	}
 
 	angles := ent.Angles(sh)
-	angles[1] = srvtypes.AngleMod(current + move)
+	angles.Y = srvtypes.AngleMod(current + move)
 	ent.SetAngles(sh, angles)
 }
 
 func checkBottom(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *srvtypes.Edict, sh srvtypes.ServerHandle) bool {
 	origin := ent.Origin(sh)
-	mins := srvtypes.VecAdd(origin, ent.Mins(sh))
-	maxs := srvtypes.VecAdd(origin, ent.Maxs(sh))
+	mins := origin.Add(ent.Mins(sh))
+	maxs := origin.Add(ent.Maxs(sh))
 
-	var start [3]float32
-	var stop [3]float32
+	var start qtypes.Vec3
+	var stop qtypes.Vec3
 
 	// If all of the points under the corners are solid world, don't bother
 	// with the tougher checks. The corners must be within STEPSIZE of the
 	// midpoint. Mirrors C SV_CheckBottom (sv_move.c).
-	start[2] = mins[2] - 1
+	start.Z = mins.Z - 1
 	allSolid := true
 	for x := 0; x <= 1; x++ {
 		for y := 0; y <= 1; y++ {
 			if x == 0 {
-				start[0] = mins[0]
+				start.X = mins.X
 			} else {
-				start[0] = maxs[0]
+				start.X = maxs.X
 			}
 			if y == 0 {
-				start[1] = mins[1]
+				start.Y = mins.Y
 			} else {
-				start[1] = maxs[1]
+				start.Y = maxs.Y
 			}
 			if col.PointContents(start) != bsp.ContentsSolid {
 				goto realcheck
@@ -80,44 +81,43 @@ func checkBottom(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *s
 
 realcheck:
 	// The midpoint must be within STEPSIZE of the bottom.
-	start[2] = mins[2]
-	start[0] = (mins[0] + maxs[0]) * 0.5
-	start[1] = (mins[1] + maxs[1]) * 0.5
-	stop[0] = start[0]
-	stop[1] = start[1]
-	stop[2] = start[2] - 2*stepSize
-	trace := col.SV_Move(start, [3]float32{}, [3]float32{}, stop, srvtypes.MoveNoMonsters, ent)
+	start.Z = mins.Z
+	start.X = (mins.X + maxs.X) * 0.5
+	start.Y = (mins.Y + maxs.Y) * 0.5
+	stop.X = start.X
+	stop.Y = start.Y
+	stop.Z = start.Z - 2*stepSize
+	trace := col.SV_Move(start, qtypes.Vec3{}, qtypes.Vec3{}, stop, srvtypes.MoveNoMonsters, ent)
 
 	if trace.Fraction == 1.0 {
 		return false
 	}
-	mid := trace.EndPos[2]
-	bottom := trace.EndPos[2]
+	mid := trace.EndPos.Z
+	bottom := trace.EndPos.Z
 
 	// The corners must be within STEPSIZE of the midpoint.
 	for x := 0; x <= 1; x++ {
 		for y := 0; y <= 1; y++ {
-			cornerStart := [3]float32{}
-			cornerStop := [3]float32{}
+			var cornerStart, cornerStop qtypes.Vec3
 			if x == 0 {
-				cornerStart[0] = mins[0]
+				cornerStart.X = mins.X
 			} else {
-				cornerStart[0] = maxs[0]
+				cornerStart.X = maxs.X
 			}
 			if y == 0 {
-				cornerStart[1] = mins[1]
+				cornerStart.Y = mins.Y
 			} else {
-				cornerStart[1] = maxs[1]
+				cornerStart.Y = maxs.Y
 			}
-			cornerStart[2] = start[2] // mins[2], the top of the drop
-			cornerStop[0] = cornerStart[0]
-			cornerStop[1] = cornerStart[1]
-			cornerStop[2] = stop[2]
-			cornerTrace := col.SV_Move(cornerStart, [3]float32{}, [3]float32{}, cornerStop, srvtypes.MoveNoMonsters, ent)
-			if cornerTrace.Fraction != 1.0 && cornerTrace.EndPos[2] > bottom {
-				bottom = cornerTrace.EndPos[2]
+			cornerStart.Z = start.Z // mins.Z, the top of the drop
+			cornerStop.X = cornerStart.X
+			cornerStop.Y = cornerStart.Y
+			cornerStop.Z = stop.Z
+			cornerTrace := col.SV_Move(cornerStart, qtypes.Vec3{}, qtypes.Vec3{}, cornerStop, srvtypes.MoveNoMonsters, ent)
+			if cornerTrace.Fraction != 1.0 && cornerTrace.EndPos.Z > bottom {
+				bottom = cornerTrace.EndPos.Z
 			}
-			if cornerTrace.Fraction == 1.0 || mid-cornerTrace.EndPos[2] > stepSize {
+			if cornerTrace.Fraction == 1.0 || mid-cornerTrace.EndPos.Z > stepSize {
 				return false
 			}
 		}
@@ -130,24 +130,24 @@ func fixCheckBottom(ent *srvtypes.Edict, sh srvtypes.ServerHandle) {
 	ent.SetFlags(sh, float32(uint32(ent.Flags(sh))|srvtypes.FlagPartialGround))
 }
 
-func moveStep(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *srvtypes.Edict, move [3]float32, relink bool, sh srvtypes.ServerHandle) bool {
+func moveStep(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *srvtypes.Edict, move qtypes.Vec3, relink bool, sh srvtypes.ServerHandle) bool {
 	flags := uint32(ent.Flags(sh))
 	oldorg := ent.Origin(sh)
-	neworg := srvtypes.VecAdd(ent.Origin(sh), move)
+	neworg := ent.Origin(sh).Add(move)
 
 	if flags&(srvtypes.FlagSwim|srvtypes.FlagFly) != 0 {
 		for i := 0; i < 2; i++ {
 
-			neworg = srvtypes.VecAdd(ent.Origin(sh), move)
+			neworg = ent.Origin(sh).Add(move)
 
 			if i == 0 && ent.Enemy(sh) != 0 {
 				enemy := store.EdictNum(int(ent.Enemy(sh)))
 				if enemy != nil {
-					dz := ent.Origin(sh)[2] - enemy.Origin(sh)[2]
+					dz := ent.Origin(sh).Z - enemy.Origin(sh).Z
 					if dz > 40 {
-						neworg[2] -= 8
+						neworg.Z -= 8
 					} else if dz < 30 {
-						neworg[2] += 8
+						neworg.Z += 8
 					}
 				}
 			}
@@ -174,9 +174,9 @@ func moveStep(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *srvt
 		return false
 	}
 
-	neworg[2] += stepSize
+	neworg.Z += stepSize
 	end := neworg
-	end[2] -= stepSize * 2
+	end.Z -= stepSize * 2
 
 	trace := col.SV_Move(neworg, ent.Mins(sh), ent.Maxs(sh), end, srvtypes.MoveNormal, ent)
 
@@ -185,7 +185,7 @@ func moveStep(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *srvt
 	}
 
 	if trace.StartSolid {
-		neworg[2] -= stepSize
+		neworg.Z -= stepSize
 		trace = col.SV_Move(neworg, ent.Mins(sh), ent.Maxs(sh), end, srvtypes.MoveNormal, ent)
 		if trace.AllSolid || trace.StartSolid {
 			return false
@@ -194,7 +194,7 @@ func moveStep(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent *srvt
 
 	if trace.Fraction == 1.0 {
 		if flags&srvtypes.FlagPartialGround != 0 {
-			ent.SetOrigin(sh, srvtypes.VecAdd(ent.Origin(sh), move))
+			ent.SetOrigin(sh, ent.Origin(sh).Add(move))
 			if relink {
 				col.LinkEdict(ent, true)
 			}
@@ -236,15 +236,15 @@ func stepDirection(col srvtypes.CollisionWorld, store srvtypes.EntityStore, ent 
 	changeYaw(ent, sh)
 
 	yawRad := yaw * (math.Pi / 180.0)
-	move := [3]float32{
-		dist * float32(math.Cos(float64(yawRad))),
-		dist * float32(math.Sin(float64(yawRad))),
-		0,
+	move := qtypes.Vec3{
+		X: dist * float32(math.Cos(float64(yawRad))),
+		Y: dist * float32(math.Sin(float64(yawRad))),
+		Z: 0,
 	}
 
 	oldorigin := ent.Origin(sh)
 	if moveStep(col, store, ent, move, false, sh) {
-		delta := ent.Angles(sh)[1] - yaw
+		delta := ent.Angles(sh).Y - yaw
 		if delta > 45 || delta < -45 {
 			col.LinkEdict(ent, true)
 		}
@@ -264,31 +264,31 @@ func newChaseDir(col srvtypes.CollisionWorld, store srvtypes.EntityStore, actor,
 	olddir := srvtypes.AngleMod(float32(int(actor.IdealYaw(sh)/45)) * 45)
 	turnaround := srvtypes.AngleMod(olddir - 180)
 
-	deltax := enemy.Origin(sh)[0] - actor.Origin(sh)[0]
-	deltay := enemy.Origin(sh)[1] - actor.Origin(sh)[1]
+	deltax := enemy.Origin(sh).X - actor.Origin(sh).X
+	deltay := enemy.Origin(sh).Y - actor.Origin(sh).Y
 
-	d := [3]float32{diNoDir, diNoDir, diNoDir}
+	d := qtypes.Vec3{X: diNoDir, Y: diNoDir, Z: diNoDir}
 	if deltax > 10 {
-		d[1] = 0
+		d.Y = 0
 	} else if deltax < -10 {
-		d[1] = 180
+		d.Y = 180
 	}
 
 	if deltay < -10 {
-		d[2] = 270
+		d.Z = 270
 	} else if deltay > 10 {
-		d[2] = 90
+		d.Z = 90
 	}
 
-	if d[1] != diNoDir && d[2] != diNoDir {
+	if d.Y != diNoDir && d.Z != diNoDir {
 		tdir := float32(0)
-		if d[1] == 0 {
-			if d[2] == 90 {
+		if d.Y == 0 {
+			if d.Z == 90 {
 				tdir = 45
 			} else {
 				tdir = 315
 			}
-		} else if d[2] == 90 {
+		} else if d.Z == 90 {
 			tdir = 135
 		} else {
 			tdir = 215
@@ -300,13 +300,13 @@ func newChaseDir(col srvtypes.CollisionWorld, store srvtypes.EntityStore, actor,
 	}
 
 	if ((randInt()&3)&1) != 0 || int(math.Abs(float64(deltay))) > int(math.Abs(float64(deltax))) {
-		d[1], d[2] = d[2], d[1]
+		d.Y, d.Z = d.Z, d.Y
 	}
 
-	if d[1] != diNoDir && d[1] != turnaround && stepDirection(col, store, actor, d[1], dist, sh) {
+	if d.Y != diNoDir && d.Y != turnaround && stepDirection(col, store, actor, d.Y, dist, sh) {
 		return
 	}
-	if d[2] != diNoDir && d[2] != turnaround && stepDirection(col, store, actor, d[2], dist, sh) {
+	if d.Z != diNoDir && d.Z != turnaround && stepDirection(col, store, actor, d.Z, dist, sh) {
 		return
 	}
 

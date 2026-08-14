@@ -2,6 +2,8 @@ package renderer
 
 import (
 	"math"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // glLightPool manages the active set of dynamic lights for the current frame.
@@ -87,17 +89,14 @@ func (pool *glLightPool) ActiveLights() []DynamicLight {
 //   - if distance > radius: contribution is zero
 //   - otherwise: falloff = (1.0 - distance/radius) * brightness * fadeMultiplier
 //   - result = light.Color * falloff
-func evalLightContribution(light *DynamicLight, point [3]float32) [3]float32 {
-	dx := light.Position[0] - point[0]
-	dy := light.Position[1] - point[1]
-	dz := light.Position[2] - point[2]
-
-	distSq := dx*dx + dy*dy + dz*dz
+func evalLightContribution(light *DynamicLight, point types.Vec3) types.Vec3 {
+	d := light.Position.Sub(point)
+	distSq := d.X*d.X + d.Y*d.Y + d.Z*d.Z
 	radiusSq := light.Radius * light.Radius
 
 	// If point is outside light radius, no contribution
 	if distSq > radiusSq {
-		return [3]float32{0, 0, 0}
+		return types.Vec3{}
 	}
 
 	// Compute distance and linear falloff: 1.0 - (distance / radius)
@@ -107,32 +106,26 @@ func evalLightContribution(light *DynamicLight, point [3]float32) [3]float32 {
 	// Apply brightness and fade multiplier
 	mul := light.Brightness * falloff * light.FadeMultiplier()
 
-	return [3]float32{
-		light.Color[0] * mul,
-		light.Color[1] * mul,
-		light.Color[2] * mul,
-	}
+	return light.Color.Scale(mul)
 }
 
 // EvaluateLightsAtPoint computes the sum of light contributions from all active lights
 // at a specific point in world space.
 // The result is clamped to reasonable bounds to prevent overexposure.
-func (pool *glLightPool) EvaluateLightsAtPoint(point [3]float32) [3]float32 {
+func (pool *glLightPool) EvaluateLightsAtPoint(point types.Vec3) types.Vec3 {
 	return evaluateDynamicLightsAtPoint(pool.lights, point)
 }
 
-func evaluateDynamicLightsAtPoint(lights []DynamicLight, point [3]float32) [3]float32 {
+func evaluateDynamicLightsAtPoint(lights []DynamicLight, point types.Vec3) types.Vec3 {
 	if pkgCVars != nil {
 		if cv := pkgCVars.Get(CvarRDynamic); cv != nil && cv.Int == 0 {
-			return [3]float32{}
+			return types.Vec3{}
 		}
 	}
-	result := [3]float32{0, 0, 0}
+	result := types.Vec3{}
 	for i := range lights {
 		contrib := evalLightContribution(&lights[i], point)
-		result[0] += contrib[0]
-		result[1] += contrib[1]
-		result[2] += contrib[2]
+		result = result.Add(contrib)
 	}
 	return result
 }
@@ -151,40 +144,44 @@ const (
 
 // ApplyLightToColor applies a light contribution to a base RGB color.
 // This function respects the light application mode and clamps the result.
-func ApplyLightToColor(baseColor [3]float32, lightContrib [3]float32, mode LightContribType) [3]float32 {
+func ApplyLightToColor(baseColor types.Vec3, lightContrib types.Vec3, mode LightContribType) types.Vec3 {
 	switch mode {
 	case LightModeAdditive:
 		// Simply add the light contribution
-		result := [3]float32{
-			baseColor[0] + lightContrib[0],
-			baseColor[1] + lightContrib[1],
-			baseColor[2] + lightContrib[2],
-		}
+		result := baseColor.Add(lightContrib)
 		// Clamp to [0, 1]
-		for i := range result {
-			if result[i] < 0 {
-				result[i] = 0
-			} else if result[i] > 1 {
-				result[i] = 1
-			}
+		if result.X < 0 {
+			result.X = 0
+		} else if result.X > 1 {
+			result.X = 1
+		}
+		if result.Y < 0 {
+			result.Y = 0
+		} else if result.Y > 1 {
+			result.Y = 1
+		}
+		if result.Z < 0 {
+			result.Z = 0
+		} else if result.Z > 1 {
+			result.Z = 1
 		}
 		return result
 
 	case LightModeModulate:
 		// Light acts as a multiplier on top of base color (like lighting)
-		return [3]float32{
-			baseColor[0] * (1.0 + lightContrib[0]),
-			baseColor[1] * (1.0 + lightContrib[1]),
-			baseColor[2] * (1.0 + lightContrib[2]),
+		return types.Vec3{
+			X: baseColor.X * (1.0 + lightContrib.X),
+			Y: baseColor.Y * (1.0 + lightContrib.Y),
+			Z: baseColor.Z * (1.0 + lightContrib.Z),
 		}
 
 	case LightModeBlend:
 		// Lerp from base towards light color
-		alpha := (lightContrib[0] + lightContrib[1] + lightContrib[2]) / 3.0
-		return [3]float32{
-			baseColor[0]*(1.0-alpha) + lightContrib[0]*alpha,
-			baseColor[1]*(1.0-alpha) + lightContrib[1]*alpha,
-			baseColor[2]*(1.0-alpha) + lightContrib[2]*alpha,
+		alpha := (lightContrib.X + lightContrib.Y + lightContrib.Z) / 3.0
+		return types.Vec3{
+			X: baseColor.X*(1.0-alpha) + lightContrib.X*alpha,
+			Y: baseColor.Y*(1.0-alpha) + lightContrib.Y*alpha,
+			Z: baseColor.Z*(1.0-alpha) + lightContrib.Z*alpha,
 		}
 
 	default:

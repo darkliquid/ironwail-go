@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestBuildSpriteRenderModelRetainsFramePixels(t *testing.T) {
@@ -63,12 +64,12 @@ func TestBuildSpriteQuadVerticesUsesFrameBounds(t *testing.T) {
 	verts := buildSpriteQuadVertices(
 		sprite,
 		0,
-		[3]float32{0, 0, 0},
-		[3]float32{10, 20, 30},
-		[3]float32{0, 0, 0},
-		[3]float32{1, 0, 0},
-		[3]float32{0, 1, 0},
-		[3]float32{0, 0, 1},
+		types.Vec3{X: 0, Y: 0, Z: 0},
+		types.Vec3{X: 10, Y: 20, Z: 30},
+		types.Vec3{X: 0, Y: 0, Z: 0},
+		types.Vec3{X: 1, Y: 0, Z: 0},
+		types.Vec3{X: 0, Y: 1, Z: 0},
+		types.Vec3{X: 0, Y: 0, Z: 1},
 		1,
 	)
 	if len(verts) != 4 {
@@ -105,8 +106,8 @@ func TestSpriteDataForEntityPrefersExplicitSpriteData(t *testing.T) {
 	entity := SpriteEntity{
 		Model: &model.Model{
 			Type: model.ModSprite,
-			Mins: [3]float32{-8, -8, -8},
-			Maxs: [3]float32{8, 8, 8},
+			Mins: types.Vec3{X: -8, Y: -8, Z: -8},
+			Maxs: types.Vec3{X: 8, Y: 8, Z: 8},
 		},
 		SpriteData: explicit,
 	}
@@ -121,8 +122,8 @@ func TestSpriteDataForEntityFallsBackToModel(t *testing.T) {
 	entity := SpriteEntity{
 		Model: &model.Model{
 			Type: model.ModSprite,
-			Mins: [3]float32{-16, -4, -6},
-			Maxs: [3]float32{16, 4, 10},
+			Mins: types.Vec3{X: -16, Y: -4, Z: -6},
+			Maxs: types.Vec3{X: 16, Y: 4, Z: 10},
 		},
 	}
 

@@ -5,26 +5,27 @@ import (
 	"testing"
 
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestBuildTranslucentLiquidBrushEntityDraw(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
 		Vertices: []worldimpl.WorldVertex{
-			{Position: [3]float32{0, 0, 0}},
-			{Position: [3]float32{1, 0, 0}},
-			{Position: [3]float32{0, 1, 0}},
-			{Position: [3]float32{1, 1, 0}},
+			{Position: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 0, Y: 1, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 1, Z: 0}},
 		},
 		Indices: []uint32{0, 1, 2, 1, 3, 2},
 		Faces: []worldimpl.WorldFace{
-			{FirstIndex: 0, NumIndices: 3, Flags: 1, Center: [3]float32{0.5, 0.5, 0}},
-			{FirstIndex: 3, NumIndices: 3, Flags: 2, Center: [3]float32{1, 0.5, 0}},
+			{FirstIndex: 0, NumIndices: 3, Flags: 1, Center: types.Vec3{X: 0.5, Y: 0.5, Z: 0}},
+			{FirstIndex: 3, NumIndices: 3, Flags: 2, Center: types.Vec3{X: 1, Y: 0.5, Z: 0}},
 		},
 	}
 	entity := BrushEntityParams{
 		Alpha:  1,
 		Frame:  7,
-		Origin: [3]float32{10, 20, 30},
+		Origin: types.Vec3{X: 10, Y: 20, Z: 30},
 		Scale:  2,
 	}
 
@@ -32,7 +33,7 @@ func TestBuildTranslucentLiquidBrushEntityDraw(t *testing.T) {
 		Flags int32
 		Alpha float32
 	}
-	var distanceInputs [][3]float32
+	var distanceInputs []types.Vec3
 	draw := BuildTranslucentLiquidBrushEntityDraw(entity, geom, func(face worldimpl.WorldFace, entityAlpha float32) (float32, bool) {
 		planCalls = append(planCalls, struct {
 			Flags int32
@@ -42,9 +43,9 @@ func TestBuildTranslucentLiquidBrushEntityDraw(t *testing.T) {
 			return 0.4, true
 		}
 		return 0, false
-	}, func(center [3]float32) float32 {
+	}, func(center types.Vec3) float32 {
 		distanceInputs = append(distanceInputs, center)
-		return center[0] + center[1] + center[2]
+		return center.X + center.Y + center.Z
 	})
 	if draw == nil {
 		t.Fatal("BuildTranslucentLiquidBrushEntityDraw returned nil")
@@ -61,7 +62,7 @@ func TestBuildTranslucentLiquidBrushEntityDraw(t *testing.T) {
 	if len(draw.Vertices) != len(geom.Vertices) {
 		t.Fatalf("len(Vertices) = %d, want %d", len(draw.Vertices), len(geom.Vertices))
 	}
-	if draw.Vertices[1].Position != ([3]float32{12, 20, 30}) {
+	if draw.Vertices[1].Position != (types.Vec3{X: 12, Y: 20, Z: 30}) {
 		t.Fatalf("Vertices[1].Position = %v, want [12 20 30]", draw.Vertices[1].Position)
 	}
 	if !reflect.DeepEqual(draw.Indices, []uint32{0, 1, 2}) {
@@ -73,7 +74,7 @@ func TestBuildTranslucentLiquidBrushEntityDraw(t *testing.T) {
 	if draw.Faces[0].Face.FirstIndex != 0 || draw.Faces[0].Face.NumIndices != 3 {
 		t.Fatalf("face index span = (%d,%d), want (0,3)", draw.Faces[0].Face.FirstIndex, draw.Faces[0].Face.NumIndices)
 	}
-	wantCenter := [3]float32{11, 21, 30}
+	wantCenter := types.Vec3{X: 11, Y: 21, Z: 30}
 	if draw.Faces[0].Center != wantCenter {
 		t.Fatalf("face center = %v, want %v", draw.Faces[0].Center, wantCenter)
 	}
@@ -91,27 +92,27 @@ func TestBuildTranslucentLiquidBrushEntityDraw(t *testing.T) {
 func TestBuildTranslucentBrushEntityDrawSplitsFacePasses(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
 		Vertices: []worldimpl.WorldVertex{
-			{Position: [3]float32{0, 0, 0}},
-			{Position: [3]float32{1, 0, 0}},
-			{Position: [3]float32{0, 1, 0}},
-			{Position: [3]float32{1, 1, 0}},
-			{Position: [3]float32{2, 0, 0}},
+			{Position: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 0, Y: 1, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 1, Z: 0}},
+			{Position: types.Vec3{X: 2, Y: 0, Z: 0}},
 		},
 		Indices: []uint32{0, 1, 2, 1, 3, 2, 1, 4, 3},
 		Faces: []worldimpl.WorldFace{
-			{FirstIndex: 0, NumIndices: 3, Flags: 11, Center: [3]float32{0.5, 0.5, 0}},
-			{FirstIndex: 3, NumIndices: 3, Flags: 22, Center: [3]float32{1, 0.5, 0}},
-			{FirstIndex: 6, NumIndices: 3, Flags: 33, Center: [3]float32{1.5, 0.5, 0}},
+			{FirstIndex: 0, NumIndices: 3, Flags: 11, Center: types.Vec3{X: 0.5, Y: 0.5, Z: 0}},
+			{FirstIndex: 3, NumIndices: 3, Flags: 22, Center: types.Vec3{X: 1, Y: 0.5, Z: 0}},
+			{FirstIndex: 6, NumIndices: 3, Flags: 33, Center: types.Vec3{X: 1.5, Y: 0.5, Z: 0}},
 		},
 	}
 	entity := BrushEntityParams{
 		Alpha:  0.5,
 		Frame:  3,
-		Origin: [3]float32{5, 10, 0},
+		Origin: types.Vec3{X: 5, Y: 10, Z: 0},
 		Scale:  2,
 	}
 
-	var distanceInputs [][3]float32
+	var distanceInputs []types.Vec3
 	draw := BuildTranslucentBrushEntityDraw(entity, geom, func(face worldimpl.WorldFace, entityAlpha float32) (TranslucentFacePlan, bool) {
 		if entityAlpha != 0.5 {
 			t.Fatalf("entityAlpha = %v, want 0.5", entityAlpha)
@@ -126,9 +127,9 @@ func TestBuildTranslucentBrushEntityDrawSplitsFacePasses(t *testing.T) {
 		default:
 			return TranslucentFacePlan{}, false
 		}
-	}, func(center [3]float32) float32 {
+	}, func(center types.Vec3) float32 {
 		distanceInputs = append(distanceInputs, center)
-		return center[0]*10 + center[1]
+		return center.X*10 + center.Y
 	})
 	if draw == nil {
 		t.Fatal("BuildTranslucentBrushEntityDraw returned nil")
@@ -145,7 +146,7 @@ func TestBuildTranslucentBrushEntityDrawSplitsFacePasses(t *testing.T) {
 	if draw.AlphaTestFaces[0].FirstIndex != 0 || draw.AlphaTestFaces[0].NumIndices != 3 {
 		t.Fatalf("alpha test face span = (%d,%d), want (0,3)", draw.AlphaTestFaces[0].FirstIndex, draw.AlphaTestFaces[0].NumIndices)
 	}
-	if draw.AlphaTestCenters[0] != ([3]float32{6, 11, 0}) {
+	if draw.AlphaTestCenters[0] != (types.Vec3{X: 6, Y: 11, Z: 0}) {
 		t.Fatalf("alpha test center = %v, want [6 11 0]", draw.AlphaTestCenters[0])
 	}
 	if len(draw.TranslucentFaces) != 1 {
@@ -154,7 +155,7 @@ func TestBuildTranslucentBrushEntityDrawSplitsFacePasses(t *testing.T) {
 	if draw.TranslucentFaces[0].Face.FirstIndex != 3 || draw.TranslucentFaces[0].Face.NumIndices != 3 {
 		t.Fatalf("translucent face span = (%d,%d), want (3,3)", draw.TranslucentFaces[0].Face.FirstIndex, draw.TranslucentFaces[0].Face.NumIndices)
 	}
-	if draw.TranslucentFaces[0].Center != ([3]float32{7, 11, 0}) {
+	if draw.TranslucentFaces[0].Center != (types.Vec3{X: 7, Y: 11, Z: 0}) {
 		t.Fatalf("translucent center = %v, want [7 11 0]", draw.TranslucentFaces[0].Center)
 	}
 	if draw.TranslucentFaces[0].Alpha != 0.35 {
@@ -166,32 +167,32 @@ func TestBuildTranslucentBrushEntityDrawSplitsFacePasses(t *testing.T) {
 	if draw.LiquidFaces[0].Face.FirstIndex != 6 || draw.LiquidFaces[0].Face.NumIndices != 3 {
 		t.Fatalf("liquid face span = (%d,%d), want (6,3)", draw.LiquidFaces[0].Face.FirstIndex, draw.LiquidFaces[0].Face.NumIndices)
 	}
-	if draw.LiquidFaces[0].Center != ([3]float32{8, 11, 0}) {
+	if draw.LiquidFaces[0].Center != (types.Vec3{X: 8, Y: 11, Z: 0}) {
 		t.Fatalf("liquid center = %v, want [8 11 0]", draw.LiquidFaces[0].Center)
 	}
 	if draw.LiquidFaces[0].Alpha != 0.45 {
 		t.Fatalf("liquid alpha = %v, want 0.45", draw.LiquidFaces[0].Alpha)
 	}
-	if !reflect.DeepEqual(distanceInputs, [][3]float32{{7, 11, 0}, {8, 11, 0}}) {
+	if !reflect.DeepEqual(distanceInputs, []types.Vec3{{X: 7, Y: 11, Z: 0}, {X: 8, Y: 11, Z: 0}}) {
 		t.Fatalf("distance inputs = %v, want [[7 11 0] [8 11 0]]", distanceInputs)
 	}
 }
 
 func TestBuildTranslucentBrushEntityDrawRejectsMissingCallbacks(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
-		Vertices: []worldimpl.WorldVertex{{Position: [3]float32{0, 0, 0}}},
+		Vertices: []worldimpl.WorldVertex{{Position: types.Vec3{X: 0, Y: 0, Z: 0}}},
 		Indices:  []uint32{0},
 		Faces:    []worldimpl.WorldFace{{FirstIndex: 0, NumIndices: 1}},
 	}
 	entity := BrushEntityParams{Alpha: 0.5}
 
-	if draw := BuildTranslucentLiquidBrushEntityDraw(entity, geom, nil, func([3]float32) float32 { return 0 }); draw != nil {
+	if draw := BuildTranslucentLiquidBrushEntityDraw(entity, geom, nil, func(types.Vec3) float32 { return 0 }); draw != nil {
 		t.Fatal("BuildTranslucentLiquidBrushEntityDraw should reject nil face planners")
 	}
 	if draw := BuildTranslucentLiquidBrushEntityDraw(entity, geom, func(worldimpl.WorldFace, float32) (float32, bool) { return 1, true }, nil); draw != nil {
 		t.Fatal("BuildTranslucentLiquidBrushEntityDraw should reject nil distance callbacks")
 	}
-	if draw := BuildTranslucentBrushEntityDraw(entity, geom, nil, func([3]float32) float32 { return 0 }); draw != nil {
+	if draw := BuildTranslucentBrushEntityDraw(entity, geom, nil, func(types.Vec3) float32 { return 0 }); draw != nil {
 		t.Fatal("BuildTranslucentBrushEntityDraw should reject nil face planners")
 	}
 	if draw := BuildTranslucentBrushEntityDraw(entity, geom, func(worldimpl.WorldFace, float32) (TranslucentFacePlan, bool) {
@@ -204,9 +205,9 @@ func TestBuildTranslucentBrushEntityDrawRejectsMissingCallbacks(t *testing.T) {
 func TestTranslucentBrushBuildersRejectAlphaBeforePlanning(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
 		Vertices: []worldimpl.WorldVertex{
-			{Position: [3]float32{0, 0, 0}},
-			{Position: [3]float32{1, 0, 0}},
-			{Position: [3]float32{0, 1, 0}},
+			{Position: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 0, Y: 1, Z: 0}},
 		},
 		Indices: []uint32{0, 1, 2},
 		Faces:   []worldimpl.WorldFace{{FirstIndex: 0, NumIndices: 3}},
@@ -217,7 +218,7 @@ func TestTranslucentBrushBuildersRejectAlphaBeforePlanning(t *testing.T) {
 	if draw := BuildTranslucentLiquidBrushEntityDraw(BrushEntityParams{Alpha: 0.5}, geom, func(worldimpl.WorldFace, float32) (float32, bool) {
 		liquidPlannerCalled = true
 		return 1, true
-	}, func([3]float32) float32 {
+	}, func(types.Vec3) float32 {
 		liquidDistanceCalled = true
 		return 0
 	}); draw != nil {
@@ -232,7 +233,7 @@ func TestTranslucentBrushBuildersRejectAlphaBeforePlanning(t *testing.T) {
 	if draw := BuildTranslucentBrushEntityDraw(BrushEntityParams{Alpha: 1}, geom, func(worldimpl.WorldFace, float32) (TranslucentFacePlan, bool) {
 		brushPlannerCalled = true
 		return TranslucentFacePlan{Pass: TranslucentFacePassAlphaTest}, true
-	}, func([3]float32) float32 {
+	}, func(types.Vec3) float32 {
 		brushDistanceCalled = true
 		return 0
 	}); draw != nil {
@@ -246,9 +247,9 @@ func TestTranslucentBrushBuildersRejectAlphaBeforePlanning(t *testing.T) {
 func TestBuildTranslucentBrushEntityDrawSkipsPassSkipPlans(t *testing.T) {
 	geom := &worldimpl.WorldGeometry{
 		Vertices: []worldimpl.WorldVertex{
-			{Position: [3]float32{0, 0, 0}},
-			{Position: [3]float32{1, 0, 0}},
-			{Position: [3]float32{0, 1, 0}},
+			{Position: types.Vec3{X: 0, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 1, Y: 0, Z: 0}},
+			{Position: types.Vec3{X: 0, Y: 1, Z: 0}},
 		},
 		Indices: []uint32{0, 1, 2},
 		Faces:   []worldimpl.WorldFace{{FirstIndex: 0, NumIndices: 3}},
@@ -257,7 +258,7 @@ func TestBuildTranslucentBrushEntityDrawSkipsPassSkipPlans(t *testing.T) {
 
 	draw := BuildTranslucentBrushEntityDraw(entity, geom, func(worldimpl.WorldFace, float32) (TranslucentFacePlan, bool) {
 		return TranslucentFacePlan{Pass: TranslucentFacePassSkip}, true
-	}, func([3]float32) float32 {
+	}, func(types.Vec3) float32 {
 		t.Fatal("distance callback should not be called for skipped faces")
 		return 0
 	})

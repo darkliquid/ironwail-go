@@ -1,16 +1,20 @@
 package renderer
 
+import (
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
+
 // DynamicLight represents a temporary point light source in the world.
 // Dynamic lights fade over time and are used for explosions, beams, and other transient effects.
 type DynamicLight struct {
 	// Position is the light source center in world space [X, Y, Z]
-	Position [3]float32
+	Position types.Vec3
 
 	// Radius is the distance at which light falloff reaches zero
 	Radius float32
 
 	// Color is the RGB light color in linear space [0-1]
-	Color [3]float32
+	Color types.Vec3
 
 	// Brightness is the light intensity multiplier, typically 1.0-2.0
 	Brightness float32

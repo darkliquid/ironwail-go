@@ -7,6 +7,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/common"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func (p *Parser) parseSpawnBaseline(msg *common.SizeBuf, extended bool) error {
@@ -17,8 +18,8 @@ func (p *Parser) parseSpawnBaseline(msg *common.SizeBuf, extended bool) error {
 	p.Client.EntityBaselines[entNum] = baseline
 	netDebugLogf("baseline", "ent=%d model=%d frame=%d colormap=%d skin=%d origin=(%.3f %.3f %.3f) angles=(%.3f %.3f %.3f) alpha=%d scale=%d extended=%t",
 		entNum, baseline.ModelIndex, baseline.Frame, baseline.Colormap, baseline.Skin,
-		baseline.Origin[0], baseline.Origin[1], baseline.Origin[2],
-		baseline.Angles[0], baseline.Angles[1], baseline.Angles[2],
+		baseline.Origin.X, baseline.Origin.Y, baseline.Origin.Z,
+		baseline.Angles.X, baseline.Angles.Y, baseline.Angles.Z,
 		baseline.Alpha, baseline.Scale, extended)
 	return nil
 }
@@ -101,18 +102,32 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 	b.Skin = skin
 
 	// Origins and angles are interleaved: O1, A1, O2, A2, O3, A3
-	for i := 0; i < 3; i++ {
-		coord, err := p.readCoord(msg, fmt.Sprintf("%s: missing origin %d", prefix, i))
-		if err != nil {
-			return b, 0, err
-		}
-		b.Origin[i] = coord
-		angle, err := p.readAngle(msg, fmt.Sprintf("%s: missing angle %d", prefix, i))
-		if err != nil {
-			return b, 0, err
-		}
-		b.Angles[i] = angle
+	o0, err := p.readCoord(msg, prefix+": missing origin 0")
+	if err != nil {
+		return b, 0, err
 	}
+	a0, err := p.readAngle(msg, prefix+": missing angle 0")
+	if err != nil {
+		return b, 0, err
+	}
+	o1, err := p.readCoord(msg, prefix+": missing origin 1")
+	if err != nil {
+		return b, 0, err
+	}
+	a1, err := p.readAngle(msg, prefix+": missing angle 1")
+	if err != nil {
+		return b, 0, err
+	}
+	o2, err := p.readCoord(msg, prefix+": missing origin 2")
+	if err != nil {
+		return b, 0, err
+	}
+	a2, err := p.readAngle(msg, prefix+": missing angle 2")
+	if err != nil {
+		return b, 0, err
+	}
+	b.Origin = types.Vec3{X: o0, Y: o1, Z: o2}
+	b.Angles = types.Vec3{X: a0, Y: a1, Z: a2}
 	b.MsgOrigins[0] = b.Origin
 	b.MsgOrigins[1] = b.Origin
 	b.MsgAngles[0] = b.Angles
@@ -138,13 +153,19 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 
 func (p *Parser) parseSpawnStaticSound(msg *common.SizeBuf, extended bool) error {
 	var snd StaticSound
-	for i := 0; i < 3; i++ {
-		coord, err := p.readCoord(msg, fmt.Sprintf("svc_spawnstaticsound: missing origin %d", i))
-		if err != nil {
-			return err
-		}
-		snd.Origin[i] = coord
+	x, err := p.readCoord(msg, "svc_spawnstaticsound: missing origin 0")
+	if err != nil {
+		return err
 	}
+	y, err := p.readCoord(msg, "svc_spawnstaticsound: missing origin 1")
+	if err != nil {
+		return err
+	}
+	z, err := p.readCoord(msg, "svc_spawnstaticsound: missing origin 2")
+	if err != nil {
+		return err
+	}
+	snd.Origin = types.Vec3{X: x, Y: y, Z: z}
 	if extended {
 		v, ok := msg.ReadShort()
 		if !ok {
@@ -171,7 +192,7 @@ func (p *Parser) parseSpawnStaticSound(msg *common.SizeBuf, extended bool) error
 	p.Client.StaticSounds = append(p.Client.StaticSounds, snd)
 	netDebugLogf("static_sound", "sound=%d volume=%d atten=%.3f origin=(%.3f %.3f %.3f) extended=%t",
 		snd.SoundIndex, snd.Volume, snd.Attenuation,
-		snd.Origin[0], snd.Origin[1], snd.Origin[2], extended)
+		snd.Origin.X, snd.Origin.Y, snd.Origin.Z, extended)
 	return nil
 }
 
@@ -292,42 +313,42 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		if err != nil {
 			return err
 		}
-		rawOrigin[0] = v
+		rawOrigin.X = v
 	}
 	if bits&inet.U_ANGLE1 != 0 {
 		v, err := p.readAngle(msg, "entity update: missing angle1")
 		if err != nil {
 			return err
 		}
-		rawAngles[0] = v
+		rawAngles.X = v
 	}
 	if bits&inet.U_ORIGIN2 != 0 {
 		v, err := p.readCoord(msg, "entity update: missing origin2")
 		if err != nil {
 			return err
 		}
-		rawOrigin[1] = v
+		rawOrigin.Y = v
 	}
 	if bits&inet.U_ANGLE2 != 0 {
 		v, err := p.readAngle(msg, "entity update: missing angle2")
 		if err != nil {
 			return err
 		}
-		rawAngles[1] = v
+		rawAngles.Y = v
 	}
 	if bits&inet.U_ORIGIN3 != 0 {
 		v, err := p.readCoord(msg, "entity update: missing origin3")
 		if err != nil {
 			return err
 		}
-		rawOrigin[2] = v
+		rawOrigin.Z = v
 	}
 	if bits&inet.U_ANGLE3 != 0 {
 		v, err := p.readAngle(msg, "entity update: missing angle3")
 		if err != nil {
 			return err
 		}
-		rawAngles[2] = v
+		rawAngles.Z = v
 	}
 	// FitzQuake/RMQ extensions come AFTER origins/angles.
 	// For NetQuake protocol, handle Nehahra U_TRANS transparency hack instead.

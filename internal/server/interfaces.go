@@ -8,6 +8,7 @@ package server
 import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type (
@@ -102,7 +103,7 @@ func (s *Server) DebugTriggerTouch(source string, touch, other *Edict) {
 	}
 }
 
-func (s *Server) PushMoveScratch() (moved *[]*Edict, from *[][3]float32) {
+func (s *Server) PushMoveScratch() (moved *[]*Edict, from *[]qtypes.Vec3) {
 	if s == nil {
 		return nil, nil
 	}

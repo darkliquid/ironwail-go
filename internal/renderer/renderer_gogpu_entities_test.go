@@ -11,7 +11,7 @@ import (
 func TestProjectWorldPointToScreenCenter(t *testing.T) {
 	vp := types.IdentityMatrix()
 
-	x, y, ok := projectWorldPointToScreen([3]float32{0, 0, 0}, vp, 801, 601)
+	x, y, ok := projectWorldPointToScreen(types.Vec3{}, vp, 801, 601)
 	if !ok {
 		t.Fatal("projectWorldPointToScreen returned not visible for center point")
 	}
@@ -23,7 +23,7 @@ func TestProjectWorldPointToScreenCenter(t *testing.T) {
 func TestProjectWorldPointToScreenRejectsOutOfClip(t *testing.T) {
 	vp := types.IdentityMatrix()
 
-	if _, _, ok := projectWorldPointToScreen([3]float32{2, 0, 0}, vp, 800, 600); ok {
+	if _, _, ok := projectWorldPointToScreen(types.Vec3{X: 2}, vp, 800, 600); ok {
 		t.Fatal("projectWorldPointToScreen accepted point outside clip space")
 	}
 }
@@ -35,7 +35,7 @@ func TestProjectWorldPointToScreenRejectsNonPositiveW(t *testing.T) {
 	vp[11] = -1
 	vp[15] = 0
 
-	if _, _, ok := projectWorldPointToScreen([3]float32{0, 0, 1}, vp, 800, 600); ok {
+	if _, _, ok := projectWorldPointToScreen(types.Vec3{Z: 1}, vp, 800, 600); ok {
 		t.Fatal("projectWorldPointToScreen accepted point with non-positive clip W")
 	}
 }
@@ -43,12 +43,12 @@ func TestProjectWorldPointToScreenRejectsNonPositiveW(t *testing.T) {
 func TestProjectParticleMarkersSkipsNonVisibleParticles(t *testing.T) {
 	vp := types.IdentityMatrix()
 	particles := []Particle{
-		{Org: [3]float32{0, 0, 0}, Color: 5},
-		{Org: [3]float32{2, 0, 0}, Color: 9},
+		{Org: types.Vec3{}, Color: 5},
+		{Org: types.Vec3{X: 2}, Color: 9},
 	}
 	verts := []ParticleVertex{
-		{Pos: [3]float32{0, 0, 0}},
-		{Pos: [3]float32{2, 0, 0}},
+		{Pos: types.Vec3{}},
+		{Pos: types.Vec3{X: 2}},
 	}
 
 	markers := projectParticleMarkers(particles, verts, vp, 801, 601)
@@ -106,7 +106,7 @@ func TestParticleUniformBytes(t *testing.T) {
 	projScale := [2]float32{1.5, -2.25}
 	uvScale := float32(0.25)
 	cameraOrigin := [3]float32{4, 5, 6}
-	fogColor := [3]float32{0.1, 0.2, 0.3}
+	fogColor := types.Vec3{X: 0.1, Y: 0.2, Z: 0.3}
 	fogDensity := float32(0.75)
 
 	data := particleUniformBytes(vp, projScale, uvScale, cameraOrigin, fogColor, fogDensity)

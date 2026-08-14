@@ -7,6 +7,7 @@ import (
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // Interleaving probes for the intermittently-reported anomalies.
@@ -48,14 +49,14 @@ func TestParityDoorChainFiresBothHalves(t *testing.T) {
 	for _, door := range []*Edict{owner, half} {
 		door.SetMoveType(s, float32(MoveTypePush))
 		door.SetSolid(s, float32(SolidBSP))
-		door.SetOrigin(s, [3]float32{0, 0, 0})
-		door.SetMins(s, [3]float32{-32, -32, 0})
-		door.SetMaxs(s, [3]float32{32, 32, 72})
-		door.SetVelocity(s, [3]float32{0, 0, 100})
+		door.SetOrigin(s, qtypes.Vec3{})
+		door.SetMins(s, qtypes.Vec3{X: -32, Y: -32, Z: 0})
+		door.SetMaxs(s, qtypes.Vec3{X: 32, Y: 32, Z: 72})
+		door.SetVelocity(s, qtypes.Vec3{X: 0, Y: 0, Z: 100})
 		s.LinkEdict(door, false)
 	}
-	owner.SetOrigin(s, [3]float32{-40, 0, 0})
-	half.SetOrigin(s, [3]float32{40, 0, 0})
+	owner.SetOrigin(s, qtypes.Vec3{X: -40, Y: 0, Z: 0})
+	half.SetOrigin(s, qtypes.Vec3{X: 40, Y: 0, Z: 0})
 	s.LinkEdict(owner, false)
 	s.LinkEdict(half, false)
 	owner.SetEnemy(s, int32(s.NumForEdict(half)))
@@ -134,10 +135,10 @@ func TestParityAITraceThroughWaterStillVisible(t *testing.T) {
 
 	monster := s.AllocEdict()
 	player := s.AllocEdict()
-	monster.SetOrigin(s, [3]float32{0, 0, 0})
-	player.SetOrigin(s, [3]float32{200, 0, 0})
-	monster.SetViewOfs(s, [3]float32{0, 0, 36})
-	player.SetViewOfs(s, [3]float32{0, 0, 36})
+	monster.SetOrigin(s, qtypes.Vec3{})
+	player.SetOrigin(s, qtypes.Vec3{X: 200, Y: 0, Z: 0})
+	monster.SetViewOfs(s, qtypes.Vec3{X: 0, Y: 0, Z: 36})
+	player.SetViewOfs(s, qtypes.Vec3{X: 0, Y: 0, Z: 36})
 	monster.SetSolid(s, float32(SolidBBox))
 	player.SetSolid(s, float32(SolidSlideBox))
 	s.LinkEdict(monster, false)
@@ -149,9 +150,9 @@ func TestParityAITraceThroughWaterStillVisible(t *testing.T) {
 	// the "water flips AI to blind" hypothesis: the QC test is
 	//   if (trace_inopen && trace_inwater) return FALSE;
 	// so a fully-open dry trace must NOT produce inopen&&inwater.
-	start := [3]float32{0, 0, 36}
-	end := [3]float32{200, 0, 36}
-	trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNoMonsters), monster)
+	start := qtypes.Vec3{X: 0, Y: 0, Z: 36}
+	end := qtypes.Vec3{X: 200, Y: 0, Z: 36}
+	trace := s.SV_Move(start, qtypes.Vec3{}, qtypes.Vec3{}, end, MoveType(MoveNoMonsters), monster)
 	if trace.InOpen && trace.InWater {
 		t.Fatalf("ai_water: dry open trace reported inopen=%v inwater=%v — visible() would return FALSE", trace.InOpen, trace.InWater)
 	}
@@ -179,9 +180,9 @@ func TestParitySoundNotDroppedNearWatermark(t *testing.T) {
 	}
 
 	ent := s.AllocEdict()
-	ent.SetOrigin(s, [3]float32{0, 0, 24})
-	ent.SetMins(s, [3]float32{-2, -4, -6})
-	ent.SetMaxs(s, [3]float32{2, 4, 6})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	ent.SetMins(s, qtypes.Vec3{X: -2, Y: -4, Z: -6})
+	ent.SetMaxs(s, qtypes.Vec3{X: 2, Y: 4, Z: 6})
 	s.LinkEdict(ent, false)
 
 	// Fill the datagram to exactly MaxDatagram-21 (the C watermark:

@@ -12,6 +12,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type runtimeRendererLoopResult struct {
@@ -233,16 +234,16 @@ func (g *Game) applyParityViewAnglesOverride() {
 	g.Client.PendingCmd.ViewAngles = angles
 }
 
-func parseParityAnglesEnv(raw string) ([3]float32, bool) {
+func parseParityAnglesEnv(raw string) (types.Vec3, bool) {
 	fields := strings.Fields(raw)
 	if len(fields) != 3 {
-		return [3]float32{}, false
+		return types.Vec3{}, false
 	}
 	var pitch, yaw, roll float32
 	if _, err := fmt.Sscanf(strings.Join(fields, " "), "%f %f %f", &pitch, &yaw, &roll); err != nil {
-		return [3]float32{}, false
+		return types.Vec3{}, false
 	}
-	return [3]float32{pitch, yaw, roll}, true
+	return types.Vec3{X: pitch, Y: yaw, Z: roll}, true
 }
 
 func (g *Game) uploadDeferredRuntimeWorld() {

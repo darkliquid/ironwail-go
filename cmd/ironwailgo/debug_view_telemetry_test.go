@@ -6,6 +6,7 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestRuntimeDebugViewLevelCachesPerFrame(t *testing.T) {
@@ -90,15 +91,15 @@ func TestRuntimePlayerOriginTelemetryUsesAuthoritativeOriginWhenPredictionAccept
 	g.Client.ViewEntity = 1
 	g.Client.MTime = [2]float64{1, 0.9}
 	g.Client.Time = 1
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}, MsgTime: 1}
-	g.Client.PredictedOrigin = [3]float32{102, 198, 280}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 100, Y: 200, Z: 300}, MsgTime: 1}
+	g.Client.PredictedOrigin = types.Vec3{X: 102, Y: 198, Z: 280}
 	markCurrentPredictionFresh(g.Client)
 
 	origin, ok := runtimePlayerOrigin()
 	if !ok {
 		t.Fatal("runtimePlayerOrigin() reported no origin")
 	}
-	if want := [3]float32{100, 200, 300}; origin != want {
+	if want := (types.Vec3{X: 100, Y: 200, Z: 300}); origin != want {
 		t.Fatalf("runtimePlayerOrigin() = %v, want %v", origin, want)
 	}
 	if runtimeDebugView.originSelect.Source != runtimeOriginSourceAuthoritativePredictedXY {
@@ -130,8 +131,8 @@ func TestRuntimePlayerOriginTelemetryRejectsTeleportPrediction(t *testing.T) {
 	g.Client.ViewEntity = 1
 	g.Client.MTime = [2]float64{1, 0.9}
 	g.Client.Time = 1
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{512, 256, 128}, MsgTime: 1}
-	g.Client.PredictedOrigin = [3]float32{540, 280, 128}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 512, Y: 256, Z: 128}, MsgTime: 1}
+	g.Client.PredictedOrigin = types.Vec3{X: 540, Y: 280, Z: 128}
 	markCurrentPredictionFresh(g.Client)
 	g.Client.LocalViewTeleport = true
 
@@ -139,7 +140,7 @@ func TestRuntimePlayerOriginTelemetryRejectsTeleportPrediction(t *testing.T) {
 	if !ok {
 		t.Fatal("runtimePlayerOrigin() reported no origin")
 	}
-	if want := [3]float32{512, 256, 128}; origin != want {
+	if want := (types.Vec3{X: 512, Y: 256, Z: 128}); origin != want {
 		t.Fatalf("runtimePlayerOrigin() = %v, want %v", origin, want)
 	}
 	if runtimeDebugView.originSelect.Source != runtimeOriginSourceAuthoritativeOnly {
@@ -162,7 +163,7 @@ func TestRuntimePlayerOriginTelemetryRejectsMissingAuthoritativeOriginEvenWithFr
 
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateActive
-	g.Client.PredictedOrigin = [3]float32{12, 34, 56}
+	g.Client.PredictedOrigin = types.Vec3{X: 12, Y: 34, Z: 56}
 	markCurrentPredictionFresh(g.Client)
 
 	origin, ok := runtimePlayerOrigin()
@@ -189,7 +190,7 @@ func TestRuntimePlayerOriginTelemetryRejectsStalePredictionWithoutAuthoritativeO
 
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateActive
-	g.Client.PredictedOrigin = [3]float32{12, 34, 56}
+	g.Client.PredictedOrigin = types.Vec3{X: 12, Y: 34, Z: 56}
 
 	origin, ok := runtimePlayerOrigin()
 	if ok {
@@ -218,15 +219,15 @@ func TestRuntimePlayerOriginTelemetryKeepsLatchedUnsafeChoiceForServerInterval(t
 	g.Client.ViewEntity = 1
 	g.Client.MTime = [2]float64{1, 0.9}
 	g.Client.Time = 1
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}, MsgTime: 1}
-	g.Client.PredictedOrigin = [3]float32{105, 200, 280}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 100, Y: 200, Z: 300}, MsgTime: 1}
+	g.Client.PredictedOrigin = types.Vec3{X: 105, Y: 200, Z: 280}
 	markCurrentPredictionFresh(g.Client)
 
 	origin, ok := runtimePlayerOrigin()
 	if !ok {
 		t.Fatal("runtimePlayerOrigin() reported no origin")
 	}
-	if want := [3]float32{100, 200, 300}; origin != want {
+	if want := (types.Vec3{X: 100, Y: 200, Z: 300}); origin != want {
 		t.Fatalf("first runtimePlayerOrigin() = %v, want %v", origin, want)
 	}
 	if runtimeDebugView.originSelect.Source != runtimeOriginSourceAuthoritativeOnly {
@@ -236,13 +237,13 @@ func TestRuntimePlayerOriginTelemetryKeepsLatchedUnsafeChoiceForServerInterval(t
 		t.Fatalf("first origin reject reason = %s, want %s", runtimeDebugView.originSelect.RejectReason, runtimeOriginRejectXYOffsetThreshold)
 	}
 
-	g.Client.PredictedOrigin = [3]float32{102, 198, 280}
+	g.Client.PredictedOrigin = types.Vec3{X: 102, Y: 198, Z: 280}
 
 	origin, ok = runtimePlayerOrigin()
 	if !ok {
 		t.Fatal("runtimePlayerOrigin() reported no origin on second frame")
 	}
-	if want := [3]float32{100, 200, 300}; origin != want {
+	if want := (types.Vec3{X: 100, Y: 200, Z: 300}); origin != want {
 		t.Fatalf("second runtimePlayerOrigin() = %v, want latched authoritative origin %v", origin, want)
 	}
 	if runtimeDebugView.originSelect.Source != runtimeOriginSourceAuthoritativeOnly {
@@ -271,8 +272,8 @@ func TestRuntimePlayerOriginTelemetryReevaluatesChoiceOnNewServerInterval(t *tes
 	g.Client.ViewEntity = 1
 	g.Client.MTime = [2]float64{1, 0.9}
 	g.Client.Time = 1
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}, MsgTime: 1}
-	g.Client.PredictedOrigin = [3]float32{105, 200, 280}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 100, Y: 200, Z: 300}, MsgTime: 1}
+	g.Client.PredictedOrigin = types.Vec3{X: 105, Y: 200, Z: 280}
 	markCurrentPredictionFresh(g.Client)
 
 	if _, ok := runtimePlayerOrigin(); !ok {
@@ -280,14 +281,14 @@ func TestRuntimePlayerOriginTelemetryReevaluatesChoiceOnNewServerInterval(t *tes
 	}
 
 	g.Client.MTime = [2]float64{1.1, 1}
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}, MsgTime: 1.1}
-	g.Client.PredictedOrigin = [3]float32{102, 198, 280}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 100, Y: 200, Z: 300}, MsgTime: 1.1}
+	g.Client.PredictedOrigin = types.Vec3{X: 102, Y: 198, Z: 280}
 
 	origin, ok := runtimePlayerOrigin()
 	if !ok {
 		t.Fatal("runtimePlayerOrigin() reported no origin after new interval")
 	}
-	if want := [3]float32{100, 200, 300}; origin != want {
+	if want := (types.Vec3{X: 100, Y: 200, Z: 300}); origin != want {
 		t.Fatalf("runtimePlayerOrigin() after new interval = %v, want %v", origin, want)
 	}
 	if runtimeDebugView.originSelect.Source != runtimeOriginSourceAuthoritativePredictedXY {
@@ -313,28 +314,28 @@ func TestRuntimePlayerOriginTelemetryTeleportRelatchesUntilNextInterval(t *testi
 	g.Client.ViewEntity = 1
 	g.Client.MTime = [2]float64{1, 0.9}
 	g.Client.Time = 1
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}, MsgTime: 1}
-	g.Client.PredictedOrigin = [3]float32{102, 198, 280}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 100, Y: 200, Z: 300}, MsgTime: 1}
+	g.Client.PredictedOrigin = types.Vec3{X: 102, Y: 198, Z: 280}
 	markCurrentPredictionFresh(g.Client)
 
 	origin, ok := runtimePlayerOrigin()
 	if !ok {
 		t.Fatal("runtimePlayerOrigin() reported no origin")
 	}
-	if want := [3]float32{100, 200, 300}; origin != want {
+	if want := (types.Vec3{X: 100, Y: 200, Z: 300}); origin != want {
 		t.Fatalf("runtimePlayerOrigin() before teleport = %v, want %v", origin, want)
 	}
 
 	g.Client.LocalViewTeleport = true
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{512, 256, 128}, MsgTime: 1}
-	g.Client.PredictedOrigin = [3]float32{514, 258, 128}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 512, Y: 256, Z: 128}, MsgTime: 1}
+	g.Client.PredictedOrigin = types.Vec3{X: 514, Y: 258, Z: 128}
 	markCurrentPredictionFresh(g.Client)
 
 	origin, ok = runtimePlayerOrigin()
 	if !ok {
 		t.Fatal("runtimePlayerOrigin() reported no origin on teleport")
 	}
-	if want := [3]float32{512, 256, 128}; origin != want {
+	if want := (types.Vec3{X: 512, Y: 256, Z: 128}); origin != want {
 		t.Fatalf("runtimePlayerOrigin() on teleport = %v, want %v", origin, want)
 	}
 	if runtimeDebugView.originSelect.Source != runtimeOriginSourceAuthoritativeOnly {
@@ -345,13 +346,13 @@ func TestRuntimePlayerOriginTelemetryTeleportRelatchesUntilNextInterval(t *testi
 	}
 
 	g.Client.LocalViewTeleport = false
-	g.Client.PredictedOrigin = [3]float32{513, 257, 128}
+	g.Client.PredictedOrigin = types.Vec3{X: 513, Y: 257, Z: 128}
 
 	origin, ok = runtimePlayerOrigin()
 	if !ok {
 		t.Fatal("runtimePlayerOrigin() reported no origin after teleport cleared")
 	}
-	if want := [3]float32{512, 256, 128}; origin != want {
+	if want := (types.Vec3{X: 512, Y: 256, Z: 128}); origin != want {
 		t.Fatalf("runtimePlayerOrigin() after teleport cleared = %v, want latched authoritative origin %v", origin, want)
 	}
 	if runtimeDebugView.originSelect.Source != runtimeOriginSourceAuthoritativeOnly {
@@ -362,14 +363,14 @@ func TestRuntimePlayerOriginTelemetryTeleportRelatchesUntilNextInterval(t *testi
 	}
 
 	g.Client.MTime = [2]float64{1.1, 1}
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{512, 256, 128}, MsgTime: 1.1}
-	g.Client.PredictedOrigin = [3]float32{514, 258, 128}
+	g.Client.Entities[1] = inet.EntityState{Origin: types.Vec3{X: 512, Y: 256, Z: 128}, MsgTime: 1.1}
+	g.Client.PredictedOrigin = types.Vec3{X: 514, Y: 258, Z: 128}
 
 	origin, ok = runtimePlayerOrigin()
 	if !ok {
 		t.Fatal("runtimePlayerOrigin() reported no origin after next interval")
 	}
-	if want := [3]float32{512, 256, 128}; origin != want {
+	if want := (types.Vec3{X: 512, Y: 256, Z: 128}); origin != want {
 		t.Fatalf("runtimePlayerOrigin() after next interval = %v, want %v", origin, want)
 	}
 	if runtimeDebugView.originSelect.Source != runtimeOriginSourceAuthoritativePredictedXY {

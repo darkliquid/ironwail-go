@@ -6,6 +6,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestFaceFlagsMissingTextureFallsBackToSpecialSlot(t *testing.T) {
@@ -50,7 +51,7 @@ func TestFaceTextureIndexMapsMissingToWhiteDummy(t *testing.T) {
 }
 
 func TestTexCoordDoubleIsFloat64Precise(t *testing.T) {
-	pos := [3]float32{10, 20, 30}
+	pos := types.Vec3{X: 10, Y: 20, Z: 30}
 	vec := [4]float32{0.5, 0.25, 0.125, 4}
 	got := TexCoordDouble(pos, vec)
 	want := 10*0.5 + 20*0.25 + 30*0.125 + 4

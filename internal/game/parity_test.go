@@ -12,13 +12,14 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type RefEdict struct {
 	Number       int        `json:"number"`
-	Origin       [3]float32 `json:"origin"`
-	Angles       [3]float32 `json:"angles"`
-	Velocity     [3]float32 `json:"velocity,omitempty"`
+	Origin       types.Vec3 `json:"origin"`
+	Angles       types.Vec3 `json:"angles"`
+	Velocity     types.Vec3 `json:"velocity,omitempty"`
 	Model        string     `json:"model,omitempty"`
 	ModelIndex   int        `json:"modelindex,omitempty"`
 	Frame        int        `json:"frame,omitempty"`
@@ -37,16 +38,16 @@ type RefEdict struct {
 }
 
 type RefLight struct {
-	Pos      [3]float32 `json:"pos"`
+	Pos      types.Vec3 `json:"pos"`
 	Radius   float32    `json:"radius"`
-	Color    [3]float32 `json:"color"`
+	Color    types.Vec3 `json:"color"`
 	MinLight float32    `json:"minlight"`
 }
 
 type RefFrameState struct {
 	Frame        int         `json:"frame"`
-	ViewOrg      [3]float32  `json:"vieworg"`
-	ViewAngles   [3]float32  `json:"viewangles"`
+	ViewOrg      types.Vec3  `json:"vieworg"`
+	ViewAngles   types.Vec3  `json:"viewangles"`
 	ViewLeaf     int         `json:"viewleaf"`
 	MatView      [16]float32 `json:"r_matview"`
 	MatProj      [16]float32 `json:"r_matproj"`
@@ -111,10 +112,10 @@ func floatEquals(a, b, epsilon float32) bool {
 	return math.Abs(float64(a-b)) <= float64(epsilon)
 }
 
-func vecEquals(a, b [3]float32, epsilon float32) bool {
-	return floatEquals(a[0], b[0], epsilon) &&
-		floatEquals(a[1], b[1], epsilon) &&
-		floatEquals(a[2], b[2], epsilon)
+func vecEquals(a, b types.Vec3, epsilon float32) bool {
+	return floatEquals(a.X, b.X, epsilon) &&
+		floatEquals(a.Y, b.Y, epsilon) &&
+		floatEquals(a.Z, b.Z, epsilon)
 }
 
 func TestDemoStateParity(t *testing.T) {
@@ -185,7 +186,7 @@ func runParityTest(t *testing.T, quakeDir string, config ParityConfig) {
 	if err != nil {
 		t.Fatalf("Failed to open C reference state dump file %s: %v", config.ReferenceFile, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	decoder := json.NewDecoder(file)
 	var refStates []RefFrameState
@@ -296,18 +297,18 @@ func runParityTest(t *testing.T, quakeDir string, config ParityConfig) {
 			g.Renderer.UpdateCamera(camera, 0.1, 65536.0)
 		}
 
-		finalAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
+		finalAngles := types.Vec3{X: camera.Angles.X, Y: camera.Angles.Y, Z: camera.Angles.Z}
 
 		// 1. Camera Origin & Angles comparison
 		if !vecEquals(origin, ref.ViewOrg, config.Tolerances.ViewOrg) {
 			t.Errorf("Frame %d (%d): ViewOrg got %v, want %v (diff: %f, %f, %f)",
 				frameIdx, ref.Frame, origin, ref.ViewOrg,
-				origin[0]-ref.ViewOrg[0], origin[1]-ref.ViewOrg[1], origin[2]-ref.ViewOrg[2])
+				origin.X-ref.ViewOrg.X, origin.Y-ref.ViewOrg.Y, origin.Z-ref.ViewOrg.Z)
 		}
 		if !vecEquals(finalAngles, ref.ViewAngles, config.Tolerances.ViewAngles) {
 			t.Errorf("Frame %d (%d): ViewAngles got %v, want %v (diff: %f, %f, %f)",
 				frameIdx, ref.Frame, finalAngles, ref.ViewAngles,
-				finalAngles[0]-ref.ViewAngles[0], finalAngles[1]-ref.ViewAngles[1], finalAngles[2]-ref.ViewAngles[2])
+				finalAngles.X-ref.ViewAngles.X, finalAngles.Y-ref.ViewAngles.Y, finalAngles.Z-ref.ViewAngles.Z)
 		}
 
 		// 2. Camera leaf index comparison
@@ -392,7 +393,7 @@ func runParityTest(t *testing.T, quakeDir string, config ParityConfig) {
 				} else {
 					for i, l := range goLights {
 						refL := ref.Lights[i]
-						lPos := [3]float32{l.Position[0], l.Position[1], l.Position[2]}
+						lPos := l.Position
 						if !vecEquals(lPos, refL.Pos, 10.0) {
 							t.Logf("Frame %d (%d): Light %d Pos difference: got %v, want %v", frameIdx, ref.Frame, i, lPos, refL.Pos)
 						}

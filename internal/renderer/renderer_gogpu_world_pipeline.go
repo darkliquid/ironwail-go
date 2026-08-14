@@ -6,6 +6,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/wgpu"
 )
 
@@ -16,7 +17,7 @@ type gogpuOpaqueBrushEntityDraw struct {
 	vertices      []WorldVertex
 	indices       []uint32
 	faces         []WorldFace
-	centers       [][3]float32
+	centers       []types.Vec3
 	lightmapArray *gpuWorldTexture
 	// Optional per-draw texture overrides used for standalone-BSP brush
 	// entities (e.g. b_rock0.bsp). Nil means use the world texture tables.
@@ -37,10 +38,10 @@ type gogpuClassifiedBrushEntityDraw struct {
 	vertices               []WorldVertex
 	opaqueIndices          []uint32
 	opaqueFaces            []WorldFace
-	opaqueCenters          [][3]float32
+	opaqueCenters          []types.Vec3
 	alphaTestIndices       []uint32
 	alphaTestFaces         []WorldFace
-	alphaTestCenters       [][3]float32
+	alphaTestCenters       []types.Vec3
 	lightmapArray          *gpuWorldTexture
 	textures               *gpuWorldTexture
 	fullbrightTextures     *gpuWorldTexture
@@ -195,7 +196,7 @@ func buildGoGPUTranslucentLiquidBrushEntityDraw(entity BrushEntity, geom *WorldG
 			return 0, false
 		}
 		return worldFaceAlpha(face.Flags, liquidAlpha), true
-	}, func(center [3]float32) float32 {
+	}, func(center types.Vec3) float32 {
 		return worldFaceDistanceSq(center, camera)
 	})
 	if draw == nil {
@@ -214,7 +215,7 @@ type gogpuTranslucentBrushEntityDraw struct {
 	vertices               []WorldVertex
 	indices                []uint32
 	alphaTestFaces         []WorldFace
-	alphaTestCenters       [][3]float32
+	alphaTestCenters       []types.Vec3
 	translucentFaces       []gogpuTranslucentLiquidFaceDraw
 	liquidFaces            []gogpuTranslucentLiquidFaceDraw
 	lightmapArray          *gpuWorldTexture
@@ -246,7 +247,7 @@ func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometr
 		default:
 			return worldgogpu.TranslucentFacePlan{}, false
 		}
-	}, func(center [3]float32) float32 {
+	}, func(center types.Vec3) float32 {
 		return worldFaceDistanceSq(center, camera)
 	})
 	if draw == nil {

@@ -7,6 +7,7 @@ import (
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // These tests are REGRESSION GUARDS for the three intermittently-reported
@@ -57,14 +58,14 @@ func TestParityDoubleDoorPairAdvancesBothHalves(t *testing.T) {
 	for _, door := range []*Edict{left, right} {
 		door.SetMoveType(s, float32(MoveTypePush))
 		door.SetSolid(s, float32(SolidBSP))
-		door.SetOrigin(s, [3]float32{0, 0, 0})
-		door.SetMins(s, [3]float32{-32, -32, 0})
-		door.SetMaxs(s, [3]float32{32, 32, 72})
-		door.SetVelocity(s, [3]float32{0, 0, 100})
+		door.SetOrigin(s, qtypes.Vec3{})
+		door.SetMins(s, qtypes.Vec3{X: -32, Y: -32, Z: 0})
+		door.SetMaxs(s, qtypes.Vec3{X: 32, Y: 32, Z: 72})
+		door.SetVelocity(s, qtypes.Vec3{X: 0, Y: 0, Z: 100})
 		s.LinkEdict(door, false)
 	}
-	left.SetOrigin(s, [3]float32{-40, 0, 0})
-	right.SetOrigin(s, [3]float32{40, 0, 0})
+	left.SetOrigin(s, qtypes.Vec3{X: -40, Y: 0, Z: 0})
+	right.SetOrigin(s, qtypes.Vec3{X: 40, Y: 0, Z: 0})
 	s.LinkEdict(left, false)
 	s.LinkEdict(right, false)
 
@@ -125,10 +126,10 @@ func TestParityAITracelineReportsClearLOS(t *testing.T) {
 	// Monster at origin, player 200 units along +x at eye height. No walls.
 	monster := s.AllocEdict()
 	player := s.AllocEdict()
-	monster.SetOrigin(s, [3]float32{0, 0, 0})
-	player.SetOrigin(s, [3]float32{200, 0, 0})
-	monster.SetViewOfs(s, [3]float32{0, 0, 36})
-	player.SetViewOfs(s, [3]float32{0, 0, 36})
+	monster.SetOrigin(s, qtypes.Vec3{})
+	player.SetOrigin(s, qtypes.Vec3{X: 200, Y: 0, Z: 0})
+	monster.SetViewOfs(s, qtypes.Vec3{X: 0, Y: 0, Z: 36})
+	player.SetViewOfs(s, qtypes.Vec3{X: 0, Y: 0, Z: 36})
 	monster.SetSolid(s, float32(SolidBBox))
 	player.SetSolid(s, float32(SolidSlideBox))
 	s.LinkEdict(monster, false)
@@ -137,9 +138,9 @@ func TestParityAITracelineReportsClearLOS(t *testing.T) {
 	// The QC builtin 'traceline' (internal/server/server.go:319) invokes
 	// s.SV_Move with a zero hull. A clear LOS from monster eye to player
 	// eye must report Fraction == 1 (visible() would return TRUE).
-	start := [3]float32{0, 0, 36}
-	end := [3]float32{200, 0, 36}
-	trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNoMonsters), monster)
+	start := qtypes.Vec3{X: 0, Y: 0, Z: 36}
+	end := qtypes.Vec3{X: 200, Y: 0, Z: 36}
+	trace := s.SV_Move(start, qtypes.Vec3{}, qtypes.Vec3{}, end, MoveType(MoveNoMonsters), monster)
 	if trace.Fraction < 1.0 {
 		t.Fatalf("ai_traceline: clear LOS reported fraction=%v, want 1.0", trace.Fraction)
 	}
@@ -167,9 +168,9 @@ func TestParitySoundEmittedSameFrame(t *testing.T) {
 	}
 
 	ent := s.AllocEdict()
-	ent.SetOrigin(s, [3]float32{0, 0, 24})
-	ent.SetMins(s, [3]float32{-2, -4, -6})
-	ent.SetMaxs(s, [3]float32{2, 4, 6})
+	ent.SetOrigin(s, qtypes.Vec3{X: 0, Y: 0, Z: 24})
+	ent.SetMins(s, qtypes.Vec3{X: -2, Y: -4, Z: -6})
+	ent.SetMaxs(s, qtypes.Vec3{X: 2, Y: 4, Z: 6})
 	s.LinkEdict(ent, false)
 
 	// StartSound is the exact path the QC builtin sound() bridge calls

@@ -27,10 +27,10 @@ func VertexBytes(vertices []worldimpl.WorldVertex) []byte {
 	data := make([]byte, len(vertices)*worldVertexStrideBytes)
 	for i, v := range vertices {
 		offset := i * worldVertexStrideBytes
-		putFloat32Slice(data[offset:offset+12], v.Position[:])
+		putFloat32Slice(data[offset:offset+12], []float32{v.Position.X, v.Position.Y, v.Position.Z})
 		putFloat32Slice(data[offset+12:offset+20], v.TexCoord[:])
 		putFloat32Slice(data[offset+20:offset+28], v.LightmapCoord[:])
-		putFloat32Slice(data[offset+28:offset+40], v.Normal[:])
+		putFloat32Slice(data[offset+28:offset+40], []float32{v.Normal.X, v.Normal.Y, v.Normal.Z})
 		putFloat32Slice(data[offset+40:offset+44], []float32{v.LightmapLayer})
 		binary.LittleEndian.PutUint32(data[offset+44:offset+48], v.MaterialID)
 	}
@@ -58,10 +58,10 @@ func AppendVertexBytes(dst []byte, vertices []worldimpl.WorldVertex) []byte {
 	dst = append(dst, make([]byte, len(vertices)*worldVertexStrideBytes)...)
 	write := start
 	for _, vertex := range vertices {
-		putFloat32Slice(dst[write:write+12], vertex.Position[:])
+		putFloat32Slice(dst[write:write+12], []float32{vertex.Position.X, vertex.Position.Y, vertex.Position.Z})
 		putFloat32Slice(dst[write+12:write+20], vertex.TexCoord[:])
 		putFloat32Slice(dst[write+20:write+28], vertex.LightmapCoord[:])
-		putFloat32Slice(dst[write+28:write+40], vertex.Normal[:])
+		putFloat32Slice(dst[write+28:write+40], []float32{vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z})
 		putFloat32Slice(dst[write+40:write+44], []float32{vertex.LightmapLayer})
 		binary.LittleEndian.PutUint32(dst[write+44:write+48], vertex.MaterialID)
 		write += worldVertexStrideBytes

@@ -92,11 +92,7 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 		return
 	}
 	playerVel := player.Velocity(srv)
-	speed := math.Sqrt(
-		float64(playerVel[0]*playerVel[0] +
-			playerVel[1]*playerVel[1] +
-			playerVel[2]*playerVel[2]),
-	)
+	speed := float64(playerVel.Len())
 	if speed > 100 {
 		return
 	}

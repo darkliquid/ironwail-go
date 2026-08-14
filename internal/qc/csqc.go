@@ -3,6 +3,8 @@ package qc
 import (
 	"fmt"
 	"io"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // csqcGlobals caches offsets for CSQC-specific global variables.
@@ -46,7 +48,7 @@ type CSQCFrameState struct {
 	IntermissionTime   float32
 	PlayerLocalNum     float32
 	PlayerLocalEntNum  float32
-	ViewAngles         [3]float32
+	ViewAngles         types.Vec3
 	ClientCommandFrame float32
 	ServerCommandFrame float32
 }
@@ -257,7 +259,7 @@ func (c *CSQC) CallDrawHud(state CSQCFrameState, virtSizeX, virtSizeY float32, s
 
 	c.SyncGlobals(state)
 	c.VM.SetGFloat(OFSReturn, 0)
-	c.VM.SetGVector(OFSParm0, [3]float32{virtSizeX, virtSizeY, 0})
+	c.VM.SetGVector(OFSParm0, types.Vec3{X: virtSizeX, Y: virtSizeY, Z: 0})
 	if showScores {
 		c.VM.SetGFloat(OFSParm1, 1)
 	} else {
@@ -281,7 +283,7 @@ func (c *CSQC) CallDrawScores(state CSQCFrameState, virtSizeX, virtSizeY float32
 	}
 
 	c.SyncGlobals(state)
-	c.VM.SetGVector(OFSParm0, [3]float32{virtSizeX, virtSizeY, 0})
+	c.VM.SetGVector(OFSParm0, types.Vec3{X: virtSizeX, Y: virtSizeY, Z: 0})
 	if showScores {
 		c.VM.SetGFloat(OFSParm1, 1)
 	} else {

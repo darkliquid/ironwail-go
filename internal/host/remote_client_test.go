@@ -7,6 +7,7 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 var (
@@ -188,7 +189,7 @@ func TestRemoteDatagramClientResetConnectionStateClearsClient(t *testing.T) {
 func TestRemoteClientFrameSkipsAccumulationBeforeSignonComplete(t *testing.T) {
 	rc := newRemoteDatagramClient(nil, nil)
 	rc.inner.Signon = 0
-	rc.inner.ViewAngles = [3]float32{10, 20, 0}
+	rc.inner.ViewAngles = types.Vec3{X: 10, Y: 20, Z: 0}
 	rc.inner.InputForward.State = 1
 
 	if err := rc.Frame(0.016); err != nil {

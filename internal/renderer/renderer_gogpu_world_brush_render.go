@@ -4,11 +4,12 @@ import (
 	"log/slog"
 
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
 
-func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogColor types.Vec3, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
@@ -131,7 +132,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		if mr, mrErr := buf.MappedRange(0, vSize); mrErr == nil && mr != nil {
 			copy(mr.Bytes(), scratch.vertexData)
 		}
-		buf.Unmap()
+		_ = buf.Unmap()
 		vertexScratchBuffer = buf
 		defer vertexScratchBuffer.Release()
 	}
@@ -150,7 +151,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		if mr, mrErr := buf.MappedRange(0, iSize); mrErr == nil && mr != nil {
 			copy(mr.Bytes(), scratch.indexData)
 		}
-		buf.Unmap()
+		_ = buf.Unmap()
 		indexScratchBuffer = buf
 		defer indexScratchBuffer.Release()
 	}
@@ -314,7 +315,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	}
 }
 
-func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColor types.Vec3, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
@@ -539,7 +540,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	}
 }
 
-func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
+func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity, fogColor types.Vec3, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
@@ -667,7 +668,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		if mr, mrErr := buf.MappedRange(0, vSize); mrErr == nil && mr != nil {
 			copy(mr.Bytes(), scratch.vertexData)
 		}
-		buf.Unmap()
+		_ = buf.Unmap()
 		vertexScratchBuffer = buf
 		defer vertexScratchBuffer.Release()
 	}
@@ -686,7 +687,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		if mr, mrErr := buf.MappedRange(0, iSize); mrErr == nil && mr != nil {
 			copy(mr.Bytes(), scratch.indexData)
 		}
-		buf.Unmap()
+		_ = buf.Unmap()
 		indexScratchBuffer = buf
 		defer indexScratchBuffer.Release()
 	}

@@ -3,6 +3,7 @@ package game
 import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // SpriteModel holds a sprite model reference.
@@ -60,7 +61,7 @@ type TelemetryState struct {
 	DemoName        string
 	DemoBarTimeout  float32
 	ClientActive    bool
-	Velocity        [3]float32
+	Velocity        types.Vec3
 	ConsoleForced   bool
 	LastServerMsgAt float64
 	SavingActive    bool

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestWriteEntityUpdate_OriginTolerance(t *testing.T) {
@@ -17,7 +18,7 @@ func TestWriteEntityUpdate_OriginTolerance(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake}
 	newServerTestVM(s, 8)
 	baseline := EntityState{
-		Origin: [3]float32{100, 200, 300},
+		Origin: qtypes.Vec3{X: 100, Y: 200, Z: 300},
 		Scale:  16,
 	}
 
@@ -45,7 +46,7 @@ func TestWriteEntityUpdate_OriginTolerance(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			state := baseline
-			state.Origin[0] = tc.originX
+			state.Origin.X = tc.originX
 			msg := NewMessageBuffer(256)
 			gotUpdate := s.writeEntityUpdate(msg, 1, state, baseline, false, 0, 0, false)
 			if gotUpdate != tc.wantUpdate {
@@ -103,14 +104,14 @@ func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
 		NumEdicts: 2,
 	}
 	newServerTestVM(s, 8)
-	ent.SetOrigin(s, [3]float32{64, 0, 0})
+	ent.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
 
 	currentState, ok := s.entityStateForClient(1, ent)
 	if !ok {
 		t.Fatal("entityStateForClient returned ok=false")
 	}
 	ent.Baseline = currentState
-	ent.Baseline.Origin[0] = 0
+	ent.Baseline.Origin.X = 0
 	client.EntityStates[1] = currentState
 
 	msg := NewMessageBuffer(256)
@@ -278,18 +279,18 @@ func TestWriteEntitiesToClient_PrioritizesCloserVisibleEntitiesWhenPacketBudgetT
 
 	far.SetModelIndex(s, 5)
 	far.SetModel(s, s.QCVM.AllocString("*5"))
-	far.SetOrigin(s, [3]float32{1000, 0, 0})
-	far.SetAbsMin(s, [3]float32{999, -1, -1})
-	far.SetAbsMax(s, [3]float32{1001, 1, 1})
+	far.SetOrigin(s, qtypes.Vec3{X: 1000, Y: 0, Z: 0})
+	far.SetAbsMin(s, qtypes.Vec3{X: 999, Y: -1, Z: -1})
+	far.SetAbsMax(s, qtypes.Vec3{X: 1001, Y: 1, Z: 1})
 	far.NumLeafs = 1
 	far.LeafNums[0] = 0
 	far.Baseline = EntityState{ModelIndex: 5, Origin: far.Origin(s), Scale: inet.ENTSCALE_DEFAULT}
 
 	near.SetModelIndex(s, 6)
 	near.SetModel(s, s.QCVM.AllocString("*6"))
-	near.SetOrigin(s, [3]float32{10, 0, 0})
-	near.SetAbsMin(s, [3]float32{9, -1, -1})
-	near.SetAbsMax(s, [3]float32{11, 1, 1})
+	near.SetOrigin(s, qtypes.Vec3{X: 10, Y: 0, Z: 0})
+	near.SetAbsMin(s, qtypes.Vec3{X: 9, Y: -1, Z: -1})
+	near.SetAbsMax(s, qtypes.Vec3{X: 11, Y: 1, Z: 1})
 	near.NumLeafs = 1
 	near.LeafNums[0] = 0
 	near.Baseline = EntityState{ModelIndex: 6, Origin: near.Origin(s), Scale: inet.ENTSCALE_DEFAULT}

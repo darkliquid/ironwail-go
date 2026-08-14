@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type demoFileOpener interface {
@@ -111,7 +112,7 @@ func (h *Host) CmdStop(subs *Subsystems) {
 		return
 	}
 
-	var viewAngles [3]float32
+	var viewAngles types.Vec3
 	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
 		viewAngles = loopbackClient.ViewAngles
 	}

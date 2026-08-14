@@ -3,16 +3,17 @@ package renderer
 import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // DecalVariant identifies the visual style used by a projected decal mark.
 type DecalVariant int
 
 // DecalOrigin implements decal.MarkEntity.
-func (m DecalMarkEntity) DecalOrigin() [3]float32 { return m.Origin }
+func (m DecalMarkEntity) DecalOrigin() types.Vec3 { return m.Origin }
 
 // DecalNormal implements decal.MarkEntity.
-func (m DecalMarkEntity) DecalNormal() [3]float32 { return m.Normal }
+func (m DecalMarkEntity) DecalNormal() types.Vec3 { return m.Normal }
 
 // DecalSize implements decal.MarkEntity.
 func (m DecalMarkEntity) DecalSize() float32 { return m.Size }
@@ -42,8 +43,8 @@ const (
 type BrushEntity struct {
 	SubmodelIndex int
 	Frame         int
-	Origin        [3]float32
-	Angles        [3]float32
+	Origin        types.Vec3
+	Angles        types.Vec3
 	Alpha         float32
 	Scale         float32
 	ExternalKey   string
@@ -52,8 +53,8 @@ type BrushEntity struct {
 
 // EntityEffectSource describes a runtime entity whose effect flags drive transient visuals.
 type EntityEffectSource struct {
-	Origin     [3]float32
-	Angles     [3]float32
+	Origin     types.Vec3
+	Angles     types.Vec3
 	Effects    int
 	ModelFlags int
 	EntityNum  int // Entity index — used as EntityKey for per-entity dlight slot reuse
@@ -71,8 +72,8 @@ type AliasModelEntity struct {
 	TimeSeconds float64 // Absolute client/render time for persistent alias interpolation.
 	LerpFlags   int
 	LerpFinish  float64
-	Origin      [3]float32
-	Angles      [3]float32
+	Origin      types.Vec3
+	Angles      types.Vec3
 	Alpha       float32
 	Scale       float32
 }
@@ -88,8 +89,8 @@ type SpriteEntity struct {
 	ModelID string
 	Model   *model.Model
 	Frame   int
-	Origin  [3]float32
-	Angles  [3]float32
+	Origin  types.Vec3
+	Angles  types.Vec3
 	Alpha   float32
 	Scale   float32
 	// SpriteData holds the actual sprite loading data (optional, used internally)
@@ -98,11 +99,11 @@ type SpriteEntity struct {
 
 // DecalMarkEntity describes a projected mark (bullet hole, scorch mark) in world space.
 type DecalMarkEntity struct {
-	Origin   [3]float32
-	Normal   [3]float32
+	Origin   types.Vec3
+	Normal   types.Vec3
 	Size     float32
 	Rotation float32
-	Color    [3]float32
+	Color    types.Vec3
 	Alpha    float32
 	Variant  DecalVariant
 }

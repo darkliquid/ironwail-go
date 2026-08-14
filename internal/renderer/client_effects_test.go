@@ -6,6 +6,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestEmitDynamicLightsOnlyExplosionsSpawnLights(t *testing.T) {
@@ -14,14 +15,14 @@ func TestEmitDynamicLightsOnlyExplosionsSpawnLights(t *testing.T) {
 		lights = append(lights, dl)
 		return true
 	}, []client.TempEntityEvent{
-		{Type: inet.TE_SPIKE, Origin: [3]float32{1, 1, 1}},
-		{Type: inet.TE_LIGHTNING1, Origin: [3]float32{2, 2, 2}},
-		{Type: inet.TE_EXPLOSION, Origin: [3]float32{3, 3, 3}},
+		{Type: inet.TE_SPIKE, Origin: types.Vec3{X: 1, Y: 1, Z: 1}},
+		{Type: inet.TE_LIGHTNING1, Origin: types.Vec3{X: 2, Y: 2, Z: 2}},
+		{Type: inet.TE_EXPLOSION, Origin: types.Vec3{X: 3, Y: 3, Z: 3}},
 	})
 	if got := len(lights); got != 1 {
 		t.Fatalf("dynamic lights = %d, want 1", got)
 	}
-	if got := lights[0].Position; got != [3]float32{3, 3, 3} {
+	if got := lights[0].Position; got != (types.Vec3{X: 3, Y: 3, Z: 3}) {
 		t.Fatalf("light origin = %v, want explosion origin", got)
 	}
 }
@@ -32,7 +33,7 @@ func TestEmitEntityEffectLightsAddsRocketLightFromModelFlags(t *testing.T) {
 		lights = append(lights, dl)
 		return true
 	}, []EntityEffectSource{{
-		Origin:     [3]float32{4, 5, 6},
+		Origin:     types.Vec3{X: 4, Y: 5, Z: 6},
 		ModelFlags: model.EFRocket,
 		EntityNum:  7,
 	}})
@@ -53,7 +54,7 @@ func TestEmitEntityEffectLightsMuzzleFlashSetsMinLight(t *testing.T) {
 		lights = append(lights, dl)
 		return true
 	}, []EntityEffectSource{{
-		Origin:    [3]float32{4, 5, 6},
+		Origin:    types.Vec3{X: 4, Y: 5, Z: 6},
 		Effects:   inet.EF_MUZZLEFLASH,
 		EntityNum: 7,
 	}})

@@ -1,8 +1,10 @@
 package main
 
+import "github.com/darkliquid/ironwail-go/pkg/types"
+
 const runtimeMaxPredictedXYOffset = 4.0
 
-func runtimePlayerOrigin() ([3]float32, bool) {
+func runtimePlayerOrigin() (types.Vec3, bool) {
 	telemetry := runtimeOriginSelectTelemetry{
 		XYOffsetThreshold:        runtimeMaxPredictedXYOffset,
 		PredictionErrorThreshold: runtimeMaxPredictedXYOffset,
@@ -12,7 +14,7 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 		runtimeResetOriginSelectLatch(state)
 		telemetry.RejectReason = runtimeOriginRejectMissingAuth
 		runtimeDebugViewRecordOriginSelect(telemetry)
-		return [3]float32{}, false
+		return types.Vec3{}, false
 	}
 	telemetry.PredictedOrigin = g.Client.PredictedOrigin
 	telemetry.PredictionValid = g.Client.HasFreshPredictionForCurrentEntity()
@@ -33,14 +35,14 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 	if !telemetry.PredictionValid {
 		telemetry.RejectReason = runtimeOriginRejectInvalidPrediction
 		runtimeDebugViewRecordOriginSelect(telemetry)
-		return [3]float32{}, false
+		return types.Vec3{}, false
 	}
 	telemetry.RejectReason = runtimeOriginRejectMissingAuth
 	runtimeDebugViewRecordOriginSelect(telemetry)
-	return [3]float32{}, false
+	return types.Vec3{}, false
 }
 
-func runtimeLatchOriginSelect(state *viewCalcState, authoritativeOrigin [3]float32) {
+func runtimeLatchOriginSelect(state *viewCalcState, authoritativeOrigin types.Vec3) {
 	if state == nil || g == nil || g.Client == nil {
 		return
 	}
@@ -77,14 +79,14 @@ func runtimeResetOriginSelectLatch(state *viewCalcState) {
 }
 
 type runtimePredictedXYDecision struct {
-	Origin            [3]float32
+	Origin            types.Vec3
 	OK                bool
 	RejectReason      runtimeOriginRejectReason
 	XYDelta           [2]float32
 	PredictionErrorXY [2]float32
 }
 
-func runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32) runtimePredictedXYDecision {
+func runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin types.Vec3) runtimePredictedXYDecision {
 	decision := runtimePredictedXYDecision{}
 	if g == nil || g.Client == nil {
 		decision.RejectReason = runtimeOriginRejectMissingAuth
@@ -98,19 +100,19 @@ func runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32)
 	predictedOrigin := g.Client.PredictedOrigin
 	decision.Origin = predictedOrigin
 	decision.XYDelta = [2]float32{
-		predictedOrigin[0] - authoritativeOrigin[0],
-		predictedOrigin[1] - authoritativeOrigin[1],
+		predictedOrigin.X - authoritativeOrigin.X,
+		predictedOrigin.Y - authoritativeOrigin.Y,
 	}
 	decision.PredictionErrorXY = [2]float32{
-		g.Client.PredictionError[0],
-		g.Client.PredictionError[1],
+		g.Client.PredictionError.X,
+		g.Client.PredictionError.Y,
 	}
 
 	if runtimeLocalViewTeleportActive() {
 		decision.RejectReason = runtimeOriginRejectTeleportGate
 		return decision
 	}
-	if predictedOrigin == [3]float32{} {
+	if (predictedOrigin == types.Vec3{}) {
 		decision.RejectReason = runtimeOriginRejectZeroPrediction
 		return decision
 	}
@@ -136,9 +138,9 @@ func runtimeFloat32Abs(v float32) float32 {
 	return v
 }
 
-func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
+func runtimeAuthoritativePlayerOrigin() (types.Vec3, bool) {
 	if g == nil || g.Client == nil {
-		return [3]float32{}, false
+		return types.Vec3{}, false
 	}
 
 	if g.Client.ViewEntity != 0 {
@@ -153,11 +155,11 @@ func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 		}
 	}
 
-	if g.Client.LastServerOrigin != [3]float32{} {
+	if (g.Client.LastServerOrigin != types.Vec3{}) {
 		return g.Client.LastServerOrigin, true
 	}
 
-	return [3]float32{}, false
+	return types.Vec3{}, false
 }
 
 func runtimeLocalViewTeleportActive() bool {

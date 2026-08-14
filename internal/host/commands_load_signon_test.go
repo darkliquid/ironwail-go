@@ -14,6 +14,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestCmdLoadFallsBackToBaseGameSaveWhenUserSaveMissing(t *testing.T) {
@@ -788,7 +789,7 @@ func TestCmdDemoGotoSeeksToTimeBasedFrame(t *testing.T) {
 	}
 	// 144 frames = 2 seconds at 72 Hz
 	for i := 0; i < 144; i++ {
-		if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{float32(i), 0, 0}); err != nil {
+		if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{X: float32(i), Y: 0, Z: 0}); err != nil {
 			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
 		}
 	}
@@ -840,7 +841,7 @@ func TestCmdDemoPauseToggles(t *testing.T) {
 	if err := recorder.StartDemoRecording("pause_cmd", 0); err != nil {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{0, 0, 0}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame failed: %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {
@@ -896,7 +897,7 @@ func TestCmdDemoSpeedSetsMultiplier(t *testing.T) {
 	if err := recorder.StartDemoRecording("speed_cmd", 0); err != nil {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{0, 0, 0}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame failed: %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {

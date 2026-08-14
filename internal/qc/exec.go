@@ -27,8 +27,9 @@ package qc
 
 import (
 	"fmt"
-	"math"
 	"sort"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const runawayLoopLimit = 0x1000000
@@ -188,17 +189,17 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 		case OPMulV:
 			a := vm.GVector(int(st.A))
 			b := vm.GVector(int(st.B))
-			vm.SetGFloat(int(st.C), a[0]*b[0]+a[1]*b[1]+a[2]*b[2])
+			vm.SetGFloat(int(st.C), a.Dot(b))
 
 		case OPMulFV:
 			fv := vm.GFloat(int(st.A))
 			v := vm.GVector(int(st.B))
-			vm.SetGVector(int(st.C), [3]float32{fv * v[0], fv * v[1], fv * v[2]})
+			vm.SetGVector(int(st.C), v.Scale(fv))
 
 		case OPMulVF:
 			v := vm.GVector(int(st.A))
 			fv := vm.GFloat(int(st.B))
-			vm.SetGVector(int(st.C), [3]float32{v[0] * fv, v[1] * fv, v[2] * fv})
+			vm.SetGVector(int(st.C), v.Scale(fv))
 
 		case OPDivF:
 			// C does not check for division by zero — IEEE 754 produces ±Inf/NaN.
@@ -211,7 +212,7 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 		case OPAddV:
 			a := vm.GVector(int(st.A))
 			b := vm.GVector(int(st.B))
-			vm.SetGVector(int(st.C), [3]float32{a[0] + b[0], a[1] + b[1], a[2] + b[2]})
+			vm.SetGVector(int(st.C), a.Add(b))
 
 		case OPSubF:
 			vm.SetGFloat(int(st.C), vm.GFloat(int(st.A))-vm.GFloat(int(st.B)))
@@ -219,7 +220,7 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 		case OPSubV:
 			a := vm.GVector(int(st.A))
 			b := vm.GVector(int(st.B))
-			vm.SetGVector(int(st.C), [3]float32{a[0] - b[0], a[1] - b[1], a[2] - b[2]})
+			vm.SetGVector(int(st.C), a.Sub(b))
 
 		case OPEqF:
 			if vm.GFloat(int(st.A)) == vm.GFloat(int(st.B)) {
@@ -318,7 +319,7 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 		case OPNotV:
 			v := vm.GVector(int(st.A))
-			if v[0] == 0 && v[1] == 0 && v[2] == 0 {
+			if v.X == 0 && v.Y == 0 && v.Z == 0 {
 				vm.SetGFloat(int(st.C), 1)
 			} else {
 				vm.SetGFloat(int(st.C), 0)
@@ -507,20 +508,16 @@ func (vm *VM) callFunction(fnum int, argc int) error {
 	return nil
 }
 
-func (vm *VM) VectorLength(v [3]float32) float32 {
-	return float32(math.Sqrt(float64(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])))
+func (vm *VM) VectorLength(v types.Vec3) float32 {
+	return v.Len()
 }
 
-func (vm *VM) VectorNormalize(v [3]float32) [3]float32 {
-	l := vm.VectorLength(v)
-	if l == 0 {
-		return [3]float32{0, 0, 0}
-	}
-	return [3]float32{v[0] / l, v[1] / l, v[2] / l}
+func (vm *VM) VectorNormalize(v types.Vec3) types.Vec3 {
+	return v.Normalize()
 }
 
-func (vm *VM) VectorScale(v [3]float32, scale float32) [3]float32 {
-	return [3]float32{v[0] * scale, v[1] * scale, v[2] * scale}
+func (vm *VM) VectorScale(v types.Vec3, scale float32) types.Vec3 {
+	return v.Scale(scale)
 }
 
 func (vm *VM) pointerToField(ptr int) (edictNum int, fieldOfs int, ok bool) {

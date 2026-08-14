@@ -208,7 +208,7 @@ func TestParseEdictRecalculatesSize(t *testing.T) {
 	mins := vm.EVector(1, minsOfs)
 	maxs := vm.EVector(1, maxsOfs)
 	size := vm.EVector(1, sizeOfs)
-	if size != [3]float32{maxs[0] - mins[0], maxs[1] - mins[1], maxs[2] - mins[2]} {
+	if size != maxs.Sub(mins) {
 		t.Fatalf("size = %v, want (64,32,16)", size)
 	}
 }

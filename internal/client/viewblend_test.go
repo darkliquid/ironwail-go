@@ -7,6 +7,8 @@ package client
 import (
 	"math"
 	"testing"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestSetContentsColorLava verifies that entering lava triggers the correct color shift.
@@ -332,23 +334,23 @@ func TestClearState_ResetsColorShifts(t *testing.T) {
 // Where in C: cl_main.c, CL_ClearState.
 func TestClearState_ResetsVelocityAndViewHistory(t *testing.T) {
 	c := NewClient()
-	c.ViewAngles = [3]float32{10, 20, 30}
-	c.MViewAngles = [2][3]float32{{40, 50, 60}, {70, 80, 90}}
-	c.Velocity = [3]float32{100, 200, 300}
-	c.MVelocity = [2][3]float32{{1, 2, 3}, {4, 5, 6}}
+	c.ViewAngles = types.Vec3{X: 10, Y: 20, Z: 30}
+	c.MViewAngles = [2]types.Vec3{{X: 40, Y: 50, Z: 60}, {X: 70, Y: 80, Z: 90}}
+	c.Velocity = types.Vec3{X: 100, Y: 200, Z: 300}
+	c.MVelocity = [2]types.Vec3{{X: 1, Y: 2, Z: 3}, {X: 4, Y: 5, Z: 6}}
 
 	c.ClearState()
 
-	if c.ViewAngles != [3]float32{} {
+	if c.ViewAngles != (types.Vec3{}) {
 		t.Fatalf("ViewAngles = %v, want zero", c.ViewAngles)
 	}
-	if c.MViewAngles != [2][3]float32{} {
+	if c.MViewAngles != ([2]types.Vec3{}) {
 		t.Fatalf("MViewAngles = %v, want zero", c.MViewAngles)
 	}
-	if c.Velocity != [3]float32{} {
+	if c.Velocity != (types.Vec3{}) {
 		t.Fatalf("Velocity = %v, want zero", c.Velocity)
 	}
-	if c.MVelocity != [2][3]float32{} {
+	if c.MVelocity != ([2]types.Vec3{}) {
 		t.Fatalf("MVelocity = %v, want zero", c.MVelocity)
 	}
 }

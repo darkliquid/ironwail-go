@@ -3,12 +3,13 @@
 package server
 
 import (
-	"github.com/darkliquid/ironwail-go/internal/qc"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func newMovementTestServer() *Server {
@@ -31,14 +32,14 @@ func TestChangeYaw(t *testing.T) {
 	s := newMovementTestServer()
 	ent := s.AllocEdict()
 	ang := ent.Angles(s)
-	ang[1] = 10
+	ang.Y = 10
 	ent.SetAngles(s, ang)
 	ent.SetIdealYaw(s, 350)
 	ent.SetYawSpeed(s, 15)
 
 	s.changeYaw(ent)
 	// anglemod uses 16-bit quantization matching C, so 355 becomes ~355.00122
-	if got := ent.Angles(s)[1]; got < 354.99 || got > 355.01 {
+	if got := ent.Angles(s).Y; got < 354.99 || got > 355.01 {
 		t.Fatalf("angles yaw = %v, want ~355", got)
 	}
 }
@@ -47,10 +48,10 @@ func TestCloseEnough(t *testing.T) {
 	s := newMovementTestServer()
 	ent := s.AllocEdict()
 	goal := s.AllocEdict()
-	ent.SetAbsMin(s, [3]float32{0, 0, 0})
-	ent.SetAbsMax(s, [3]float32{16, 16, 16})
-	goal.SetAbsMin(s, [3]float32{30, 0, 0})
-	goal.SetAbsMax(s, [3]float32{46, 16, 16})
+	ent.SetAbsMin(s, qtypes.Vec3{X: 0, Y: 0, Z: 0})
+	ent.SetAbsMax(s, qtypes.Vec3{X: 16, Y: 16, Z: 16})
+	goal.SetAbsMin(s, qtypes.Vec3{X: 30, Y: 0, Z: 0})
+	goal.SetAbsMax(s, qtypes.Vec3{X: 46, Y: 16, Z: 16})
 
 	if s.CloseEnough(ent, goal, 13.9) {
 		t.Fatalf("CloseEnough returned true with insufficient distance")
@@ -63,11 +64,11 @@ func TestCloseEnough(t *testing.T) {
 func TestSVHullForEntityAndSVMoveWrappers(t *testing.T) {
 	s := newMovementTestServer()
 	ent := s.AllocEdict()
-	ent.SetOrigin(s, [3]float32{10, 20, 30})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, qtypes.Vec3{X: 10, Y: 20, Z: 30})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 
-	h, offset := s.SV_HullForEntity(ent, [3]float32{}, [3]float32{})
+	h, offset := s.SV_HullForEntity(ent, qtypes.Vec3{}, qtypes.Vec3{})
 	if h == nil {
 		t.Fatalf("SV_HullForEntity returned nil hull")
 	}
@@ -75,10 +76,10 @@ func TestSVHullForEntityAndSVMoveWrappers(t *testing.T) {
 		t.Fatalf("offset = %v, want %v", offset, ent.Origin(s))
 	}
 
-	start := [3]float32{0, 0, 0}
-	end := [3]float32{16, 0, 0}
-	a := s.Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNormal), nil)
-	b := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNormal), nil)
+	start := qtypes.Vec3{X: 0, Y: 0, Z: 0}
+	end := qtypes.Vec3{X: 16, Y: 0, Z: 0}
+	a := s.Move(start, qtypes.Vec3{}, qtypes.Vec3{}, end, MoveType(MoveNormal), nil)
+	b := s.SV_Move(start, qtypes.Vec3{}, qtypes.Vec3{}, end, MoveType(MoveNormal), nil)
 	if a.Fraction != b.Fraction || a.StartSolid != b.StartSolid || a.AllSolid != b.AllSolid || a.EndPos != b.EndPos {
 		t.Fatalf("SV_Move wrapper mismatch: base=%+v wrapper=%+v", a, b)
 	}
@@ -88,7 +89,7 @@ func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 	s := newMovementTestServer()
 	wm := &model.Model{
 		Type:   model.ModBrush,
-		Planes: []model.MPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}, {Normal: [3]float32{1, 0, 0}, Dist: 10, Type: 0}},
+		Planes: []model.MPlane{{Normal: qtypes.Vec3{X: 1, Y: 0, Z: 0}, Dist: 0, Type: 0}, {Normal: qtypes.Vec3{X: 1, Y: 0, Z: 0}, Dist: 10, Type: 0}},
 	}
 	wm.Hulls[1] = model.Hull{
 		ClipNodes: []model.MClipNode{
@@ -98,8 +99,8 @@ func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 		Planes:        wm.Planes,
 		FirstClipNode: 0,
 		LastClipNode:  1,
-		ClipMins:      [3]float32{-16, -16, -24},
-		ClipMaxs:      [3]float32{16, 16, 32},
+		ClipMins:      qtypes.Vec3{X: -16, Y: -16, Z: -24},
+		ClipMaxs:      qtypes.Vec3{X: 16, Y: 16, Z: 32},
 	}
 	s.WorldModel = wm
 	s.WorldTree = &bsp.Tree{Models: []bsp.DModel{
@@ -108,12 +109,12 @@ func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 	}}
 
 	ent := s.AllocEdict()
-	ent.SetOrigin(s, [3]float32{})
+	ent.SetOrigin(s, qtypes.Vec3{})
 	ent.SetSolid(s, float32(SolidBSP))
 	ent.SetMoveType(s, float32(MoveTypePush))
 	ent.SetModelIndex(s, 2)
 
-	h, _ := s.SV_HullForEntity(ent, [3]float32{-16, -16, -24}, [3]float32{16, 16, 32})
+	h, _ := s.SV_HullForEntity(ent, qtypes.Vec3{X: -16, Y: -16, Z: -24}, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	if h == nil {
 		t.Fatal("SV_HullForEntity returned nil hull")
 	}
@@ -121,12 +122,12 @@ func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 		t.Fatalf("first clip node = %d, want 1", h.FirstClipNode)
 	}
 
-	trace := s.clipMoveToEntity(ent, [3]float32{20, 0, 0}, [3]float32{-16, -16, -24}, [3]float32{16, 16, 32}, [3]float32{-20, 0, 0})
+	trace := s.clipMoveToEntity(ent, qtypes.Vec3{X: 20, Y: 0, Z: 0}, qtypes.Vec3{X: -16, Y: -16, Z: -24}, qtypes.Vec3{X: 16, Y: 16, Z: 32}, qtypes.Vec3{X: -20, Y: 0, Z: 0})
 	if trace.Fraction >= 1 {
 		t.Fatalf("trace fraction = %v, want collision", trace.Fraction)
 	}
-	if trace.EndPos[0] < 9.9 || trace.EndPos[0] > 10.1 {
-		t.Fatalf("trace end x = %v, want about 10", trace.EndPos[0])
+	if trace.EndPos.X < 9.9 || trace.EndPos.X > 10.1 {
+		t.Fatalf("trace end x = %v, want about 10", trace.EndPos.X)
 	}
 }
 
@@ -140,8 +141,8 @@ func TestMovementOnSpawnedMap(t *testing.T) {
 
 	ent := s.AllocEdict()
 	ent.SetOrigin(s, pos)
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	ent.SetMoveType(s, float32(MoveTypeStep))
 	ent.SetFlags(s, float32(FlagOnGround))
@@ -163,7 +164,7 @@ func TestMovementOnSpawnedMap(t *testing.T) {
 	}
 
 	before := ent.Origin(s)
-	if !s.MoveStep(ent, [3]float32{}, true) {
+	if !s.MoveStep(ent, qtypes.Vec3{}, true) {
 		t.Fatalf("MoveStep failed on stationary grounded entity; %s", diag.String())
 	}
 	if ent.Origin(s) != before {
@@ -175,15 +176,15 @@ func TestMoveToGoalRandomBranchUsesSharedCompatRNG(t *testing.T) {
 	s := newMovementTestServer()
 
 	goal := s.AllocEdict()
-	goal.SetOrigin(s, [3]float32{64, 0, 0})
-	goal.SetAbsMin(s, [3]float32{64, 0, 0})
-	goal.SetAbsMax(s, [3]float32{64, 0, 0})
+	goal.SetOrigin(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
+	goal.SetAbsMin(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
+	goal.SetAbsMax(s, qtypes.Vec3{X: 64, Y: 0, Z: 0})
 
 	ent := s.AllocEdict()
 	ent.SetFlags(s, float32(FlagFly))
 	ent.SetIdealYaw(s, 90)
 	ang2 := ent.Angles(s)
-	ang2[1] = 90
+	ang2.Y = 90
 	ent.SetAngles(s, ang2)
 	ent.SetYawSpeed(s, 360)
 	ent.SetGoalEntity(s, 1)
@@ -197,7 +198,7 @@ func TestMoveToGoalRandomBranchUsesSharedCompatRNG(t *testing.T) {
 	if !s.MoveToGoal(ent, 16) {
 		t.Fatal("MoveToGoal returned false")
 	}
-	if got := ent.Origin(s); got != [3]float32{16, 0, 0} {
+	if got := ent.Origin(s); got != (qtypes.Vec3{X: 16, Y: 0, Z: 0}) {
 		t.Fatalf("origin = %v, want eastward chase step", got)
 	}
 	if got := ent.IdealYaw(s); got != 0 {
@@ -213,7 +214,7 @@ func TestNewChaseDirUsesCanonicalQuakeSouthwestBias(t *testing.T) {
 	actor.SetYawSpeed(s, 360)
 
 	enemy := s.AllocEdict()
-	enemy.SetOrigin(s, [3]float32{-64, -64, 0})
+	enemy.SetOrigin(s, qtypes.Vec3{X: -64, Y: -64, Z: 0})
 
 	s.Edicts = append(s.Edicts, actor, enemy)
 	s.NumEdicts = len(s.Edicts)
@@ -222,7 +223,8 @@ func TestNewChaseDirUsesCanonicalQuakeSouthwestBias(t *testing.T) {
 
 	wantX := float32(-13.10643)
 	wantY := float32(-9.177243)
-	if got := actor.Origin(s); got[0] < wantX-0.01 || got[0] > wantX+0.01 || got[1] < wantY-0.01 || got[1] > wantY+0.01 {
+	got := actor.Origin(s)
+	if got.X < wantX-0.01 || got.X > wantX+0.01 || got.Y < wantY-0.01 || got.Y > wantY+0.01 {
 		t.Fatalf("origin = %v, want canonical 215-degree chase step", got)
 	}
 	if got := actor.IdealYaw(s); got != 215 {
@@ -235,8 +237,8 @@ func createSyntheticPlatformWorldModel() *model.Model {
 
 	var hull model.Hull
 	hull.Planes = []model.MPlane{
-		{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0},
-		{Normal: [3]float32{0, 0, 1}, Dist: 0, Type: 2},
+		{Normal: qtypes.Vec3{X: 1, Y: 0, Z: 0}, Dist: 0, Type: 0},
+		{Normal: qtypes.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0, Type: 2},
 	}
 	hull.ClipNodes = []model.MClipNode{
 		{PlaneNum: 0, Children: [2]int{1, bsp.ContentsEmpty}},
@@ -244,12 +246,12 @@ func createSyntheticPlatformWorldModel() *model.Model {
 	}
 	hull.FirstClipNode = 0
 	hull.LastClipNode = 1
-	hull.ClipMins = [3]float32{-512, -512, -512}
-	hull.ClipMaxs = [3]float32{512, 512, 512}
+	hull.ClipMins = qtypes.Vec3{X: -512, Y: -512, Z: -512}
+	hull.ClipMaxs = qtypes.Vec3{X: 512, Y: 512, Z: 512}
 
 	m.Hulls[0] = hull
-	m.Mins = [3]float32{-512, -512, -512}
-	m.Maxs = [3]float32{512, 512, 512}
+	m.Mins = qtypes.Vec3{X: -512, Y: -512, Z: -512}
+	m.Maxs = qtypes.Vec3{X: 512, Y: 512, Z: 512}
 	m.ClipBox = true
 	m.ClipMins = m.Mins
 	m.ClipMaxs = m.Maxs
@@ -270,9 +272,9 @@ func TestMoveStepRejectsUnsupportedStepOffPlatform(t *testing.T) {
 	if ent == nil {
 		t.Fatal("failed to allocate test edict")
 	}
-	ent.SetOrigin(s, [3]float32{32, 0, 24})
-	ent.SetMins(s, [3]float32{-16, -16, -24})
-	ent.SetMaxs(s, [3]float32{16, 16, 32})
+	ent.SetOrigin(s, qtypes.Vec3{X: 32, Y: 0, Z: 24})
+	ent.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	ent.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	ent.SetSolid(s, float32(SolidSlideBox))
 	ent.SetMoveType(s, float32(MoveTypeStep))
 	ent.SetFlags(s, float32(FlagOnGround))
@@ -283,7 +285,7 @@ func TestMoveStepRejectsUnsupportedStepOffPlatform(t *testing.T) {
 	}
 
 	start := ent.Origin(s)
-	if s.MoveStep(ent, [3]float32{-20, 0, 0}, true) {
+	if s.MoveStep(ent, qtypes.Vec3{X: -20, Y: 0, Z: 0}, true) {
 		t.Fatalf("MoveStep unexpectedly accepted unsupported platform step: start=%v end=%v", start, ent.Origin(s))
 	}
 	if got := ent.Origin(s); got != start {

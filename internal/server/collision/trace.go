@@ -5,29 +5,30 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const DistEpsilon = 0.03125
 
 type moveClip struct {
-	boxMins   [3]float32
-	boxMaxs   [3]float32
-	mins      [3]float32
-	maxs      [3]float32
-	mins2     [3]float32
-	maxs2     [3]float32
-	start     [3]float32
-	end       [3]float32
+	boxMins   qtypes.Vec3
+	boxMaxs   qtypes.Vec3
+	mins      qtypes.Vec3
+	maxs      qtypes.Vec3
+	mins2     qtypes.Vec3
+	maxs2     qtypes.Vec3
+	start     qtypes.Vec3
+	end       qtypes.Vec3
 	trace     srvtypes.TraceResult
 	moveType  int
 	passedict *srvtypes.Edict
 }
 
-func RecursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]float32, trace *srvtypes.TraceResult) bool {
+func RecursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 qtypes.Vec3, trace *srvtypes.TraceResult) bool {
 	return recursiveHullCheck(hull, num, p1f, p2f, p1, p2, trace)
 }
 
-func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]float32, trace *srvtypes.TraceResult) bool {
+func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 qtypes.Vec3, trace *srvtypes.TraceResult) bool {
 
 	if num < 0 {
 		if num != bsp.ContentsSolid {
@@ -84,15 +85,9 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 	}
 
 	midf := p1f + (p2f-p1f)*frac
-	var mid [3]float32
-	for i := 0; i < 3; i++ {
-		mid[i] = p1[i] + frac*(p2[i]-p1[i])
-	}
+	mid := p1.Add(p2.Sub(p1).Scale(frac))
 	midf2 := p1f + (p2f-p1f)*frac2
-	var mid2 [3]float32
-	for i := 0; i < 3; i++ {
-		mid2[i] = p1[i] + frac2*(p2[i]-p1[i])
-	}
+	mid2 := p1.Add(p2.Sub(p1).Scale(frac2))
 
 	side := 0
 	if t1 < 0 {
@@ -115,7 +110,7 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 		trace.PlaneNormal = plane.Normal
 		trace.PlaneDist = plane.Dist
 	} else {
-		trace.PlaneNormal = [3]float32{-plane.Normal[0], -plane.Normal[1], -plane.Normal[2]}
+		trace.PlaneNormal = plane.Normal.Scale(-1)
 		trace.PlaneDist = -plane.Dist
 	}
 
@@ -127,9 +122,7 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 			return false
 		}
 		midf = p1f + (p2f-p1f)*frac
-		for i := 0; i < 3; i++ {
-			mid[i] = p1[i] + frac*(p2[i]-p1[i])
-		}
+		mid = p1.Add(p2.Sub(p1).Scale(frac))
 	}
 
 	trace.Fraction = midf
@@ -138,33 +131,23 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 	return false
 }
 
-func (c *System) clipMoveToEntity(ent *srvtypes.Edict, start, mins, maxs, end [3]float32) srvtypes.TraceResult {
+func (c *System) clipMoveToEntity(ent *srvtypes.Edict, start, mins, maxs, end qtypes.Vec3) srvtypes.TraceResult {
 	trace := srvtypes.TraceResult{
 		Fraction: 1,
 		AllSolid: true,
 		EndPos:   end,
 	}
 
-	var offset [3]float32
+	var offset qtypes.Vec3
 	hull := c.hullForEntity(ent, mins, maxs, &offset)
 
-	startL := [3]float32{
-		start[0] - offset[0],
-		start[1] - offset[1],
-		start[2] - offset[2],
-	}
-	endL := [3]float32{
-		end[0] - offset[0],
-		end[1] - offset[1],
-		end[2] - offset[2],
-	}
+	startL := start.Sub(offset)
+	endL := end.Sub(offset)
 
 	recursiveHullCheck(hull, hull.FirstClipNode, 0, 1, startL, endL, &trace)
 
 	if trace.Fraction != 1 {
-		trace.EndPos[0] += offset[0]
-		trace.EndPos[1] += offset[1]
-		trace.EndPos[2] += offset[2]
+		trace.EndPos = trace.EndPos.Add(offset)
 	}
 
 	if trace.Fraction < 1 || trace.StartSolid {
@@ -174,15 +157,27 @@ func (c *System) clipMoveToEntity(ent *srvtypes.Edict, start, mins, maxs, end [3
 	return trace
 }
 
-func moveBounds(start, mins, maxs, end [3]float32) (boxmins, boxmaxs [3]float32) {
-	for i := 0; i < 3; i++ {
-		if end[i] > start[i] {
-			boxmins[i] = start[i] + mins[i] - 1
-			boxmaxs[i] = end[i] + maxs[i] + 1
-		} else {
-			boxmins[i] = end[i] + mins[i] - 1
-			boxmaxs[i] = start[i] + maxs[i] + 1
-		}
+func moveBounds(start, mins, maxs, end qtypes.Vec3) (boxmins, boxmaxs qtypes.Vec3) {
+	if end.X > start.X {
+		boxmins.X = start.X + mins.X - 1
+		boxmaxs.X = end.X + maxs.X + 1
+	} else {
+		boxmins.X = end.X + mins.X - 1
+		boxmaxs.X = start.X + maxs.X + 1
+	}
+	if end.Y > start.Y {
+		boxmins.Y = start.Y + mins.Y - 1
+		boxmaxs.Y = end.Y + maxs.Y + 1
+	} else {
+		boxmins.Y = end.Y + mins.Y - 1
+		boxmaxs.Y = start.Y + maxs.Y + 1
+	}
+	if end.Z > start.Z {
+		boxmins.Z = start.Z + mins.Z - 1
+		boxmaxs.Z = end.Z + maxs.Z + 1
+	} else {
+		boxmins.Z = end.Z + mins.Z - 1
+		boxmaxs.Z = start.Z + maxs.Z + 1
 	}
 	return
 }
@@ -207,16 +202,16 @@ func (c *System) clipToLinks(node *AreaNode, clip *moveClip) {
 
 		entAbsMin := ent.AbsMin(sh)
 		entAbsMax := ent.AbsMax(sh)
-		if clip.boxMins[0] > entAbsMax[0] ||
-			clip.boxMins[1] > entAbsMax[1] ||
-			clip.boxMins[2] > entAbsMax[2] ||
-			clip.boxMaxs[0] < entAbsMin[0] ||
-			clip.boxMaxs[1] < entAbsMin[1] ||
-			clip.boxMaxs[2] < entAbsMin[2] {
+		if clip.boxMins.X > entAbsMax.X ||
+			clip.boxMins.Y > entAbsMax.Y ||
+			clip.boxMins.Z > entAbsMax.Z ||
+			clip.boxMaxs.X < entAbsMin.X ||
+			clip.boxMaxs.Y < entAbsMin.Y ||
+			clip.boxMaxs.Z < entAbsMin.Z {
 			continue
 		}
 
-		if clip.passedict != nil && clip.passedict.Size(sh)[0] != 0 && ent.Size(sh)[0] == 0 {
+		if clip.passedict != nil && clip.passedict.Size(sh).X != 0 && ent.Size(sh).X == 0 {
 			continue
 		}
 
@@ -261,16 +256,23 @@ func (c *System) clipToLinks(node *AreaNode, clip *moveClip) {
 		return
 	}
 
-	if clip.boxMaxs[node.Axis] > node.Dist && node.Children[0] != nil {
+	var minVal, maxVal float32
+	if node.Axis == 0 {
+		minVal, maxVal = clip.boxMins.X, clip.boxMaxs.X
+	} else {
+		minVal, maxVal = clip.boxMins.Y, clip.boxMaxs.Y
+	}
+
+	if maxVal > node.Dist && node.Children[0] != nil {
 		c.clipToLinks(node.Children[0], clip)
 	}
-	if clip.boxMins[node.Axis] < node.Dist && node.Children[1] != nil {
+	if minVal < node.Dist && node.Children[1] != nil {
 		c.clipToLinks(node.Children[1], clip)
 	}
 }
 
 // Move traces a move from start to end with the given bounding box.
-func (c *System) Move(start, mins, maxs, end [3]float32, moveType srvtypes.MoveType, passedict *srvtypes.Edict) srvtypes.TraceResult {
+func (c *System) Move(start, mins, maxs, end qtypes.Vec3, moveType srvtypes.MoveType, passedict *srvtypes.Edict) srvtypes.TraceResult {
 	var clip moveClip
 
 	if c.store != nil && c.store.EdictNum(0) != nil {
@@ -285,10 +287,8 @@ func (c *System) Move(start, mins, maxs, end [3]float32, moveType srvtypes.MoveT
 	clip.passedict = passedict
 
 	if moveType == srvtypes.MoveMissile {
-		for i := 0; i < 3; i++ {
-			clip.mins2[i] = -15
-			clip.maxs2[i] = 15
-		}
+		clip.mins2 = qtypes.Vec3{X: -15, Y: -15, Z: -15}
+		clip.maxs2 = qtypes.Vec3{X: 15, Y: 15, Z: 15}
 	} else {
 		clip.mins2 = mins
 		clip.maxs2 = maxs
@@ -323,7 +323,7 @@ func (c *System) TestEntityPosition(ent *srvtypes.Edict) *srvtypes.Edict {
 }
 
 // PointContents returns the contents at a point in the world.
-func (c *System) PointContents(p [3]float32) int {
+func (c *System) PointContents(p qtypes.Vec3) int {
 	if c.world == nil || isNilCollisionModel(c.world.GetWorldModel()) {
 		return bsp.ContentsSolid
 	}

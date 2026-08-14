@@ -5,6 +5,7 @@ package audio
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // UnderwaterIntensity maps a BSP leaf contents value to an underwater audio
@@ -21,7 +22,7 @@ func UnderwaterIntensity(contents int32) float32 {
 // PointInTreeLeaf walks the BSP node tree to find the leaf containing point.
 // Returns (leaf, true) on success, or (zero leaf, false) on invalid trees /
 // out-of-range indices.
-func PointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
+func PointInTreeLeaf(tree *bsp.Tree, point types.Vec3) (bsp.TreeLeaf, bool) {
 	if tree == nil || len(tree.Nodes) == 0 || len(tree.Planes) == 0 || len(tree.Leafs) == 0 {
 		return bsp.TreeLeaf{}, false
 	}
@@ -36,7 +37,7 @@ func PointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
 			return bsp.TreeLeaf{}, false
 		}
 		plane := tree.Planes[node.PlaneNum]
-		dist := point[0]*plane.Normal[0] + point[1]*plane.Normal[1] + point[2]*plane.Normal[2] - plane.Dist
+		dist := point.X*plane.Normal.X + point.Y*plane.Normal.Y + point.Z*plane.Normal.Z - plane.Dist
 		side := 0
 		if dist < 0 {
 			side = 1

@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/darkliquid/ironwail-go/internal/server"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // findViewthing searches the server's edicts for an entity with classname "viewthing".
@@ -105,7 +106,7 @@ func (h *Host) CmdViewpos(subs *Subsystems) {
 	srv, _ := subs.Server.(*server.Server)
 	entOrigin := ent.Origin(srv)
 	entVAngle := ent.VAngle(srv)
-	subs.Console.Print(fmt.Sprintf("viewpos: %.2f %.2f %.2f (yaw: %.2f pitch: %.2f)\n", entOrigin[0], entOrigin[1], entOrigin[2], entVAngle[1], entVAngle[0]))
+	subs.Console.Print(fmt.Sprintf("viewpos: %.2f %.2f %.2f (yaw: %.2f pitch: %.2f)\n", entOrigin.X, entOrigin.Y, entOrigin.Z, entVAngle.Y, entVAngle.X))
 }
 
 func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
@@ -142,12 +143,12 @@ func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
 			subs.Console.Print("   setpos <x> <y> <z>\n")
 			subs.Console.Print("   setpos <x> <y> <z> <pitch> <yaw> <roll>\n")
 			subs.Console.Print(fmt.Sprintf("current values:\n   %d %d %d %d %d %d\n",
-				int(math.Round(float64(entOrigin[0]))),
-				int(math.Round(float64(entOrigin[1]))),
-				int(math.Round(float64(entOrigin[2]))),
-				int(math.Round(float64(entVAngle[0]))),
-				int(math.Round(float64(entVAngle[1]))),
-				int(math.Round(float64(entVAngle[2])))))
+				int(math.Round(float64(entOrigin.X))),
+				int(math.Round(float64(entOrigin.Y))),
+				int(math.Round(float64(entOrigin.Z))),
+				int(math.Round(float64(entVAngle.X))),
+				int(math.Round(float64(entVAngle.Y))),
+				int(math.Round(float64(entVAngle.Z)))))
 		}
 		return
 	}
@@ -162,25 +163,25 @@ func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
 	}
 
 	// Clear velocity
-	ent.SetVelocity(srv, [3]float32{})
+	ent.SetVelocity(srv, qtypes.Vec3{})
 
 	// Set origin
-	entOrigin[0] = filtered[0]
-	entOrigin[1] = filtered[1]
-	entOrigin[2] = filtered[2]
+	entOrigin.X = filtered[0]
+	entOrigin.Y = filtered[1]
+	entOrigin.Z = filtered[2]
 	ent.SetOrigin(srv, entOrigin)
 
 	// Optionally set angles
 	if len(filtered) == 6 {
 		entAngles := ent.Angles(srv)
-		entAngles[0] = filtered[3]
-		entAngles[1] = filtered[4]
-		entAngles[2] = filtered[5]
+		entAngles.X = filtered[3]
+		entAngles.Y = filtered[4]
+		entAngles.Z = filtered[5]
 		ent.SetAngles(srv, entAngles)
 		// Keep server and immediate local view queries aligned. C updates client
 		// view through fixangle; mirroring VAngle here avoids transient stale
 		// orientation when scripts issue setpos and immediately capture output.
-		ent.SetVAngle(srv, [3]float32{filtered[3], filtered[4], filtered[5]})
+		ent.SetVAngle(srv, qtypes.Vec3{X: filtered[3], Y: filtered[4], Z: filtered[5]})
 		ent.SetFixAngle(srv, 1)
 	}
 

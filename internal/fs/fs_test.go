@@ -701,7 +701,7 @@ func TestPakFSReadFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadPackFromBytes: %v", err)
 	}
-	defer pack.Handle.Close()
+	defer func() { _ = pack.Handle.Close() }()
 
 	pfs := fs.NewPakFS(pack)
 
@@ -728,7 +728,7 @@ func TestPakFSCaseInsensitive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadPackFromBytes: %v", err)
 	}
-	defer pack.Handle.Close()
+	defer func() { _ = pack.Handle.Close() }()
 
 	pfs := fs.NewPakFS(pack)
 	data, err := pfs.ReadFile("maps/e1m1.bsp")
@@ -751,7 +751,7 @@ func TestPakFSStatAndOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadPackFromBytes: %v", err)
 	}
-	defer pack.Handle.Close()
+	defer func() { _ = pack.Handle.Close() }()
 
 	pfs := fs.NewPakFS(pack)
 
@@ -767,7 +767,7 @@ func TestPakFSStatAndOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, f); err != nil {
 		t.Fatalf("io.Copy: %v", err)
@@ -790,7 +790,7 @@ func TestPakFSReadDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadPackFromBytes: %v", err)
 	}
-	defer pack.Handle.Close()
+	defer func() { _ = pack.Handle.Close() }()
 
 	pfs := fs.NewPakFS(pack)
 	entries, err := pfs.ReadDir("maps")

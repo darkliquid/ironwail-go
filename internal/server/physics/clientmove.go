@@ -8,6 +8,7 @@ import (
 	"math"
 
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // Movement tuning constants (mirror sv_user.c).
@@ -42,13 +43,13 @@ func NewClientMover(cfg MoveConfig, col srvtypes.CollisionWorld, sh srvtypes.Ser
 // clientMoveContext carries per-frame movement state.
 type clientMoveContext struct {
 	player   *srvtypes.Edict
-	origin   [3]float32
-	velocity [3]float32
+	origin   qtypes.Vec3
+	velocity qtypes.Vec3
 	cmd      srvtypes.UserCmd
 	onground bool
-	forward  [3]float32
-	right    [3]float32
-	up       [3]float32
+	forward  qtypes.Vec3
+	right    qtypes.Vec3
+	up       qtypes.Vec3
 }
 
 // SV_ClientThink applies the client's movement commands to its edict for one
@@ -80,12 +81,12 @@ func (m *ClientMover) SV_ClientThink(client *srvtypes.Client) {
 	}
 
 	punchAngle := ent.PunchAngle(sh)
-	vAngle := srvtypes.VecAdd(ent.VAngle(sh), punchAngle)
+	vAngle := ent.VAngle(sh).Add(punchAngle)
 	angles := ent.Angles(sh)
-	angles[2] = CalcRoll(facade, angles, ent.Velocity(sh)) * 4
+	angles.Z = CalcRoll(facade, angles, ent.Velocity(sh)) * 4
 	if ent.FixAngle(sh) == 0 {
-		angles[0] = -vAngle[0] / 3
-		angles[1] = vAngle[1]
+		angles.X = -vAngle.X / 3
+		angles.Y = vAngle.Y
 	}
 	ent.SetAngles(sh, angles)
 
@@ -110,19 +111,19 @@ func (m *ClientMover) userFriction(ctx *clientMoveContext) {
 	facade := m.cfg
 	sh := m.sh
 	vel := ctx.velocity
-	speed := float32(math.Sqrt(float64(vel[0]*vel[0] + vel[1]*vel[1])))
+	speed := float32(math.Sqrt(float64(vel.X*vel.X + vel.Y*vel.Y)))
 	if speed == 0 {
 		return
 	}
 
-	start := [3]float32{
-		ctx.origin[0] + vel[0]/speed*16,
-		ctx.origin[1] + vel[1]/speed*16,
-		ctx.origin[2] + ctx.player.Mins(sh)[2],
+	start := qtypes.Vec3{
+		X: ctx.origin.X + vel.X/speed*16,
+		Y: ctx.origin.Y + vel.Y/speed*16,
+		Z: ctx.origin.Z + ctx.player.Mins(sh).Z,
 	}
-	stop := [3]float32{start[0], start[1], start[2] - 34}
+	stop := qtypes.Vec3{X: start.X, Y: start.Y, Z: start.Z - 34}
 
-	trace := m.col.SV_Move(start, [3]float32{}, [3]float32{}, stop, srvtypes.MoveNoMonsters, ctx.player)
+	trace := m.col.SV_Move(start, qtypes.Vec3{}, qtypes.Vec3{}, stop, srvtypes.MoveNoMonsters, ctx.player)
 
 	friction := facade.GetFriction()
 	if trace.Fraction == 1.0 {
@@ -140,19 +141,16 @@ func (m *ClientMover) userFriction(ctx *clientMoveContext) {
 	}
 	newspeed /= speed
 
-	vel = ctx.player.Velocity(sh)
-	vel[0] *= newspeed
-	vel[1] *= newspeed
-	vel[2] *= newspeed
+	vel = ctx.player.Velocity(sh).Scale(newspeed)
 	ctx.player.SetVelocity(sh, vel)
 	ctx.velocity = vel
 }
 
 // accelerate applies forward acceleration while grounded.
-func (m *ClientMover) accelerate(wishspeed float32, wishdir [3]float32, ctx *clientMoveContext) {
+func (m *ClientMover) accelerate(wishspeed float32, wishdir qtypes.Vec3, ctx *clientMoveContext) {
 	facade := m.cfg
 	sh := m.sh
-	currentSpeed := srvtypes.VecDot(ctx.player.Velocity(sh), wishdir)
+	currentSpeed := ctx.player.Velocity(sh).Dot(wishdir)
 	addspeed := wishspeed - currentSpeed
 	if addspeed <= 0 {
 		return
@@ -163,16 +161,13 @@ func (m *ClientMover) accelerate(wishspeed float32, wishdir [3]float32, ctx *cli
 		accelspeed = addspeed
 	}
 
-	vel := ctx.player.Velocity(sh)
-	vel[0] += accelspeed * wishdir[0]
-	vel[1] += accelspeed * wishdir[1]
-	vel[2] += accelspeed * wishdir[2]
+	vel := ctx.player.Velocity(sh).Add(wishdir.Scale(accelspeed))
 	ctx.player.SetVelocity(sh, vel)
 	ctx.velocity = vel
 }
 
 // airAccelerate applies wish-direction acceleration while airborne.
-func (m *ClientMover) airAccelerate(wishspeed float32, wishvel [3]float32, ctx *clientMoveContext) {
+func (m *ClientMover) airAccelerate(wishspeed float32, wishvel qtypes.Vec3, ctx *clientMoveContext) {
 	facade := m.cfg
 	sh := m.sh
 	wishspd := srvtypes.VecNormalize(&wishvel)
@@ -180,7 +175,7 @@ func (m *ClientMover) airAccelerate(wishspeed float32, wishvel [3]float32, ctx *
 		wishspd = 30
 	}
 
-	currentSpeed := srvtypes.VecDot(ctx.velocity, wishvel)
+	currentSpeed := ctx.velocity.Dot(wishvel)
 	addspeed := wishspd - currentSpeed
 	if addspeed <= 0 {
 		return
@@ -191,10 +186,7 @@ func (m *ClientMover) airAccelerate(wishspeed float32, wishvel [3]float32, ctx *
 		accelspeed = addspeed
 	}
 
-	vel := ctx.player.Velocity(sh)
-	vel[0] += accelspeed * wishvel[0]
-	vel[1] += accelspeed * wishvel[1]
-	vel[2] += accelspeed * wishvel[2]
+	vel := ctx.player.Velocity(sh).Add(wishvel.Scale(accelspeed))
 	ctx.player.SetVelocity(sh, vel)
 	ctx.velocity = vel
 }
@@ -208,7 +200,7 @@ func (m *ClientMover) dropPunchAngle(ent *srvtypes.Edict) {
 	if length < 0 {
 		length = 0
 	}
-	ent.SetPunchAngle(sh, srvtypes.VecScale(punch, length))
+	ent.SetPunchAngle(sh, punch.Scale(length))
 }
 
 // waterMove applies drag and acceleration while swimming.
@@ -217,32 +209,29 @@ func (m *ClientMover) waterMove(ctx *clientMoveContext) {
 	sh := m.sh
 	srvtypes.AngleVectors(ctx.player.VAngle(sh), &ctx.forward, &ctx.right, &ctx.up)
 
-	var wishvel [3]float32
-	for i := 0; i < 3; i++ {
-		wishvel[i] = ctx.forward[i]*ctx.cmd.ForwardMove + ctx.right[i]*ctx.cmd.SideMove
-	}
+	wishvel := ctx.forward.Scale(ctx.cmd.ForwardMove).Add(ctx.right.Scale(ctx.cmd.SideMove))
 
 	if ctx.cmd.ForwardMove == 0 && ctx.cmd.SideMove == 0 && ctx.cmd.UpMove == 0 {
-		wishvel[2] -= 60
+		wishvel.Z -= 60
 	} else {
-		wishvel[2] += ctx.cmd.UpMove
+		wishvel.Z += ctx.cmd.UpMove
 	}
 
-	wishspeed := srvtypes.VecLen(wishvel)
+	wishspeed := wishvel.Len()
 	if wishspeed > svMaxSpeed {
-		wishvel = srvtypes.VecScale(wishvel, svMaxSpeed/wishspeed)
+		wishvel = wishvel.Scale(svMaxSpeed / wishspeed)
 		wishspeed = svMaxSpeed
 	}
 	wishspeed *= 0.7
 
-	speed := srvtypes.VecLen(ctx.velocity)
+	speed := ctx.velocity.Len()
 	newspeed := float32(0)
 	if speed != 0 {
 		newspeed = speed - facade.GetFrameTime()*speed*facade.GetFriction()
 		if newspeed < 0 {
 			newspeed = 0
 		}
-		vel := srvtypes.VecScale(ctx.player.Velocity(sh), newspeed/speed)
+		vel := ctx.player.Velocity(sh).Scale(newspeed / speed)
 		ctx.player.SetVelocity(sh, vel)
 		ctx.velocity = vel
 	}
@@ -262,10 +251,7 @@ func (m *ClientMover) waterMove(ctx *clientMoveContext) {
 		accelspeed = addspeed
 	}
 
-	vel := ctx.player.Velocity(sh)
-	vel[0] += accelspeed * wishvel[0]
-	vel[1] += accelspeed * wishvel[1]
-	vel[2] += accelspeed * wishvel[2]
+	vel := ctx.player.Velocity(sh).Add(wishvel.Scale(accelspeed))
 	ctx.player.SetVelocity(sh, vel)
 	ctx.velocity = vel
 }
@@ -280,8 +266,8 @@ func (m *ClientMover) waterJump(ent *srvtypes.Edict) {
 
 	moveDir := ent.MoveDir(sh)
 	vel := ent.Velocity(sh)
-	vel[0] = moveDir[0]
-	vel[1] = moveDir[1]
+	vel.X = moveDir.X
+	vel.Y = moveDir.Y
 	ent.SetVelocity(sh, vel)
 }
 
@@ -293,19 +279,19 @@ func (m *ClientMover) noclipMove(ctx *clientMoveContext) {
 	// Ironwail parity: sv_altnoclip 0 keeps noclip movement horizontal by
 	// ignoring pitch for forward/strafe vectors.
 	if cv := facade.Get("sv_altnoclip"); cv != nil && !cv.Bool() {
-		viewAngles[0] = 0
+		viewAngles.X = 0
 	}
 	srvtypes.AngleVectors(viewAngles, &ctx.forward, &ctx.right, &ctx.up)
 
-	vel := ctx.player.Velocity(sh)
-	vel[0] = ctx.forward[0]*ctx.cmd.ForwardMove + ctx.right[0]*ctx.cmd.SideMove
-	vel[1] = ctx.forward[1]*ctx.cmd.ForwardMove + ctx.right[1]*ctx.cmd.SideMove
-	vel[2] = ctx.forward[2]*ctx.cmd.ForwardMove + ctx.right[2]*ctx.cmd.SideMove
-	vel[2] += ctx.cmd.UpMove * 2
+	vel := qtypes.Vec3{
+		X: ctx.forward.X*ctx.cmd.ForwardMove + ctx.right.X*ctx.cmd.SideMove,
+		Y: ctx.forward.Y*ctx.cmd.ForwardMove + ctx.right.Y*ctx.cmd.SideMove,
+		Z: ctx.forward.Z*ctx.cmd.ForwardMove + ctx.right.Z*ctx.cmd.SideMove + ctx.cmd.UpMove*2,
+	}
 
-	if srvtypes.VecLen(vel) > svMaxSpeed {
+	if vel.Len() > svMaxSpeed {
 		srvtypes.VecNormalize(&vel)
-		vel = srvtypes.VecScale(vel, svMaxSpeed)
+		vel = vel.Scale(svMaxSpeed)
 	}
 	ctx.player.SetVelocity(sh, vel)
 	ctx.velocity = vel
@@ -324,21 +310,18 @@ func (m *ClientMover) airMove(ctx *clientMoveContext) {
 		fmove = 0
 	}
 
-	var wishvel [3]float32
-	for i := 0; i < 3; i++ {
-		wishvel[i] = ctx.forward[i]*fmove + ctx.right[i]*smove
-	}
+	wishvel := ctx.forward.Scale(fmove).Add(ctx.right.Scale(smove))
 
 	if srvtypes.MoveType(ctx.player.MoveType(sh)) != srvtypes.MoveTypeWalk {
-		wishvel[2] = ctx.cmd.UpMove
+		wishvel.Z = ctx.cmd.UpMove
 	} else {
-		wishvel[2] = 0
+		wishvel.Z = 0
 	}
 
 	wishdir := wishvel
 	wishspeed := srvtypes.VecNormalize(&wishdir)
 	if wishspeed > svMaxSpeed {
-		wishvel = srvtypes.VecScale(wishvel, svMaxSpeed/wishspeed)
+		wishvel = wishvel.Scale(svMaxSpeed / wishspeed)
 		wishspeed = svMaxSpeed
 	}
 
@@ -359,11 +342,11 @@ func (m *ClientMover) airMove(ctx *clientMoveContext) {
 
 // CalcRoll computes the view roll from lateral velocity, matching C Ironwail
 // V_CalcRoll (cl_rollangle / cl_rollspeed).
-func CalcRoll(cvr srvtypes.CVarReader, angles, velocity [3]float32) float32 {
-	var forward, right, up [3]float32
+func CalcRoll(cvr srvtypes.CVarReader, angles, velocity qtypes.Vec3) float32 {
+	var forward, right, up qtypes.Vec3
 	srvtypes.AngleVectors(angles, &forward, &right, &up)
 
-	side := srvtypes.VecDot(velocity, right)
+	side := velocity.Dot(right)
 	sign := float32(1)
 	if side < 0 {
 		sign = -1

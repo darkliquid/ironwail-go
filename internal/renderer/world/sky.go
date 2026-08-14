@@ -2,6 +2,7 @@ package world
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func ReadBoolCvar(name string) bool {
@@ -26,8 +27,8 @@ func ReadSkyLayerSpeedCvar(name string, fallback float32) float32 {
 	return speed
 }
 
-func ProceduralSkyGradientColors() (horizon, zenith [3]float32) {
-	return [3]float32{0.40, 0.53, 0.78}, [3]float32{0.07, 0.10, 0.23}
+func ProceduralSkyGradientColors() (horizon, zenith types.Vec3) {
+	return types.Vec3{X: 0.40, Y: 0.53, Z: 0.78}, types.Vec3{X: 0.07, Y: 0.10, Z: 0.23}
 }
 
 func ShouldUseProceduralSky(fastSky, proceduralSkyEnabled, externalSkyEmbedded bool) bool {

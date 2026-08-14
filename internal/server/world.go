@@ -7,6 +7,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/server/collision"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // GetWorldModel implements collision.WorldProvider.
@@ -45,7 +46,7 @@ func cNumAreaNodes(sys *CollisionSystem) int {
 	return sys.NumAreaNodes()
 }
 
-// ClearWorld initializes spatial nodes for a map.
+// ClearWorld unlinks all edicts and resets the area node tree.
 func (s *Server) ClearWorld() {
 	s.ensureCollisionSys()
 	s.CollisionSys.ClearWorld()
@@ -53,12 +54,12 @@ func (s *Server) ClearWorld() {
 	s.numAreaNodes = cNumAreaNodes(s.CollisionSys)
 }
 
-// UnlinkEdict removes an edict from the spatial grid.
-func UnlinkEdict(ent *Edict) {
+// UnlinkEdict removes an entity from the area node tree.
+func (s *Server) UnlinkEdict(ent *Edict) {
 	collision.UnlinkEdict(ent)
 }
 
-// LinkEdict adds an edict to the spatial grid.
+// LinkEdict inserts an entity into the area node tree based on its bounds.
 func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
 	s.ensureCollisionSys()
 	s.CollisionSys.LinkEdict(ent, touchTriggers)
@@ -67,13 +68,13 @@ func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
 }
 
 // PointContents returns the content flags at a 3D point.
-func (s *Server) PointContents(p [3]float32) int {
+func (s *Server) PointContents(p qtypes.Vec3) int {
 	s.ensureCollisionSys()
 	return s.CollisionSys.PointContents(p)
 }
 
 // Move performs a sweep trace through the BSP world and entities.
-func (s *Server) Move(start, mins, maxs, end [3]float32, moveType MoveType, passedict *Edict) TraceResult {
+func (s *Server) Move(start, mins, maxs, end qtypes.Vec3, moveType MoveType, passedict *Edict) TraceResult {
 	s.ensureCollisionSys()
 	return s.CollisionSys.Move(start, mins, maxs, end, moveType, passedict)
 }
@@ -84,12 +85,12 @@ func (s *Server) TestEntityPosition(ent *Edict) *Edict {
 	return s.CollisionSys.TestEntityPosition(ent)
 }
 
-func (s *Server) clipMoveToEntity(ent *Edict, start, mins, maxs, end [3]float32) TraceResult {
+func (s *Server) clipMoveToEntity(ent *Edict, start, mins, maxs, end qtypes.Vec3) TraceResult {
 	s.ensureCollisionSys()
 	return s.CollisionSys.ClipMoveToEntity(ent, start, mins, maxs, end)
 }
 
-func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]float32) *model.Hull {
+func (s *Server) hullForEntity(ent *Edict, mins, maxs qtypes.Vec3, offset *qtypes.Vec3) *model.Hull {
 	s.ensureCollisionSys()
 	h, off := s.CollisionSys.SV_HullForEntity(ent, mins, maxs)
 	*offset = off
@@ -101,11 +102,11 @@ func (s *Server) findTouchedLeafs(ent *Edict, child bsp.TreeChild) {
 	s.CollisionSys.FindTouchedLeafs(ent, child)
 }
 
-func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]float32, trace *TraceResult) bool {
+func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 qtypes.Vec3, trace *TraceResult) bool {
 	return collision.RecursiveHullCheck(hull, num, p1f, p2f, p1, p2, trace)
 }
 
-func hullPointContents(hull *model.Hull, num int, p [3]float32) int {
+func hullPointContents(hull *model.Hull, num int, p qtypes.Vec3) int {
 	return collision.HullPointContents(hull, num, p)
 }
 
@@ -127,13 +128,13 @@ func (s *Server) touchLinks(ent *Edict) {
 		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 			"touchlinks begin mover_classname=%q touchfn=%d solid=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
 			moverClassName, entTouchFn, int(entSolid),
-			entAbsMin[0], entAbsMin[1], entAbsMin[2],
-			entAbsMax[0], entAbsMax[1], entAbsMax[2])
+			entAbsMin.X, entAbsMin.Y, entAbsMin.Z,
+			entAbsMax.X, entAbsMax.Y, entAbsMax.Z)
 		defer s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 			"touchlinks end mover_classname=%q solid=%d touchfn=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
 			moverClassName, int(entSolid), entTouchFn,
-			entAbsMin[0], entAbsMin[1], entAbsMin[2],
-			entAbsMax[0], entAbsMax[1], entAbsMax[2])
+			entAbsMin.X, entAbsMin.Y, entAbsMin.Z,
+			entAbsMax.X, entAbsMax.Y, entAbsMax.Z)
 	}
 
 	// Reuse the per-server trigger-candidate scratch slice across calls so
@@ -156,8 +157,8 @@ func (s *Server) touchLinks(ent *Edict) {
 		svDebugPushDumpTriggersOnce(s)
 		SvdbgPushLogf("touchlinks ent=%d classname=%q candidates=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
 			entNum, moverClassName, len(touches),
-			entAbsMin[0], entAbsMin[1], entAbsMin[2],
-			entAbsMax[0], entAbsMax[1], entAbsMax[2])
+			entAbsMin.X, entAbsMin.Y, entAbsMin.Z,
+			entAbsMax.X, entAbsMax.Y, entAbsMax.Z)
 	}
 
 	for _, touch := range touches {
@@ -190,22 +191,22 @@ func (s *Server) touchLinks(ent *Edict) {
 		}
 		touchAbsMin := touch.AbsMin(s)
 		touchAbsMax := touch.AbsMax(s)
-		if entAbsMin[0] > touchAbsMax[0] || entAbsMin[1] > touchAbsMax[1] || entAbsMin[2] > touchAbsMax[2] ||
-			entAbsMax[0] < touchAbsMin[0] || entAbsMax[1] < touchAbsMin[1] || entAbsMax[2] < touchAbsMin[2] {
+		if entAbsMin.X > touchAbsMax.X || entAbsMin.Y > touchAbsMax.Y || entAbsMin.Z > touchAbsMax.Z ||
+			entAbsMax.X < touchAbsMin.X || entAbsMax.Y < touchAbsMin.Y || entAbsMax.Z < touchAbsMin.Z {
 			if telemetryEnabled {
 				reason := "axis2"
-				if entAbsMin[0] > touchAbsMax[0] || entAbsMax[0] < touchAbsMin[0] {
+				if entAbsMin.X > touchAbsMax.X || entAbsMax.X < touchAbsMin.X {
 					reason = "axis0"
-				} else if entAbsMin[1] > touchAbsMax[1] || entAbsMax[1] < touchAbsMin[1] {
+				} else if entAbsMin.Y > touchAbsMax.Y || entAbsMax.Y < touchAbsMin.Y {
 					reason = "axis1"
 				}
 				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 					"touchlinks overlap-reject candidate=%d other=%d reason=%s candidate_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f)",
 					touchNum, entNum, reason,
-					touchAbsMin[0], touchAbsMin[0], touchAbsMin[2],
-					touchAbsMax[0], touchAbsMax[1], touchAbsMax[2],
-					entAbsMin[0], entAbsMin[1], entAbsMin[2],
-					entAbsMax[0], entAbsMax[1], entAbsMax[2])
+					touchAbsMin.X, touchAbsMin.Y, touchAbsMin.Z,
+					touchAbsMax.X, touchAbsMax.Y, touchAbsMax.Z,
+					entAbsMin.X, entAbsMin.Y, entAbsMin.Z,
+					entAbsMax.X, entAbsMax.Y, entAbsMax.Z)
 			}
 			continue
 		}
@@ -219,11 +220,11 @@ func (s *Server) touchLinks(ent *Edict) {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 				"touchlinks callback begin self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d other_flags=%#x other_ground=%d other_vel=(%.1f %.1f %.1f) other_punch=(%.1f %.1f %.1f) other_fixangle=%d other_teleport=%.3f self_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_origin=(%.1f %.1f %.1f)",
 				touchNum, touchClassName, entNum, moverClassName, touchTouchFn, int(touchSolid), int(entSolid),
-				uint32(ef), int(eg), ev[0], ev[1], ev[2], ep[0], ep[1], ep[2],
+				uint32(ef), int(eg), ev.X, ev.Y, ev.Z, ep.X, ep.Y, ep.Z,
 				int(ent.FixAngle(s)), ent.TeleportTime(s),
-				touchAbsMin[0], touchAbsMin[1], touchAbsMin[2], touchAbsMax[0], touchAbsMax[1], touchAbsMax[2],
-				entAbsMin[0], entAbsMin[1], entAbsMin[2], entAbsMax[0], entAbsMax[1], entAbsMax[2],
-				eo[0], eo[1], eo[2])
+				touchAbsMin.X, touchAbsMin.Y, touchAbsMin.Z, touchAbsMax.X, touchAbsMax.Y, touchAbsMax.Z,
+				entAbsMin.X, entAbsMin.Y, entAbsMin.Z, entAbsMax.X, entAbsMax.Y, entAbsMax.Z,
+				eo.X, eo.Y, eo.Z)
 		}
 
 		s.debugTriggerTouch("touchlinks", touch, ent)
@@ -256,9 +257,9 @@ func (s *Server) touchLinks(ent *Edict) {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 				"touchlinks callback end self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d self_link=%s other_flags=%#x other_ground=%d other_vel=(%.1f %.1f %.1f) other_punch=(%.1f %.1f %.1f) other_fixangle=%d other_teleport=%.3f self_origin=(%.1f %.1f %.1f) other_origin=(%.1f %.1f %.1f)",
 				touchNum, touchClassName, entNum, moverClassName, touchTouchFn, int(touchSolid), int(entSolid), linkState,
-				uint32(ef), int(eg), ev[0], ev[1], ev[2], ep[0], ep[1], ep[2],
+				uint32(ef), int(eg), ev.X, ev.Y, ev.Z, ep.X, ep.Y, ep.Z,
 				int(ent.FixAngle(s)), ent.TeleportTime(s),
-				to[0], to[1], to[2], eo[0], eo[1], eo[2])
+				to.X, to.Y, to.Z, eo.X, eo.Y, eo.Z)
 		}
 	}
 }

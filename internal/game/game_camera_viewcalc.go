@@ -5,6 +5,7 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	cameralib "github.com/darkliquid/ironwail-go/internal/game/camera"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // viewCalcState holds persistent (frame-to-frame) state for view calculations.
@@ -47,7 +48,7 @@ type runtimeOriginSelectLatch struct {
 // Parameters:
 //   - clientTime: cl.time (seconds)
 //   - velocity:   XY components of the player's velocity
-func (g *Game) viewCalcBob(clientTime float64, velocity [3]float32) float32 {
+func (g *Game) viewCalcBob(clientTime float64, velocity types.Vec3) float32 {
 	return cameralib.CalcBob(g.Host.CVar, clientTime, velocity)
 }
 
@@ -57,7 +58,7 @@ func (g *Game) viewCalcBob(clientTime float64, velocity [3]float32) float32 {
 // Parameters:
 //   - angles:   player/camera Euler angles (pitch, yaw, roll)
 //   - velocity: player velocity
-func (g *Game) viewCalcRoll(angles, velocity [3]float32) float32 {
+func (g *Game) viewCalcRoll(angles, velocity types.Vec3) float32 {
 	return cameralib.CalcRoll(g.Host.CVar, angles, velocity)
 }
 
@@ -72,13 +73,7 @@ func (g *Game) viewCalcRoll(angles, velocity [3]float32) float32 {
 //   - frameTime:  host_frametime
 //
 // Returns the weapon-model angles to use for this frame.
-func (g *Game) viewCalcGunAngle(state *viewCalcState, viewAngles [3]float32, clientTime, frameTime float64) [3]float32 {
-	const (
-		pitchIdx = 0
-		yawIdx   = 1
-		rollIdx  = 2
-	)
-
+func (g *Game) viewCalcGunAngle(state *viewCalcState, viewAngles types.Vec3, clientTime, frameTime float64) types.Vec3 {
 	// C code: yaw = angledelta(yaw - r_refdef.viewangles[YAW]) * 0.4
 	// Since yaw was just set to viewangles[YAW], the delta is always 0, so
 	// gun yaw/pitch corrections are entirely driven by the rate-limit below.
@@ -109,10 +104,10 @@ func (g *Game) viewCalcGunAngle(state *viewCalcState, viewAngles [3]float32, cli
 	state.oldGunPitch = pitch
 
 	// Base weapon angles track the view.
-	var out [3]float32
-	out[yawIdx] = viewAngles[yawIdx] + yaw
-	out[pitchIdx] = -(viewAngles[pitchIdx] + pitch)
-	out[rollIdx] = viewAngles[rollIdx]
+	var out types.Vec3
+	out.Y = viewAngles.Y + yaw
+	out.X = -(viewAngles.X + pitch)
+	out.Z = viewAngles.Z
 
 	// Idle sway on the weapon model.
 	idleScaleCv := g.Host.CVar.Get("v_idlescale")
@@ -128,13 +123,13 @@ func (g *Game) viewCalcGunAngle(state *viewCalcState, viewAngles [3]float32, cli
 			ipitchCycle != nil && ipitchLevel != nil &&
 			iyawCycle != nil && iyawLevel != nil {
 			t := float64(clientTime)
-			out[rollIdx] -= idleScale *
+			out.Z -= idleScale *
 				float32(math.Sin(t*irollCycle.Float)) *
 				float32(irollLevel.Float)
-			out[pitchIdx] -= idleScale *
+			out.X -= idleScale *
 				float32(math.Sin(t*ipitchCycle.Float)) *
 				float32(ipitchLevel.Float)
-			out[yawIdx] -= idleScale *
+			out.Y -= idleScale *
 				float32(math.Sin(t*iyawCycle.Float)) *
 				float32(iyawLevel.Float)
 		}
@@ -144,7 +139,7 @@ func (g *Game) viewCalcGunAngle(state *viewCalcState, viewAngles [3]float32, cli
 }
 
 // viewAddIdle adds idle sway to camera angles, matching C Ironwail V_AddIdle.
-func (g *Game) viewAddIdle(angles [3]float32, clientTime float64) [3]float32 {
+func (g *Game) viewAddIdle(angles types.Vec3, clientTime float64) types.Vec3 {
 	return cameralib.AddIdle(g.Host.CVar, angles, clientTime)
 }
 
@@ -153,7 +148,7 @@ func (g *Game) viewAddIdle(angles [3]float32, clientTime float64) [3]float32 {
 //
 //	view->origin[i] += forward[i]*bob*0.4
 //	view->origin[2] += bob
-func (g *Game) viewApplyBobToOrigin(origin [3]float32, forward [3]float32, bob float32) [3]float32 {
+func (g *Game) viewApplyBobToOrigin(origin types.Vec3, forward types.Vec3, bob float32) types.Vec3 {
 	return cameralib.ApplyBobToOrigin(origin, forward, bob)
 }
 
@@ -163,13 +158,13 @@ func (g *Game) viewApplyBobToOrigin(origin [3]float32, forward [3]float32, bob f
 //	r_refdef.vieworg[0] += 1.0/32
 //	r_refdef.vieworg[1] += 1.0/32
 //	r_refdef.vieworg[2] += 1.0/32
-func (g *Game) viewNodeLineOffset(origin [3]float32) [3]float32 {
+func (g *Game) viewNodeLineOffset(origin types.Vec3) types.Vec3 {
 	return cameralib.NodeLineOffset(origin)
 }
 
 // viewApplyViewmodelQuakeFudge applies the r_viewmodel_quake origin fudge
 // that nudges the weapon origin based on scr_viewsize, matching C Ironwail.
-func (g *Game) viewApplyViewmodelQuakeFudge(origin [3]float32, scrViewSize float64) [3]float32 {
+func (g *Game) viewApplyViewmodelQuakeFudge(origin types.Vec3, scrViewSize float64) types.Vec3 {
 	return cameralib.ApplyViewmodelQuakeFudge(g.Host.CVar, origin, scrViewSize)
 }
 
@@ -183,7 +178,7 @@ func (g *Game) viewApplyViewmodelQuakeFudge(origin [3]float32, scrViewSize float
 //   - deltaTime: time elapsed since last frame (host_frametime or cl.time - cl.oldtime)
 //
 // Returns the updated camera angles.
-func (g *Game) viewApplyDamageKick(state *viewCalcState, angles [3]float32, deltaTime float64) [3]float32 {
+func (g *Game) viewApplyDamageKick(state *viewCalcState, angles types.Vec3, deltaTime float64) types.Vec3 {
 	if state.dmgTime > 0 {
 		kickTimeCv := g.Host.CVar.Get("v_kicktime")
 		if kickTimeCv == nil || kickTimeCv.Float == 0 {
@@ -191,8 +186,8 @@ func (g *Game) viewApplyDamageKick(state *viewCalcState, angles [3]float32, delt
 			return angles
 		}
 		kickTime := float32(kickTimeCv.Float)
-		angles[2] += state.dmgTime / kickTime * state.dmgRoll  // ROLL
-		angles[0] += state.dmgTime / kickTime * state.dmgPitch // PITCH
+		angles.Z += state.dmgTime / kickTime * state.dmgRoll  // ROLL
+		angles.X += state.dmgTime / kickTime * state.dmgPitch // PITCH
 		state.dmgTime -= float32(math.Abs(deltaTime))
 		if state.dmgTime < 0 {
 			state.dmgTime = 0
@@ -204,7 +199,7 @@ func (g *Game) viewApplyDamageKick(state *viewCalcState, angles [3]float32, delt
 // viewBoundOffsets clamps the camera origin to within ±14 units in XY and
 // -22/+30 units in Z relative to the entity origin.  Mirrors C Ironwail
 // V_BoundOffsets (view.c:665-686).
-func (g *Game) viewBoundOffsets(vieworg, entityOrigin [3]float32) [3]float32 {
+func (g *Game) viewBoundOffsets(vieworg, entityOrigin types.Vec3) types.Vec3 {
 	return cameralib.BoundOffsets(vieworg, entityOrigin)
 }
 

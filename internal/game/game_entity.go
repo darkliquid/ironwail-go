@@ -12,7 +12,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
-	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func (g *Game) clientEntityStateIsCurrent(state inet.EntityState) bool {
@@ -217,8 +217,8 @@ func (g *Game) loadSpriteModel(modelName string) (*SpriteModel, bool) {
 			Type:       model.ModSprite,
 			NumFrames:  loaded.NumFrames,
 			SyncType:   loaded.SyncType,
-			Mins:       [3]float32{-halfWidth, -halfWidth, -halfHeight},
-			Maxs:       [3]float32{halfWidth, halfWidth, halfHeight},
+			Mins:       types.Vec3{X: -halfWidth, Y: -halfWidth, Z: -halfHeight},
+			Maxs:       types.Vec3{X: halfWidth, Y: halfWidth, Z: halfHeight},
 			SpriteData: loaded,
 		},
 		Sprite: loaded,
@@ -503,7 +503,7 @@ func (g *Game) collectSpriteEntities() []renderer.SpriteEntity {
 	return spriteEntities
 }
 
-func (g *Game) resolveRuntimeSpriteFrame(sprite *model.MSprite, state inet.EntityState, viewForward, viewRight [3]float32, clientTime float64) int {
+func (g *Game) resolveRuntimeSpriteFrame(sprite *model.MSprite, state inet.EntityState, viewForward, viewRight types.Vec3, clientTime float64) int {
 	if sprite == nil || sprite.NumFrames == 0 || len(sprite.Frames) == 0 {
 		return 0
 	}
@@ -578,7 +578,7 @@ func (g *Game) runtimeSpriteRandomSyncBase(entityKey, staticIndex int, modelInde
 	return float32((seed&0x7fff)+1) / 32768.0
 }
 
-func (g *Game) resolveRuntimeSpriteAngledSubframe(framePtr any, entityAngles [3]float32, viewForward, viewRight [3]float32) int {
+func (g *Game) resolveRuntimeSpriteAngledSubframe(framePtr any, entityAngles, viewForward, viewRight types.Vec3) int {
 	group, ok := framePtr.(*model.MSpriteGroup)
 	if !ok || group == nil || group.NumFrames <= 0 || len(group.Frames) == 0 {
 		return 0
@@ -593,13 +593,13 @@ func (g *Game) resolveRuntimeSpriteAngledSubframe(framePtr any, entityAngles [3]
 	}
 
 	entityForward, _, _ := g.runtimeAngleVectors(entityAngles)
-	forwardDot := qtypes.Vec3Dot(
-		qtypes.Vec3{X: viewForward[0], Y: viewForward[1], Z: viewForward[2]},
-		qtypes.Vec3{X: entityForward[0], Y: entityForward[1], Z: entityForward[2]},
+	forwardDot := types.Vec3Dot(
+		viewForward,
+		entityForward,
 	)
-	rightDot := qtypes.Vec3Dot(
-		qtypes.Vec3{X: viewRight[0], Y: viewRight[1], Z: viewRight[2]},
-		qtypes.Vec3{X: entityForward[0], Y: entityForward[1], Z: entityForward[2]},
+	rightDot := types.Vec3Dot(
+		viewRight,
+		entityForward,
 	)
 
 	dir := int((math.Atan2(float64(rightDot), float64(forwardDot)) + 1.125*math.Pi) * (4.0 / math.Pi))

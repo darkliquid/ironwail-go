@@ -39,6 +39,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/server/edict"
 	stategp "github.com/darkliquid/ironwail-go/internal/server/state"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // Server holds the state for the current running game.
@@ -97,7 +98,7 @@ type Server struct {
 	// pushMoveBuffers + touchLinkScratch avoid per-frame allocations
 	// (PushMove origin-restore, touchLinks trigger candidates).
 	pushMoveMoved    []*Edict
-	pushMoveFrom     [][3]float32
+	pushMoveFrom     []qtypes.Vec3
 	touchLinkScratch []*Edict
 
 	// Network messaging
@@ -329,7 +330,7 @@ func NewServer() *Server {
 	// authoritative engine systems: entity allocation, traces, networking,
 	// precache lists, and world mutation.
 	vm.SetServerHooks(qc.ServerBuiltinHooks{
-		Traceline: func(vm *qc.VM, start, end [3]float32, noMonsters bool, passEnt int) qc.BuiltinTraceResult {
+		Traceline: func(vm *qc.VM, start, end qtypes.Vec3, noMonsters bool, passEnt int) qc.BuiltinTraceResult {
 			moveType := MoveType(MoveNormal)
 			if noMonsters {
 				moveType = MoveType(MoveNoMonsters)
@@ -338,7 +339,7 @@ func NewServer() *Server {
 			if passEnt > 0 {
 				pass = s.EdictNum(passEnt)
 			}
-			trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, moveType, pass)
+			trace := s.SV_Move(start, qtypes.Vec3{}, qtypes.Vec3{}, end, moveType, pass)
 			res := qc.BuiltinTraceResult{
 				AllSolid:    trace.AllSolid,
 				StartSolid:  trace.StartSolid,
@@ -397,7 +398,7 @@ func NewServer() *Server {
 			}
 			return 0
 		},
-		FindRadius: func(vm *qc.VM, org [3]float32, radius float32) int {
+		FindRadius: func(vm *qc.VM, org qtypes.Vec3, radius float32) int {
 			if radius < 0 {
 				return 0
 			}
@@ -410,15 +411,9 @@ func NewServer() *Server {
 				entOrg := vm.EVector(entNum, qc.EntFieldOrigin)
 				mins := vm.EVector(entNum, qc.EntFieldMins)
 				maxs := vm.EVector(entNum, qc.EntFieldMaxs)
-				center := [3]float32{
-					entOrg[0] + 0.5*(mins[0]+maxs[0]),
-					entOrg[1] + 0.5*(mins[1]+maxs[1]),
-					entOrg[2] + 0.5*(mins[2]+maxs[2]),
-				}
-				dx := center[0] - org[0]
-				dy := center[1] - org[1]
-				dz := center[2] - org[2]
-				if dx*dx+dy*dy+dz*dz <= radSq {
+				center := entOrg.Add(mins.Add(maxs).Scale(0.5))
+				delta := center.Sub(org)
+				if delta.LengthSq() <= radSq {
 					vm.SetEInt(entNum, qc.EntFieldChain, int32(chain))
 					if ent := s.EdictNum(entNum); ent != nil {
 						ent.SetChain(s, int32(chain))
@@ -456,11 +451,7 @@ func NewServer() *Server {
 				}
 				selfOrg := selfEnt.Origin(s)
 				selfView := selfEnt.ViewOfs(s)
-				view := [3]float32{
-					selfOrg[0] + selfView[0],
-					selfOrg[1] + selfView[1],
-					selfOrg[2] + selfView[2],
-				}
+				view := selfOrg.Add(selfView)
 				leaf := s.WorldTree.PointInLeaf(view)
 				leafIdx := s.worldLeafIndex(leaf)
 				if leafIdx < 0 {
@@ -493,19 +484,19 @@ func NewServer() *Server {
 			}
 			return s.CheckBottom(e)
 		},
-		PointContents: func(vm *qc.VM, point [3]float32) int {
+		PointContents: func(vm *qc.VM, point qtypes.Vec3) int {
 			return s.PointContents(point)
 		},
-		Aim: func(vm *qc.VM, entNum int, missileSpeed float32) [3]float32 {
+		Aim: func(vm *qc.VM, entNum int, missileSpeed float32) qtypes.Vec3 {
 			ent := s.EdictNum(entNum)
 			if ent == nil {
 				return vm.GVector(qc.OFSGlobalVForward)
 			}
 			start := ent.Origin(s)
-			start[2] += 20
+			start.Z += 20
 			bestDir := vm.GVector(qc.OFSGlobalVForward)
-			end := VecAdd(start, VecScale(bestDir, 2048))
-			trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNormal), ent)
+			end := start.Add(bestDir.Scale(2048))
+			trace := s.SV_Move(start, qtypes.Vec3{}, qtypes.Vec3{}, end, MoveType(MoveNormal), ent)
 			teamplay := false
 			if s.CVar != nil {
 				teamplay = s.CVar.FloatValue("teamplay") != 0
@@ -537,20 +528,17 @@ func NewServer() *Server {
 				checkOrg := check.Origin(s)
 				checkMins := check.Mins(s)
 				checkMaxs := check.Maxs(s)
-				targetCenter := [3]float32{
-					checkOrg[0] + 0.5*(checkMins[0]+checkMaxs[0]),
-					checkOrg[1] + 0.5*(checkMins[1]+checkMaxs[1]),
-					checkOrg[2] + 0.5*(checkMins[2]+checkMaxs[2]),
-				}
-				dir := VecSub(targetCenter, start)
-				if VecNormalize(&dir) == 0 {
+				targetCenter := checkOrg.Add(checkMins.Add(checkMaxs).Scale(0.5))
+				delta := targetCenter.Sub(start)
+				dir := delta.Normalize()
+				if delta.LengthSq() == 0 {
 					continue
 				}
-				dist := VecDot(dir, bestDir)
+				dist := dir.Dot(bestDir)
 				if dist < bestDist {
 					continue
 				}
-				trace = s.SV_Move(start, [3]float32{}, [3]float32{}, targetCenter, MoveType(MoveNormal), ent)
+				trace = s.SV_Move(start, qtypes.Vec3{}, qtypes.Vec3{}, targetCenter, MoveType(MoveNormal), ent)
 				if trace.Entity == check {
 					bestDist = dist
 					bestEnt = check
@@ -559,12 +547,11 @@ func NewServer() *Server {
 			if bestEnt == nil {
 				return bestDir
 			}
-			dir := VecSub(bestEnt.Origin(s), ent.Origin(s))
-			dist := VecDot(dir, bestDir)
-			end = VecScale(bestDir, dist)
-			end[2] = dir[2]
-			VecNormalize(&end)
-			return end
+			dir := bestEnt.Origin(s).Sub(ent.Origin(s))
+			dist := dir.Dot(bestDir)
+			end = bestDir.Scale(dist)
+			end.Z = dir.Z
+			return end.Normalize()
 		},
 		WalkMove: func(vm *qc.VM, yaw, dist float32) bool {
 			self := int(vm.GInt(qc.OFSSelf))
@@ -586,10 +573,10 @@ func NewServer() *Server {
 			oldXFunctionIndex := vm.XFunctionIndex
 
 			rad := float64(yaw) * math.Pi / 180.0
-			move := [3]float32{
-				dist * float32(math.Cos(rad)),
-				dist * float32(math.Sin(rad)),
-				0,
+			move := qtypes.Vec3{
+				X: dist * float32(math.Cos(rad)),
+				Y: dist * float32(math.Sin(rad)),
+				Z: 0,
 			}
 			ok := s.MoveStep(e, move, true)
 			vm.SetGInt(qc.OFSSelf, oldSelf)
@@ -608,7 +595,7 @@ func NewServer() *Server {
 			if e := s.EdictNum(self); e != nil {
 				start := e.Origin(s)
 				end := start
-				end[2] -= 256
+				end.Z -= 256
 				trace := s.SV_Move(start, e.Mins(s), e.Maxs(s), end, MoveType(MoveNormal), e)
 				if trace.Fraction == 1 || trace.AllSolid {
 					return false
@@ -629,39 +616,39 @@ func NewServer() *Server {
 			// Fallback: naive placement as before.
 			mins := vm.EVector(self, qc.EntFieldMins)
 			org := vm.EVector(self, qc.EntFieldOrigin)
-			org[2] = -mins[2]
+			org.Z = -mins.Z
 			vm.SetEVector(self, qc.EntFieldOrigin, org)
 			return true
 		},
-		SetOrigin: func(vm *qc.VM, entNum int, org [3]float32) {
+		SetOrigin: func(vm *qc.VM, entNum int, org qtypes.Vec3) {
 			vm.SetEVector(entNum, qc.EntFieldOrigin, org)
 			mins := vm.EVector(entNum, qc.EntFieldMins)
 			maxs := vm.EVector(entNum, qc.EntFieldMaxs)
-			vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{org[0] + mins[0], org[1] + mins[1], org[2] + mins[2]})
-			vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{org[0] + maxs[0], org[1] + maxs[1], org[2] + maxs[2]})
+			vm.SetEVector(entNum, qc.EntFieldAbsMin, org.Add(mins))
+			vm.SetEVector(entNum, qc.EntFieldAbsMax, org.Add(maxs))
 			if e := s.EdictNum(entNum); e != nil {
 				e.SetOrigin(s, org)
 				mins := e.Mins(s)
 				maxs := e.Maxs(s)
-				e.SetAbsMin(s, [3]float32{org[0] + mins[0], org[1] + mins[1], org[2] + mins[2]})
-				e.SetAbsMax(s, [3]float32{org[0] + maxs[0], org[1] + maxs[1], org[2] + maxs[2]})
+				e.SetAbsMin(s, org.Add(mins))
+				e.SetAbsMax(s, org.Add(maxs))
 				s.LinkEdict(e, false)
 			}
 		},
-		SetSize: func(vm *qc.VM, entNum int, mins, maxs [3]float32) {
+		SetSize: func(vm *qc.VM, entNum int, mins, maxs qtypes.Vec3) {
 			vm.SetEVector(entNum, qc.EntFieldMins, mins)
 			vm.SetEVector(entNum, qc.EntFieldMaxs, maxs)
-			size := [3]float32{maxs[0] - mins[0], maxs[1] - mins[1], maxs[2] - mins[2]}
+			size := maxs.Sub(mins)
 			vm.SetEVector(entNum, qc.EntFieldSize, size)
 			origin := vm.EVector(entNum, qc.EntFieldOrigin)
-			vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
-			vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
+			vm.SetEVector(entNum, qc.EntFieldAbsMin, origin.Add(mins))
+			vm.SetEVector(entNum, qc.EntFieldAbsMax, origin.Add(maxs))
 			if e := s.EdictNum(entNum); e != nil {
 				e.SetMins(s, mins)
 				e.SetMaxs(s, maxs)
 				e.SetSize(s, size)
-				e.SetAbsMin(s, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
-				e.SetAbsMax(s, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
+				e.SetAbsMin(s, origin.Add(mins))
+				e.SetAbsMax(s, origin.Add(maxs))
 				// C's SetMinMaxSize calls SV_LinkEdict(e, false) to update
 				// the spatial partition after bounds change.
 				s.LinkEdict(e, false)
@@ -696,17 +683,13 @@ func NewServer() *Server {
 						e.SetMins(s, info.mins)
 						e.SetMaxs(s, info.maxs)
 					} else {
-						e.SetMins(s, [3]float32{})
-						e.SetMaxs(s, [3]float32{})
+						e.SetMins(s, qtypes.Vec3{})
+						e.SetMaxs(s, qtypes.Vec3{})
 					}
 				}
 				finalMins := e.Mins(s)
 				finalMaxs := e.Maxs(s)
-				e.SetSize(s, [3]float32{
-					finalMaxs[0] - finalMins[0],
-					finalMaxs[1] - finalMins[1],
-					finalMaxs[2] - finalMins[2],
-				})
+				e.SetSize(s, finalMaxs.Sub(finalMins))
 				s.LinkEdict(e, false)
 
 				// Only push the fields SetModel actually modified back to
@@ -786,7 +769,7 @@ func NewServer() *Server {
 				client.Message.WriteString(value)
 			}
 		},
-		Particle: func(vm *qc.VM, org, dir [3]float32, color, count int) {
+		Particle: func(vm *qc.VM, org, dir qtypes.Vec3, color, count int) {
 			s.StartParticle(org, dir, color, count)
 		},
 		LocalSound: func(vm *qc.VM, entNum int, sample string) {
@@ -881,12 +864,12 @@ func NewServer() *Server {
 				state.Scale = 16
 			}
 			if state.Alpha == inet.ENTALPHA_ZERO {
-				UnlinkEdict(ent)
+				s.UnlinkEdict(ent)
 				s.FreeEdict(ent)
 				return
 			}
 			if s.Protocol == ProtocolNetQuake && (state.ModelIndex > 255 || state.Frame > 255) {
-				UnlinkEdict(ent)
+				s.UnlinkEdict(ent)
 				s.FreeEdict(ent)
 				return
 			}
@@ -899,10 +882,10 @@ func NewServer() *Server {
 					s.writeSpawnStaticMessage(client.Message, state)
 				}
 			}
-			UnlinkEdict(ent)
+			s.UnlinkEdict(ent)
 			s.FreeEdict(ent)
 		},
-		AmbientSound: func(vm *qc.VM, org [3]float32, sample string, volume int, attenuation float32) {
+		AmbientSound: func(vm *qc.VM, org qtypes.Vec3, sample string, volume int, attenuation float32) {
 			soundIndex := s.FindSound(sample)
 			if soundIndex < 0 {
 				return

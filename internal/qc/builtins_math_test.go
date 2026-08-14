@@ -80,15 +80,15 @@ func TestVectoyawBuiltinMatchesQuakeYaw(t *testing.T) {
 
 	tests := []struct {
 		name string
-		vec  [3]float32
+		vec  qtypes.Vec3
 		want float32
 	}{
-		{name: "zero", vec: [3]float32{0, 0, 0}, want: 0},
-		{name: "positive x", vec: [3]float32{1, 0, 0}, want: 0},
-		{name: "positive y", vec: [3]float32{0, 1, 0}, want: 90},
-		{name: "negative x", vec: [3]float32{-1, 0, 0}, want: 180},
-		{name: "negative y", vec: [3]float32{0, -1, 0}, want: 270},
-		{name: "diagonal", vec: [3]float32{1, 1, 0}, want: 45},
+		{name: "zero", vec: qtypes.Vec3{X: 0, Y: 0, Z: 0}, want: 0},
+		{name: "positive x", vec: qtypes.Vec3{X: 1, Y: 0, Z: 0}, want: 0},
+		{name: "positive y", vec: qtypes.Vec3{X: 0, Y: 1, Z: 0}, want: 90},
+		{name: "negative x", vec: qtypes.Vec3{X: -1, Y: 0, Z: 0}, want: 180},
+		{name: "negative y", vec: qtypes.Vec3{X: 0, Y: -1, Z: 0}, want: 270},
+		{name: "diagonal", vec: qtypes.Vec3{X: 1, Y: 1, Z: 0}, want: 45},
 	}
 
 	for _, tc := range tests {
@@ -104,11 +104,11 @@ func TestVectoyawBuiltinMatchesQuakeYaw(t *testing.T) {
 
 func TestVectoanglesBuiltinUsesQuakeYawConvention(t *testing.T) {
 	vm := newBuiltinsTestVM(1)
-	vm.SetGVector(OFSParm0, [3]float32{0, 1, 0})
+	vm.SetGVector(OFSParm0, qtypes.Vec3{X: 0, Y: 1, Z: 0})
 
 	vectoangles(vm)
 
-	if got := vm.GVector(OFSReturn); math.Abs(float64(got[0])) > 0.001 || math.Abs(float64(got[1]-90)) > 0.001 || math.Abs(float64(got[2])) > 0.001 {
+	if got := vm.GVector(OFSReturn); math.Abs(float64(got.X)) > 0.001 || math.Abs(float64(got.Y-90)) > 0.001 || math.Abs(float64(got.Z)) > 0.001 {
 		t.Fatalf("vectoangles yaw = %v, want [0 90 0]", got)
 	}
 }
@@ -117,11 +117,11 @@ func TestVectoanglesBuiltinVerticalCasesMatchC(t *testing.T) {
 	vm := newBuiltinsTestVM(1)
 	tests := []struct {
 		name string
-		vec  [3]float32
-		want [3]float32
+		vec  qtypes.Vec3
+		want qtypes.Vec3
 	}{
-		{name: "straight up", vec: [3]float32{0, 0, 1}, want: [3]float32{90, 0, 0}},
-		{name: "straight down", vec: [3]float32{0, 0, -1}, want: [3]float32{270, 0, 0}},
+		{name: "straight up", vec: qtypes.Vec3{X: 0, Y: 0, Z: 1}, want: qtypes.Vec3{X: 90, Y: 0, Z: 0}},
+		{name: "straight down", vec: qtypes.Vec3{X: 0, Y: 0, Z: -1}, want: qtypes.Vec3{X: 270, Y: 0, Z: 0}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -139,11 +139,11 @@ func TestMakevectorsMatchesQuakeAngleVectors(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		angles [3]float32
+		angles qtypes.Vec3
 	}{
-		{name: "yaw ninety", angles: [3]float32{0, 90, 0}},
-		{name: "pitch yaw", angles: [3]float32{30, 45, 0}},
-		{name: "pitch yaw roll", angles: [3]float32{10, 20, 30}},
+		{name: "yaw ninety", angles: qtypes.Vec3{X: 0, Y: 90, Z: 0}},
+		{name: "pitch yaw", angles: qtypes.Vec3{X: 30, Y: 45, Z: 0}},
+		{name: "pitch yaw roll", angles: qtypes.Vec3{X: 10, Y: 20, Z: 30}},
 	}
 
 	for _, tc := range tests {
@@ -151,14 +151,10 @@ func TestMakevectorsMatchesQuakeAngleVectors(t *testing.T) {
 			vm.SetGVector(OFSParm0, tc.angles)
 			makevectors(vm)
 
-			wantForward, wantRight, wantUp := qtypes.AngleVectors(qtypes.Vec3{
-				X: tc.angles[0],
-				Y: tc.angles[1],
-				Z: tc.angles[2],
-			})
+			wantForward, wantRight, wantUp := qtypes.AngleVectors(tc.angles)
 
-			assertVecNear := func(name string, got [3]float32, want qtypes.Vec3) {
-				if math.Abs(float64(got[0]-want.X)) > 0.001 || math.Abs(float64(got[1]-want.Y)) > 0.001 || math.Abs(float64(got[2]-want.Z)) > 0.001 {
+			assertVecNear := func(name string, got, want qtypes.Vec3) {
+				if math.Abs(float64(got.X-want.X)) > 0.001 || math.Abs(float64(got.Y-want.Y)) > 0.001 || math.Abs(float64(got.Z-want.Z)) > 0.001 {
 					t.Fatalf("%s = %v, want [%v %v %v]", name, got, want.X, want.Y, want.Z)
 				}
 			}
@@ -168,11 +164,11 @@ func TestMakevectorsMatchesQuakeAngleVectors(t *testing.T) {
 			assertVecNear("v_up", vm.GVector(OFSGlobalVUp), wantUp)
 
 			if tc.name == "pitch yaw roll" {
-				if got := vm.GVector(OFSGlobalVUp); math.Abs(float64(got[0])) < 0.001 && math.Abs(float64(got[1])) < 0.001 && math.Abs(float64(got[2]-1)) < 0.001 {
+				if got := vm.GVector(OFSGlobalVUp); math.Abs(float64(got.X)) < 0.001 && math.Abs(float64(got.Y)) < 0.001 && math.Abs(float64(got.Z-1)) < 0.001 {
 					t.Fatalf("v_up unexpectedly stayed world-up for rolled angles: %v", got)
 				}
-				if got := vm.GVector(OFSGlobalVRight); math.Abs(float64(got[2])) < 0.001 {
-					t.Fatalf("v_right z = %v, want non-zero for rolled angles", got[2])
+				if got := vm.GVector(OFSGlobalVRight); math.Abs(float64(got.Z)) < 0.001 {
+					t.Fatalf("v_right z = %v, want non-zero for rolled angles", got.Z)
 				}
 			}
 		})
@@ -181,23 +177,23 @@ func TestMakevectorsMatchesQuakeAngleVectors(t *testing.T) {
 
 func TestNormalizeBuiltinReturnsUnitVector(t *testing.T) {
 	vm := newBuiltinsTestVM(1)
-	vm.SetGVector(OFSParm0, [3]float32{3, 4, 0})
+	vm.SetGVector(OFSParm0, qtypes.Vec3{X: 3, Y: 4, Z: 0})
 
 	normalize(vm)
 
 	got := vm.GVector(OFSReturn)
-	if math.Abs(float64(got[0]-0.6)) > 0.001 || math.Abs(float64(got[1]-0.8)) > 0.001 || math.Abs(float64(got[2])) > 0.001 {
+	if math.Abs(float64(got.X-0.6)) > 0.001 || math.Abs(float64(got.Y-0.8)) > 0.001 || math.Abs(float64(got.Z)) > 0.001 {
 		t.Fatalf("normalize return = %v, want [0.6 0.8 0]", got)
 	}
 }
 
 func TestNormalizeBuiltinZeroVector(t *testing.T) {
 	vm := newBuiltinsTestVM(1)
-	vm.SetGVector(OFSParm0, [3]float32{0, 0, 0})
+	vm.SetGVector(OFSParm0, qtypes.Vec3{X: 0, Y: 0, Z: 0})
 
 	normalize(vm)
 
-	if got := vm.GVector(OFSReturn); got != [3]float32{} {
+	if got := vm.GVector(OFSReturn); got != (qtypes.Vec3{}) {
 		t.Fatalf("normalize zero return = %v, want zero vector", got)
 	}
 }
@@ -207,11 +203,11 @@ func TestSearchBuiltinsFallback(t *testing.T) {
 	vm.NumEdicts = 4
 
 	vm.SetEInt(1, EntFieldTargetName, vm.AllocString("door"))
-	vm.SetEVector(1, EntFieldOrigin, [3]float32{100, 0, 0})
+	vm.SetEVector(1, EntFieldOrigin, qtypes.Vec3{X: 100, Y: 0, Z: 0})
 	vm.SetEInt(2, EntFieldTargetName, vm.AllocString("trigger"))
 	vm.SetEFloat(2, EntFieldHealth, 100)
-	vm.SetEVector(2, EntFieldOrigin, [3]float32{10, 0, 0})
-	vm.SetEVector(3, EntFieldOrigin, [3]float32{40, 0, 0})
+	vm.SetEVector(2, EntFieldOrigin, qtypes.Vec3{X: 10, Y: 0, Z: 0})
+	vm.SetEVector(3, EntFieldOrigin, qtypes.Vec3{X: 40, Y: 0, Z: 0})
 
 	vm.SetGInt(OFSParm0, 0)
 	vm.SetGInt(OFSParm1, EntFieldTargetName)
@@ -235,7 +231,7 @@ func TestSearchBuiltinsFallback(t *testing.T) {
 		t.Fatalf("nextent return = %d, want 2", got)
 	}
 
-	vm.SetGVector(OFSParm0, [3]float32{0, 0, 0})
+	vm.SetGVector(OFSParm0, qtypes.Vec3{X: 0, Y: 0, Z: 0})
 	vm.SetGFloat(OFSParm1, 15)
 	findradius(vm)
 	if got := int(vm.GInt(OFSReturn)); got != 2 {
@@ -394,7 +390,7 @@ func TestStringBuiltins(t *testing.T) {
 	// stov("'1 2 3'") = [1,2,3]
 	vm.SetGString(OFSParm0, "'1 2 3'")
 	stovBuiltin(vm)
-	if got := vm.GVector(OFSReturn); got != [3]float32{1, 2, 3} {
+	if got := vm.GVector(OFSReturn); got != (qtypes.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Errorf("stov('1 2 3') = %v, want [1 2 3]", got)
 	}
 

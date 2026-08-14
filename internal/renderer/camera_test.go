@@ -134,8 +134,8 @@ func TestProjectionAspectRatio(t *testing.T) {
 
 // TestConvertClientStateToCamera tests conversion from client arrays to CameraState.
 func TestConvertClientStateToCamera(t *testing.T) {
-	origin := [3]float32{100, 200, 300}
-	angles := [3]float32{45, 90, 0}
+	origin := types.Vec3{X: 100, Y: 200, Z: 300}
+	angles := types.Vec3{X: 45, Y: 90, Z: 0}
 	fov := float32(96.0)
 
 	camera := ConvertClientStateToCamera(origin, angles, fov)

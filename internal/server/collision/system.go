@@ -5,6 +5,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // WorldProvider provides access to BSP world geometry and tree structures.
@@ -51,7 +52,7 @@ func (c *System) NumAreaNodes() int {
 }
 
 // SV_Move performs a sweep test of a bounding box along a ray through the BSP world.
-func (c *System) SV_Move(start, mins, maxs, end [3]float32, moveType srvtypes.MoveType, passedict *srvtypes.Edict) srvtypes.TraceResult {
+func (c *System) SV_Move(start, mins, maxs, end qtypes.Vec3, moveType srvtypes.MoveType, passedict *srvtypes.Edict) srvtypes.TraceResult {
 	return c.Move(start, mins, maxs, end, moveType, passedict)
 }
 
@@ -61,13 +62,13 @@ func (c *System) SV_TestEntityPosition(ent *srvtypes.Edict) *srvtypes.Edict {
 }
 
 // SV_HullForEntity retrieves the collision hull for world geometry or brush models.
-func (c *System) SV_HullForEntity(ent *srvtypes.Edict, mins, maxs [3]float32) (*model.Hull, [3]float32) {
-	var offset [3]float32
+func (c *System) SV_HullForEntity(ent *srvtypes.Edict, mins, maxs qtypes.Vec3) (*model.Hull, qtypes.Vec3) {
+	var offset qtypes.Vec3
 	h := c.hullForEntity(ent, mins, maxs, &offset)
 	return h, offset
 }
 
 // ClipMoveToEntity clips a move against a single entity.
-func (c *System) ClipMoveToEntity(ent *srvtypes.Edict, start, mins, maxs, end [3]float32) srvtypes.TraceResult {
+func (c *System) ClipMoveToEntity(ent *srvtypes.Edict, start, mins, maxs, end qtypes.Vec3) srvtypes.TraceResult {
 	return c.clipMoveToEntity(ent, start, mins, maxs, end)
 }

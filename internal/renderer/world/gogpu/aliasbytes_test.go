@@ -13,15 +13,15 @@ import (
 func TestAppendVertexBytesMatchesVertexBytes(t *testing.T) {
 	vertices := []worldimpl.WorldVertex{
 		{
-			Position:      [3]float32{1, 2, 3},
+			Position:      types.Vec3{X: 1, Y: 2, Z: 3},
 			TexCoord:      [2]float32{0.5, 0.25},
 			LightmapCoord: [2]float32{0.1, 0.9},
-			Normal:        [3]float32{0, 1, 0},
+			Normal:        types.Vec3{X: 0, Y: 1, Z: 0},
 			LightmapLayer: 2,
 			MaterialID:    7,
 		},
 		{
-			Position:      [3]float32{4, 5, 6},
+			Position:      types.Vec3{X: 4, Y: 5, Z: 6},
 			LightmapLayer: 3,
 			MaterialID:    8,
 		},
@@ -60,7 +60,7 @@ func TestAppendAliasSceneUniformBytesLayout(t *testing.T) {
 	origin := [3]float32{1, 2, 3}
 	// Use a fog density of 0 so FogUniformDensity is identity-ish; the
 	// encoding rounds through the world helper, so just verify offsets.
-	dst := AppendAliasSceneUniformBytes([]byte{}, 0, vp, origin, 0.5, [3]float32{0.1, 0.2, 0.3}, 0)
+	dst := AppendAliasSceneUniformBytes([]byte{}, 0, vp, origin, 0.5, types.Vec3{X: 0.1, Y: 0.2, Z: 0.3}, 0)
 	// The buffer is padded to WorldUniformAlign; the uniform occupies [0,96).
 	if len(dst) != WorldUniformAlign {
 		t.Fatalf("len = %d, want %d (uniform align)", len(dst), WorldUniformAlign)
@@ -86,7 +86,7 @@ func TestAppendAliasSceneUniformBytesLayout(t *testing.T) {
 
 func TestAppendAliasVertexBytesStride(t *testing.T) {
 	vertices := []worldimpl.WorldVertex{
-		{Position: [3]float32{1, 2, 3}, MaterialID: 42},
+		{Position: types.Vec3{X: 1, Y: 2, Z: 3}, MaterialID: 42},
 	}
 	got := AliasVertexBytes(vertices)
 	if len(got) != AliasVertexStride {

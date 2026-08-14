@@ -32,7 +32,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error opening file %s: %v\n", filePath, err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	reader := bufio.NewReader(f)
 	frameNum := 0

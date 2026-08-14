@@ -32,7 +32,7 @@ func PutFloat32s(dst []byte, values []float32) {
 
 // AppendAliasSceneUniformBytes appends one alias scene uniform block to dst,
 // growing/positioning to targetOffset with worldUniformAlign alignment.
-func AppendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+func AppendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor types.Vec3, fogDensity float32) []byte {
 	requiredLen := int(targetOffset) + int(WorldUniformAlign)
 	if cap(dst) < requiredLen {
 		newCap := requiredLen * 2
@@ -47,7 +47,7 @@ func AppendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4
 	copy(data[:64], matrixBytes[:])
 	PutFloat32s(data[64:76], cameraOrigin[:])
 	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldimpl.FogUniformDensity(fogDensity)))
-	PutFloat32s(data[80:92], fogColor[:])
+	PutFloat32s(data[80:92], fogColor.Slice())
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
 	return dst
 }
@@ -80,10 +80,10 @@ func AppendAliasVertexBytes(dst []byte, vertices []worldimpl.WorldVertex) []byte
 	data := dst[start:]
 	for i, v := range vertices {
 		offset := i * AliasVertexStride
-		PutFloat32s(data[offset:offset+12], v.Position[:])
+		PutFloat32s(data[offset:offset+12], []float32{v.Position.X, v.Position.Y, v.Position.Z})
 		PutFloat32s(data[offset+12:offset+20], v.TexCoord[:])
 		PutFloat32s(data[offset+20:offset+28], v.LightmapCoord[:])
-		PutFloat32s(data[offset+28:offset+40], v.Normal[:])
+		PutFloat32s(data[offset+28:offset+40], []float32{v.Normal.X, v.Normal.Y, v.Normal.Z})
 		PutFloat32s(data[offset+40:offset+44], []float32{v.LightmapLayer})
 		binary.LittleEndian.PutUint32(data[offset+44:offset+48], v.MaterialID)
 	}

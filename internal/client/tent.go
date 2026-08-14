@@ -8,6 +8,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/common"
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -21,16 +22,16 @@ type beamState struct {
 	typ     byte
 	model   string
 	endTime float64
-	start   [3]float32
-	end     [3]float32
+	start   types.Vec3
+	end     types.Vec3
 }
 
 type TempEntityEvent struct {
 	Type        byte
 	Entity      int
-	Origin      [3]float32
-	Start       [3]float32
-	End         [3]float32
+	Origin      types.Vec3
+	Start       types.Vec3
+	End         types.Vec3
 	ColorStart  byte
 	ColorLength byte
 }
@@ -39,8 +40,8 @@ type BeamSegment struct {
 	Type   byte
 	Entity int
 	Model  string
-	Origin [3]float32
-	Angles [3]float32
+	Origin types.Vec3
+	Angles types.Vec3
 }
 
 func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
@@ -61,22 +62,34 @@ func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
 		inet.TE_KNIGHTSPIKE,
 		inet.TE_LAVASPLASH,
 		inet.TE_TELEPORT:
-		for i := 0; i < 3; i++ {
-			coord, err := p.readCoord(msg, fmt.Sprintf("svc_temp_entity: missing origin %d", i))
-			if err != nil {
-				return err
-			}
-			event.Origin[i] = coord
+		x, err := p.readCoord(msg, "svc_temp_entity: missing origin 0")
+		if err != nil {
+			return err
 		}
+		y, err := p.readCoord(msg, "svc_temp_entity: missing origin 1")
+		if err != nil {
+			return err
+		}
+		z, err := p.readCoord(msg, "svc_temp_entity: missing origin 2")
+		if err != nil {
+			return err
+		}
+		event.Origin = types.Vec3{X: x, Y: y, Z: z}
 
 	case inet.TE_EXPLOSION2:
-		for i := 0; i < 3; i++ {
-			coord, err := p.readCoord(msg, fmt.Sprintf("svc_temp_entity: missing origin %d", i))
-			if err != nil {
-				return err
-			}
-			event.Origin[i] = coord
+		x, err := p.readCoord(msg, "svc_temp_entity: missing origin 0")
+		if err != nil {
+			return err
 		}
+		y, err := p.readCoord(msg, "svc_temp_entity: missing origin 1")
+		if err != nil {
+			return err
+		}
+		z, err := p.readCoord(msg, "svc_temp_entity: missing origin 2")
+		if err != nil {
+			return err
+		}
+		event.Origin = types.Vec3{X: x, Y: y, Z: z}
 		colorStart, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_temp_entity: missing explosion2 color start")
@@ -97,20 +110,33 @@ func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
 			return fmt.Errorf("svc_temp_entity: missing beam entity")
 		}
 		event.Entity = int(entNum)
-		for i := 0; i < 3; i++ {
-			coord, err := p.readCoord(msg, fmt.Sprintf("svc_temp_entity: missing beam start %d", i))
-			if err != nil {
-				return err
-			}
-			event.Start[i] = coord
+		sx, err := p.readCoord(msg, "svc_temp_entity: missing beam start 0")
+		if err != nil {
+			return err
 		}
-		for i := 0; i < 3; i++ {
-			coord, err := p.readCoord(msg, fmt.Sprintf("svc_temp_entity: missing beam end %d", i))
-			if err != nil {
-				return err
-			}
-			event.End[i] = coord
+		sy, err := p.readCoord(msg, "svc_temp_entity: missing beam start 1")
+		if err != nil {
+			return err
 		}
+		sz, err := p.readCoord(msg, "svc_temp_entity: missing beam start 2")
+		if err != nil {
+			return err
+		}
+		event.Start = types.Vec3{X: sx, Y: sy, Z: sz}
+
+		ex, err := p.readCoord(msg, "svc_temp_entity: missing beam end 0")
+		if err != nil {
+			return err
+		}
+		ey, err := p.readCoord(msg, "svc_temp_entity: missing beam end 1")
+		if err != nil {
+			return err
+		}
+		ez, err := p.readCoord(msg, "svc_temp_entity: missing beam end 2")
+		if err != nil {
+			return err
+		}
+		event.End = types.Vec3{X: ex, Y: ey, Z: ez}
 
 	default:
 		return fmt.Errorf("svc_temp_entity: unsupported type %d", t)
@@ -123,9 +149,9 @@ func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
 	}
 	netDebugLogf("tent", "type=%d entity=%d origin=(%.3f %.3f %.3f) start=(%.3f %.3f %.3f) end=(%.3f %.3f %.3f)",
 		event.Type, event.Entity,
-		event.Origin[0], event.Origin[1], event.Origin[2],
-		event.Start[0], event.Start[1], event.Start[2],
-		event.End[0], event.End[1], event.End[2])
+		event.Origin.X, event.Origin.Y, event.Origin.Z,
+		event.Start.X, event.Start.Y, event.Start.Z,
+		event.End.X, event.End.Y, event.End.Z)
 	return nil
 }
 
@@ -233,38 +259,30 @@ func (c *Client) UpdateTempEntities() {
 	}
 }
 
-func generateBeamSegments(typ byte, entity int, model string, start, end [3]float32) []BeamSegment {
+func generateBeamSegments(typ byte, entity int, model string, start, end types.Vec3) []BeamSegment {
 	nextRoll := func() float32 {
 		return float32(compatrand.Int() % 360)
 	}
 
-	dist := [3]float32{
-		end[0] - start[0],
-		end[1] - start[1],
-		end[2] - start[2],
-	}
-	length := sqrtFloat32(dist[0]*dist[0] + dist[1]*dist[1] + dist[2]*dist[2])
+	dist := end.Sub(start)
+	length := dist.Len()
 	if length == 0 {
 		return []BeamSegment{{
 			Type:   typ,
 			Entity: entity,
 			Model:  model,
 			Origin: start,
-			Angles: [3]float32{0, 0, nextRoll()},
+			Angles: types.Vec3{X: 0, Y: 0, Z: nextRoll()},
 		}}
 	}
-	dir := [3]float32{
-		dist[0] / length,
-		dist[1] / length,
-		dist[2] / length,
-	}
+	dir := dist.Normalize()
 
-	yaw := float32(math.Atan2(float64(dir[1]), float64(dir[0])) * 180 / math.Pi)
+	yaw := float32(math.Atan2(float64(dir.Y), float64(dir.X)) * 180 / math.Pi)
 	if yaw < 0 {
 		yaw += 360
 	}
-	forward := sqrtFloat32(dir[0]*dir[0] + dir[1]*dir[1])
-	pitch := float32(math.Atan2(float64(dir[2]), float64(forward)) * 180 / math.Pi)
+	forward := sqrtFloat32(dir.X*dir.X + dir.Y*dir.Y)
+	pitch := float32(math.Atan2(float64(dir.Z), float64(forward)) * 180 / math.Pi)
 
 	segments := make([]BeamSegment, 0, int(length/beamSegmentLength)+1)
 	point := start
@@ -274,11 +292,9 @@ func generateBeamSegments(typ byte, entity int, model string, start, end [3]floa
 			Entity: entity,
 			Model:  model,
 			Origin: point,
-			Angles: [3]float32{pitch, yaw, nextRoll()},
+			Angles: types.Vec3{X: pitch, Y: yaw, Z: nextRoll()},
 		})
-		point[0] += dir[0] * beamSegmentLength
-		point[1] += dir[1] * beamSegmentLength
-		point[2] += dir[2] * beamSegmentLength
+		point = point.Add(dir.Scale(beamSegmentLength))
 	}
 	return segments
 }

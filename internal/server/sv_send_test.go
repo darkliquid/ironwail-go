@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestEncodeAlpha(t *testing.T) {
@@ -148,12 +149,83 @@ type testGameDirFS struct {
 	gameDir string
 }
 
-func (fs testGameDirFS) OpenFile(filename string) (io.ReadSeekCloser, int64, error) {
-	return nil, 0, nil
+func (t testGameDirFS) GameDir() string {
+	return t.gameDir
 }
 
-func (fs testGameDirFS) GameDir() string {
-	return fs.gameDir
+func (t testGameDirFS) OpenFile(_ string) (io.ReadSeekCloser, int64, error) {
+	return nil, 0, io.EOF
+}
+
+func TestEncodeEntityUpdateBits_Flags(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{Protocol: ProtocolFitzQuake}
+	newServerTestVM(s, 8)
+
+	tests := []struct {
+		name     string
+		current  EntityState
+		previous EntityState
+		baseline bool
+		force    bool
+		wantBits uint32
+	}{
+		{
+			name: "more_bits_from_upper_frame",
+			current: EntityState{
+				Frame: 0x100,
+			},
+			wantBits: inet.U_MOREBITS | inet.U_FRAME | inet.U_EXTEND1 | inet.U_FRAME2,
+		},
+		{
+			name: "more_bits_from_alpha",
+			current: EntityState{
+				Alpha: 128,
+			},
+			wantBits: inet.U_MOREBITS | inet.U_ALPHA | inet.U_EXTEND1,
+		},
+		{
+			name: "more_bits_from_scale",
+			current: EntityState{
+				Scale: 32,
+			},
+			wantBits: inet.U_MOREBITS | inet.U_SCALE | inet.U_EXTEND1,
+		},
+		{
+			name: "more_bits_from_upper_model",
+			current: EntityState{
+				ModelIndex: 0x100,
+			},
+			wantBits: inet.U_MOREBITS | inet.U_MODEL | inet.U_EXTEND1 | inet.U_MODEL2,
+		},
+		{
+			name: "more_bits_from_lerp_finish",
+			current: EntityState{
+				ModelIndex: 1,
+			},
+			wantBits: inet.U_MOREBITS | inet.U_MODEL | inet.U_EXTEND1 | inet.U_LERPFINISH,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lerpFinish := byte(0)
+			hasLerpFinish := false
+			if tc.wantBits&inet.U_LERPFINISH != 0 {
+				lerpFinish = 120
+				hasLerpFinish = true
+			}
+			msg := NewMessageBuffer(256)
+			if !s.writeEntityUpdate(msg, 1, tc.current, tc.previous, tc.force, 0, lerpFinish, hasLerpFinish) {
+				t.Fatal("writeEntityUpdate returned false")
+			}
+			bits, _ := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+			if bits != tc.wantBits {
+				t.Fatalf("encoded bits = %#x, want %#x", bits, tc.wantBits)
+			}
+		})
+	}
 }
 
 func TestEncodeLerpFinish(t *testing.T) {
@@ -172,9 +244,7 @@ func TestEncodeLerpFinish(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			got, ok := encodeLerpFinish(tc.nextThink, tc.time)
 			if got != tc.want || ok != tc.ok {
 				t.Fatalf("encodeLerpFinish(%v, %v) = (%d, %v), want (%d, %v)", tc.nextThink, tc.time, got, ok, tc.want, tc.ok)
@@ -189,8 +259,8 @@ func TestWriteEntityUpdate_FieldOrderMatchesCProtocol(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake}
 	newServerTestVM(s, 8)
 	state := EntityState{
-		Origin:     [3]float32{1.25, 2.5, 3.75},
-		Angles:     [3]float32{10, 20, 30},
+		Origin:     qtypes.Vec3{X: 1.25, Y: 2.5, Z: 3.75},
+		Angles:     qtypes.Vec3{X: 10, Y: 20, Z: 30},
 		ModelIndex: 0x123,
 		Frame:      0x234,
 		Colormap:   4,
@@ -214,12 +284,12 @@ func TestWriteEntityUpdate_FieldOrderMatchesCProtocol(t *testing.T) {
 	want.PutByte(byte(state.Colormap))
 	want.PutByte(byte(state.Skin))
 	want.PutByte(byte(state.Effects))
-	want.WriteCoord(state.Origin[0], flags)
-	want.WriteAngle(state.Angles[0], flags)
-	want.WriteCoord(state.Origin[1], flags)
-	want.WriteAngle(state.Angles[1], flags)
-	want.WriteCoord(state.Origin[2], flags)
-	want.WriteAngle(state.Angles[2], flags)
+	want.WriteCoord(state.Origin.X, flags)
+	want.WriteAngle(state.Angles.X, flags)
+	want.WriteCoord(state.Origin.Y, flags)
+	want.WriteAngle(state.Angles.Y, flags)
+	want.WriteCoord(state.Origin.Z, flags)
+	want.WriteAngle(state.Angles.Z, flags)
 	want.PutByte(state.Alpha)
 	want.PutByte(state.Scale)
 	want.PutByte(byte(state.Frame >> 8))
@@ -235,7 +305,7 @@ func TestBuildClientDatagramUsesEyePositionForFatPVS(t *testing.T) {
 	s := &Server{
 		Datagram: NewMessageBuffer(MaxDatagram),
 		WorldTree: &bsp.Tree{
-			Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
+			Planes: []bsp.DPlane{{Normal: qtypes.Vec3{X: 1, Y: 0, Z: 0}, Dist: 0, Type: 0}},
 			Nodes: []bsp.TreeNode{{
 				PlaneNum: 0,
 				Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 2}},
@@ -251,7 +321,7 @@ func TestBuildClientDatagramUsesEyePositionForFatPVS(t *testing.T) {
 	}
 	newServerTestVM(s, 8)
 	client := &Client{Edict: &Edict{Num: 1}}
-	client.Edict.SetViewOfs(s, [3]float32{128, 0, 0})
+	client.Edict.SetViewOfs(s, qtypes.Vec3{X: 128, Y: 0, Z: 0})
 	msg := NewMessageBuffer(128)
 
 	s.buildClientDatagram(client, msg)
@@ -417,12 +487,12 @@ func TestWriteEntityUpdate_OriginsAnglesInterleaved(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake}
 	newServerTestVM(s, 8)
 	state := EntityState{
-		Origin: [3]float32{10, 20, 30},
-		Angles: [3]float32{40, 50, 60},
+		Origin: qtypes.Vec3{X: 10, Y: 20, Z: 30},
+		Angles: qtypes.Vec3{X: 40, Y: 50, Z: 60},
 	}
 	prev := state
-	prev.Origin = [3]float32{}
-	prev.Angles = [3]float32{}
+	prev.Origin = qtypes.Vec3{}
+	prev.Angles = qtypes.Vec3{}
 
 	msg := NewMessageBuffer(256)
 	if !s.writeEntityUpdate(msg, 1, state, prev, false, 0, 0, false) {
@@ -433,12 +503,12 @@ func TestWriteEntityUpdate_OriginsAnglesInterleaved(t *testing.T) {
 
 	want := NewMessageBuffer(256)
 	flags := uint32(s.ProtocolFlags())
-	want.WriteCoord(state.Origin[0], flags)
-	want.WriteAngle(state.Angles[0], flags)
-	want.WriteCoord(state.Origin[1], flags)
-	want.WriteAngle(state.Angles[1], flags)
-	want.WriteCoord(state.Origin[2], flags)
-	want.WriteAngle(state.Angles[2], flags)
+	want.WriteCoord(state.Origin.X, flags)
+	want.WriteAngle(state.Angles.X, flags)
+	want.WriteCoord(state.Origin.Y, flags)
+	want.WriteAngle(state.Angles.Y, flags)
+	want.WriteCoord(state.Origin.Z, flags)
+	want.WriteAngle(state.Angles.Z, flags)
 
 	if !bytes.Equal(payload, want.Data[:want.Len()]) {
 		t.Fatalf("origin/angle interleave mismatch:\n got: %v\nwant: %v", payload, want.Data[:want.Len()])

@@ -18,10 +18,12 @@ import (
 // and g.perfMeas, so no subsystem wiring is required.
 // runTestFrames advances Host time past the 250 FPS filter window and runs
 // perfTick so the perf state machine observes a real frame advance.
-func runTestFrames(g *Game, n int) {
+func runTestFrames(t *testing.T, g *Game, n int) {
 	g.Host.SetMaxFPS(0) // disable the host_maxfps early-out so every call is a frame
 	for i := 0; i < n; i++ {
-		g.Host.Frame(1.0/250, gameCallbacks{g: g})
+		if err := g.Host.Frame(1.0/250, gameCallbacks{g: g}); err != nil {
+			t.Fatalf("Host.Frame: %v", err)
+		}
 		g.perfTick(1.0 / 250)
 	}
 }
@@ -100,7 +102,7 @@ func TestPerfWarmupCaptureLifecycle(t *testing.T) {
 
 	// Advance 5 frames: warmup completes and resets to idle; capture
 	// afterwards must be rejected again.
-	runTestFrames(g, perfWarmupFrames)
+	runTestFrames(t, g, perfWarmupFrames)
 	_ = start
 	if g.perfMeas.phase != perfIdle {
 		t.Fatalf("warmup should have completed to idle, got phase=%d", g.perfMeas.phase)
@@ -113,13 +115,13 @@ func TestPerfWarmupCaptureLifecycle(t *testing.T) {
 	// warmup window relative to the perf tick cadence.
 	out.Reset()
 	g.cmdPerfWarmup(cmdArgs("1"))
-	runTestFrames(g, 1)
+	runTestFrames(t, g, 1)
 	if g.perfMeas.phase != perfIdle {
 		t.Fatalf("1-frame warmup should complete immediately")
 	}
 
 	g.cmdPerfWarmup(cmdArgs("1"))
-	runTestFrames(g, 1) // consumes the single warmup frame
+	runTestFrames(t, g, 1) // consumes the single warmup frame
 	if g.perfMeas.phase != perfIdle {
 		t.Fatalf("warmup did not complete after frame advancement")
 	}
@@ -131,7 +133,7 @@ func TestPerfCaptureSamplesAndFinishes(t *testing.T) {
 	// Arm a 40-frame warmup that is consumed by perfTick each frame.
 	g.cmdPerfWarmup(cmdArgs("5"))
 	// Warmup consumes frames; tick them away until idle.
-	runTestFrames(g, 20)
+	runTestFrames(t, g, 20)
 	if g.perfMeas.phase != perfIdle {
 		t.Fatalf("warmup never completed, phase=%d", g.perfMeas.phase)
 	}
@@ -142,7 +144,7 @@ func TestPerfCaptureSamplesAndFinishes(t *testing.T) {
 
 	// A 1-frame warmup is consumed by the very next perfTick.
 	g.cmdPerfWarmup(cmdArgs("1"))
-	runTestFrames(g, 1)
+	runTestFrames(t, g, 1)
 	if g.perfMeas.phase != perfIdle {
 		t.Fatalf("1-frame warmup should complete immediately, phase=%d", g.perfMeas.phase)
 	}
@@ -158,7 +160,7 @@ func TestPerfCaptureSamplesAndFinishes(t *testing.T) {
 	}
 
 	// Run 40+ frames; each perfTick during capture samples every 15 frames.
-	runTestFrames(g, 45)
+	runTestFrames(t, g, 45)
 	if g.perfMeas.phase != perfIdle {
 		t.Fatalf("capture should have finished, phase=%d", g.perfMeas.phase)
 	}
@@ -181,7 +183,7 @@ func TestPerfCaptureRejectsShortWindow(t *testing.T) {
 	if g.perfMeas.phase != perfCapturing {
 		t.Fatalf("capture with 5 frames should start, phase=%d", g.perfMeas.phase)
 	}
-	runTestFrames(g, 6)
+	runTestFrames(t, g, 6)
 	if g.perfMeas.phase != perfIdle {
 		t.Fatalf("short capture should finish idle")
 	}
@@ -210,7 +212,7 @@ func TestPerfActiveAllocMeasurement(t *testing.T) {
 			_ = make([]byte, 64)
 		}
 		runtime.GC()
-		runTestFrames(g, 1)
+		runTestFrames(t, g, 1)
 		if g.perfMeas.phase == perfIdle {
 			break
 		}

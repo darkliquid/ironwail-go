@@ -4,6 +4,7 @@ import (
 	"math"
 
 	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -22,24 +23,13 @@ type AliasFrame = aliasimpl.AliasFrame
 type AliasHeader = aliasimpl.AliasHeader
 type AliasEntity = aliasimpl.AliasEntity
 type LerpData = aliasimpl.LerpData
-type AliasInstance = aliasimpl.AliasInstance
-type AliasBatchKey = aliasimpl.AliasBatchKey
-type AliasBatch = aliasimpl.AliasBatch
 
 func SetupAliasFrame(e *AliasEntity, hdr *AliasHeader, timeSeconds float64, lerpModels bool, demoPlayback bool, demoSpeed float64) (LerpData, error) {
 	return aliasimpl.SetupAliasFrame(e, hdr, timeSeconds, lerpModels, demoPlayback, demoSpeed)
 }
 
-func SetupEntityTransform(e *AliasEntity, timeSeconds float64, lerpMove bool, isViewEntity bool, chaseActive bool, demoPlayback bool, demoSpeed float64) (origin [3]float32, angles [3]float32) {
+func SetupEntityTransform(e *AliasEntity, timeSeconds float64, lerpMove bool, isViewEntity bool, chaseActive bool, demoPlayback bool, demoSpeed float64) (origin types.Vec3, angles types.Vec3) {
 	return aliasimpl.SetupEntityTransform(e, timeSeconds, lerpMove, isViewEntity, chaseActive, demoPlayback, demoSpeed)
-}
-
-func NewAliasBatch(maxInstances int) *AliasBatch {
-	return aliasimpl.NewAliasBatch(maxInstances)
-}
-
-func MatrixTranspose4x3(in [16]float32) [12]float32 {
-	return aliasimpl.MatrixTranspose4x3(in)
 }
 
 // clamp01 remains in renderer root because many non-alias systems use it directly.

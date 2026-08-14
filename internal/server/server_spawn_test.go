@@ -15,6 +15,7 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestSpawnCommandWritesInitialSnapshot(t *testing.T) {
@@ -101,12 +102,31 @@ func TestSpawnCommandWritesSkyboxName(t *testing.T) {
 	}
 }
 
+func TestWriteSpawnSkyboxWritesSkyboxMessage(t *testing.T) {
+	s := &Server{Protocol: ProtocolFitzQuake, SkyboxName: "sky"}
+	client := &Client{Edict: &Edict{Num: 1}}
+	msg := NewMessageBuffer(32)
+
+	s.writeSpawnSkybox(client, msg)
+
+	data := msg.Data[:msg.Len()]
+	if len(data) == 0 {
+		t.Fatal("writeSpawnSkybox produced empty message")
+	}
+	if got, want := data[0], byte(inet.SVCSkyBox); got != want {
+		t.Fatalf("message[0] = %d, want %d", got, want)
+	}
+	if !bytes.Contains(data, []byte("sky\x00")) {
+		t.Fatalf("spawn snapshot does not include skybox message: %v", data)
+	}
+}
+
 func TestWriteSpawnSetAngleUsesSpawnAnglesForFreshSpawn(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake}
 	newServerTestVM(s, 8)
 	client := &Client{Edict: &Edict{Num: 1}}
-	client.Edict.SetAngles(s, [3]float32{10, 20, 30})
-	client.Edict.SetVAngle(s, [3]float32{90, 180, 270})
+	client.Edict.SetAngles(s, qtypes.Vec3{X: 10, Y: 20, Z: 30})
+	client.Edict.SetVAngle(s, qtypes.Vec3{X: 90, Y: 180, Z: 270})
 
 	msg := NewMessageBuffer(16)
 	s.writeSpawnSetAngle(client, msg)
@@ -130,8 +150,8 @@ func TestWriteSpawnSetAngleUsesViewAnglesForLoadGame(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake, LoadGame: true}
 	newServerTestVM(s, 8)
 	client := &Client{Edict: &Edict{Num: 1}}
-	client.Edict.SetAngles(s, [3]float32{10, 20, 30})
-	client.Edict.SetVAngle(s, [3]float32{90, 180, 270})
+	client.Edict.SetAngles(s, qtypes.Vec3{X: 10, Y: 20, Z: 30})
+	client.Edict.SetVAngle(s, qtypes.Vec3{X: 90, Y: 180, Z: 270})
 
 	msg := NewMessageBuffer(16)
 	s.writeSpawnSetAngle(client, msg)
@@ -548,12 +568,12 @@ func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
 	cs.Execute()
 	gotLevels = nil
 
-	player.SetOrigin(s, [3]float32{
-		(trigger.AbsMin(s)[0] + trigger.AbsMax(s)[0]) * 0.5,
-		(trigger.AbsMin(s)[1] + trigger.AbsMax(s)[1]) * 0.5,
-		trigger.AbsMin(s)[2] - player.Mins(s)[2] + 1,
+	player.SetOrigin(s, qtypes.Vec3{
+		X: (trigger.AbsMin(s).X + trigger.AbsMax(s).X) * 0.5,
+		Y: (trigger.AbsMin(s).Y + trigger.AbsMax(s).Y) * 0.5,
+		Z: trigger.AbsMin(s).Z - player.Mins(s).Z + 1,
 	})
-	player.SetVelocity(s, [3]float32{})
+	player.SetVelocity(s, qtypes.Vec3{})
 	player.SetFlags(s, float32(uint32(player.Flags(s))|uint32(FlagOnGround)))
 	s.LinkEdict(player, false)
 	s.touchLinks(player)
@@ -598,9 +618,9 @@ func TestRunClientSpawnQCRelinksClientAfterQCSpawnMove(t *testing.T) {
 	const callbackBuiltinOfs = 10
 	vm.Builtins[1] = func(vm *qc.VM) {
 		self := int(vm.GInt(qc.OFSSelf))
-		vm.SetEVector(self, qc.EntFieldOrigin, [3]float32{128, 0, 0})
-		vm.SetEVector(self, qc.EntFieldAngles, [3]float32{0, 90, 0})
-		vm.SetEVector(self, qc.EntFieldVAngle, [3]float32{0, 90, 0})
+		vm.SetEVector(self, qc.EntFieldOrigin, qtypes.Vec3{X: 128, Y: 0, Z: 0})
+		vm.SetEVector(self, qc.EntFieldAngles, qtypes.Vec3{X: 0, Y: 90, Z: 0})
+		vm.SetEVector(self, qc.EntFieldVAngle, qtypes.Vec3{X: 0, Y: 90, Z: 0})
 		vm.SetEFloat(self, qc.EntFieldHealth, 100)
 		vm.SetEInt(self, qc.EntFieldClassName, vm.AllocString("player"))
 	}
@@ -628,9 +648,9 @@ func TestRunClientSpawnQCRelinksClientAfterQCSpawnMove(t *testing.T) {
 	if trigger == nil {
 		t.Fatal("failed to allocate trigger edict")
 	}
-	trigger.SetOrigin(s, [3]float32{128, 0, 24})
-	trigger.SetMins(s, [3]float32{-16, -16, -24})
-	trigger.SetMaxs(s, [3]float32{16, 16, 32})
+	trigger.SetOrigin(s, qtypes.Vec3{X: 128, Y: 0, Z: 24})
+	trigger.SetMins(s, qtypes.Vec3{X: -16, Y: -16, Z: -24})
+	trigger.SetMaxs(s, qtypes.Vec3{X: 16, Y: 16, Z: 32})
 	trigger.SetSolid(s, float32(SolidTrigger))
 	s.QCVM.SetEInt(trigger.Num, qc.EntFieldTouch, 2)
 	s.LinkEdict(trigger, false)
@@ -639,7 +659,7 @@ func TestRunClientSpawnQCRelinksClientAfterQCSpawnMove(t *testing.T) {
 		t.Fatalf("runClientSpawnQC() error = %v", err)
 	}
 
-	if got := client.Edict.Origin(s); got != ([3]float32{128, 0, 0}) {
+	if got := client.Edict.Origin(s); got != (qtypes.Vec3{X: 128, Y: 0, Z: 0}) {
 		t.Fatalf("player origin = %v, want [128 0 0]", got)
 	}
 	if client.Edict.AreaPrev == nil || client.Edict.AreaNext == nil {

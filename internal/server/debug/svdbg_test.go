@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func captureSvdbg(t *testing.T, mpLevel, moveLevel string) *strings.Builder {
@@ -49,8 +50,8 @@ func TestSvdbgLevelGates(t *testing.T) {
 	buf := captureSvdbg(t, "1", "2")
 	SvdbgMultiplayerLogf("ping host=%q", "127.0.0.1")
 	SvdbgMultiplayerLogfAt(2, "verbose mp")
-	SvdbgMoveLogf("origin=%v", [3]float32{1, 2, 3})
-	SvdbgMoveLogfAt(2, "vel=%v", [3]float32{0, 0, -10})
+	SvdbgMoveLogf("origin=%v", qtypes.Vec3{X: 1, Y: 2, Z: 3})
+	SvdbgMoveLogfAt(2, "vel=%v", qtypes.Vec3{X: 0, Y: 0, Z: -10})
 	out := buf.String()
 	if !strings.Contains(out, `[svdbg kind=multiplayer] ping host="127.0.0.1"`) {
 		t.Fatalf("missing multiplayer line: %q", out)

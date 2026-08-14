@@ -16,27 +16,28 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestApplyDemoPlaybackViewAnglesUpdatesCurrentAndPreviousAngles(t *testing.T) {
 	g := New()
 	clientState := cl.NewClient()
-	clientState.MViewAngles[0] = [3]float32{1, 2, 3}
-	clientState.ViewAngles = [3]float32{4, 5, 6}
+	clientState.MViewAngles[0] = types.Vec3{X: 1, Y: 2, Z: 3}
+	clientState.ViewAngles = types.Vec3{X: 4, Y: 5, Z: 6}
 
-	g.applyDemoPlaybackViewAngles(clientState, [3]float32{10, 20, 30})
+	g.applyDemoPlaybackViewAngles(clientState, types.Vec3{X: 10, Y: 20, Z: 30})
 
-	if clientState.MViewAngles[1] != [3]float32{1, 2, 3} {
+	if clientState.MViewAngles[1] != (types.Vec3{X: 1, Y: 2, Z: 3}) {
 		t.Fatalf("previous demo angles = %v, want [1 2 3]", clientState.MViewAngles[1])
 	}
-	if clientState.MViewAngles[0] != [3]float32{10, 20, 30} {
+	if clientState.MViewAngles[0] != (types.Vec3{X: 10, Y: 20, Z: 30}) {
 		t.Fatalf("current demo angles = %v, want [10 20 30]", clientState.MViewAngles[0])
 	}
 	// ViewAngles must NOT be clobbered with the raw packet angle. C Ironwail's
 	// CL_GetDemoMessage never touches cl.viewangles; they are interpolated
 	// from MViewAngles[0/1] inside CL_RelinkEntities. Overwriting here snaps
 	// the camera to each demo keyframe and causes judder on rotation.
-	if clientState.ViewAngles != [3]float32{4, 5, 6} {
+	if clientState.ViewAngles != (types.Vec3{X: 4, Y: 5, Z: 6}) {
 		t.Fatalf("view angles = %v, want [4 5 6] (untouched)", clientState.ViewAngles)
 	}
 }
@@ -66,10 +67,10 @@ func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 	if err := recorder.StartDemoRecording("single_step", 0); err != nil {
 		t.Fatalf("StartDemoRecording: %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame first: %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame second: %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {
@@ -139,7 +140,7 @@ func TestDemoPlaybackEOFQueuesNextPlaylistDemo(t *testing.T) {
 	if err := recorder.StartDemoRecording("playlist_step", 0); err != nil {
 		t.Fatalf("StartDemoRecording: %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame: %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {
@@ -201,7 +202,7 @@ func TestPausedDemoPlaybackDoesNotReadFrames(t *testing.T) {
 	if err := recorder.StartDemoRecording("paused", 0); err != nil {
 		t.Fatalf("StartDemoRecording: %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame: %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {
@@ -252,7 +253,7 @@ func TestDemoPlaybackNegativeSpeedRewindsOneFrame(t *testing.T) {
 		t.Fatalf("StartDemoRecording: %v", err)
 	}
 	for i := 0; i < 3; i++ {
-		if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{float32(i), 0, 0}); err != nil {
+		if err := recorder.WriteDemoFrame([]byte{0xff}, types.Vec3{X: float32(i), Y: 0, Z: 0}); err != nil {
 			t.Fatalf("WriteDemoFrame %d: %v", i, err)
 		}
 	}
@@ -343,10 +344,10 @@ func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
 	if err := recorder.StartDemoRecording("timed", 0); err != nil {
 		t.Fatalf("StartDemoRecording: %v", err)
 	}
-	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(0.1), [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(0.1), types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame first: %v", err)
 	}
-	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(0.2), [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(0.2), types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame second: %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {
@@ -431,10 +432,10 @@ func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
 	if err := recorder.StartDemoRecording("timedemo", 0); err != nil {
 		t.Fatalf("StartDemoRecording: %v", err)
 	}
-	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(0.1), [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(0.1), types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame first: %v", err)
 	}
-	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(2.0), [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(2.0), types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame second: %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {
@@ -550,16 +551,16 @@ func TestDemoPlaybackBootstrapsWorldAfterServerInfo(t *testing.T) {
 	if err := recorder.StartDemoRecording("demo_bootstrap", 0); err != nil {
 		t.Fatalf("StartDemoRecording: %v", err)
 	}
-	if err := recorder.WriteDemoFrame(serverInfoMsg.Bytes(), [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame(serverInfoMsg.Bytes(), types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame: %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{byte(inet.SVCSignOnNum), 0x02}, [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{byte(inet.SVCSignOnNum), 0x02}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame(signon2): %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{byte(inet.SVCSignOnNum), 0x03}, [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{byte(inet.SVCSignOnNum), 0x03}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame(signon3): %v", err)
 	}
-	if err := recorder.WriteDemoFrame([]byte{byte(inet.SVCTime), 0, 0, 0, 0}, [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame([]byte{byte(inet.SVCTime), 0, 0, 0, 0}, types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame(time): %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {
@@ -650,7 +651,7 @@ func TestDemoPlaybackFlushesStuffTextSameFrame(t *testing.T) {
 	if err := recorder.StartDemoRecording("stuffcmd", 0); err != nil {
 		t.Fatalf("StartDemoRecording: %v", err)
 	}
-	if err := recorder.WriteDemoFrame(message.Bytes(), [3]float32{}); err != nil {
+	if err := recorder.WriteDemoFrame(message.Bytes(), types.Vec3{}); err != nil {
 		t.Fatalf("WriteDemoFrame: %v", err)
 	}
 	if err := recorder.StopRecording(); err != nil {
@@ -852,7 +853,7 @@ func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
 	g.Host.SetDemoState(demo)
 
 	g.Client = cl.NewClient()
-	g.Client.ViewAngles = [3]float32{10, 20, 30}
+	g.Client.ViewAngles = types.Vec3{X: 10, Y: 20, Z: 30}
 	g.Subs = &host.Subsystems{Client: &demoMessageClient{message: []byte{1, 2, 3}}}
 
 	g.recordRuntimeDemoFrame()
@@ -877,7 +878,7 @@ func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
 	if msgSize != 3 {
 		t.Fatalf("msgSize = %d, want 3", msgSize)
 	}
-	for i, want := range [3]float32{10, 20, 30} {
+	for i, want := range (types.Vec3{X: 10, Y: 20, Z: 30}.Slice()) {
 		var got float32
 		if err := binary.Read(reader, binary.LittleEndian, &got); err != nil {
 			t.Fatalf("Read(viewAngle %d): %v", i, err)
@@ -897,14 +898,14 @@ func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
 
 func TestRuntimeAngleVectorsYawNinety(t *testing.T) {
 	g := New()
-	forward, right, up := g.runtimeAngleVectors([3]float32{0, 90, 0})
-	if math.Abs(float64(forward[0])) > 0.0001 || math.Abs(float64(forward[1]-1)) > 0.0001 || math.Abs(float64(forward[2])) > 0.0001 {
+	forward, right, up := g.runtimeAngleVectors(types.Vec3{X: 0, Y: 90, Z: 0})
+	if math.Abs(float64(forward.X)) > 0.0001 || math.Abs(float64(forward.Y-1)) > 0.0001 || math.Abs(float64(forward.Z)) > 0.0001 {
 		t.Fatalf("forward = %v, want [0 1 0]", forward)
 	}
-	if math.Abs(float64(right[0]-1)) > 0.0001 || math.Abs(float64(right[1])) > 0.0001 || math.Abs(float64(right[2])) > 0.0001 {
+	if math.Abs(float64(right.X-1)) > 0.0001 || math.Abs(float64(right.Y)) > 0.0001 || math.Abs(float64(right.Z)) > 0.0001 {
 		t.Fatalf("right = %v, want [1 0 0]", right)
 	}
-	if math.Abs(float64(up[0])) > 0.0001 || math.Abs(float64(up[1])) > 0.0001 || math.Abs(float64(up[2]-1)) > 0.0001 {
+	if math.Abs(float64(up.X)) > 0.0001 || math.Abs(float64(up.Y)) > 0.0001 || math.Abs(float64(up.Z-1)) > 0.0001 {
 		t.Fatalf("up = %v, want [0 0 1]", up)
 	}
 }

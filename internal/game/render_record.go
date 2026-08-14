@@ -106,9 +106,9 @@ func ComputeRenderRecordFromDump(dump DumpFrameState) RenderRecord {
 	rec := RenderRecord{
 		ViewLeaf: dump.ViewLeaf,
 		ViewOrg: [3]int32{
-			quantize(dump.ViewOrg[0], 8),
-			quantize(dump.ViewOrg[1], 8),
-			quantize(dump.ViewOrg[2], 8),
+			quantize(dump.ViewOrg.X, 8),
+			quantize(dump.ViewOrg.Y, 8),
+			quantize(dump.ViewOrg.Z, 8),
 		},
 		Entities: make([]RenderRecordEntity, 0, len(dump.Visedicts)),
 	}
@@ -119,12 +119,12 @@ func ComputeRenderRecordFromDump(dump DumpFrameState) RenderRecord {
 			Frame:      e.Frame,
 			Skin:       e.Skin,
 			Effects:    e.Effects,
-			OriginX:    quantize(e.Origin[0], 8),
-			OriginY:    quantize(e.Origin[1], 8),
-			OriginZ:    quantize(e.Origin[2], 8),
-			AnglePitch: quantize(e.Angles[0], 8),
-			AngleYaw:   quantize(e.Angles[1], 8),
-			AngleRoll:  quantize(e.Angles[2], 8),
+			OriginX:    quantize(e.Origin.X, 8),
+			OriginY:    quantize(e.Origin.Y, 8),
+			OriginZ:    quantize(e.Origin.Z, 8),
+			AnglePitch: quantize(e.Angles.X, 8),
+			AngleYaw:   quantize(e.Angles.Y, 8),
+			AngleRoll:  quantize(e.Angles.Z, 8),
 		})
 	}
 

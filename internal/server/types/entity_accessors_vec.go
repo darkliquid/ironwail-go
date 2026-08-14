@@ -3,6 +3,7 @@ package types
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // ServerHandle abstracts Server operations for entity field accessors.
@@ -22,172 +23,172 @@ type ServerHandle interface {
 }
 
 // ============================================================================
-// [3]float32 (vector) field accessors
+// types.Vec3 (vector) field accessors
 // ============================================================================
 
-func (e *Edict) AbsMin(sh ServerHandle) [3]float32 {
+func (e *Edict) AbsMin(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldAbsMin)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetAbsMin(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetAbsMin(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldAbsMin, v)
 	}
 }
 
-func (e *Edict) AbsMax(sh ServerHandle) [3]float32 {
+func (e *Edict) AbsMax(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldAbsMax)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetAbsMax(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetAbsMax(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldAbsMax, v)
 	}
 }
 
-func (e *Edict) Origin(sh ServerHandle) [3]float32 {
+func (e *Edict) Origin(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldOrigin)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetOrigin(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetOrigin(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldOrigin, v)
 	}
 }
 
-func (e *Edict) OldOrigin(sh ServerHandle) [3]float32 {
+func (e *Edict) OldOrigin(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldOldOrigin)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetOldOrigin(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetOldOrigin(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldOldOrigin, v)
 	}
 }
 
-func (e *Edict) Velocity(sh ServerHandle) [3]float32 {
+func (e *Edict) Velocity(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldVelocity)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetVelocity(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetVelocity(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldVelocity, v)
 	}
 }
 
-func (e *Edict) Angles(sh ServerHandle) [3]float32 {
+func (e *Edict) Angles(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldAngles)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetAngles(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetAngles(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldAngles, v)
 	}
 }
 
-func (e *Edict) AVelocity(sh ServerHandle) [3]float32 {
+func (e *Edict) AVelocity(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldAVelocity)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetAVelocity(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetAVelocity(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldAVelocity, v)
 	}
 }
 
-func (e *Edict) PunchAngle(sh ServerHandle) [3]float32 {
+func (e *Edict) PunchAngle(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldPunchAngle)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetPunchAngle(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetPunchAngle(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldPunchAngle, v)
 	}
 }
 
-func (e *Edict) Mins(sh ServerHandle) [3]float32 {
+func (e *Edict) Mins(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldMins)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetMins(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetMins(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldMins, v)
 	}
 }
 
-func (e *Edict) Maxs(sh ServerHandle) [3]float32 {
+func (e *Edict) Maxs(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldMaxs)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetMaxs(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetMaxs(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldMaxs, v)
 	}
 }
 
-func (e *Edict) Size(sh ServerHandle) [3]float32 {
+func (e *Edict) Size(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldSize)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetSize(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetSize(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldSize, v)
 	}
 }
 
-func (e *Edict) ViewOfs(sh ServerHandle) [3]float32 {
+func (e *Edict) ViewOfs(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldViewOfs)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetViewOfs(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetViewOfs(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldViewOfs, v)
 	}
 }
 
-func (e *Edict) VAngle(sh ServerHandle) [3]float32 {
+func (e *Edict) VAngle(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldVAngle)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetVAngle(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetVAngle(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldVAngle, v)
 	}
 }
 
-func (e *Edict) MoveDir(sh ServerHandle) [3]float32 {
+func (e *Edict) MoveDir(sh ServerHandle) qtypes.Vec3 {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		return vm.EVector(e.Num, qc.EntFieldMoveDir)
 	}
-	return [3]float32{}
+	return qtypes.Vec3{}
 }
-func (e *Edict) SetMoveDir(sh ServerHandle, v [3]float32) {
+func (e *Edict) SetMoveDir(sh ServerHandle, v qtypes.Vec3) {
 	if vm := getVM(sh); vm != nil && vm.EdictSize > 28 {
 		vm.SetEVector(e.Num, qc.EntFieldMoveDir, v)
 	}

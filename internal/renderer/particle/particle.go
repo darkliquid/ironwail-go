@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (
@@ -19,181 +20,181 @@ var (
 	ramp2 = [...]byte{0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x68, 0x66}
 	ramp3 = [...]byte{0x6d, 0x6b, 6, 5, 4, 3}
 
-	entityParticleNormals = [...][3]float32{
-		{-0.525731, 0.000000, 0.850651},
-		{-0.442863, 0.238856, 0.864188},
-		{-0.295242, 0.000000, 0.955423},
-		{-0.309017, 0.500000, 0.809017},
-		{-0.162460, 0.262866, 0.951056},
-		{0.000000, 0.000000, 1.000000},
-		{0.000000, 0.850651, 0.525731},
-		{-0.147621, 0.716567, 0.681718},
-		{0.147621, 0.716567, 0.681718},
-		{0.000000, 0.525731, 0.850651},
-		{0.309017, 0.500000, 0.809017},
-		{0.525731, 0.000000, 0.850651},
-		{0.295242, 0.000000, 0.955423},
-		{0.442863, 0.238856, 0.864188},
-		{0.162460, 0.262866, 0.951056},
-		{-0.681718, 0.147621, 0.716567},
-		{-0.809017, 0.309017, 0.500000},
-		{-0.587785, 0.425325, 0.688191},
-		{-0.850651, 0.525731, 0.000000},
-		{-0.864188, 0.442863, 0.238856},
-		{-0.716567, 0.681718, 0.147621},
-		{-0.688191, 0.587785, 0.425325},
-		{-0.500000, 0.809017, 0.309017},
-		{-0.238856, 0.864188, 0.442863},
-		{-0.425325, 0.688191, 0.587785},
-		{-0.716567, 0.681718, -0.147621},
-		{-0.500000, 0.809017, -0.309017},
-		{-0.525731, 0.850651, 0.000000},
-		{0.000000, 0.850651, -0.525731},
-		{-0.238856, 0.864188, -0.442863},
-		{0.000000, 0.955423, -0.295242},
-		{-0.262866, 0.951056, -0.162460},
-		{0.000000, 1.000000, 0.000000},
-		{0.000000, 0.955423, 0.295242},
-		{-0.262866, 0.951056, 0.162460},
-		{0.238856, 0.864188, 0.442863},
-		{0.262866, 0.951056, 0.162460},
-		{0.500000, 0.809017, 0.309017},
-		{0.238856, 0.864188, -0.442863},
-		{0.262866, 0.951056, -0.162460},
-		{0.500000, 0.809017, -0.309017},
-		{0.850651, 0.525731, 0.000000},
-		{0.716567, 0.681718, 0.147621},
-		{0.716567, 0.681718, -0.147621},
-		{0.525731, 0.850651, 0.000000},
-		{0.425325, 0.688191, 0.587785},
-		{0.864188, 0.442863, 0.238856},
-		{0.688191, 0.587785, 0.425325},
-		{0.809017, 0.309017, 0.500000},
-		{0.681718, 0.147621, 0.716567},
-		{0.587785, 0.425325, 0.688191},
-		{0.955423, 0.295242, 0.000000},
-		{1.000000, 0.000000, 0.000000},
-		{0.951056, 0.162460, 0.262866},
-		{0.850651, -0.525731, 0.000000},
-		{0.955423, -0.295242, 0.000000},
-		{0.864188, -0.442863, 0.238856},
-		{0.951056, -0.162460, 0.262866},
-		{0.809017, -0.309017, 0.500000},
-		{0.681718, -0.147621, 0.716567},
-		{0.850651, 0.000000, 0.525731},
-		{0.864188, 0.442863, -0.238856},
-		{0.809017, 0.309017, -0.500000},
-		{0.951056, 0.162460, -0.262866},
-		{0.525731, 0.000000, -0.850651},
-		{0.681718, 0.147621, -0.716567},
-		{0.681718, -0.147621, -0.716567},
-		{0.850651, 0.000000, -0.525731},
-		{0.809017, -0.309017, -0.500000},
-		{0.864188, -0.442863, -0.238856},
-		{0.951056, -0.162460, -0.262866},
-		{0.147621, 0.716567, -0.681718},
-		{0.309017, 0.500000, -0.809017},
-		{0.425325, 0.688191, -0.587785},
-		{0.442863, 0.238856, -0.864188},
-		{0.587785, 0.425325, -0.688191},
-		{0.688191, 0.587785, -0.425325},
-		{-0.147621, 0.716567, -0.681718},
-		{-0.309017, 0.500000, -0.809017},
-		{0.000000, 0.525731, -0.850651},
-		{-0.525731, 0.000000, -0.850651},
-		{-0.442863, 0.238856, -0.864188},
-		{-0.295242, 0.000000, -0.955423},
-		{-0.162460, 0.262866, -0.951056},
-		{0.000000, 0.000000, -1.000000},
-		{0.295242, 0.000000, -0.955423},
-		{0.162460, 0.262866, -0.951056},
-		{-0.442863, -0.238856, -0.864188},
-		{-0.309017, -0.500000, -0.809017},
-		{-0.162460, -0.262866, -0.951056},
-		{0.000000, -0.850651, -0.525731},
-		{-0.147621, -0.716567, -0.681718},
-		{0.147621, -0.716567, -0.681718},
-		{0.000000, -0.525731, -0.850651},
-		{0.309017, -0.500000, -0.809017},
-		{0.442863, -0.238856, -0.864188},
-		{0.162460, -0.262866, -0.951056},
-		{0.238856, -0.864188, -0.442863},
-		{0.500000, -0.809017, -0.309017},
-		{0.425325, -0.688191, -0.587785},
-		{0.716567, -0.681718, -0.147621},
-		{0.688191, -0.587785, -0.425325},
-		{0.587785, -0.425325, -0.688191},
-		{0.000000, -0.955423, -0.295242},
-		{0.000000, -1.000000, 0.000000},
-		{0.262866, -0.951056, -0.162460},
-		{0.000000, -0.850651, 0.525731},
-		{0.000000, -0.955423, 0.295242},
-		{0.238856, -0.864188, 0.442863},
-		{0.262866, -0.951056, 0.162460},
-		{0.500000, -0.809017, 0.309017},
-		{0.716567, -0.681718, 0.147621},
-		{0.525731, -0.850651, 0.000000},
-		{-0.238856, -0.864188, -0.442863},
-		{-0.500000, -0.809017, -0.309017},
-		{-0.262866, -0.951056, -0.162460},
-		{-0.850651, -0.525731, 0.000000},
-		{-0.716567, -0.681718, -0.147621},
-		{-0.716567, -0.681718, 0.147621},
-		{-0.525731, -0.850651, 0.000000},
-		{-0.500000, -0.809017, 0.309017},
-		{-0.238856, -0.864188, 0.442863},
-		{-0.262866, -0.951056, 0.162460},
-		{-0.864188, -0.442863, 0.238856},
-		{-0.809017, -0.309017, 0.500000},
-		{-0.688191, -0.587785, 0.425325},
-		{-0.681718, -0.147621, 0.716567},
-		{-0.442863, -0.238856, 0.864188},
-		{-0.587785, -0.425325, 0.688191},
-		{-0.309017, -0.500000, 0.809017},
-		{-0.147621, -0.716567, 0.681718},
-		{-0.425325, -0.688191, 0.587785},
-		{-0.162460, -0.262866, 0.951056},
-		{0.442863, -0.238856, 0.864188},
-		{0.162460, -0.262866, 0.951056},
-		{0.309017, -0.500000, 0.809017},
-		{0.147621, -0.716567, 0.681718},
-		{0.000000, -0.525731, 0.850651},
-		{0.425325, -0.688191, 0.587785},
-		{0.587785, -0.425325, 0.688191},
-		{0.688191, -0.587785, 0.425325},
-		{-0.955423, 0.295242, 0.000000},
-		{-0.951056, 0.162460, 0.262866},
-		{-1.000000, 0.000000, 0.000000},
-		{-0.850651, 0.000000, 0.525731},
-		{-0.955423, -0.295242, 0.000000},
-		{-0.951056, -0.162460, 0.262866},
-		{-0.864188, 0.442863, -0.238856},
-		{-0.951056, 0.162460, -0.262866},
-		{-0.809017, 0.309017, -0.500000},
-		{-0.864188, -0.442863, -0.238856},
-		{-0.951056, -0.162460, -0.262866},
-		{-0.809017, -0.309017, -0.500000},
-		{-0.681718, 0.147621, -0.716567},
-		{-0.681718, -0.147621, -0.716567},
-		{-0.850651, 0.000000, -0.525731},
-		{-0.688191, 0.587785, -0.425325},
-		{-0.587785, 0.425325, -0.688191},
-		{-0.425325, 0.688191, -0.587785},
-		{-0.425325, -0.688191, -0.587785},
-		{-0.587785, -0.425325, -0.688191},
-		{-0.688191, -0.587785, -0.425325},
+	entityParticleNormals = [...]types.Vec3{
+		{X: -0.525731, Y: 0.000000, Z: 0.850651},
+		{X: -0.442863, Y: 0.238856, Z: 0.864188},
+		{X: -0.295242, Y: 0.000000, Z: 0.955423},
+		{X: -0.309017, Y: 0.500000, Z: 0.809017},
+		{X: -0.162460, Y: 0.262866, Z: 0.951056},
+		{X: 0.000000, Y: 0.000000, Z: 1.000000},
+		{X: 0.000000, Y: 0.850651, Z: 0.525731},
+		{X: -0.147621, Y: 0.716567, Z: 0.681718},
+		{X: 0.147621, Y: 0.716567, Z: 0.681718},
+		{X: 0.000000, Y: 0.525731, Z: 0.850651},
+		{X: 0.309017, Y: 0.500000, Z: 0.809017},
+		{X: 0.525731, Y: 0.000000, Z: 0.850651},
+		{X: 0.295242, Y: 0.000000, Z: 0.955423},
+		{X: 0.442863, Y: 0.238856, Z: 0.864188},
+		{X: 0.162460, Y: 0.262866, Z: 0.951056},
+		{X: -0.681718, Y: 0.147621, Z: 0.716567},
+		{X: -0.809017, Y: 0.309017, Z: 0.500000},
+		{X: -0.587785, Y: 0.425325, Z: 0.688191},
+		{X: -0.850651, Y: 0.525731, Z: 0.000000},
+		{X: -0.864188, Y: 0.442863, Z: 0.238856},
+		{X: -0.716567, Y: 0.681718, Z: 0.147621},
+		{X: -0.688191, Y: 0.587785, Z: 0.425325},
+		{X: -0.500000, Y: 0.809017, Z: 0.309017},
+		{X: -0.238856, Y: 0.864188, Z: 0.442863},
+		{X: -0.425325, Y: 0.688191, Z: 0.587785},
+		{X: -0.716567, Y: 0.681718, Z: -0.147621},
+		{X: -0.500000, Y: 0.809017, Z: -0.309017},
+		{X: -0.525731, Y: 0.850651, Z: 0.000000},
+		{X: 0.000000, Y: 0.850651, Z: -0.525731},
+		{X: -0.238856, Y: 0.864188, Z: -0.442863},
+		{X: 0.000000, Y: 0.955423, Z: -0.295242},
+		{X: -0.262866, Y: 0.951056, Z: -0.162460},
+		{X: 0.000000, Y: 1.000000, Z: 0.000000},
+		{X: 0.000000, Y: 0.955423, Z: 0.295242},
+		{X: -0.262866, Y: 0.951056, Z: 0.162460},
+		{X: 0.238856, Y: 0.864188, Z: 0.442863},
+		{X: 0.262866, Y: 0.951056, Z: 0.162460},
+		{X: 0.500000, Y: 0.809017, Z: 0.309017},
+		{X: 0.238856, Y: 0.864188, Z: -0.442863},
+		{X: 0.262866, Y: 0.951056, Z: -0.162460},
+		{X: 0.500000, Y: 0.809017, Z: -0.309017},
+		{X: 0.850651, Y: 0.525731, Z: 0.000000},
+		{X: 0.716567, Y: 0.681718, Z: 0.147621},
+		{X: 0.716567, Y: 0.681718, Z: -0.147621},
+		{X: 0.525731, Y: 0.850651, Z: 0.000000},
+		{X: 0.425325, Y: 0.688191, Z: 0.587785},
+		{X: 0.864188, Y: 0.442863, Z: 0.238856},
+		{X: 0.688191, Y: 0.587785, Z: 0.425325},
+		{X: 0.809017, Y: 0.309017, Z: 0.500000},
+		{X: 0.681718, Y: 0.147621, Z: 0.716567},
+		{X: 0.587785, Y: 0.425325, Z: 0.688191},
+		{X: 0.955423, Y: 0.295242, Z: 0.000000},
+		{X: 1.000000, Y: 0.000000, Z: 0.000000},
+		{X: 0.951056, Y: 0.162460, Z: 0.262866},
+		{X: 0.850651, Y: -0.525731, Z: 0.000000},
+		{X: 0.955423, Y: -0.295242, Z: 0.000000},
+		{X: 0.864188, Y: -0.442863, Z: 0.238856},
+		{X: 0.951056, Y: -0.162460, Z: 0.262866},
+		{X: 0.809017, Y: -0.309017, Z: 0.500000},
+		{X: 0.681718, Y: -0.147621, Z: 0.716567},
+		{X: 0.850651, Y: 0.000000, Z: 0.525731},
+		{X: 0.864188, Y: 0.442863, Z: -0.238856},
+		{X: 0.809017, Y: 0.309017, Z: -0.500000},
+		{X: 0.951056, Y: 0.162460, Z: -0.262866},
+		{X: 0.525731, Y: 0.000000, Z: -0.850651},
+		{X: 0.681718, Y: 0.147621, Z: -0.716567},
+		{X: 0.681718, Y: -0.147621, Z: -0.716567},
+		{X: 0.850651, Y: 0.000000, Z: -0.525731},
+		{X: 0.809017, Y: -0.309017, Z: -0.500000},
+		{X: 0.864188, Y: -0.442863, Z: -0.238856},
+		{X: 0.951056, Y: -0.162460, Z: -0.262866},
+		{X: 0.147621, Y: 0.716567, Z: -0.681718},
+		{X: 0.309017, Y: 0.500000, Z: -0.809017},
+		{X: 0.425325, Y: 0.688191, Z: -0.587785},
+		{X: 0.442863, Y: 0.238856, Z: -0.864188},
+		{X: 0.587785, Y: 0.425325, Z: -0.688191},
+		{X: 0.688191, Y: 0.587785, Z: -0.425325},
+		{X: -0.147621, Y: 0.716567, Z: -0.681718},
+		{X: -0.309017, Y: 0.500000, Z: -0.809017},
+		{X: 0.000000, Y: 0.525731, Z: -0.850651},
+		{X: -0.525731, Y: 0.000000, Z: -0.850651},
+		{X: -0.442863, Y: 0.238856, Z: -0.864188},
+		{X: -0.295242, Y: 0.000000, Z: -0.955423},
+		{X: -0.162460, Y: 0.262866, Z: -0.951056},
+		{X: 0.000000, Y: 0.000000, Z: -1.000000},
+		{X: 0.295242, Y: 0.000000, Z: -0.955423},
+		{X: 0.162460, Y: 0.262866, Z: -0.951056},
+		{X: -0.442863, Y: -0.238856, Z: -0.864188},
+		{X: -0.309017, Y: -0.500000, Z: -0.809017},
+		{X: -0.162460, Y: -0.262866, Z: -0.951056},
+		{X: 0.000000, Y: -0.850651, Z: -0.525731},
+		{X: -0.147621, Y: -0.716567, Z: -0.681718},
+		{X: 0.147621, Y: -0.716567, Z: -0.681718},
+		{X: 0.000000, Y: -0.525731, Z: -0.850651},
+		{X: 0.309017, Y: -0.500000, Z: -0.809017},
+		{X: 0.442863, Y: -0.238856, Z: -0.864188},
+		{X: 0.162460, Y: -0.262866, Z: -0.951056},
+		{X: 0.238856, Y: -0.864188, Z: -0.442863},
+		{X: 0.500000, Y: -0.809017, Z: -0.309017},
+		{X: 0.425325, Y: -0.688191, Z: -0.587785},
+		{X: 0.716567, Y: -0.681718, Z: -0.147621},
+		{X: 0.688191, Y: -0.587785, Z: -0.425325},
+		{X: 0.587785, Y: -0.425325, Z: -0.688191},
+		{X: 0.000000, Y: -0.955423, Z: -0.295242},
+		{X: 0.000000, Y: -1.000000, Z: 0.000000},
+		{X: 0.262866, Y: -0.951056, Z: -0.162460},
+		{X: 0.000000, Y: -0.850651, Z: 0.525731},
+		{X: 0.000000, Y: -0.955423, Z: 0.295242},
+		{X: 0.238856, Y: -0.864188, Z: 0.442863},
+		{X: 0.262866, Y: -0.951056, Z: 0.162460},
+		{X: 0.500000, Y: -0.809017, Z: 0.309017},
+		{X: 0.716567, Y: -0.681718, Z: 0.147621},
+		{X: 0.525731, Y: -0.850651, Z: 0.000000},
+		{X: -0.238856, Y: -0.864188, Z: -0.442863},
+		{X: -0.500000, Y: -0.809017, Z: -0.309017},
+		{X: -0.262866, Y: -0.951056, Z: -0.162460},
+		{X: -0.850651, Y: -0.525731, Z: 0.000000},
+		{X: -0.716567, Y: -0.681718, Z: -0.147621},
+		{X: -0.716567, Y: -0.681718, Z: 0.147621},
+		{X: -0.525731, Y: -0.850651, Z: 0.000000},
+		{X: -0.500000, Y: -0.809017, Z: 0.309017},
+		{X: -0.238856, Y: -0.864188, Z: 0.442863},
+		{X: -0.262866, Y: -0.951056, Z: 0.162460},
+		{X: -0.864188, Y: -0.442863, Z: 0.238856},
+		{X: -0.809017, Y: -0.309017, Z: 0.500000},
+		{X: -0.688191, Y: -0.587785, Z: 0.425325},
+		{X: -0.681718, Y: -0.147621, Z: 0.716567},
+		{X: -0.442863, Y: -0.238856, Z: 0.864188},
+		{X: -0.587785, Y: -0.425325, Z: 0.688191},
+		{X: -0.309017, Y: -0.500000, Z: 0.809017},
+		{X: -0.147621, Y: -0.716567, Z: 0.681718},
+		{X: -0.425325, Y: -0.688191, Z: 0.587785},
+		{X: -0.162460, Y: -0.262866, Z: 0.951056},
+		{X: 0.442863, Y: -0.238856, Z: 0.864188},
+		{X: 0.162460, Y: -0.262866, Z: 0.951056},
+		{X: 0.309017, Y: -0.500000, Z: 0.809017},
+		{X: 0.147621, Y: -0.716567, Z: 0.681718},
+		{X: 0.000000, Y: -0.525731, Z: 0.850651},
+		{X: 0.425325, Y: -0.688191, Z: 0.587785},
+		{X: 0.587785, Y: -0.425325, Z: 0.688191},
+		{X: 0.688191, Y: -0.587785, Z: 0.425325},
+		{X: -0.955423, Y: 0.295242, Z: 0.000000},
+		{X: -0.951056, Y: 0.162460, Z: 0.262866},
+		{X: -1.000000, Y: 0.000000, Z: 0.000000},
+		{X: -0.850651, Y: 0.000000, Z: 0.525731},
+		{X: -0.955423, Y: -0.295242, Z: 0.000000},
+		{X: -0.951056, Y: -0.162460, Z: 0.262866},
+		{X: -0.864188, Y: 0.442863, Z: -0.238856},
+		{X: -0.951056, Y: 0.162460, Z: -0.262866},
+		{X: -0.809017, Y: 0.309017, Z: -0.500000},
+		{X: -0.864188, Y: -0.442863, Z: -0.238856},
+		{X: -0.951056, Y: -0.162460, Z: -0.262866},
+		{X: -0.809017, Y: -0.309017, Z: -0.500000},
+		{X: -0.681718, Y: 0.147621, Z: -0.716567},
+		{X: -0.681718, Y: -0.147621, Z: -0.716567},
+		{X: -0.850651, Y: 0.000000, Z: -0.525731},
+		{X: -0.688191, Y: 0.587785, Z: -0.425325},
+		{X: -0.587785, Y: 0.425325, Z: -0.688191},
+		{X: -0.425325, Y: 0.688191, Z: -0.587785},
+		{X: -0.425325, Y: -0.688191, Z: -0.587785},
+		{X: -0.587785, Y: -0.425325, Z: -0.688191},
+		{X: -0.688191, Y: -0.587785, Z: -0.425325},
 	}
-	entityParticleAngularVelocities [len(entityParticleNormals)][3]float32
+entityParticleAngularVelocities [len(entityParticleNormals)]types.Vec3
 	entityParticleAngularVelOnce    sync.Once
 )
 
 // initEntityParticleAngularVelocities seeds deterministic spin vectors used to vary particle billboard rotation and keep effects visually rich.
-func initEntityParticleAngularVelocities() [len(entityParticleNormals)][3]float32 {
-	var velocities [len(entityParticleNormals)][3]float32
+func initEntityParticleAngularVelocities() [len(entityParticleNormals)]types.Vec3 {
+	var velocities [len(entityParticleNormals)]types.Vec3
 	for i := range velocities {
-		velocities[i][0] = float32(compatrand.Int()&255) * 0.01
-		velocities[i][1] = float32(compatrand.Int()&255) * 0.01
-		velocities[i][2] = float32(compatrand.Int()&255) * 0.01
+		velocities[i].X = float32(compatrand.Int()&255) * 0.01
+		velocities[i].Y = float32(compatrand.Int()&255) * 0.01
+		velocities[i].Z = float32(compatrand.Int()&255) * 0.01
 	}
 	return velocities
 }
@@ -219,18 +220,18 @@ const (
 )
 
 type Particle struct {
-	Org   [3]float32
+	Org   types.Vec3
 	Color byte
 	Type  ParticleType
 
 	Spawn float32
 	Die   float32
-	Vel   [3]float32
+	Vel   types.Vec3
 	Ramp  float32
 }
 
 type ParticleVertex struct {
-	Pos   [3]float32
+	Pos   types.Vec3
 	Color [4]byte
 }
 
@@ -369,9 +370,9 @@ func (ps *ParticleSystem) RunParticles(timeNow, oldTime, gravity float32) {
 			continue
 		}
 
-		p.Org[0] += p.Vel[0] * frameTime
-		p.Org[1] += p.Vel[1] * frameTime
-		p.Org[2] += p.Vel[2] * frameTime
+		p.Org.X += p.Vel.X * frameTime
+		p.Org.Y += p.Vel.Y * frameTime
+		p.Org.Z += p.Vel.Z * frameTime
 
 		switch p.Type {
 		case ParticleStatic:
@@ -382,7 +383,7 @@ func (ps *ParticleSystem) RunParticles(timeNow, oldTime, gravity float32) {
 			} else {
 				p.Color = ramp3[int(p.Ramp)]
 			}
-			p.Vel[2] += grav
+			p.Vel.Z += grav
 		case ParticleExplode:
 			p.Ramp += time2
 			if p.Ramp >= 8 {
@@ -390,10 +391,10 @@ func (ps *ParticleSystem) RunParticles(timeNow, oldTime, gravity float32) {
 			} else {
 				p.Color = ramp1[int(p.Ramp)]
 			}
-			for i := 0; i < 3; i++ {
-				p.Vel[i] += p.Vel[i] * dvel
-			}
-			p.Vel[2] -= grav
+			p.Vel.X += p.Vel.X * dvel
+			p.Vel.Y += p.Vel.Y * dvel
+			p.Vel.Z += p.Vel.Z * dvel
+			p.Vel.Z -= grav
 		case ParticleExplode2:
 			p.Ramp += time3
 			if p.Ramp >= 8 {
@@ -401,22 +402,21 @@ func (ps *ParticleSystem) RunParticles(timeNow, oldTime, gravity float32) {
 			} else {
 				p.Color = ramp2[int(p.Ramp)]
 			}
-			for i := 0; i < 3; i++ {
-				p.Vel[i] -= p.Vel[i] * frameTime
-			}
-			p.Vel[2] -= grav
+			p.Vel.X -= p.Vel.X * frameTime
+			p.Vel.Y -= p.Vel.Y * frameTime
+			p.Vel.Z -= p.Vel.Z * frameTime
+			p.Vel.Z -= grav
 		case ParticleBlob:
-			for i := 0; i < 3; i++ {
-				p.Vel[i] += p.Vel[i] * dvel
-			}
-			p.Vel[2] -= grav
+			p.Vel.X += p.Vel.X * dvel
+			p.Vel.Y += p.Vel.Y * dvel
+			p.Vel.Z += p.Vel.Z * dvel
+			p.Vel.Z -= grav
 		case ParticleBlob2:
-			for i := 0; i < 2; i++ {
-				p.Vel[i] -= p.Vel[i] * dvel
-			}
-			p.Vel[2] -= grav
+			p.Vel.X -= p.Vel.X * dvel
+			p.Vel.Y -= p.Vel.Y * dvel
+			p.Vel.Z -= grav
 		case ParticleGrav, ParticleSlowGrav:
-			p.Vel[2] -= grav
+			p.Vel.Z -= grav
 		}
 
 		ps.particles[active] = p
@@ -427,7 +427,7 @@ func (ps *ParticleSystem) RunParticles(timeNow, oldTime, gravity float32) {
 }
 
 // RunParticleEffect performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
-func (ps *ParticleSystem) RunParticleEffect(org, dir [3]float32, color byte, count int, rng *rand.Rand, timeNow float32) {
+func (ps *ParticleSystem) RunParticleEffect(org, dir types.Vec3, color byte, count int, rng *rand.Rand, timeNow float32) {
 	for i := 0; i < count; i++ {
 		p := ps.AllocParticle(timeNow)
 		if p == nil {
@@ -443,25 +443,27 @@ func (ps *ParticleSystem) RunParticleEffect(org, dir [3]float32, color byte, cou
 			} else {
 				p.Type = ParticleExplode2
 			}
-			for j := 0; j < 3; j++ {
-				p.Org[j] = org[j] + float32(randIntCompat(rng)%32-16)
-				p.Vel[j] = float32(randIntCompat(rng)%512 - 256)
-			}
+			p.Org.X = org.X + float32(randIntCompat(rng)%32-16)
+			p.Org.Y = org.Y + float32(randIntCompat(rng)%32-16)
+			p.Org.Z = org.Z + float32(randIntCompat(rng)%32-16)
+			p.Vel.X = float32(randIntCompat(rng)%512 - 256)
+			p.Vel.Y = float32(randIntCompat(rng)%512 - 256)
+			p.Vel.Z = float32(randIntCompat(rng)%512 - 256)
 			continue
 		}
 
 		p.Die = timeNow + 0.1*float32(randIntCompat(rng)%5)
 		p.Color = (color &^ 7) + byte(randIntCompat(rng)&7)
 		p.Type = ParticleSlowGrav
-		for j := 0; j < 3; j++ {
-			p.Org[j] = org[j] + float32((randIntCompat(rng)&15)-8)
-			p.Vel[j] = dir[j] * 15
-		}
+		p.Org.X = org.X + float32((randIntCompat(rng)&15)-8)
+		p.Org.Y = org.Y + float32((randIntCompat(rng)&15)-8)
+		p.Org.Z = org.Z + float32((randIntCompat(rng)&15)-8)
+		p.Vel = dir.Scale(15)
 	}
 }
 
 // EntityParticles performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
-func (ps *ParticleSystem) EntityParticles(org [3]float32, timeNow float32) {
+func (ps *ParticleSystem) EntityParticles(org types.Vec3, timeNow float32) {
 	if ps == nil {
 		return
 	}
@@ -481,20 +483,20 @@ func (ps *ParticleSystem) EntityParticles(org [3]float32, timeNow float32) {
 		}
 
 		velocity := entityParticleAngularVelocities[i]
-		sp, cp := math.Sincos(float64(timeNow * velocity[0]))
-		sy, cy := math.Sincos(float64(timeNow * velocity[1]))
+		sp, cp := math.Sincos(float64(timeNow * velocity.X))
+		sy, cy := math.Sincos(float64(timeNow * velocity.Y))
 
 		p.Die = timeNow + 0.01
 		p.Color = 0x6f
 		p.Type = ParticleExplode
-		p.Org[0] = org[0] + normal[0]*entityParticleDist + float32(cp*cy)*entityParticleBeamLength
-		p.Org[1] = org[1] + normal[1]*entityParticleDist + float32(cp*sy)*entityParticleBeamLength
-		p.Org[2] = org[2] + normal[2]*entityParticleDist + float32(-sp)*entityParticleBeamLength
+		p.Org.X = org.X + normal.X*entityParticleDist + float32(cp*cy)*entityParticleBeamLength
+		p.Org.Y = org.Y + normal.Y*entityParticleDist + float32(cp*sy)*entityParticleBeamLength
+		p.Org.Z = org.Z + normal.Z*entityParticleDist + float32(-sp)*entityParticleBeamLength
 	}
 }
 
 // ParticleExplosion2 performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
-func (ps *ParticleSystem) ParticleExplosion2(org [3]float32, colorStart, colorLength byte, rng *rand.Rand, timeNow float32) {
+func (ps *ParticleSystem) ParticleExplosion2(org types.Vec3, colorStart, colorLength byte, rng *rand.Rand, timeNow float32) {
 	if ps == nil || colorLength == 0 {
 		return
 	}
@@ -510,15 +512,17 @@ func (ps *ParticleSystem) ParticleExplosion2(org [3]float32, colorStart, colorLe
 		p.Color = colorStart + byte(colorMod%int(colorLength))
 		colorMod++
 		p.Type = ParticleBlob
-		for j := 0; j < 3; j++ {
-			p.Org[j] = org[j] + float32(randIntCompat(rng)%32-16)
-			p.Vel[j] = float32(randIntCompat(rng)%512 - 256)
-		}
+		p.Org.X = org.X + float32(randIntCompat(rng)%32-16)
+		p.Org.Y = org.Y + float32(randIntCompat(rng)%32-16)
+		p.Org.Z = org.Z + float32(randIntCompat(rng)%32-16)
+		p.Vel.X = float32(randIntCompat(rng)%512 - 256)
+		p.Vel.Y = float32(randIntCompat(rng)%512 - 256)
+		p.Vel.Z = float32(randIntCompat(rng)%512 - 256)
 	}
 }
 
 // BlobExplosion performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
-func (ps *ParticleSystem) BlobExplosion(org [3]float32, rng *rand.Rand, timeNow float32) {
+func (ps *ParticleSystem) BlobExplosion(org types.Vec3, rng *rand.Rand, timeNow float32) {
 	if ps == nil {
 		return
 	}
@@ -537,15 +541,17 @@ func (ps *ParticleSystem) BlobExplosion(org [3]float32, rng *rand.Rand, timeNow 
 			p.Type = ParticleBlob2
 			p.Color = byte(150 + randIntCompat(rng)%6)
 		}
-		for j := 0; j < 3; j++ {
-			p.Org[j] = org[j] + float32(randIntCompat(rng)%32-16)
-			p.Vel[j] = float32(randIntCompat(rng)%512 - 256)
-		}
+		p.Org.X = org.X + float32(randIntCompat(rng)%32-16)
+		p.Org.Y = org.Y + float32(randIntCompat(rng)%32-16)
+		p.Org.Z = org.Z + float32(randIntCompat(rng)%32-16)
+		p.Vel.X = float32(randIntCompat(rng)%512 - 256)
+		p.Vel.Y = float32(randIntCompat(rng)%512 - 256)
+		p.Vel.Z = float32(randIntCompat(rng)%512 - 256)
 	}
 }
 
 // LavaSplash performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
-func (ps *ParticleSystem) LavaSplash(org [3]float32, rng *rand.Rand, timeNow float32) {
+func (ps *ParticleSystem) LavaSplash(org types.Vec3, rng *rand.Rand, timeNow float32) {
 	if ps == nil {
 		return
 	}
@@ -561,26 +567,24 @@ func (ps *ParticleSystem) LavaSplash(org [3]float32, rng *rand.Rand, timeNow flo
 			p.Color = byte(224 + (randIntCompat(rng) & 7))
 			p.Type = ParticleSlowGrav
 
-			dir := [3]float32{
-				float32(j*8 + (randIntCompat(rng) & 7)),
-				float32(i*8 + (randIntCompat(rng) & 7)),
-				256,
+			dir := types.Vec3{
+				X: float32(j*8 + (randIntCompat(rng) & 7)),
+				Y: float32(i*8 + (randIntCompat(rng) & 7)),
+				Z: 256,
 			}
-			p.Org[0] = org[0] + dir[0]
-			p.Org[1] = org[1] + dir[1]
-			p.Org[2] = org[2] + float32(randIntCompat(rng)&63)
+			p.Org.X = org.X + dir.X
+			p.Org.Y = org.Y + dir.Y
+			p.Org.Z = org.Z + float32(randIntCompat(rng)&63)
 
-			normalize3(&dir)
+			dir = dir.Normalize()
 			vel := float32(50 + (randIntCompat(rng) & 63))
-			for k := 0; k < 3; k++ {
-				p.Vel[k] = dir[k] * vel
-			}
+			p.Vel = dir.Scale(vel)
 		}
 	}
 }
 
 // TeleportSplash performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
-func (ps *ParticleSystem) TeleportSplash(org [3]float32, rng *rand.Rand, timeNow float32) {
+func (ps *ParticleSystem) TeleportSplash(org types.Vec3, rng *rand.Rand, timeNow float32) {
 	if ps == nil {
 		return
 	}
@@ -597,25 +601,27 @@ func (ps *ParticleSystem) TeleportSplash(org [3]float32, rng *rand.Rand, timeNow
 				p.Color = byte(7 + (randIntCompat(rng) & 7))
 				p.Type = ParticleSlowGrav
 
-				dir := [3]float32{float32(j * 8), float32(i * 8), float32(k * 8)}
-				p.Org[0] = org[0] + float32(i+(randIntCompat(rng)&3))
-				p.Org[1] = org[1] + float32(j+(randIntCompat(rng)&3))
-				p.Org[2] = org[2] + float32(k+(randIntCompat(rng)&3))
+				dir := types.Vec3{X: float32(j * 8), Y: float32(i * 8), Z: float32(k * 8)}
+				p.Org.X = org.X + float32(i+(randIntCompat(rng)&3))
+				p.Org.Y = org.Y + float32(j+(randIntCompat(rng)&3))
+				p.Org.Z = org.Z + float32(k+(randIntCompat(rng)&3))
 
-				normalize3(&dir)
+				dir = dir.Normalize()
 				vel := float32(50 + (randIntCompat(rng) & 63))
-				for n := 0; n < 3; n++ {
-					p.Vel[n] = dir[n] * vel
-				}
+				p.Vel = dir.Scale(vel)
 			}
 		}
 	}
 }
 
 // RocketTrail performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
-func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.Rand, timeNow float32) {
-	vec := [3]float32{end[0] - start[0], end[1] - start[1], end[2] - start[2]}
-	len := normalize3(&vec)
+func (ps *ParticleSystem) RocketTrail(start, end types.Vec3, typ int, rng *rand.Rand, timeNow float32) {
+	vec := end.Sub(start)
+	len := vec.Len()
+	if len == 0 {
+		return
+	}
+	vec = vec.Normalize()
 	dec := float32(3)
 	if typ >= 128 {
 		dec = 1
@@ -629,7 +635,7 @@ func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.
 		if p == nil {
 			return
 		}
-		p.Vel = [3]float32{}
+		p.Vel = types.Vec3{}
 		p.Die = timeNow + 2
 
 		switch typ {
@@ -637,22 +643,22 @@ func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.
 			p.Ramp = float32(randIntCompat(rng) & 3)
 			p.Color = ramp3[int(p.Ramp)]
 			p.Type = ParticleFire
-			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32(randIntCompat(rng)%6-3)
-			}
+			p.Org.X = start.X + float32(randIntCompat(rng)%6-3)
+			p.Org.Y = start.Y + float32(randIntCompat(rng)%6-3)
+			p.Org.Z = start.Z + float32(randIntCompat(rng)%6-3)
 		case 1:
 			p.Ramp = float32((randIntCompat(rng) & 3) + 2)
 			p.Color = ramp3[int(p.Ramp)]
 			p.Type = ParticleFire
-			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32(randIntCompat(rng)%6-3)
-			}
+			p.Org.X = start.X + float32(randIntCompat(rng)%6-3)
+			p.Org.Y = start.Y + float32(randIntCompat(rng)%6-3)
+			p.Org.Z = start.Z + float32(randIntCompat(rng)%6-3)
 		case 2:
 			p.Type = ParticleGrav
 			p.Color = byte(67 + (randIntCompat(rng) & 3))
-			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32(randIntCompat(rng)%6-3)
-			}
+			p.Org.X = start.X + float32(randIntCompat(rng)%6-3)
+			p.Org.Y = start.Y + float32(randIntCompat(rng)%6-3)
+			p.Org.Z = start.Z + float32(randIntCompat(rng)%6-3)
 		case 3, 5:
 			p.Die = timeNow + 0.5
 			p.Type = ParticleStatic
@@ -664,42 +670,28 @@ func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.
 			ps.tracerCount++
 			p.Org = start
 			if ps.tracerCount&1 == 1 {
-				p.Vel[0] = 30 * vec[1]
-				p.Vel[1] = -30 * vec[0]
+				p.Vel.X = 30 * vec.Y
+				p.Vel.Y = -30 * vec.X
 			} else {
-				p.Vel[0] = -30 * vec[1]
-				p.Vel[1] = 30 * vec[0]
+				p.Vel.X = -30 * vec.Y
+				p.Vel.Y = 30 * vec.X
 			}
 		case 4:
 			p.Type = ParticleGrav
 			p.Color = byte(67 + (randIntCompat(rng) & 3))
-			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32(randIntCompat(rng)%6-3)
-			}
+			p.Org.X = start.X + float32(randIntCompat(rng)%6-3)
+			p.Org.Y = start.Y + float32(randIntCompat(rng)%6-3)
+			p.Org.Z = start.Z + float32(randIntCompat(rng)%6-3)
 			len -= 3
 		case 6:
 			p.Color = byte(9*16 + 8 + (randIntCompat(rng) & 3))
 			p.Type = ParticleStatic
 			p.Die = timeNow + 0.3
-			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32((randIntCompat(rng)&15)-8)
-			}
+			p.Org.X = start.X + float32((randIntCompat(rng)&15)-8)
+			p.Org.Y = start.Y + float32((randIntCompat(rng)&15)-8)
+			p.Org.Z = start.Z + float32((randIntCompat(rng)&15)-8)
 		}
 
-		start[0] += vec[0]
-		start[1] += vec[1]
-		start[2] += vec[2]
+		start = start.Add(vec)
 	}
-}
-
-// normalize3 performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
-func normalize3(v *[3]float32) float32 {
-	l := float32(math.Sqrt(float64(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])))
-	if l == 0 {
-		return 0
-	}
-	v[0] /= l
-	v[1] /= l
-	v[2] /= l
-	return l
 }
