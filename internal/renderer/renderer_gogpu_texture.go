@@ -40,7 +40,6 @@ func uploadRGBAThruGogpu(ctx *gogpu.Context, width, height int, rgba []byte) (*g
 	return ctx.Renderer().NewTextureFromRGBA(width, height, rgba)
 }
 
-
 func (r *Renderer) getCharPic(num int) *image.QPic {
 	r.mu.RLock()
 	if len(r.concharsData) < 128*128 {

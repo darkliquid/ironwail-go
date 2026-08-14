@@ -76,9 +76,6 @@ func (r *Renderer) createWorldRenderTarget() error {
 	return r.ensureWorldRenderTargetLocked(device, width, height)
 }
 
-
-
-
 func (r *Renderer) createWorldSolidTexture(device *wgpu.Device, queue *wgpu.Queue, label string, pixel [4]byte) (*wgpu.Texture, *wgpu.TextureView, error) {
 	return worldgogpu.CreateWorldSolidTexture(device, queue, label, pixel)
 }

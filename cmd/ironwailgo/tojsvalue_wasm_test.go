@@ -15,7 +15,7 @@ import (
 func TestToJSValueShapesConvertible(t *testing.T) {
 	inputs := []any{
 		map[string]any{
-			"lines": []string{"a", "b"},
+			"lines":  []string{"a", "b"},
 			"origin": []float32{1, 2, 3},
 			"edicts": []map[string]any{
 				{"num": 1, "free": false, "origin": []float32{0, 0, 0}},
@@ -82,4 +82,3 @@ func TestInspectorGoroutinesAndTelemetry(t *testing.T) {
 		t.Fatalf("expected non-empty stack string, got %v", res["stack"])
 	}
 }
-

@@ -15,8 +15,6 @@ type fieldDefInfo struct {
 	eType qc.EType
 }
 
-
-
 // fieldDef looks up a QC field definition by name and returns both its
 // offset in the VM edict data and its declared type. Matching is
 // case-insensitive and underscore-insensitive to mirror Quake's field lookup.
@@ -165,8 +163,6 @@ func parseInt32(raw string) (int32, error) {
 	}
 	return int32(v), nil
 }
-
-
 
 // parseEdictFieldValue sets a single field on an edict's EntVars from a
 // key-value pair read from map entity data. It normalises the key, looks up

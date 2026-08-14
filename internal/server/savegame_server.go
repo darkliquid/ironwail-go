@@ -48,12 +48,12 @@ func (s *Server) RestoreTextSaveGameState(state *TextSaveGameState) error {
 // Implementations of savegame.Server interface on *Server
 
 func (s *Server) GetName() string                  { return s.Name }
-func (s *Server) SetName(name string)             { s.Name = name }
-func (s *Server) SetTime(t float32)               { s.Time = t }
-func (s *Server) SetPaused(p bool)                { s.Paused = p }
-func (s *Server) GetModelPrecache() []string      { return s.ModelPrecache }
+func (s *Server) SetName(name string)              { s.Name = name }
+func (s *Server) SetTime(t float32)                { s.Time = t }
+func (s *Server) SetPaused(p bool)                 { s.Paused = p }
+func (s *Server) GetModelPrecache() []string       { return s.ModelPrecache }
 func (s *Server) SetModelPrecache(models []string) { s.ModelPrecache = models }
-func (s *Server) GetSoundPrecache() []string      { return s.SoundPrecache }
+func (s *Server) GetSoundPrecache() []string       { return s.SoundPrecache }
 func (s *Server) SetSoundPrecache(sounds []string) { s.SoundPrecache = sounds }
 func (s *Server) GetStaticEntities() []srvtypes.EntityState {
 	return s.StaticEntities

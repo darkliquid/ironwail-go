@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	inet "github.com/darkliquid/ironwail-go/internal/net"
-	srvnet "github.com/darkliquid/ironwail-go/internal/server/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	srvnet "github.com/darkliquid/ironwail-go/internal/server/net"
 )
 
 func (s *Server) writeSpawnSnapshot(client *Client) {

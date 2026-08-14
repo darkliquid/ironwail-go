@@ -257,8 +257,6 @@ func diagMaterialIDFaceAudit(geom *WorldGeometry, maxFaces int, materialCount in
 // Phase 3: Atlas Layer Distribution Telemetry
 // ============================================================================
 
-
-
 // diagAtlasLayerDistribution logs per-layer utilization and validates that
 // all material atlas bounds and layer indices are within valid ranges.
 func diagAtlasLayerDistribution(atlas *WorldTextureAtlas, baseMaterials []WorldMaterialData) {

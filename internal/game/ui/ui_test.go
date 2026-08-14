@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/game/ui"
-
 )
 
 func TestGUIDimensions(t *testing.T) {

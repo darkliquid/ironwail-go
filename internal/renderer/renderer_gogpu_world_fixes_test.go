@@ -89,5 +89,3 @@ func TestWaterTranslucencyClassification(t *testing.T) {
 	}
 	t.Logf("At camera %v: translucentLiquidFaces=%d, nonLiquidFaces=%d, submergedOpaqueFaces(Z < -2170)=%d", cameraPos, translucentLiquidCount, nonLiquidCount, submergedOpaqueCount)
 }
-
-

@@ -677,3 +677,39 @@ func TestLoadRuntimeProgramsCompilesProgsWithNoAssets(t *testing.T) {
 		t.Fatal("StartFrame not found — progs was not loaded from in-memory compile")
 	}
 }
+
+func TestRenderPassCvars(t *testing.T) {
+	g := New()
+	g.registerRenderPassCvars(g.Host.CVar.Register)
+
+	renderer.SetGlobalPassFlags(renderer.PassAll)
+	if !renderer.IsGlobalPassEnabled(renderer.PassSky) {
+		t.Fatalf("expected sky pass enabled initially")
+	}
+
+	g.Host.CVar.Set("r_drawsky", "0")
+	if renderer.IsGlobalPassEnabled(renderer.PassSky) {
+		t.Errorf("expected sky pass disabled after setting r_drawsky 0")
+	}
+
+	g.Host.CVar.Set("r_drawsky", "1")
+	if !renderer.IsGlobalPassEnabled(renderer.PassSky) {
+		t.Errorf("expected sky pass enabled after setting r_drawsky 1")
+	}
+
+	g.Host.CVar.Set("r_passes", "0") // Should not clear if zero/invalid
+	g.Host.CVar.Set("r_passes", strconv.Itoa(int(renderer.PassWorldOpaque|renderer.Pass2DOverlay)))
+	if renderer.IsGlobalPassEnabled(renderer.PassSky) {
+		t.Errorf("expected sky pass disabled by r_passes")
+	}
+	if !renderer.IsGlobalPassEnabled(renderer.PassWorldOpaque) {
+		t.Errorf("expected world pass enabled by r_passes")
+	}
+	if !renderer.IsGlobalPassEnabled(renderer.Pass2DOverlay) {
+		t.Errorf("expected overlay pass enabled by r_passes")
+	}
+
+	// Reset to all
+	renderer.SetGlobalPassFlags(renderer.PassAll)
+}
+

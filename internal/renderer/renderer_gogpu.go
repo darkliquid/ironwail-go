@@ -204,8 +204,8 @@ type worldRendererState struct {
 	wasmReadbackSize uint64
 	wasmReadbackOut  []byte
 
-	worldBatchCacheEntries        [gogpuWorldBatchCacheEntryCount]gogpuWorldBatchCacheEntry
-	worldBatchCacheNext           int
+	worldBatchCacheEntries [gogpuWorldBatchCacheEntryCount]gogpuWorldBatchCacheEntry
+	worldBatchCacheNext    int
 
 	// Scratch buffers for render state
 	brushTextureAnimationsScratch []*surfacepkg.SurfaceTexture
@@ -284,39 +284,39 @@ type spriteRendererState struct {
 
 // particleRendererState groups the particle-model GPU pipeline state.
 type particleRendererState struct {
-	particleOpaquePipeline      *wgpu.RenderPipeline
-	particleTranslucentPipeline *wgpu.RenderPipeline
-	particlePipelineLayout      *wgpu.PipelineLayout
-	particleVertexShader        *wgpu.ShaderModule
-	particleFragmentShader      *wgpu.ShaderModule
-	particleUniformBuffer       *wgpu.Buffer
-	particleUniformBindGroup    *wgpu.BindGroup
+	particleOpaquePipeline         *wgpu.RenderPipeline
+	particleTranslucentPipeline    *wgpu.RenderPipeline
+	particlePipelineLayout         *wgpu.PipelineLayout
+	particleVertexShader           *wgpu.ShaderModule
+	particleFragmentShader         *wgpu.ShaderModule
+	particleUniformBuffer          *wgpu.Buffer
+	particleUniformBindGroup       *wgpu.BindGroup
 	particleUniformBindGroupLayout *wgpu.BindGroupLayout
 }
 
 // decalRendererState groups the decal-model GPU pipeline state.
 type decalRendererState struct {
-	decalPipeline       *wgpu.RenderPipeline
-	decalPipelineLayout *wgpu.PipelineLayout
-	decalVertexShader   *wgpu.ShaderModule
-	decalFragmentShader *wgpu.ShaderModule
-	decalUniformBuffer  *wgpu.Buffer
+	decalPipeline         *wgpu.RenderPipeline
+	decalPipelineLayout   *wgpu.PipelineLayout
+	decalVertexShader     *wgpu.ShaderModule
+	decalFragmentShader   *wgpu.ShaderModule
+	decalUniformBuffer    *wgpu.Buffer
 	decalUniformBindGroup *wgpu.BindGroup
-	decalUniformLayout  *wgpu.BindGroupLayout
-	decalAtlasTextureHAL *wgpu.Texture
-	decalAtlasView      *wgpu.TextureView
-	decalBindGroup      *wgpu.BindGroup
+	decalUniformLayout    *wgpu.BindGroupLayout
+	decalAtlasTextureHAL  *wgpu.Texture
+	decalAtlasView        *wgpu.TextureView
+	decalBindGroup        *wgpu.BindGroup
 }
 
 // polyBlendRendererState groups the screen-tint (polyblend) GPU pipeline state.
 type polyBlendRendererState struct {
-	polyBlendPipeline       *wgpu.RenderPipeline
-	polyBlendPipelineLayout *wgpu.PipelineLayout
-	polyBlendVertexShader   *wgpu.ShaderModule
-	polyBlendFragmentShader *wgpu.ShaderModule
-	polyBlendUniformBuffer  *wgpu.Buffer
+	polyBlendPipeline        *wgpu.RenderPipeline
+	polyBlendPipelineLayout  *wgpu.PipelineLayout
+	polyBlendVertexShader    *wgpu.ShaderModule
+	polyBlendFragmentShader  *wgpu.ShaderModule
+	polyBlendUniformBuffer   *wgpu.Buffer
 	polyBlendBindGroupLayout *wgpu.BindGroupLayout
-	polyBlendBindGroup      *wgpu.BindGroup
+	polyBlendBindGroup       *wgpu.BindGroup
 }
 
 // overlayRendererState groups the CPU-side 2D overlay compositing state.

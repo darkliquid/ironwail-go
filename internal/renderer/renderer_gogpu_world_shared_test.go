@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-
-
 func TestProceduralSkyGradientColorsDeterministic(t *testing.T) {
 	horizon, zenith := proceduralSkyGradientColors()
 	if horizon != ([3]float32{0.40, 0.53, 0.78}) {
@@ -41,8 +39,6 @@ func TestShouldUseProceduralSky(t *testing.T) {
 		})
 	}
 }
-
-
 
 func TestEncodeGoGPUWorldDynamicLights(t *testing.T) {
 	lights := []DynamicLight{{

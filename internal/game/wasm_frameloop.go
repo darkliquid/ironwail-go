@@ -134,4 +134,3 @@ func (g *Game) StartWasmRendererFrameLoop() {
 
 	window.Call("requestAnimationFrame", frameFunc)
 }
-

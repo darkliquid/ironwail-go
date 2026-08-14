@@ -15,8 +15,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/model"
-	srvcollision "github.com/darkliquid/ironwail-go/internal/server/collision"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	srvcollision "github.com/darkliquid/ironwail-go/internal/server/collision"
 	"github.com/darkliquid/ironwail-go/internal/server/edict"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
@@ -686,8 +686,6 @@ func worldModelFromBSPTree(modelName string, tree *bsp.Tree) *model.Model {
 func populateWorldModelCollision(m *model.Model, tree *bsp.Tree, file *bsp.File) {
 	srvcollision.PopulateWorldModelCollision(m, tree, file)
 }
-
-
 
 // modelBounds resolves bounding boxes for world and inline BSP models for SetModel/LinkEdict updates.
 func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) {

@@ -221,8 +221,6 @@ func muzzleFlashLightOrigin(entity EntityEffectSource) [3]float32 {
 	return origin
 }
 
-
-
 func dynamicLightsEnabled() bool {
 	if pkgCVars == nil {
 		return true

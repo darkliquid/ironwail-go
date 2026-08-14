@@ -306,7 +306,10 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				}
 				lightmapBindGroup := dc.renderer.resources.WhiteLightmapBindGroup
 				litWater := float32(0)
-				if shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha) {
+				if !IsGlobalPassEnabled(PassLightmaps) {
+					lightmapBindGroup = dc.renderer.resources.WhiteLightmapBindGroup
+					litWater = 0
+				} else if shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha) {
 					lightmapBindGroup, litWater = gogpuWorldLightmapArrayBindGroupForFace(face, dc.renderer.worldLightmapArray, dc.renderer.resources.WhiteLightmapBindGroup, worldHasLitWater)
 					if rDebugWaterEnabled() {
 						slog.Debug("[rwater] face classified as OPAQUE liquid",
@@ -382,29 +385,34 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		batchUploadMS = float64(time.Since(batchUploadStart)) / float64(time.Millisecond)
 	}
 
-	skyDrawStart := time.Now()
-	skyDrawnIndices, err := dc.renderWorldSkyPass(renderPass, skyFaces, skyFogDensity, timeSeconds, writeWorldUniformWithFog, writeExternalSkyUniform)
+	var skyDrawnIndices uint32
+	if IsGlobalPassEnabled(PassSky) {
+		skyDrawStart := time.Now()
+		skyDrawnIndices, err = dc.renderWorldSkyPass(renderPass, skyFaces, skyFogDensity, timeSeconds, writeWorldUniformWithFog, writeExternalSkyUniform)
+		if err != nil {
+			_ = renderPass.End()
+			return
+		}
+		skyDrawMS = float64(time.Since(skyDrawStart)) / float64(time.Millisecond)
 
-	if err != nil {
-		_ = renderPass.End()
-		return
-	}
-	skyDrawMS = float64(time.Since(skyDrawStart)) / float64(time.Millisecond)
-
-	if !writeWorldUniform(1, 0) {
-		slog.Error("renderWorldInternal: Failed to restore world fog uniform after sky pass")
-		_ = renderPass.End()
-		return
+		if !writeWorldUniform(1, 0) {
+			slog.Error("renderWorldInternal: Failed to restore world fog uniform after sky pass")
+			_ = renderPass.End()
+			return
+		}
 	}
 
-	opaqueDrawStart := time.Now()
-	drawnIndices, alphaTestDrawnIndices, liquidDrawnIndices, err := dc.renderWorldOpaquePasses(renderPass, opaqueBatches, alphaTestBatches, opaqueLiquidBatches, opaqueBatchBuffer, writeWorldUniform)
-	if err != nil {
-		_ = renderPass.End()
-		return
+	var drawnIndices, alphaTestDrawnIndices, liquidDrawnIndices uint32
+	if IsGlobalPassEnabled(PassWorldOpaque) {
+		opaqueDrawStart := time.Now()
+		drawnIndices, alphaTestDrawnIndices, liquidDrawnIndices, err = dc.renderWorldOpaquePasses(renderPass, opaqueBatches, alphaTestBatches, opaqueLiquidBatches, opaqueBatchBuffer, writeWorldUniform)
+		if err != nil {
+			_ = renderPass.End()
+			return
+		}
+		slog.Debug("renderWorldInternal_stats", "drawn_indices", drawnIndices, "visible_faces", visibleFaceCount, "opaque_batches", len(opaqueBatches))
+		opaqueDrawMS = float64(time.Since(opaqueDrawStart)) / float64(time.Millisecond)
 	}
-	slog.Debug("renderWorldInternal_stats", "drawn_indices", drawnIndices, "visible_faces", visibleFaceCount, "opaque_batches", len(opaqueBatches))
-	opaqueDrawMS = float64(time.Since(opaqueDrawStart)) / float64(time.Millisecond)
 
 	if drawnIndices > 0 {
 		slog.Debug("World rendered",
@@ -426,8 +434,10 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)
 	}
 
-	if err := dc.renderWorldTranslucentPass(renderPass, translucentLiquidFaces, worldHasLitWater, liquidAlpha, writeWorldUniform); err != nil {
-		slog.Warn("renderWorldInternal: translucent liquid pass error", "error", err)
+	if IsGlobalPassEnabled(PassTranslucentLiquids) {
+		if err := dc.renderWorldTranslucentPass(renderPass, translucentLiquidFaces, worldHasLitWater, liquidAlpha, writeWorldUniform); err != nil {
+			slog.Warn("renderWorldInternal: translucent liquid pass error", "error", err)
+		}
 	}
 
 	// End render pass

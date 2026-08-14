@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/audio"
-	sgaudio "github.com/darkliquid/ironwail-go/internal/game/audio"
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
+	sgaudio "github.com/darkliquid/ironwail-go/internal/game/audio"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 

@@ -97,13 +97,8 @@ func newPushMoveElevatorTestServer(t *testing.T) (*Server, *Edict, *Edict) {
 	return s, pusher, rider
 }
 
-
-
 // TestPhysicsNoClipMovesOriginAndAngles tests the \"noclip\" physics state.
 // It verifying that entities in noclip mode move freely according to their velocity and angular velocity without any collision checks.
-
-
-
 
 func TestPushMoveElevatorFixOffRevertsBlockedMove(t *testing.T) {
 	s, pusher, rider := newPushMoveElevatorTestServer(t)
@@ -142,7 +137,6 @@ func TestPushMoveElevatorFixNudgesClientWhenEnabled(t *testing.T) {
 
 // TestPhysicsTossOnGroundDoesNotMove tests the \"toss\" physics for items on the ground.
 // It ensuring that items (like dropped weapons or health packs) remain stationary once they've landed on the floor.
-
 
 // TestFlyMoveDoesNotGroundOnNonBSPFloor tests FlyMove collision behavior with different entity types.
 // It verifying that entities only \"land\" (set onground flag) on BSP world geometry, not on simple trigger boxes or other non-solid entities.
@@ -191,8 +185,6 @@ func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
 		t.Fatalf("ground entity = %d, want 0 for non-BSP contact", ent.GroundEntity(s))
 	}
 }
-
-
 
 // TestPhysicsStepHardLandingStartsCanonicalSound tests landing sound triggers in the physics engine.
 // It verifying that falling from a height correctly triggers the \"landing\" sound (demon/dland2.wav) via the network protocol.

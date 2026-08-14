@@ -101,7 +101,6 @@ func (s *Server) SetIdealPitch(ent *Edict) {
 	ent.SetIdealPitch(s, -dir*idealPitchScale)
 }
 
-
 func (s *Server) SV_ClientThink(client *Client) {
 	s.ensurePhysicsSys()
 	s.PhysicsSys.SV_ClientThink(client)

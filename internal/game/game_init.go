@@ -28,7 +28,6 @@ import (
 
 type globalConsoleAdapter struct{}
 
-
 var (
 	startupVidWidth              = 1280
 	startupVidHeight             = 720
@@ -101,6 +100,35 @@ func (g *Game) registerRendererLightingAndParticleCvars(register func(name, defa
 	register(renderer.CvarGLAnisotropy, "1", cvar.FlagArchive, "Texture anisotropy amount (>=1)")
 }
 
+func (g *Game) registerRenderPassCvars(register func(name, defaultValue string, flags cvar.CVarFlags, desc string) *cvar.CVar) {
+	bindPass := func(cvarName, passName string, desc string) {
+		cv := g.Host.CVar.Get(cvarName)
+		if cv == nil {
+			cv = register(cvarName, "1", cvar.FlagArchive, desc)
+		}
+		cv.Callback = func(c *cvar.CVar) {
+			renderer.SetPassToggleByName(passName, c.Bool())
+		}
+	}
+	bindPass("r_drawsky", "sky", "Enable sky rendering pass (0=off, 1=on)")
+	bindPass("r_drawworld", "world", "Enable opaque BSP world pass (0=off, 1=on)")
+	bindPass("r_drawlightmaps", "lightmaps", "Enable surface lightmap modulation pass (0=off, 1=on)")
+	bindPass("r_drawbrushmodels", "brush", "Enable brush entities pass (0=off, 1=on)")
+	bindPass("r_drawaliasmodels", "alias", "Enable alias models pass (0=off, 1=on)")
+	bindPass("r_drawviewmodel", "viewmodel", "Enable weapon viewmodel pass (0=off, 1=on)")
+	bindPass("r_drawwater", "water", "Enable translucent liquids pass (0=off, 1=on)")
+	bindPass("r_drawparticles", "particles", "Enable particles pass (0=off, 1=on)")
+	bindPass("r_drawdecals", "decals", "Enable decal marks pass (0=off, 1=on)")
+	bindPass("r_drawoverlay", "overlay", "Enable 2D HUD and menu overlay pass (0=off, 1=on)")
+
+	passesMaskCv := register("r_passes", "1023", cvar.FlagArchive, "Bitmask of active render passes (1023=all)")
+	passesMaskCv.Callback = func(c *cvar.CVar) {
+		if c.Int > 0 {
+			renderer.SetGlobalPassFlags(renderer.RenderPassFlags(c.Int))
+		}
+	}
+}
+
 func (g *Game) configureRegistrationMode(vfs interface{ FileExists(filename string) bool }, gameDir string) error {
 	registered := g.Host.CVar.Register("registered", "0", cvar.FlagNone, "Game data registration state (0=shareware, 1=registered)")
 
@@ -166,6 +194,7 @@ func (g *Game) initGameHost() error {
 	g.Host.CVar.Register("r_drawentities", "1", 0, "Draw entities")
 	renderer.RegisterRendbgCVars(g.Host.CVar)
 	g.registerRendererLightingAndParticleCvars(g.Host.CVar.Register)
+	g.registerRenderPassCvars(g.Host.CVar.Register)
 	g.Host.CVar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	g.Host.CVar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
 	g.Host.CVar.Register(renderer.CvarRFastSky, "0", cvar.FlagArchive, "Fast sky mode (flat sky color)")

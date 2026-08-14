@@ -303,13 +303,13 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		return fmt.Errorf("create light clusters texture: %w", err)
 	}
 	computeTextureView, err := device.CreateTextureView(computeTexture, &wgpu.TextureViewDescriptor{
-		Label:         "World Light Clusters View",
-		Format:        gputypes.TextureFormatRG32Uint,
-		Dimension:     gputypes.TextureViewDimension3D,
-		Aspect:        gputypes.TextureAspectAll,
-		BaseMipLevel:  0,
-		MipLevelCount: 1,
-		BaseArrayLayer: 0,
+		Label:           "World Light Clusters View",
+		Format:          gputypes.TextureFormatRG32Uint,
+		Dimension:       gputypes.TextureViewDimension3D,
+		Aspect:          gputypes.TextureAspectAll,
+		BaseMipLevel:    0,
+		MipLevelCount:   1,
+		BaseArrayLayer:  0,
 		ArrayLayerCount: 1,
 	})
 	if err != nil {

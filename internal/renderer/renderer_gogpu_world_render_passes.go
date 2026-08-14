@@ -226,5 +226,3 @@ func (dc *DrawContext) renderWorldTranslucentPass(
 
 	return nil
 }
-
-

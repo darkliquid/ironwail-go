@@ -100,8 +100,6 @@ func (r *Renderer) setGoGPUWorldLightStyleValues(values [256]float32) {
 	r.mu.Unlock()
 }
 
-
-
 func uint32SliceToBytes(values []uint32) []byte {
 	if len(values) == 0 {
 		return nil

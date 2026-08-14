@@ -18,16 +18,16 @@ type mockHandle struct {
 
 func (m *mockHandle) GetVM() *qc.VM { return m.vm }
 
-func (m *mockHandle) GetFieldAlpha() int          { return -1 }
-func (m *mockHandle) GetFieldScale() int          { return -1 }
-func (m *mockHandle) GetFieldGravity() int        { return -1 }
-func (m *mockHandle) GetFieldItems2() int         { return -1 }
-func (m *mockHandle) GetFieldState() int          { return -1 }
-func (m *mockHandle) GetFieldWait() int           { return -1 }
-func (m *mockHandle) GetFieldSpeed() int          { return -1 }
-func (m *mockHandle) GetFieldCustomFlags() int    { return -1 }
-func (m *mockHandle) GetFieldThCheckAttack() int  { return -1 }
-func (m *mockHandle) GetFieldMap() int            { return -1 }
+func (m *mockHandle) GetFieldAlpha() int         { return -1 }
+func (m *mockHandle) GetFieldScale() int         { return -1 }
+func (m *mockHandle) GetFieldGravity() int       { return -1 }
+func (m *mockHandle) GetFieldItems2() int        { return -1 }
+func (m *mockHandle) GetFieldState() int         { return -1 }
+func (m *mockHandle) GetFieldWait() int          { return -1 }
+func (m *mockHandle) GetFieldSpeed() int         { return -1 }
+func (m *mockHandle) GetFieldCustomFlags() int   { return -1 }
+func (m *mockHandle) GetFieldThCheckAttack() int { return -1 }
+func (m *mockHandle) GetFieldMap() int           { return -1 }
 func (m *mockHandle) String(idx int32) string {
 	if m.vm == nil {
 		return ""

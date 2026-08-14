@@ -59,8 +59,6 @@ func (g *Game) clipCSQCDrawRect(clip csqcClipRect, x, y, width, height float32) 
 	return csqcimpl.ClipDrawRect(csqcimpl.ClipRect{Enabled: clip.enabled, X: clip.x, Y: clip.y, Width: clip.width, Height: clip.height}, x, y, width, height)
 }
 
-
-
 func (g *Game) prepareCSQCPic(pic *qimage.QPic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH float32, clip csqcClipRect) (int, int, *qimage.QPic, bool) {
 	return csqcimpl.PreparePic(pic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH, csqcimpl.ClipRect{Enabled: clip.enabled, X: clip.x, Y: clip.y, Width: clip.width, Height: clip.height})
 }

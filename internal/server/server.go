@@ -80,10 +80,10 @@ type Server struct {
 	EdictManager *edict.Manager
 	Edicts       []*Edict
 	NumEdicts    int
-	MaxEdicts  int
-	peakEdicts int // Dev stats: peak active edict count
-	devStats   DevStats
-	devPeak    DevStats
+	MaxEdicts    int
+	peakEdicts   int // Dev stats: peak active edict count
+	devStats     DevStats
+	devPeak      DevStats
 
 	// QuakeC VM integration
 	QCVM *qc.VM

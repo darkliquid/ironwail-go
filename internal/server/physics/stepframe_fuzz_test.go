@@ -145,16 +145,17 @@ func (m mockFrameDriverNoClients) EndFrame()                           {}
 func (m mockFrameDriverNoClients) LogEventf(kind srvdebug.DebugEventKind, vm *qc.VM, entNum int, ent *srvtypes.Edict, format string, args ...any) bool {
 	return false
 }
-func (m mockFrameDriverNoClients) GetTime() float32      { return 0 }
-func (m mockFrameDriverNoClients) GetFrameTime() float32 { return 0.1 }
-func (m mockFrameDriverNoClients) MaxClients() int       { return m.maxClients }
+func (m mockFrameDriverNoClients) GetTime() float32                { return 0 }
+func (m mockFrameDriverNoClients) GetFrameTime() float32           { return 0.1 }
+func (m mockFrameDriverNoClients) MaxClients() int                 { return m.maxClients }
 func (m mockFrameDriverNoClients) RecordDevStatsEdicts(active int) {}
-func (m mockFrameDriverNoClients) GetVM() *qc.VM        { return m.vm }
-func (m mockFrameDriverNoClients) SyncQCVMGlobals()     {}
-func (m mockFrameDriverNoClients) SetQCTimeGlobal(t float32) {}
-func (m mockFrameDriverNoClients) ExecuteQCFunction(i int) error { return nil }
+func (m mockFrameDriverNoClients) GetVM() *qc.VM                   { return m.vm }
+func (m mockFrameDriverNoClients) SyncQCVMGlobals()                {}
+func (m mockFrameDriverNoClients) SetQCTimeGlobal(t float32)       {}
+func (m mockFrameDriverNoClients) ExecuteQCFunction(i int) error   { return nil }
 func (m mockFrameDriverNoClients) PlayerClient(ent *srvtypes.Edict) *srvtypes.Client {
 	return nil
 }
-func (m mockFrameDriverNoClients) RunClientQCThinkWithMode(c *srvtypes.Client, name string, full bool) {}
+func (m mockFrameDriverNoClients) RunClientQCThinkWithMode(c *srvtypes.Client, name string, full bool) {
+}
 func (m mockFrameDriverNoClients) SyncSpawnedEdictsFromQCVM(start int) {}

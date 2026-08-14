@@ -136,8 +136,8 @@ func TestEntityStateForClient_AppliesEffectsMask(t *testing.T) {
 
 func newTestQCVM() *qc.VM {
 	vm := &qc.VM{
-		NumEdicts:  2,
-		EdictSize:  28 + 128*4, // prefix + 128 float fields
+		NumEdicts:   2,
+		EdictSize:   28 + 128*4, // prefix + 128 float fields
 		StringTable: map[int32]string{},
 	}
 	vm.Edicts = make([]byte, vm.EdictSize*vm.NumEdicts)

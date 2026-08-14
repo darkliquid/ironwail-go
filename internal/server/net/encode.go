@@ -294,6 +294,7 @@ func WriteEntityUpdate(msg *srvtypes.MessageBuffer, entNum int, state, baseline 
 
 	return true
 }
+
 // WriteSpawnStaticMessage emits a static entity signon message, using the
 // extended variant when the model/frame/alpha/scale do not fit in a byte.
 func WriteSpawnStaticMessage(msg *srvtypes.MessageBuffer, ent srvtypes.EntityState, flags uint32) {
@@ -328,6 +329,7 @@ func WriteSpawnStaticSoundMessage(msg *srvtypes.MessageBuffer, snd srvtypes.Stat
 	msg.PutByte(byte(snd.Volume))
 	msg.PutByte(byte(snd.Attenuation * 64))
 }
+
 // WriteSpawnLightStyles emits SVCLightStyle messages for every lightstyle
 // slot (matching the C spawn signon block).
 func WriteSpawnLightStyles(msg *srvtypes.MessageBuffer, styles [256]string) {

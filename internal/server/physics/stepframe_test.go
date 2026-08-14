@@ -16,18 +16,18 @@ type handle struct {
 	vm *qc.VM
 }
 
-func (h *handle) GetVM() *qc.VM           { return h.vm }
-func (h *handle) String(idx int32) string { return "" }
-func (h *handle) GetFieldAlpha() int      { return -1 }
-func (h *handle) GetFieldScale() int      { return -1 }
-func (h *handle) GetFieldGravity() int    { return -1 }
-func (h *handle) GetFieldItems2() int     { return -1 }
-func (h *handle) GetFieldState() int      { return -1 }
-func (h *handle) GetFieldWait() int       { return -1 }
-func (h *handle) GetFieldSpeed() int      { return -1 }
-func (h *handle) GetFieldCustomFlags() int { return -1 }
+func (h *handle) GetVM() *qc.VM              { return h.vm }
+func (h *handle) String(idx int32) string    { return "" }
+func (h *handle) GetFieldAlpha() int         { return -1 }
+func (h *handle) GetFieldScale() int         { return -1 }
+func (h *handle) GetFieldGravity() int       { return -1 }
+func (h *handle) GetFieldItems2() int        { return -1 }
+func (h *handle) GetFieldState() int         { return -1 }
+func (h *handle) GetFieldWait() int          { return -1 }
+func (h *handle) GetFieldSpeed() int         { return -1 }
+func (h *handle) GetFieldCustomFlags() int   { return -1 }
 func (h *handle) GetFieldThCheckAttack() int { return -1 }
-func (h *handle) GetFieldMap() int        { return -1 }
+func (h *handle) GetFieldMap() int           { return -1 }
 
 // mockFrameDriver implements the FrameDriver surface for loop tests.
 type mockFrameDriver struct {
@@ -50,20 +50,20 @@ func (m *mockFrameDriver) Get(name string) srvtypes.CvarHandle {
 	}
 	return nil
 }
-func (m *mockFrameDriver) EventsEnabled() bool   { return false }
+func (m *mockFrameDriver) EventsEnabled() bool     { return false }
 func (m *mockFrameDriver) BeginFrame(a, b float32) {}
 func (m *mockFrameDriver) EndFrame()               {}
 func (m *mockFrameDriver) LogEventf(kind srvdebug.DebugEventKind, vm *qc.VM, entNum int, ent *srvtypes.Edict, format string, args ...any) bool {
 	return false
 }
-func (m *mockFrameDriver) GetTime() float32       { return 0 }
-func (m *mockFrameDriver) GetFrameTime() float32  { return 0 }
-func (m *mockFrameDriver) MaxClients() int        { return m.maxClients }
+func (m *mockFrameDriver) GetTime() float32                { return 0 }
+func (m *mockFrameDriver) GetFrameTime() float32           { return 0 }
+func (m *mockFrameDriver) MaxClients() int                 { return m.maxClients }
 func (m *mockFrameDriver) RecordDevStatsEdicts(active int) {}
-func (m *mockFrameDriver) GetVM() *qc.VM          { return m.vm }
-func (m *mockFrameDriver) SyncQCVMGlobals()       {}
-func (m *mockFrameDriver) SetQCTimeGlobal(t float32) {}
-func (m *mockFrameDriver) ExecuteQCFunction(i int) error { return nil }
+func (m *mockFrameDriver) GetVM() *qc.VM                   { return m.vm }
+func (m *mockFrameDriver) SyncQCVMGlobals()                {}
+func (m *mockFrameDriver) SetQCTimeGlobal(t float32)       {}
+func (m *mockFrameDriver) ExecuteQCFunction(i int) error   { return nil }
 func (m *mockFrameDriver) PlayerClient(ent *srvtypes.Edict) *srvtypes.Client {
 	if m.pclients == nil {
 		return nil
@@ -71,11 +71,11 @@ func (m *mockFrameDriver) PlayerClient(ent *srvtypes.Edict) *srvtypes.Client {
 	return m.pclients[ent.Num]
 }
 func (m *mockFrameDriver) RunClientQCThinkWithMode(c *srvtypes.Client, name string, full bool) {}
-func (m *mockFrameDriver) SyncSpawnedEdictsFromQCVM(start int) {}
+func (m *mockFrameDriver) SyncSpawnedEdictsFromQCVM(start int)                                 {}
 
 type cvarTrue struct{}
 
-func (cvarTrue) Bool() bool      { return true }
+func (cvarTrue) Bool() bool       { return true }
 func (cvarTrue) Float32() float32 { return 0 }
 
 func TestStepFrameDispatchesMovetypes(t *testing.T) {

@@ -254,7 +254,6 @@ func (r *Renderer) StepWasmFrame(dt float64) {
 	}
 }
 
-
 // The callback is called each frame with the delta time in seconds.
 // This is where physics, AI, and game state updates should occur.
 //

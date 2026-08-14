@@ -245,7 +245,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		phaseEnd(&entitiesMS)
 	}
 
-	if state.DrawEntities && state.ViewModel != nil {
+	if state.DrawEntities && state.ViewModel != nil && IsGlobalPassEnabled(PassViewModel) {
 		phaseBegin()
 		dc.renderViewModelHAL(*state.ViewModel, state.FogColor, state.FogDensity)
 		phaseEnd(&viewModelMS)
@@ -272,7 +272,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
-	if state.Draw2DOverlay && draw2DOverlay != nil {
+	if state.Draw2DOverlay && draw2DOverlay != nil && IsGlobalPassEnabled(Pass2DOverlay) {
 		if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
 			slog.Debug("RenderFrame: gogpu frame state (pre-overlay)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
 		}
@@ -690,65 +690,85 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		}
 		switch phase {
 		case gogpuEntityPhaseOpaqueBrush:
-			phaseStart := time.Now()
-			dc.renderOpaqueBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
-			opaqueBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
-		case gogpuEntityPhaseOpaqueAlias:
-			phaseStart := time.Now()
-			for _, step := range gogpuOpaqueAliasPassSteps() {
-				switch step {
-				case gogpuOpaqueAliasStepEntities:
-					dc.renderAliasEntitiesHAL(plan.opaqueAlias, state.FogColor, state.FogDensity)
-				}
+			if IsGlobalPassEnabled(PassBrushEntities) {
+				phaseStart := time.Now()
+				dc.renderOpaqueBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
+				opaqueBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
-			opaqueAliasMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+		case gogpuEntityPhaseOpaqueAlias:
+			if IsGlobalPassEnabled(PassAliasEntities) {
+				phaseStart := time.Now()
+				for _, step := range gogpuOpaqueAliasPassSteps() {
+					switch step {
+					case gogpuOpaqueAliasStepEntities:
+						dc.renderAliasEntitiesHAL(plan.opaqueAlias, state.FogColor, state.FogDensity)
+					}
+				}
+				opaqueAliasMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			}
 		case gogpuEntityPhaseOpaqueParticles:
-			if state.DrawParticles && state.Particles != nil {
+			if state.DrawParticles && state.Particles != nil && IsGlobalPassEnabled(PassParticles) {
 				phaseStart := time.Now()
 				dc.renderParticlesHAL(state, false)
 				opaqueParticlesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		case gogpuEntityPhaseSkyBrush:
-			phaseStart := time.Now()
-			dc.renderSkyBrushEntitiesHAL(plan.skyBrush, state.FogColor, state.FogDensity)
-			skyBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			if IsGlobalPassEnabled(PassBrushEntities) {
+				phaseStart := time.Now()
+				dc.renderSkyBrushEntitiesHAL(plan.skyBrush, state.FogColor, state.FogDensity)
+				skyBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			}
 		case gogpuEntityPhaseOpaqueLiquidBrush:
-			phaseStart := time.Now()
-			dc.renderOpaqueLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
-			opaqueLiquidBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			if IsGlobalPassEnabled(PassBrushEntities) {
+				phaseStart := time.Now()
+				dc.renderOpaqueLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
+				opaqueLiquidBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			}
 		case gogpuEntityPhaseTranslucentWorldLiquid:
-			phaseStart := time.Now()
-			pendingTranslucentRenders = append(pendingTranslucentRenders, dc.collectGoGPUWorldTranslucentLiquidFaceRenders()...)
-			translucentWorldMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			if IsGlobalPassEnabled(PassTranslucentLiquids) {
+				phaseStart := time.Now()
+				pendingTranslucentRenders = append(pendingTranslucentRenders, dc.collectGoGPUWorldTranslucentLiquidFaceRenders()...)
+				translucentWorldMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			}
 		case gogpuEntityPhaseTranslucentLiquidBrush:
-			phaseStart := time.Now()
-			renders, buffers := dc.collectGoGPUTranslucentLiquidBrushFaceRenders(plan.opaqueBrush)
-			pendingTranslucentRenders = append(pendingTranslucentRenders, renders...)
-			pendingTransientBuffers = append(pendingTransientBuffers, buffers...)
-			translucentLiquidMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			if IsGlobalPassEnabled(PassTranslucentLiquids) && IsGlobalPassEnabled(PassBrushEntities) {
+				phaseStart := time.Now()
+				renders, buffers := dc.collectGoGPUTranslucentLiquidBrushFaceRenders(plan.opaqueBrush)
+				pendingTranslucentRenders = append(pendingTranslucentRenders, renders...)
+				pendingTransientBuffers = append(pendingTransientBuffers, buffers...)
+				translucentLiquidMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			}
 		case gogpuEntityPhaseTranslucentBrush:
-			collectStart := time.Now()
-			alphaTestRenders, renders, buffers := dc.collectGoGPUTranslucentBrushEntityFaceRenders(plan.translucentBrush)
-			translucentBrushMS += float64(time.Since(collectStart)) / float64(time.Millisecond)
-			alphaTestStart := time.Now()
-			dc.renderGoGPUAlphaTestBrushFaceRendersHAL(alphaTestRenders, state.FogColor, state.FogDensity)
-			alphaTestBrushMS += float64(time.Since(alphaTestStart)) / float64(time.Millisecond)
-			pendingTranslucentRenders = append(pendingTranslucentRenders, renders...)
-			pendingTransientBuffers = append(pendingTransientBuffers, buffers...)
+			if IsGlobalPassEnabled(PassBrushEntities) {
+				collectStart := time.Now()
+				alphaTestRenders, renders, buffers := dc.collectGoGPUTranslucentBrushEntityFaceRenders(plan.translucentBrush)
+				translucentBrushMS += float64(time.Since(collectStart)) / float64(time.Millisecond)
+				alphaTestStart := time.Now()
+				dc.renderGoGPUAlphaTestBrushFaceRendersHAL(alphaTestRenders, state.FogColor, state.FogDensity)
+				alphaTestBrushMS += float64(time.Since(alphaTestStart)) / float64(time.Millisecond)
+				pendingTranslucentRenders = append(pendingTranslucentRenders, renders...)
+				pendingTransientBuffers = append(pendingTransientBuffers, buffers...)
+			}
 		case gogpuEntityPhaseDecals:
-			phaseStart := time.Now()
-			dc.renderDecalMarksHAL(state.DecalMarks)
-			decalsMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			if IsGlobalPassEnabled(PassDecals) {
+				phaseStart := time.Now()
+				dc.renderDecalMarksHAL(state.DecalMarks)
+				decalsMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			}
 		case gogpuEntityPhaseTranslucentAlias:
-			phaseStart := time.Now()
-			dc.renderAliasEntitiesHAL(plan.translucentAlias, state.FogColor, state.FogDensity)
-			translucentAliasMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			if IsGlobalPassEnabled(PassAliasEntities) {
+				phaseStart := time.Now()
+				dc.renderAliasEntitiesHAL(plan.translucentAlias, state.FogColor, state.FogDensity)
+				translucentAliasMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			}
 		case gogpuEntityPhaseSprites:
-			phaseStart := time.Now()
-			dc.renderSpriteEntitiesHAL(state.SpriteEntities, state.FogColor, state.FogDensity)
-			spritesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			if IsGlobalPassEnabled(PassAliasEntities) {
+				phaseStart := time.Now()
+				dc.renderSpriteEntitiesHAL(state.SpriteEntities, state.FogColor, state.FogDensity)
+				spritesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+			}
 		case gogpuEntityPhaseTranslucentParticles:
-			if state.DrawParticles && state.Particles != nil {
+			if state.DrawParticles && state.Particles != nil && IsGlobalPassEnabled(PassParticles) {
 				phaseStart := time.Now()
 				dc.renderParticlesHAL(state, true)
 				translucentParticlesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)

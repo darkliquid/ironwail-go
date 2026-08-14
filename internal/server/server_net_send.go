@@ -204,15 +204,15 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 // server's surfaces (precache lookup, telemetry, ideal-pitch trace, protocol).
 func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	srvnet.WriteClientData(srvnet.ClientDataDeps{
-		Handle:                     s,
-		Precacher:                  s,
-		Logger:                     s.DebugTelemetry,
-		SetIdealPitch:              s.SetIdealPitch,
-		EdictNum:                   s.EdictNum,
-		NumForEdict:                s.NumForEdict,
-		Protocol:                   s.Protocol,
+		Handle:                      s,
+		Precacher:                   s,
+		Logger:                      s.DebugTelemetry,
+		SetIdealPitch:               s.SetIdealPitch,
+		EdictNum:                    s.EdictNum,
+		NumForEdict:                 s.NumForEdict,
+		Protocol:                    s.Protocol,
 		StandardQuakeWeaponEncoding: s.standardQuakeWeaponEncoding(),
-		Flags:                      uint32(s.ProtocolFlags()),
+		Flags:                       uint32(s.ProtocolFlags()),
 	}, ent, msg)
 }
 

@@ -115,9 +115,9 @@ type mockCmdSys struct {
 }
 
 func (m *mockCmdSys) Init()                                         {}
-func (m *mockCmdSys) Execute()                                          {}
-func (m *mockCmdSys) ExecuteWithSource(source cmdsys.CommandSource)     {}
-func (m *mockCmdSys) AddText(text string)                               {}
+func (m *mockCmdSys) Execute()                                      {}
+func (m *mockCmdSys) ExecuteWithSource(source cmdsys.CommandSource) {}
+func (m *mockCmdSys) AddText(text string)                           {}
 func (m *mockCmdSys) InsertText(text string) {
 	if m.insertText != nil {
 		m.insertText(text)

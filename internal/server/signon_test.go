@@ -308,7 +308,7 @@ func TestBuildSignonBuffersWritesBaselineForDelayedPrecacheModel(t *testing.T) {
 	s.Static = &ServerStatic{MaxClients: 1, MaxClientsLimit: 1, Clients: []*Client{{Active: true}}}
 	// Player edict occupies Num 1; the pickup is Num 2 (> MaxClients), which is
 	// exactly the qbj3 case where the old skip incorrectly dropped baselines.
-	s.AllocEdict() // Num 1
+	s.AllocEdict()        // Num 1
 	ent := s.AllocEdict() // Num 2
 	ent.SetOrigin(s, [3]float32{1024, 0, 504})
 	// Engine v.modelindex nonzero (visible model), but Baseline.ModelIndex 0

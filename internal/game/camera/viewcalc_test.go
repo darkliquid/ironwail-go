@@ -114,13 +114,13 @@ func TestAddIdleNoCvars(t *testing.T) {
 
 func TestAddIdleAppliesSway(t *testing.T) {
 	cv := mockCVars{
-		"v_idlescale":   floatCVar(1),
-		"v_iroll_cycle": floatCVar(1),
-		"v_iroll_level": floatCVar(0.5),
+		"v_idlescale":    floatCVar(1),
+		"v_iroll_cycle":  floatCVar(1),
+		"v_iroll_level":  floatCVar(0.5),
 		"v_ipitch_cycle": floatCVar(1),
 		"v_ipitch_level": floatCVar(0.5),
-		"v_iyaw_cycle":  floatCVar(1),
-		"v_iyaw_level":  floatCVar(0.5),
+		"v_iyaw_cycle":   floatCVar(1),
+		"v_iyaw_level":   floatCVar(0.5),
 	}
 	got := AddIdle(cv, [3]float32{0, 0, 0}, 0)
 	// sin(0)=0 for all -> angles unchanged.

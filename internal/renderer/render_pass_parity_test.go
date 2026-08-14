@@ -439,8 +439,6 @@ func TestPlanGoGPUEntityDrawOrderAddsWorldLiquidLatePhaseWithoutEntities(t *test
 	}
 }
 
-
-
 func TestHasTranslucentWorldLiquidFaceType(t *testing.T) {
 	mask := int32(model.SurfDrawWater | model.SurfDrawLava | model.SurfDrawSlime | model.SurfDrawTele)
 	if got := hasTranslucentWorldLiquidFaceType(mask, worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}); got {

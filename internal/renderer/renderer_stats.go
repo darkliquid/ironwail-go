@@ -33,13 +33,13 @@ var (
 	statLightmapUploads atomic.Uint64
 )
 
-func incrementWorldDraws()   { statWorldDraws.Add(1) }
-func incrementOverlayDraws() { statOverlayDraws.Add(1) }
-func incrementWorldUploads() { statWorldUploads.Add(1) }
-func incrementSceneDraws()   { statSceneDraws.Add(1) }
-func incrementParticlesDrawn() { statParticlesDrawn.Add(1) }
-func incrementAliasDraws()   { statAliasDraws.Add(1) }
-func incrementSpriteDraws()  { statSpriteDraws.Add(1) }
+func incrementWorldDraws()      { statWorldDraws.Add(1) }
+func incrementOverlayDraws()    { statOverlayDraws.Add(1) }
+func incrementWorldUploads()    { statWorldUploads.Add(1) }
+func incrementSceneDraws()      { statSceneDraws.Add(1) }
+func incrementParticlesDrawn()  { statParticlesDrawn.Add(1) }
+func incrementAliasDraws()      { statAliasDraws.Add(1) }
+func incrementSpriteDraws()     { statSpriteDraws.Add(1) }
 func incrementLightmapUploads() { statLightmapUploads.Add(1) }
 
 // WasmFramePassStatsSnapshot returns the current monotonic counter values.

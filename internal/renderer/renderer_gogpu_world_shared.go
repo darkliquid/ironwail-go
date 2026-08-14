@@ -47,8 +47,6 @@ func worldFaceAlpha(flags int32, liquidAlpha worldLiquidAlphaSettings) float32 {
 	return worldimpl.FaceAlpha(flags, liquidAlpha.toWorld())
 }
 
-
-
 func worldFaceIsLiquid(flags int32) bool {
 	return worldimpl.FaceIsLiquid(flags)
 }
@@ -228,8 +226,6 @@ func classifyWorldTextureName(name string) model.TextureType {
 func deriveWorldFaceFlags(textureType model.TextureType, texinfoFlags int32) int32 {
 	return worldimpl.DeriveFaceFlags(textureType, texinfoFlags)
 }
-
-
 
 // worldLiquidAlphaSettings stores per-liquid-type alpha values read from console
 // variables (r_wateralpha, r_lavaalpha, r_slimealpha, r_telealpha). These control

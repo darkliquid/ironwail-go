@@ -659,4 +659,3 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bs
 func worldTexCoordDouble(position [3]float32, vec [4]float32) float64 {
 	return worldimpl.TexCoordDouble(position, vec)
 }
-

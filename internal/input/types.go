@@ -571,6 +571,7 @@ func (s *System) ApplyMouseDelta(dx, dy int32) {
 	s.state.MouseDX += dx
 	s.state.MouseDY += dy
 }
+
 // State returns the accumulated input state for this frame. The mouse
 // deltas are fetched from the backend and written into the returned struct.
 // Call this once per frame after PollEvents — calling it multiple times will

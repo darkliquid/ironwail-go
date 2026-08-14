@@ -167,7 +167,6 @@ func (s *Server) newCheckClient() int {
 	return s.NumForEdict(client.Edict)
 }
 
-
 // ensureQCVMEdictStorage grows VM edict backing storage to match server edict capacity.
 // QuakeC addresses entities by index into a flat byte block; this guarantees indexes
 // the server hands to QC are always valid before any builtin or script executes.

@@ -80,7 +80,6 @@ var gogpuBrushPrepScratchPool = sync.Pool{
 	},
 }
 
-
 func shouldDrawGoGPUOpaqueBrushFace(face WorldFace, entityAlpha float32) bool {
 	return isFullyOpaqueAlpha(clamp01(entityAlpha)) && shouldDrawGoGPUOpaqueWorldFace(face)
 }

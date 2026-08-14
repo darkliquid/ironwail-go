@@ -40,5 +40,5 @@ func (g *Game) HarnessRuntimeStep(dt float64) {
 
 var (
 	_ host.FrameCallbacks = gameCallbacks{}
-	_                      = input.KeyGame
+	_                     = input.KeyGame
 )

@@ -18,19 +18,21 @@ import (
 // System.HandleKeyEvent).
 type harnessBackend struct{}
 
-func (b *harnessBackend) Init() error                                         { return nil }
-func (b *harnessBackend) Shutdown()                                           {}
-func (b *harnessBackend) PollEvents() bool                                    { return true }
-func (b *harnessBackend) MouseDelta() (dx, dy int32)                          { return int32(harnessMouseDX), int32(harnessMouseDY) }
-func (b *harnessBackend) MousePosition() (x, y int32, valid bool)             { return 0, 0, false }
-func (b *harnessBackend) ModifierState() input.ModifierState                  { return input.ModifierState{} }
-func (b *harnessBackend) SetTextMode(mode input.TextMode)                     {}
-func (b *harnessBackend) SetCursorMode(mode input.CursorMode)                 {}
-func (b *harnessBackend) ShowKeyboard(show bool)                              {}
-func (b *harnessBackend) GamepadState(player int) input.GamepadState          { return input.GamepadState{} }
-func (b *harnessBackend) IsGamepadConnected(player int) bool                  { return false }
-func (b *harnessBackend) SetMouseGrab(grabbed bool)                           {}
-func (b *harnessBackend) SetWindow(win any)                                   {}
+func (b *harnessBackend) Init() error      { return nil }
+func (b *harnessBackend) Shutdown()        {}
+func (b *harnessBackend) PollEvents() bool { return true }
+func (b *harnessBackend) MouseDelta() (dx, dy int32) {
+	return int32(harnessMouseDX), int32(harnessMouseDY)
+}
+func (b *harnessBackend) MousePosition() (x, y int32, valid bool)    { return 0, 0, false }
+func (b *harnessBackend) ModifierState() input.ModifierState         { return input.ModifierState{} }
+func (b *harnessBackend) SetTextMode(mode input.TextMode)            {}
+func (b *harnessBackend) SetCursorMode(mode input.CursorMode)        {}
+func (b *harnessBackend) ShowKeyboard(show bool)                     {}
+func (b *harnessBackend) GamepadState(player int) input.GamepadState { return input.GamepadState{} }
+func (b *harnessBackend) IsGamepadConnected(player int) bool         { return false }
+func (b *harnessBackend) SetMouseGrab(grabbed bool)                  {}
+func (b *harnessBackend) SetWindow(win any)                          {}
 
 // harnessMouseDX/DY hold the injected mouse delta for the current frame.
 var harnessMouseDX, harnessMouseDY int32

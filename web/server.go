@@ -76,5 +76,3 @@ func main() {
 	fmt.Printf("Ironwail-Go WASM Web Server running at http://localhost:%s\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
-
-

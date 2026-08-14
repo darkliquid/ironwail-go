@@ -105,6 +105,29 @@ func installInspector(g *game.Game) {
 	obj.Set("getGpuStatus", js.FuncOf(func(this js.Value, args []js.Value) any {
 		return toJSValue(inspectorGetGpuStatus(g))
 	}))
+	obj.Set("getPassToggles", js.FuncOf(func(this js.Value, args []js.Value) any {
+		return toJSValue(renderer.GetPassTogglesMap())
+	}))
+	obj.Set("setPassToggle", js.FuncOf(func(this js.Value, args []js.Value) any {
+		if len(args) >= 2 && args[0].Type() == js.TypeString && args[1].Type() == js.TypeBoolean {
+			name := args[0].String()
+			enabled := args[1].Bool()
+			renderer.SetPassToggleByName(name, enabled)
+		}
+		return nil
+	}))
+	obj.Set("setPassToggles", js.FuncOf(func(this js.Value, args []js.Value) any {
+		if len(args) > 0 && args[0].Type() == js.TypeObject {
+			val := args[0]
+			for name := range renderer.PassNameToFlag {
+				prop := val.Get(name)
+				if !prop.IsUndefined() && !prop.IsNull() && prop.Type() == js.TypeBoolean {
+					renderer.SetPassToggleByName(name, prop.Bool())
+				}
+			}
+		}
+		return nil
+	}))
 	js.Global().Set("ironwailInspector", obj)
 }
 
@@ -121,7 +144,7 @@ func inspectorGetTelemetryLog(g *game.Game) any {
 
 func inspectorGetGpuStatus(g *game.Game) any {
 	out := map[string]any{
-		"navigatorGpu": false,
+		"navigatorGpu":   false,
 		"rendererActive": false,
 	}
 	if doc := js.Global().Get("document"); !doc.IsUndefined() && !doc.IsNull() {
@@ -299,6 +322,7 @@ func inspectorRendererState(g *game.Game) any {
 		"spriteDraws":     stats.SpriteDraws,
 		"lightmapUploads": stats.LightmapUploads,
 	}
+	out["passToggles"] = renderer.GetPassTogglesMap()
 	return out
 }
 

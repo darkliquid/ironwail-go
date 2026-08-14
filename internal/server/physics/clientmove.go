@@ -393,4 +393,3 @@ func CalcRoll(cvr srvtypes.CVarReader, angles, velocity [3]float32) float32 {
 
 	return side * sign
 }
-

@@ -15,6 +15,19 @@ const LAYER_TITLES = {
   renderer: "Renderer",
 };
 
+const PASS_DEFINITIONS = [
+  { id: "sky", label: "Sky" },
+  { id: "world", label: "Opaque BSP World" },
+  { id: "lightmaps", label: "Lightmaps & Lighting" },
+  { id: "brush", label: "Brush Entities (Doors/Plats)" },
+  { id: "alias", label: "Alias Models (Monsters/Pickups)" },
+  { id: "viewmodel", label: "Viewmodel (Weapon)" },
+  { id: "water", label: "Translucent Liquids" },
+  { id: "particles", label: "Particles & Trails" },
+  { id: "decals", label: "Decal Marks" },
+  { id: "overlay", label: "2D Overlays (HUD/Menu)" },
+];
+
 let activeLayer = "host";
 let paused = false;   // UI mirror of the engine's wasm pause state
 let anchors = {};
@@ -51,7 +64,7 @@ let lastEdictsText = "";
 let panelBuilt = false;
 let lastPanelRender = 0; // ms timestamp; throttles play-time DOM rebuilds
 
-function renderState() {
+function renderState(force) {
   const panel = document.getElementById("panel");
   const insp = window.ironwailInspector;
   if (!insp || (!insp.getStateJSON && !insp.getState)) {
@@ -72,12 +85,12 @@ function renderState() {
   const a = (insp.getSourceAnchor ? (insp.getSourceAnchor(activeLayer) || {}) : {});
   const anchorLine = a.file + (a.line ? ":" + a.line : "") + "|" + (a.doc || "");
   const key = activeLayer + "|" + anchorLine + "|" + json;
-  if (panelBuilt && key === lastPanelJSON) return; // unchanged since last frame
+  if (!force && panelBuilt && key === lastPanelJSON) return; // unchanged since last frame
 
   // Throttle play-time rebuilds to ~8/s so a running sim doesn't churn the
   // DOM; when paused the cache above already stops rebuilds entirely.
   const now = performance.now();
-  if (panelBuilt && now - lastPanelRender < 125) return;
+  if (!force && panelBuilt && now - lastPanelRender < 125) return;
   lastPanelRender = now;
 
   panel.innerHTML = "";
@@ -140,6 +153,51 @@ function renderState() {
       passCard.appendChild(passPre);
       panel.appendChild(passCard);
     }
+  }
+
+  // Renderer layer: Granular Render Pass Toggles
+  if (activeLayer === "renderer") {
+    const toggleCard = el("div", "card");
+    toggleCard.appendChild(el("div", "card-title", "Granular Render Pass Toggles"));
+
+    const btnBar = el("div", "pass-btn-bar");
+    const enableAllBtn = el("button", "pass-action-btn", "Enable All");
+    enableAllBtn.onclick = () => {
+      const allTrue = {};
+      for (const p of PASS_DEFINITIONS) allTrue[p.id] = true;
+      if (insp.setPassToggles) insp.setPassToggles(allTrue);
+      renderState(true);
+    };
+    const disableAllBtn = el("button", "pass-action-btn", "Disable All");
+    disableAllBtn.onclick = () => {
+      const allFalse = {};
+      for (const p of PASS_DEFINITIONS) allFalse[p.id] = false;
+      if (insp.setPassToggles) insp.setPassToggles(allFalse);
+      renderState(true);
+    };
+    btnBar.appendChild(enableAllBtn);
+    btnBar.appendChild(disableAllBtn);
+    toggleCard.appendChild(btnBar);
+
+    const grid = el("div", "pass-grid");
+    const currentToggles = (state.passToggles || (insp.getPassToggles ? insp.getPassToggles() : {})) || {};
+
+    for (const p of PASS_DEFINITIONS) {
+      const label = el("label", "pass-toggle-label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = currentToggles[p.id] !== false; // default true
+      cb.onchange = () => {
+        if (insp.setPassToggle) {
+          insp.setPassToggle(p.id, cb.checked);
+        }
+      };
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(p.label));
+      grid.appendChild(label);
+    }
+    toggleCard.appendChild(grid);
+    panel.appendChild(toggleCard);
   }
 
   if (insp.getGoroutines && (activeLayer === "host" || activeLayer === "boot")) {

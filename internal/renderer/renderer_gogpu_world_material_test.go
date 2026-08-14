@@ -132,14 +132,14 @@ type slogCapture struct {
 	msgs []string
 }
 
-func (c *slogCapture) Enabled(context.Context, slog.Level) bool  { return true }
+func (c *slogCapture) Enabled(context.Context, slog.Level) bool { return true }
 func (c *slogCapture) Handle(_ context.Context, r slog.Record) error {
 	c.msgs = append(c.msgs, r.Message)
 	return nil
 }
-func (c *slogCapture) WithAttrs([]slog.Attr) slog.Handler   { return c }
-func (c *slogCapture) WithGroup(string) slog.Handler        { return c }
-func (c *slogCapture) reset()                              { c.msgs = nil }
+func (c *slogCapture) WithAttrs([]slog.Attr) slog.Handler { return c }
+func (c *slogCapture) WithGroup(string) slog.Handler      { return c }
+func (c *slogCapture) reset()                             { c.msgs = nil }
 func (c *slogCapture) hasSubstr(s string) bool {
 	for _, m := range c.msgs {
 		if strings.Contains(m, s) {

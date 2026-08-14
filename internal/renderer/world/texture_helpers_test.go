@@ -33,7 +33,7 @@ func TestFaceTextureIndexMapsMissingToWhiteDummy(t *testing.T) {
 	// Two textures: entry 0 present but an invalid offset, entry 1 present.
 	textureData := make([]byte, 12)
 	binary.LittleEndian.PutUint32(textureData[:4], 2)
-	binary.LittleEndian.PutUint32(textureData[4:8], 8)  // miptex 0 at offset 8
+	binary.LittleEndian.PutUint32(textureData[4:8], 8) // miptex 0 at offset 8
 	binary.LittleEndian.PutUint32(textureData[8:12], uint32(0xffffffff))
 	tree := &bsp.Tree{
 		TextureData: textureData,

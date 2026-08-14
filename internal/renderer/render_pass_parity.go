@@ -23,8 +23,6 @@ func normalizeWorldBrushPassSelector(selector worldBrushPassSelector) worldBrush
 	}
 }
 
-
-
 // includesLiquidOpaque reports whether opaque liquid surfaces belong to the selected world pass set.
 func (selector worldBrushPassSelector) includesLiquidOpaque() bool {
 	selector = normalizeWorldBrushPassSelector(selector)
@@ -290,8 +288,6 @@ func gogpuOpaqueAliasPassSteps() []gogpuOpaqueAliasStep {
 		gogpuOpaqueAliasStepEntities,
 	}
 }
-
-
 
 // hasTranslucentWorldLiquidFaceType performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func hasTranslucentWorldLiquidFaceType(mask int32, liquidAlpha worldLiquidAlphaSettings) bool {

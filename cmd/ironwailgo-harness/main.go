@@ -141,6 +141,7 @@ func engineAdvance(dtNS int64) uint32 {
 	fillState()
 	return uint32(uintptr(unsafe.Pointer(&stateMem[0])))
 }
+
 //go:wasmexport engine_set_paused
 func engineSetPaused(paused uint32) {
 	if g == nil {
@@ -156,8 +157,6 @@ func engineStepFrames(n uint32) {
 	}
 	g.WasmStepFrames(int(n))
 }
-
-
 
 //go:wasmexport boot_renderer
 func bootRenderer() uint32 {
@@ -260,6 +259,7 @@ func pixelsCapture() uint32 {
 
 // lastPixelW/H mirror the last captured pixel dims for the state struct.
 var lastPixelW, lastPixelH = 0, 0
+
 // Mouse deltas drive yaw/pitch; key states drive forward/strafe/use/attack/
 // jump through the same physical key code surface the engine's DOM backend
 // uses (so existing binds pick the movement up).
@@ -291,8 +291,8 @@ func applyInput(g *game.Game, in *[8]float32) {
 
 	// Buttons: e +moveup(use), left mouse +attack, SPACE +jump.
 	btnBinds := []struct {
-		key   int
-		bit   uint
+		key int
+		bit uint
 	}{
 		{'e', 0},
 		{input.KMouse1, 1},
@@ -421,4 +421,3 @@ func mountPak() uint32 {
 // (Removed async fetch path — Deno writes pak bytes via mount_pak; the
 // js/wasm event loop cannot resolve promises outside exported calls, so
 // blocking fetch is unreachable under the harness's pollable ABI.)
-
