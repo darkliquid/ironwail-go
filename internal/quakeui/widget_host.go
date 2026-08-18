@@ -50,6 +50,10 @@ type HostOptions struct {
 	// EventSource feeds OS input into the ui tree (ADR-0003 gateway). When nil
 	// no events are delivered (headless tests).
 	EventSource gpucontext.EventSource
+	// Gateway is the engine input gateway (ADR-0003). When non-nil it is used
+	// as the EventSource and stored on the host so the game can feed engine
+	// input events into it per frame.
+	Gateway *Gateway
 }
 
 // Host owns the gogpu/ui app lifecycle inside the engine frame (spec §3.1,
@@ -59,6 +63,7 @@ type HostOptions struct {
 type Host struct {
 	app      *app.App
 	provider gpucontext.DeviceProvider
+	gateway  *Gateway
 	canvas   *canvasBridge
 }
 
@@ -67,7 +72,10 @@ type Host struct {
 // app to the engine's gogpu.App so the widget tree draws into the engine
 // surface (AC3: boots).
 func NewHost(opts HostOptions) *Host {
-	h := &Host{provider: opts.Provider}
+	h := &Host{
+		provider: opts.Provider,
+		gateway:  opts.Gateway,
+	}
 
 	appOpts := []app.Option{
 		app.WithTheme(theme.QuakeTheme()),
@@ -79,13 +87,25 @@ func NewHost(opts HostOptions) *Host {
 	if pp, ok := opts.Provider.(gpucontext.PlatformProvider); ok && pp != nil {
 		appOpts = append(appOpts, app.WithPlatformProvider(pp))
 	}
-	if opts.EventSource != nil {
-		appOpts = append(appOpts, app.WithEventSource(opts.EventSource))
+	es := opts.EventSource
+	if opts.Gateway != nil {
+		es = opts.Gateway
+	}
+	if es != nil {
+		appOpts = append(appOpts, app.WithEventSource(es))
 	}
 
 	h.app = app.New(appOpts...)
 	h.canvas = newCanvasBridge(opts.Provider)
 	return h
+}
+
+// Gateway returns the engine input gateway, or nil if none was configured.
+func (h *Host) Gateway() *Gateway {
+	if h == nil {
+		return nil
+	}
+	return h.gateway
 }
 
 // App returns the underlying gogpu/ui app.

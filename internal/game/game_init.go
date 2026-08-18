@@ -505,11 +505,28 @@ func (g *Game) initGameRenderer() error {
 	// Construct the gogpu/ui host (path 1). It is created eagerly so a
 // ui_backend toggle mid-session can switch to the widget tree without a
 // re-init; the host only draws when ui_backend=1 (spec §5.1, ADR-0002).
+	gw := quakeui.NewGateway(g.Input)
 	g.UIHost = quakeui.NewHost(quakeui.HostOptions{
 		Provider: tr.GPUContextProvider(),
+		Gateway:  gw,
 	})
+	g.wireUIHostInput()
 
 	return nil
+}
+
+// wireUIHostInput registers the quakeui gateway as the raw input sink on the
+// engine's input system (ADR-0003). The gateway receives every raw key/char
+// event before the engine routes them, and forwards them into the gogpu/ui
+// tree when a ui surface is active (KeyConsole/KeyMenu). The engine's routing
+// and latching stay authoritative and untouched.
+func (g *Game) wireUIHostInput() {
+	if g.Input == nil || g.UIHost == nil || g.UIHost.Gateway() == nil {
+		return
+	}
+	gw := g.UIHost.Gateway()
+	g.Input.OnRawKey = gw.FeedEngineKeyEvent
+	g.Input.OnRawChar = gw.FeedEngineCharEvent
 }
 
 func (g *Game) preferWaylandForGoGPU() {

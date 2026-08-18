@@ -509,6 +509,13 @@ type System struct {
 	OnMenuKey  KeyEventCallback
 	OnMenuChar CharEventCallback
 
+	// Raw event sinks fire before KeyDest routing. They receive every raw
+	// key/char event so external consumers (e.g. the quakeui input gateway,
+	// ADR-0003) can observe the authoritative input stream and route it
+	// themselves without disturbing the engine's routing or latching.
+	OnRawKey  KeyEventCallback
+	OnRawChar CharEventCallback
+
 	// Current state
 	state     InputState
 	keyDest   KeyDest

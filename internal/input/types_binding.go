@@ -183,6 +183,12 @@ func (s *System) ClearKeyStates() {
 //     handler kept the destination in KeyMenu; in all other modes it goes only
 //     to OnKey.
 func (s *System) HandleKeyEvent(event KeyEvent) {
+	// Raw sink fires before dedup/routing so external consumers (the quakeui
+	// gateway) see the authoritative stream (ADR-0003).
+	if s.OnRawKey != nil {
+		s.OnRawKey(event)
+	}
+
 	wasDown := false
 	if event.Key >= 0 && event.Key < NumKeycode {
 		wasDown = s.state.Keys[event.Key]
@@ -234,6 +240,10 @@ func (s *System) HandleKeyEvent(event KeyEvent) {
 // the frame's character buffer (state.Chars) and dispatched to the
 // appropriate callback. In menu mode both OnMenuChar and OnChar are called.
 func (s *System) HandleCharEvent(char rune) {
+	// Raw sink fires before routing (ADR-0003).
+	if s.OnRawChar != nil {
+		s.OnRawChar(char)
+	}
 	s.state.Chars = append(s.state.Chars, char)
 
 	if s.keyDest == KeyMenu && s.OnMenuChar != nil {
