@@ -78,6 +78,15 @@ build proves too costly. Either way:
 - **Negative:** loses exact pixel parity (accepted); pixel-TTF build is a
   spike risk; bright-row handling needs care (dual color sets).
 
+**T1 spike outcome (2026-08-18): option (b) chosen.** The pixel-TTF build
+requires authoring a full TTF (font tables, cmap, glyf/loca) with no
+in-repo dependency, and the `plugin.AssetLoader` registerer still cannot
+reach the internal `GlobalFontRegistry` to make the font usable. The
+`QuakeTextWidget` (conchars atlas + 8px advance + `image.RGBA.SubImage`
+glyph draws) avoids both, keeps layout in gogpu/ui, and preserves the
+retro 8x8 look. The pixel-TTF variant stays a documented alternative if
+upstream later exposes a public font-registration path.
+
 ## Links
 
 - IRONWAIL-SPEC-001 §1.4, §2, §4.3; research 0002 §3; ADR-0001 (gate);
