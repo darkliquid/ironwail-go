@@ -21,6 +21,7 @@ require (
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-webgpu/goffi v0.6.3 // indirect
 	github.com/go-webgpu/webgpu v0.5.5 // indirect
+	github.com/gogpu/ui v0.1.54 // indirect
 	github.com/gotracker/goaudiofile v1.0.16 // indirect
 	github.com/gotracker/opl2 v1.0.2 // indirect
 	github.com/heucuva/comparison v1.0.0 // indirect
