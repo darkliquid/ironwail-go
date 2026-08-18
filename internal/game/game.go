@@ -66,6 +66,10 @@ type Game struct {
 	// hudRoot is the gogpu/ui HUD status bar widget (path 1). It is set as
 	// the host root when in-game with no console/menu active (spec §3.2, M5.1).
 	hudRoot *quakehud.StatusBarWidget
+	// uiStack is the stacked root containing HUD (bottom), menu, and console
+	// (top) for path 1 (ADR-0002, G.14). Surface visibility is toggled per
+	// frame; overlapping surfaces are layered, not mutually exclusive.
+	uiStack *quakeui.Stack
 
 	MouseGrabbed      bool
 	AliasModelCache   map[string]*model.Model

@@ -332,10 +332,10 @@ func (g *Game) drawRuntimeOverlayFrameGogpuUI(overlay renderer.RenderContext) {
 	}
 }
 
-// syncUIHostRoot sets the gogpu/ui host root to match the active surface
-// (spec §3.2, ADR-0002). Console takes priority over menu (console forced-up
-// at boot); menu next; then the HUD when in-game. Otherwise the root is
-// cleared so the host draws nothing extra.
+// syncUIHostRoot sets the gogpu/ui host root to the stacked surface tree
+// (ADR-0002, G.14): HUD (bottom), menu, console (top). Surface visibility is
+// toggled per frame so overlapping surfaces (console forced-up over menu at
+// boot, menu over frozen world + HUD) are layered, not mutually exclusive.
 func (g *Game) syncUIHostRoot() {
 	if g.UIHost == nil {
 		return
@@ -344,30 +344,33 @@ func (g *Game) syncUIHostRoot() {
 	menuActive := g.Menu != nil && g.Menu.IsActive()
 	inGame := g.Server != nil && g.Server.Active
 
-	switch {
-	case consoleActive:
-		if g.consoleRoot == nil {
-			g.consoleRoot = quakeconsole.NewConsoleWidget(console.Global(), g.quakeUIText())
-		}
-		g.UIHost.SetRoot(g.consoleRoot)
-	case menuActive:
-		if g.menuRoot == nil {
-			g.menuRoot = quakemenu.NewMenuRoot(g.Menu, g.quakeUIText())
-			g.menuRoot.SetCVars(g.Host.CVar)
-		}
-		g.UIHost.SetRoot(g.menuRoot)
-	case inGame && g.HUD != nil:
+	// Build the surface widgets lazily.
+	if g.HUD != nil {
 		if g.hudRoot == nil {
 			g.hudRoot = quakehud.NewStatusBarWidget(g.HUD.State(), g.HUD.Style(), g.quakeUIText())
 		} else {
 			g.hudRoot.SetState(g.HUD.State())
 		}
-		g.UIHost.SetRoot(g.hudRoot)
-	default:
-		if g.UIHost.App().Window().Root() != nil {
-			g.UIHost.SetRoot(nil)
-		}
 	}
+	if g.menuRoot == nil {
+		g.menuRoot = quakemenu.NewMenuRoot(g.Menu, g.quakeUIText())
+		g.menuRoot.SetCVars(g.Host.CVar)
+	}
+	if g.consoleRoot == nil {
+		g.consoleRoot = quakeconsole.NewConsoleWidget(console.Global(), g.quakeUIText())
+	}
+
+	// Build the stack once; toggle surface visibility per frame.
+	if g.uiStack == nil {
+		g.uiStack = quakeui.NewStack(g.hudRoot, g.menuRoot, g.consoleRoot)
+		g.UIHost.SetRoot(g.uiStack)
+	}
+
+	if g.hudRoot != nil {
+		g.hudRoot.SetVisible(inGame && g.HUD != nil)
+	}
+	g.menuRoot.SetVisible(menuActive)
+	g.consoleRoot.SetVisible(consoleActive)
 }
 
 // quakeUIText builds the QuakeText widget used by the path-1 UI, backed by
