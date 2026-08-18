@@ -12,6 +12,8 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/quakeui"
+	quakemenu "github.com/darkliquid/ironwail-go/internal/quakeui/menu"
+	"github.com/darkliquid/ironwail-go/internal/quakeui/widgets"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gogpu"
@@ -312,9 +314,11 @@ func (g *Game) drawRuntimeOverlayFrameGogpuUI(overlay renderer.RenderContext) {
 		return
 	}
 
-	// Set the root per active surface (spec §3.2). Until the M3/M4/M5 widgets
-	// land, path 1 renders an empty root (a no-op widget tree) so the engine
-	// boots and toggles cleanly without panics.
+	// Set the root per active surface (spec §3.2). The menu widget is set as
+	// the host root when the menu is active; otherwise the host keeps an empty
+	// root (HUD/console widgets land in M4/M5).
+	g.syncUIHostRoot()
+
 	g.UIHost.Frame()
 	if dc, ok := overlay.(interface{ GogpuContext() *gogpu.Context }); ok {
 		if ctx := dc.GogpuContext(); ctx != nil {
@@ -323,6 +327,39 @@ func (g *Game) drawRuntimeOverlayFrameGogpuUI(overlay renderer.RenderContext) {
 			}
 		}
 	}
+}
+
+// syncUIHostRoot sets the gogpu/ui host root to match the active surface
+// (spec §3.2, ADR-0002). When the menu is active the menu widget is the
+// root; otherwise the root is cleared so the host draws nothing extra.
+func (g *Game) syncUIHostRoot() {
+	if g.UIHost == nil {
+		return
+	}
+	menuActive := g.Menu != nil && g.Menu.IsActive()
+	if menuActive {
+		if g.menuRoot == nil {
+			g.menuRoot = quakemenu.NewMenuRoot(g.Menu, g.quakeUIText())
+			g.menuRoot.SetCVars(g.Host.CVar)
+		}
+		g.UIHost.SetRoot(g.menuRoot)
+		return
+	}
+	if g.UIHost.App().Window().Root() != nil {
+		g.UIHost.SetRoot(nil)
+	}
+}
+
+// quakeUIText builds the QuakeText widget used by the path-1 UI, backed by
+// the engine's conchars atlas and palette.
+func (g *Game) quakeUIText() *widgets.QuakeText {
+	var conchars []byte
+	var palette []byte
+	if g.Draw != nil {
+		conchars = g.Draw.ConcharsData()
+		palette = g.Draw.Palette()
+	}
+	return widgets.NewQuakeText(conchars, palette)
 }
 
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {

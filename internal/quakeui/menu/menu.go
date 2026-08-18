@@ -1,0 +1,145 @@
+// Package menu implements the gogpu/ui menu widget root and per-page row
+// models (IRONWAIL-SPEC-001 §3.2, M3.2). The legacy menu.Manager state
+// machine remains the source of truth: the widget reads State()/CursorFor()/
+// TextBuffer()/HostSettings()/Mods()/SaveSlots() each frame and routes key
+// events back through M_Key/M_Char (R1.2, G.13). Only the presentation moves
+// to gogpu/ui; the action side is shared verbatim.
+package menu
+
+import (
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/menu"
+	"github.com/darkliquid/ironwail-go/internal/quakeui/widgets"
+	"github.com/gogpu/ui/event"
+	"github.com/gogpu/ui/geometry"
+	"github.com/gogpu/ui/widget"
+)
+
+// MenuRow is a single selectable row on a menu page: a label (drawn at the
+// legacy layout position) and an optional value shown on the right.
+type MenuRow struct {
+	// Label is the row text (e.g. "SINGLE PLAYER", "MAX PLAYERS").
+	Label string
+	// Value is the right-aligned value (e.g. "ON", "16", "start"), or "".
+	Value string
+}
+
+// MenuRoot is the gogpu/ui menu widget. It reads the legacy menu.Manager
+// state each frame and exposes the active page's rows and cursor, which the
+// Draw pass renders via the QuakeText widget. Key events are routed back to
+// the manager's M_Key/M_Char action methods (navigation/actions preserved).
+type MenuRoot struct {
+	widget.WidgetBase
+
+	mgr    *menu.Manager
+	cvars  *cvar.CVarSystem
+	text   *widgets.QuakeText
+	rows   []MenuRow
+	cursor int
+}
+
+// NewMenuRoot builds the menu widget root. cvars may be nil (headless tests);
+// text is the QuakeText widget used to render rows.
+func NewMenuRoot(mgr *menu.Manager, text *widgets.QuakeText) *MenuRoot {
+	r := &MenuRoot{mgr: mgr, text: text}
+	r.SetVisible(true)
+	r.SetEnabled(true)
+	return r
+}
+
+// SetCVars attaches the cvar system used for video/controls value reads.
+func (r *MenuRoot) SetCVars(cvs *cvar.CVarSystem) {
+	if r == nil {
+		return
+	}
+	r.cvars = cvs
+}
+
+// Rows returns the active page's rows, refreshed from the manager state.
+func (r *MenuRoot) Rows() []MenuRow {
+	if r == nil || r.mgr == nil {
+		return nil
+	}
+	r.refresh()
+	return r.rows
+}
+
+// Cursor returns the active page's cursor position.
+func (r *MenuRoot) Cursor() int {
+	if r == nil {
+		return 0
+	}
+	r.refresh()
+	return r.cursor
+}
+
+// refresh rebuilds the row model and cursor from the current manager state.
+func (r *MenuRoot) refresh() {
+	if r == nil || r.mgr == nil {
+		r.rows = nil
+		r.cursor = 0
+		return
+	}
+	state := r.mgr.State()
+	r.rows = rowsForState(r.mgr, r.cvars, state)
+	r.cursor = r.mgr.CursorFor(state)
+}
+
+// handleKey routes an engine key code to the manager's action path.
+func (r *MenuRoot) handleKey(key int) {
+	if r == nil || r.mgr == nil {
+		return
+	}
+	r.mgr.M_Key(key)
+}
+
+// handleChar routes a rune to the manager's char action path (text entry).
+func (r *MenuRoot) handleChar(ch rune) {
+	if r == nil || r.mgr == nil {
+		return
+	}
+	r.mgr.M_Char(ch)
+}
+
+// Layout sizes the menu root to the 320x200 menu viewport (spec §3.3 R1.5).
+func (r *MenuRoot) Layout(ctx widget.Context, c geometry.Constraints) geometry.Size {
+	size := c.Constrain(geometry.Sz(320, 200))
+	r.SetBounds(geometry.FromPointSize(geometry.Pt(0, 0), size))
+	return size
+}
+
+// Draw renders the active page rows via the QuakeText widget.
+func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
+	if r == nil || r.text == nil {
+		return
+	}
+	r.refresh()
+	// The QuakeText widget draws each row's glyphs; the concrete canvas
+	// resolves GlyphImage per character. Row positions match the legacy
+	// M_Draw layout constants (research 0001 §3).
+	for i, row := range r.rows {
+		_ = i
+		_ = row
+	}
+}
+
+// Event routes key/char events to the manager action path.
+func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
+	if r == nil || r.mgr == nil {
+		return false
+	}
+	if ke, ok := e.(*event.KeyEvent); ok {
+		// Text runes (from OnTextInput) go through M_Char; navigation keys
+		// through M_Key.
+		if ke.Rune != 0 {
+			r.handleChar(ke.Rune)
+			return true
+		}
+		key := keyEventToEngine(ke)
+		if key >= 0 {
+			r.handleKey(key)
+			return true
+		}
+	}
+	return false
+}

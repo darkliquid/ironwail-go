@@ -21,6 +21,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/quakeui"
+	quakemenu "github.com/darkliquid/ironwail-go/internal/quakeui/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
@@ -54,6 +55,9 @@ type Game struct {
 	// The host runs inside the engine frame: Frame() + DrawTo() per frame
 	// (spec §3.1, ADR-0002).
 	UIHost *quakeui.Host
+	// menuRoot is the gogpu/ui menu widget (path 1). It is set as the host
+	// root when the menu is active (spec §3.2, M3.2).
+	menuRoot *quakemenu.MenuRoot
 
 	MouseGrabbed      bool
 	AliasModelCache   map[string]*model.Model
