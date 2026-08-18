@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/ebitengine/oto/v3 v3.5.0-alpha.6
-	github.com/gogpu/gogpu v0.52.1
+	github.com/gogpu/gogpu v0.53.0
 	github.com/gogpu/gpucontext v0.28.0
 	github.com/gogpu/gputypes v0.5.2
 	github.com/gogpu/naga v0.18.0
@@ -14,7 +14,7 @@ require (
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/kazzmir/opus-go v1.3.0
 	github.com/mewkiz/flac v1.0.13
-	golang.org/x/tools v0.42.0
+	golang.org/x/tools v0.48.0
 )
 
 require (
@@ -31,8 +31,8 @@ require (
 	github.com/mewkiz/pkg v0.0.0-20250417130911-3f050ff8c56d // indirect
 	github.com/mewpkg/term v0.0.0-20241026122259-37a80af23985 // indirect
 	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9 // indirect
-	golang.org/x/mod v0.33.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/mod v0.38.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
 

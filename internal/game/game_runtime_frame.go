@@ -11,6 +11,7 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
@@ -282,12 +283,30 @@ func (g *Game) drawRuntimeRendererFrame(dc renderer.RenderContext) {
 	if drawCtx, ok := dc.(*renderer.DrawContext); ok {
 		state := g.buildRuntimeRenderFrameState(brushEntities, aliasEntities, spriteEntities, viewModel)
 		drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
+			if quakeui.IsGogpuUIPath(g.Host.CVar) {
+				// Path 1: gogpu/ui widget tree (spec §3.3). The host draws
+				// every surface (HUD, console, menu) into a widget canvas and
+				// composites it onto the engine surface.
+				g.drawRuntimeOverlayFrameGogpuUI(overlay)
+				return
+			}
 			g.drawRuntimeOverlayFrame(overlay)
 		})
 		return
 	}
 
 	g.drawRuntimeFallbackFrame(dc)
+}
+
+func (g *Game) drawRuntimeOverlayFrameGogpuUI(overlay renderer.RenderContext) {
+	w, h := g.Renderer.Size()
+	if setter, ok := overlay.(CanvasParamSetter); ok {
+		setter.SetCanvasParams(g.runtimeOverlayCanvasParams(w, h))
+	}
+	// Path 1 skeleton (M0.1). The gogpu/ui widget host (M2.3) replaces this
+	// body: draw HUD/console/menu surfaces, then composite the widget canvas.
+	// Until then path 1 renders nothing extra over the cleared surface,
+	// which is safe: the legacy overlay call is bypassed entirely.
 }
 
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {

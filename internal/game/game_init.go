@@ -20,6 +20,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	rworld "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/darkliquid/ironwail-go/internal/server"
@@ -278,6 +279,7 @@ func (g *Game) initGameHost() error {
 	g.Host.CVar.Register("zoom_speed", "8", cvar.FlagArchive, "Zoom transition speed")
 	g.Host.CVar.Register("scr_printspeed", "8", 0, "Finale/cutscene centerprint reveal speed in characters per second")
 	g.Host.CVar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "Menu background fade alpha")
+	g.Host.CVar.Register(quakeui.CvarUIBackend, "0", cvar.FlagNone, "UI render backend (0=legacy, 1=gogpu/ui)")
 	g.Host.CVar.Register("con_notifyfade", "0", cvar.FlagArchive, "Enable notify-style fade tail for centerprints")
 	g.Host.CVar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "Centerprint fade-tail duration in seconds when con_notifyfade is enabled")
 	crosshair := g.Host.CVar.Register("crosshair", "0", cvar.FlagArchive, "Crosshair style (0=off, 1='+', >1=dot, <0=custom char index)")
