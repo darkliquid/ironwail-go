@@ -14,6 +14,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	quakeconsole "github.com/darkliquid/ironwail-go/internal/quakeui/console"
+	quakehud "github.com/darkliquid/ironwail-go/internal/quakeui/hud"
 	quakemenu "github.com/darkliquid/ironwail-go/internal/quakeui/menu"
 	"github.com/darkliquid/ironwail-go/internal/quakeui/widgets"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
@@ -333,14 +334,15 @@ func (g *Game) drawRuntimeOverlayFrameGogpuUI(overlay renderer.RenderContext) {
 
 // syncUIHostRoot sets the gogpu/ui host root to match the active surface
 // (spec §3.2, ADR-0002). Console takes priority over menu (console forced-up
-// at boot); menu next; otherwise the root is cleared so the host draws
-// nothing extra (HUD widget lands in M5).
+// at boot); menu next; then the HUD when in-game. Otherwise the root is
+// cleared so the host draws nothing extra.
 func (g *Game) syncUIHostRoot() {
 	if g.UIHost == nil {
 		return
 	}
 	consoleActive := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 	menuActive := g.Menu != nil && g.Menu.IsActive()
+	inGame := g.Server != nil && g.Server.Active
 
 	switch {
 	case consoleActive:
@@ -354,6 +356,13 @@ func (g *Game) syncUIHostRoot() {
 			g.menuRoot.SetCVars(g.Host.CVar)
 		}
 		g.UIHost.SetRoot(g.menuRoot)
+	case inGame && g.HUD != nil:
+		if g.hudRoot == nil {
+			g.hudRoot = quakehud.NewStatusBarWidget(g.HUD.State(), g.HUD.Style(), g.quakeUIText())
+		} else {
+			g.hudRoot.SetState(g.HUD.State())
+		}
+		g.UIHost.SetRoot(g.hudRoot)
 	default:
 		if g.UIHost.App().Window().Root() != nil {
 			g.UIHost.SetRoot(nil)

@@ -22,6 +22,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	quakeconsole "github.com/darkliquid/ironwail-go/internal/quakeui/console"
+	quakehud "github.com/darkliquid/ironwail-go/internal/quakeui/hud"
 	quakemenu "github.com/darkliquid/ironwail-go/internal/quakeui/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
@@ -62,6 +63,9 @@ type Game struct {
 	// consoleRoot is the gogpu/ui console widget (path 1). It is set as the
 	// host root when the console is active (spec §3.2, M4.1).
 	consoleRoot *quakeconsole.ConsoleWidget
+	// hudRoot is the gogpu/ui HUD status bar widget (path 1). It is set as
+	// the host root when in-game with no console/menu active (spec §3.2, M5.1).
+	hudRoot *quakehud.StatusBarWidget
 
 	MouseGrabbed      bool
 	AliasModelCache   map[string]*model.Model
