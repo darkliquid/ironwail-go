@@ -20,6 +20,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
@@ -47,6 +48,12 @@ type Game struct {
 	Draw  *draw.Manager
 	HUD   *hud.HUD
 	Audio *audio.AudioAdapter
+
+	// UIHost is the gogpu/ui widget host (path 1, ui_backend=1). It is nil
+	// until the renderer is created, and nil on the legacy path (ui_backend=0).
+	// The host runs inside the engine frame: Frame() + DrawTo() per frame
+	// (spec §3.1, ADR-0002).
+	UIHost *quakeui.Host
 
 	MouseGrabbed      bool
 	AliasModelCache   map[string]*model.Model

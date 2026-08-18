@@ -367,6 +367,17 @@ func (dc *DrawContext) SurfaceView() any {
 	return dc.ctx.SurfaceView()
 }
 
+// GogpuContext returns the underlying gogpu rendering context for this frame.
+// It is used by the quakeui host to composite the gogpu/ui widget canvas onto
+// the engine surface (ADR-0002): the context's RenderTarget() satisfies the
+// ggcanvas.RenderTarget interface.
+func (dc *DrawContext) GogpuContext() *gogpu.Context {
+	if dc == nil {
+		return nil
+	}
+	return dc.ctx
+}
+
 // Gamma returns the current gamma correction value.
 func (dc *DrawContext) Gamma() float32 {
 	return dc.gamma

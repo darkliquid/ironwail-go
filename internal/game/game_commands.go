@@ -421,6 +421,10 @@ func (g *Game) restartVideo() error {
 			backend.Shutdown()
 		}
 	}
+	if g.UIHost != nil {
+		g.UIHost.Close()
+		g.UIHost = nil
+	}
 	g.Renderer.Shutdown()
 
 	if err := g.initGameRenderer(); err != nil {

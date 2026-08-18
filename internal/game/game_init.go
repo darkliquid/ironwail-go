@@ -502,6 +502,13 @@ func (g *Game) initGameRenderer() error {
 	}
 	g.Renderer = tr
 
+	// Construct the gogpu/ui host (path 1). It is created eagerly so a
+// ui_backend toggle mid-session can switch to the widget tree without a
+// re-init; the host only draws when ui_backend=1 (spec §5.1, ADR-0002).
+	g.UIHost = quakeui.NewHost(quakeui.HostOptions{
+		Provider: tr.GPUContextProvider(),
+	})
+
 	return nil
 }
 

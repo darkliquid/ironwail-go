@@ -14,6 +14,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
+	"github.com/gogpu/gogpu"
 )
 
 type runtimeRendererLoopResult struct {
@@ -303,10 +304,25 @@ func (g *Game) drawRuntimeOverlayFrameGogpuUI(overlay renderer.RenderContext) {
 	if setter, ok := overlay.(CanvasParamSetter); ok {
 		setter.SetCanvasParams(g.runtimeOverlayCanvasParams(w, h))
 	}
-	// Path 1 skeleton (M0.1). The gogpu/ui widget host (M2.3) replaces this
-	// body: draw HUD/console/menu surfaces, then composite the widget canvas.
-	// Until then path 1 renders nothing extra over the cleared surface,
-	// which is safe: the legacy overlay call is bypassed entirely.
+
+	// Path 1: run the gogpu/ui widget host (spec §5.1, ADR-0002). The host
+	// draws the active surface(s) into its widget canvas and composites the
+	// result onto the engine surface via the gogpu.ContextRenderTarget.
+	if g.UIHost == nil {
+		return
+	}
+
+	// Set the root per active surface (spec §3.2). Until the M3/M4/M5 widgets
+	// land, path 1 renders an empty root (a no-op widget tree) so the engine
+	// boots and toggles cleanly without panics.
+	g.UIHost.Frame()
+	if dc, ok := overlay.(interface{ GogpuContext() *gogpu.Context }); ok {
+		if ctx := dc.GogpuContext(); ctx != nil {
+			if err := g.UIHost.DrawTo(ctx.RenderTarget()); err != nil {
+				slog.Debug("quakeui DrawTo", "error", err)
+			}
+		}
+	}
 }
 
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
