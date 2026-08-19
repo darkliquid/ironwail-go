@@ -10,16 +10,9 @@ import (
 	"time"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/input"
-	"github.com/darkliquid/ironwail-go/internal/quakeui"
-	quakeconsole "github.com/darkliquid/ironwail-go/internal/quakeui/console"
-	quakehud "github.com/darkliquid/ironwail-go/internal/quakeui/hud"
-	quakemenu "github.com/darkliquid/ironwail-go/internal/quakeui/menu"
-	"github.com/darkliquid/ironwail-go/internal/quakeui/widgets"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
-	"github.com/gogpu/gogpu"
 )
 
 type runtimeRendererLoopResult struct {
@@ -289,119 +282,12 @@ func (g *Game) drawRuntimeRendererFrame(dc renderer.RenderContext) {
 	if drawCtx, ok := dc.(*renderer.DrawContext); ok {
 		state := g.buildRuntimeRenderFrameState(brushEntities, aliasEntities, spriteEntities, viewModel)
 		drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
-			if quakeui.IsGogpuUIPath(g.Host.CVar) {
-				// Path 1: gogpu/ui widget tree (spec §3.3). The host draws
-				// every surface (HUD, console, menu) into a widget canvas and
-				// composites it onto the engine surface.
-				g.drawRuntimeOverlayFrameGogpuUI(overlay)
-				return
-			}
 			g.drawRuntimeOverlayFrame(overlay)
 		})
 		return
 	}
 
 	g.drawRuntimeFallbackFrame(dc)
-}
-
-func (g *Game) drawRuntimeOverlayFrameGogpuUI(overlay renderer.RenderContext) {
-	w, h := g.Renderer.Size()
-	if setter, ok := overlay.(CanvasParamSetter); ok {
-		setter.SetCanvasParams(g.runtimeOverlayCanvasParams(w, h))
-	}
-
-	// Path 1: run the gogpu/ui widget host (spec §5.1, ADR-0002). The host
-	// draws the active surface(s) into its widget canvas and composites the
-	// result onto the engine surface via the gogpu.ContextRenderTarget.
-	if g.UIHost == nil {
-		return
-	}
-
-	// Set the root per active surface (spec §3.2). The menu widget is set as
-	// the host root when the menu is active; otherwise the host keeps an empty
-	// root (HUD/console widgets land in M4/M5).
-	g.syncUIHostRoot()
-
-	// CSQC fallback (AC7, spec §1.2): when a mod's CSQC_DrawHud draws, the
-	// HUD falls back to the legacy CSQC canvas path (drawn here, before the
-	// widget composite) and the HUD widget is hidden by syncUIHostRoot.
-	if g.CSQC != nil && g.CSQC.IsLoaded() {
-		showScores := g.ShowScores && g.Client != nil && g.Client.MaxClients > 1
-		g.drawRuntimeCSQCHUD(overlay, showScores)
-	}
-
-	g.UIHost.Frame()
-	if dc, ok := overlay.(interface{ GogpuContext() *gogpu.Context }); ok {
-		if ctx := dc.GogpuContext(); ctx != nil {
-			if err := g.UIHost.DrawTo(ctx.RenderTarget()); err != nil {
-				slog.Debug("quakeui DrawTo", "error", err)
-			}
-		}
-	}
-}
-
-// syncUIHostRoot sets the gogpu/ui host root to the stacked surface tree
-// (ADR-0002, G.14): HUD (bottom), menu, console (top). Surface visibility is
-// toggled per frame so overlapping surfaces (console forced-up over menu at
-// boot, menu over frozen world + HUD) are layered, not mutually exclusive.
-func (g *Game) syncUIHostRoot() {
-	if g.UIHost == nil {
-		return
-	}
-	consoleActive := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
-	menuActive := g.Menu != nil && g.Menu.IsActive()
-	inGame := g.Server != nil && g.Server.Active
-
-	// Build the surface widgets lazily.
-	if g.HUD != nil {
-		if g.hudRoot == nil {
-			g.hudRoot = quakehud.NewStatusBarWidget(g.HUD.State(), g.HUD.Style(), g.quakeUIText())
-		} else {
-			g.hudRoot.SetState(g.HUD.State())
-		}
-	}
-	if g.menuRoot == nil {
-		g.menuRoot = quakemenu.NewMenuRoot(g.Menu, g.quakeUIText())
-		g.menuRoot.SetCVars(g.Host.CVar)
-	}
-	if g.consoleRoot == nil {
-		g.consoleRoot = quakeconsole.NewConsoleWidget(console.Global(), g.quakeUIText())
-	}
-
-	// Build the stack once; toggle surface visibility per frame.
-	if g.uiStack == nil {
-		g.uiStack = quakeui.NewStack(g.hudRoot, g.menuRoot, g.consoleRoot)
-		g.UIHost.SetRoot(g.uiStack)
-	}
-
-	// CSQC fallback (AC7, spec §1.2): when a mod's CSQC_DrawHud draws, the
-	// HUD falls back to the legacy CSQC canvas path and the HUD widget is
-	// hidden. Menu and console stay on the widget path.
-	csqcHUD := g.csqcHUDWidgetHidden()
-	if g.hudRoot != nil {
-		g.hudRoot.SetVisible(inGame && g.HUD != nil && !csqcHUD)
-	}
-	g.menuRoot.SetVisible(menuActive)
-	g.consoleRoot.SetVisible(consoleActive)
-}
-
-// csqcHUDWidgetHidden reports whether the path-1 HUD widget should be hidden
-// because a CSQC mod owns the HUD (AC7, spec §1.2): when CSQC progs are
-// loaded, the HUD falls back to the legacy CSQC canvas path.
-func (g *Game) csqcHUDWidgetHidden() bool {
-	return g.CSQC != nil && g.CSQC.IsLoaded()
-}
-
-// quakeUIText builds the QuakeText widget used by the path-1 UI, backed by
-// the engine's conchars atlas and palette.
-func (g *Game) quakeUIText() *widgets.QuakeText {
-	var conchars []byte
-	var palette []byte
-	if g.Draw != nil {
-		conchars = g.Draw.ConcharsData()
-		palette = g.Draw.Palette()
-	}
-	return widgets.NewQuakeText(conchars, palette)
 }
 
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {

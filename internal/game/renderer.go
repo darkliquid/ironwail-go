@@ -5,7 +5,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
-	"github.com/gogpu/gpucontext"
 )
 
 // RendererFrameLoop defines frame-level rendering callbacks.
@@ -51,15 +50,6 @@ type RendererInput interface {
 	InputBackendForSystem(*input.System) input.Backend
 }
 
-// RendererUI defines the gogpu/ui integration surface (path 1). The provider
-// wires the quakeui host to the engine's gogpu.App (ADR-0002).
-type RendererUI interface {
-	// GPUContextProvider returns the gogpu GPU context provider for external
-	// libraries (gg, gogpu/ui). It satisfies gpucontext.DeviceProvider and
-	// also WindowProvider/PlatformProvider.
-	GPUContextProvider() gpucontext.DeviceProvider
-}
-
 // Renderer is the composite interface for all renderer functionality.
 type Renderer interface {
 	RendererFrameLoop
@@ -67,7 +57,6 @@ type Renderer interface {
 	RendererWorld
 	RendererLights
 	RendererInput
-	RendererUI
 }
 
 // CanvasParamSetter allows setting canvas transformation parameters.

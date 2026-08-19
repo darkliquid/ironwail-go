@@ -20,12 +20,10 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/qc"
-	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	rworld "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/darkliquid/ironwail-go/internal/server"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
-	"github.com/gogpu/gpucontext"
 )
 
 type globalConsoleAdapter struct{}
@@ -280,7 +278,7 @@ func (g *Game) initGameHost() error {
 	g.Host.CVar.Register("zoom_speed", "8", cvar.FlagArchive, "Zoom transition speed")
 	g.Host.CVar.Register("scr_printspeed", "8", 0, "Finale/cutscene centerprint reveal speed in characters per second")
 	g.Host.CVar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "Menu background fade alpha")
-	g.Host.CVar.Register(quakeui.CvarUIBackend, "0", cvar.FlagNone, "UI render backend (0=legacy, 1=gogpu/ui)")
+	g.Host.CVar.Register("ui_backend", "0", cvar.FlagNone, "UI render backend (0=legacy, 1=gogpu/ui)")
 	g.Host.CVar.Register("con_notifyfade", "0", cvar.FlagArchive, "Enable notify-style fade tail for centerprints")
 	g.Host.CVar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "Centerprint fade-tail duration in seconds when con_notifyfade is enabled")
 	crosshair := g.Host.CVar.Register("crosshair", "0", cvar.FlagArchive, "Crosshair style (0=off, 1='+', >1=dot, <0=custom char index)")
@@ -503,38 +501,7 @@ func (g *Game) initGameRenderer() error {
 	}
 	g.Renderer = tr
 
-	// Construct the gogpu/ui host (path 1). It is created eagerly so a
-// ui_backend toggle mid-session can switch to the widget tree without a
-// re-init; the host only draws when ui_backend=1 (spec §5.1, ADR-0002).
-	gw := quakeui.NewGateway(g.Input)
-	g.UIHost = quakeui.NewHost(quakeui.HostOptions{
-		// The gogpu GPU provider is only available after the app renderer
-		// initializes (during Run), so resolve it lazily per frame.
-		ProviderFunc: func() gpucontext.DeviceProvider {
-			if g.Renderer == nil {
-				return nil
-			}
-			return g.Renderer.GPUContextProvider()
-		},
-		Gateway: gw,
-	})
-	g.wireUIHostInput()
-
 	return nil
-}
-
-// wireUIHostInput registers the quakeui gateway as the raw input sink on the
-// engine's input system (ADR-0003). The gateway receives every raw key/char
-// event before the engine routes them, and forwards them into the gogpu/ui
-// tree when a ui surface is active (KeyConsole/KeyMenu). The engine's routing
-// and latching stay authoritative and untouched.
-func (g *Game) wireUIHostInput() {
-	if g.Input == nil || g.UIHost == nil || g.UIHost.Gateway() == nil {
-		return
-	}
-	gw := g.UIHost.Gateway()
-	g.Input.OnRawKey = gw.FeedEngineKeyEvent
-	g.Input.OnRawChar = gw.FeedEngineCharEvent
 }
 
 func (g *Game) preferWaylandForGoGPU() {

@@ -20,10 +20,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/qc"
-	"github.com/darkliquid/ironwail-go/internal/quakeui"
-	quakeconsole "github.com/darkliquid/ironwail-go/internal/quakeui/console"
-	quakehud "github.com/darkliquid/ironwail-go/internal/quakeui/hud"
-	quakemenu "github.com/darkliquid/ironwail-go/internal/quakeui/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
@@ -51,25 +47,6 @@ type Game struct {
 	Draw  *draw.Manager
 	HUD   *hud.HUD
 	Audio *audio.AudioAdapter
-
-	// UIHost is the gogpu/ui widget host (path 1, ui_backend=1). It is nil
-	// until the renderer is created, and nil on the legacy path (ui_backend=0).
-	// The host runs inside the engine frame: Frame() + DrawTo() per frame
-	// (spec §3.1, ADR-0002).
-	UIHost *quakeui.Host
-	// menuRoot is the gogpu/ui menu widget (path 1). It is set as the host
-	// root when the menu is active (spec §3.2, M3.2).
-	menuRoot *quakemenu.MenuRoot
-	// consoleRoot is the gogpu/ui console widget (path 1). It is set as the
-	// host root when the console is active (spec §3.2, M4.1).
-	consoleRoot *quakeconsole.ConsoleWidget
-	// hudRoot is the gogpu/ui HUD status bar widget (path 1). It is set as
-	// the host root when in-game with no console/menu active (spec §3.2, M5.1).
-	hudRoot *quakehud.StatusBarWidget
-	// uiStack is the stacked root containing HUD (bottom), menu, and console
-	// (top) for path 1 (ADR-0002, G.14). Surface visibility is toggled per
-	// frame; overlapping surfaces are layered, not mutually exclusive.
-	uiStack *quakeui.Stack
 
 	MouseGrabbed      bool
 	AliasModelCache   map[string]*model.Model

@@ -16,7 +16,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer/pipeline"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/input"
-	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -27,17 +26,6 @@ func (r *Renderer) DeviceProvider() gogpu.DeviceProvider {
 		return nil
 	}
 	return r.app.DeviceProvider()
-}
-
-// GPUContextProvider returns the gogpu GPU context provider for external
-// libraries (gg, gogpu/ui). It satisfies gpucontext.DeviceProvider and also
-// gpucontext.WindowProvider/PlatformProvider, so the quakeui host can wire
-// the gogpu/ui app to the engine's window and surface (ADR-0002).
-func (r *Renderer) GPUContextProvider() gpucontext.DeviceProvider {
-	if r == nil || r.app == nil {
-		return nil
-	}
-	return r.app.GPUContextProvider()
 }
 
 func New() (*Renderer, error) {

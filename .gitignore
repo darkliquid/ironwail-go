@@ -90,7 +90,3 @@ gha-creds-*.json
 # AI-DLC lifecycle skill
 !/.agents/skills/ai-dlc/
 !/.agents/skills/ai-dlc/*.md
-
-# quakeui spike/research notes
-!/internal/quakeui/notes/
-!/internal/quakeui/notes/*.md
