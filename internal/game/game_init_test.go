@@ -18,6 +18,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
 	"github.com/darkliquid/ironwail-go/pkg/types"
+	"github.com/gogpu/gogpu"
+	"github.com/gogpu/gpucontext"
 )
 
 type registrationModeTestFS struct {
@@ -479,6 +481,8 @@ func (reloadTestRenderer) SpawnKeyedDynamicLight(renderer.DynamicLight) bool { r
 func (reloadTestRenderer) UpdateLights(float32)                              {}
 func (reloadTestRenderer) ClearDynamicLights()                               {}
 func (reloadTestRenderer) InputBackendForSystem(*input.System) input.Backend { return nil }
+func (reloadTestRenderer) GogpuApp() *gogpu.App                              { return nil }
+func (reloadTestRenderer) RenderWorldIntoView(gpucontext.TextureView) error    { return nil }
 
 func TestRuntimeMenuModsUsesCurrentSubsystemFilesystem(t *testing.T) {
 	g := New()

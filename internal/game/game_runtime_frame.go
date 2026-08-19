@@ -11,6 +11,7 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/quakui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
@@ -93,7 +94,14 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 		g.StartWasmRendererFrameLoop()
 		select {}
 	}
-	runErr := g.Renderer.Run()
+	var runErr error
+	if quakui.IsGogpuUIPath(g.Host.CVar) && runtime.GOOS != "js" {
+		// ui_backend=1: gogpu/ui owns the loop via desktop.Run (ADR-0006).
+		// The world renders into a gpuview texture; the UI composites above.
+		runErr = g.runQuakuiLoop()
+	} else {
+		runErr = g.Renderer.Run()
+	}
 	if runErr != nil {
 		if g.Renderer != nil {
 			g.Renderer.Stop()
@@ -114,6 +122,17 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 		result.ScreenshotErr = state.screenshotErr
 	}
 	return result, nil
+}
+
+// runQuakuiLoop boots the gogpu/ui path (ui_backend=1): desktop.Run owns the
+// window render loop, the world renders into a gpuview texture via the quakui
+// Host, and the UI composites above (ADR-0006, research 0006). It blocks until
+// the loop exits.
+func (g *Game) runQuakuiLoop() error {
+	host := &quakuiHost{g: g}
+	w, h := g.Renderer.Size()
+	root := quakui.NewWorldTexture(host, w, h)
+	return quakui.Run(host, root)
 }
 
 func (g *Game) prepareRuntimeRendererScreenshot(screenshotMode bool) {

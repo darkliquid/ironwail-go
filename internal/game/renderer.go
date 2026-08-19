@@ -5,6 +5,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
+	"github.com/gogpu/gogpu"
+	"github.com/gogpu/gpucontext"
 )
 
 // RendererFrameLoop defines frame-level rendering callbacks.
@@ -50,6 +52,17 @@ type RendererInput interface {
 	InputBackendForSystem(*input.System) input.Backend
 }
 
+// RendererGPUView defines the gogpu/ui world-texture integration surface
+// (ADR-0009): the engine exposes its gogpu.App (desktop.Run's loop owner) and
+// can render the world into a gpuview texture view (M1.4b). The quakui Host
+// routes to these using gogpu/gpucontext types only.
+type RendererGPUView interface {
+	// GogpuApp returns the underlying gogpu application.
+	GogpuApp() *gogpu.App
+	// RenderWorldIntoView renders the world into an offscreen gpuview texture.
+	RenderWorldIntoView(gpucontext.TextureView) error
+}
+
 // Renderer is the composite interface for all renderer functionality.
 type Renderer interface {
 	RendererFrameLoop
@@ -57,6 +70,7 @@ type Renderer interface {
 	RendererWorld
 	RendererLights
 	RendererInput
+	RendererGPUView
 }
 
 // CanvasParamSetter allows setting canvas transformation parameters.
