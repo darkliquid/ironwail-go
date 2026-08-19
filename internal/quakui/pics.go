@@ -2,10 +2,9 @@ package quakui
 
 import (
 	"image"
-	"image/color"
 
-	"github.com/darkliquid/ironwail-go/internal/draw"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
 )
 
 // QPicToImage converts a palette-indexed Quake QPic into an RGBA image
@@ -15,33 +14,18 @@ import (
 // A nil palette falls back to the standard Quake palette so callers can
 // bridge pics before the draw manager is initialized.
 func QPicToImage(pic *qimage.QPic, palette []byte) *image.RGBA {
-	if pic == nil {
-		return nil
-	}
-	if len(palette) < 768 {
-		palette = draw.DefaultQuakePalette()
-	}
+	return gfx.QPicToImage(pic, palette)
+}
 
-	w := int(pic.Width)
-	h := int(pic.Height)
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for i, idx := range pic.Pixels {
-		if i >= w*h {
-			break
-		}
-		var c color.RGBA
-		if idx == 255 {
-			c = color.RGBA{A: 0}
-		} else {
-			off := int(idx) * 3
-			c = color.RGBA{
-				R: palette[off],
-				G: palette[off+1],
-				B: palette[off+2],
-				A: 255,
-			}
-		}
-		img.Set(i%w, i/w, c)
-	}
-	return img
+// ConcharsAtlas is the conchars bitmap font as an RGBA atlas (128x128,
+// 16x16 grid of 8x8 glyphs). Palette index 0 is transparent (Quake
+// console-font convention); glyph cells fall at col*8, row*8 for char
+// index (col = index%16, row = index/16). Text is drawn per-glyph via
+// GlyphImage SubImage views (ADR-0008 — no TTF for menu text).
+type ConcharsAtlas = gfx.ConcharsAtlas
+
+// NewConcharsAtlas builds the atlas from the raw 128x128 indexed conchars
+// pixels and the 768-byte Quake palette. Returns nil for a nil/short buffer.
+func NewConcharsAtlas(conchars []byte, palette []byte) *ConcharsAtlas {
+	return gfx.NewConcharsAtlas(conchars, palette)
 }

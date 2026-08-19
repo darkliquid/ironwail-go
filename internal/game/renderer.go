@@ -60,7 +60,7 @@ type RendererGPUView interface {
 	// GogpuApp returns the underlying gogpu application.
 	GogpuApp() *gogpu.App
 	// RenderWorldIntoView renders the world into an offscreen gpuview texture.
-	RenderWorldIntoView(gpucontext.TextureView) error
+	RenderWorldIntoView(gpucontext.TextureView, *renderer.RenderFrameState) error
 }
 
 // Renderer is the composite interface for all renderer functionality.

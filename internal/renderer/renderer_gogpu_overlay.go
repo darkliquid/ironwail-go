@@ -54,20 +54,13 @@ func (dc *DrawContext) flush2DOverlayWithDraw(doDraw bool) {
 	// Reuse cached GPU texture if dimensions match.
 	if r.overlayTexture != nil && r.overlayTextureWidth == ov.width && r.overlayTextureHeight == ov.height {
 		tex := r.overlayTexture
-		uploadPixels := r.overlayUploadRegionPixelsLocked(ov.pixels, ov.width, uploadRect)
 		r.overlayTextureDirtyX = currentDirty.x
 		r.overlayTextureDirtyY = currentDirty.y
 		r.overlayTextureDirtyW = currentDirty.w
 		r.overlayTextureDirtyH = currentDirty.h
 		r.overlayTextureDirtyValid = true
 		r.mu.Unlock()
-		var err error
-		if uploadRect.x == 0 && uploadRect.y == 0 && uploadRect.w == ov.width && uploadRect.h == ov.height {
-			err = tex.UpdateData(ov.pixels)
-		} else {
-			err = tex.UpdateRegion(uploadRect.x, uploadRect.y, uploadRect.w, uploadRect.h, uploadPixels)
-		}
-		if err != nil {
+		if err := tex.UpdateData(ov.pixels); err != nil {
 			slog.Error("flush2DOverlay: texture update failed", "error", err)
 			dc.overlay = nil
 			return
@@ -341,6 +334,9 @@ func (r *Renderer) overlayUploadRegionPixelsLocked(src []byte, srcWidth int, rec
 // In Quake, the clear color is typically a dark gray or black,
 // but can be adjusted for different visual effects.
 func (dc *DrawContext) Clear(r, g, b, a float32) {
+	if dc == nil || dc.ctx == nil {
+		return
+	}
 	// Use gogpu's proper clear operation
 	// Convert to gmath.Color at the gogpu API boundary.
 	dc.ctx.ClearColor(gmath.Color{R: r, G: g, B: b, A: a})

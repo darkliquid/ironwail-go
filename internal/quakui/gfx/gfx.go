@@ -1,10 +1,57 @@
-package quakui
+// Package gfx provides the Quake graphics bridges shared by the quakui parent
+// package and its widget subpackages (menu, console, hud): palette-indexed
+// QPic -> RGBA conversion and the conchars bitmap atlas (ADR-0008, spec §4.3).
+//
+// It is a leaf package so the quakui widget subpackages can use the bridges
+// without importing the quakui parent (which would create an import cycle).
+// The parent package re-exports these for backward compatibility.
+package gfx
 
 import (
 	"image"
+	"image/color"
 
 	"github.com/darkliquid/ironwail-go/internal/draw"
+	qimage "github.com/darkliquid/ironwail-go/internal/image"
 )
+
+// QPicToImage converts a palette-indexed Quake QPic into an RGBA image
+// suitable for canvas.DrawImage (ADR-0008, spec §4.3). Palette index 255 is
+// treated as fully transparent, matching Quake's masked-pic convention.
+//
+// A nil palette falls back to the standard Quake palette so callers can
+// bridge pics before the draw manager is initialized.
+func QPicToImage(pic *qimage.QPic, palette []byte) *image.RGBA {
+	if pic == nil {
+		return nil
+	}
+	if len(palette) < 768 {
+		palette = draw.DefaultQuakePalette()
+	}
+
+	w := int(pic.Width)
+	h := int(pic.Height)
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for i, idx := range pic.Pixels {
+		if i >= w*h {
+			break
+		}
+		var c color.RGBA
+		if idx == 255 {
+			c = color.RGBA{A: 0}
+		} else {
+			off := int(idx) * 3
+			c = color.RGBA{
+				R: palette[off],
+				G: palette[off+1],
+				B: palette[off+2],
+				A: 255,
+			}
+		}
+		img.Set(i%w, i/w, c)
+	}
+	return img
+}
 
 // ConcharsAtlas is the conchars bitmap font as an RGBA atlas (128x128,
 // 16x16 grid of 8x8 glyphs). Palette index 0 is transparent (Quake

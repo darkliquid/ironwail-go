@@ -435,6 +435,10 @@ func (dc *DrawContext) enableSceneRenderTarget() bool {
 	if dc == nil || dc.renderer == nil {
 		return false
 	}
+	// If an external render target is already active (e.g. gpuview texture), preserve it.
+	if dc.sceneRenderActive && dc.sceneRenderTarget != nil {
+		return false
+	}
 	device := dc.renderer.getWGPUDevice()
 	if device == nil {
 		return false

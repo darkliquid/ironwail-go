@@ -44,7 +44,7 @@ func (h *quakuiHost) RenderFrame() error {
 	if h == nil || h.g == nil || h.g.Renderer == nil || h.view.IsNil() {
 		return nil
 	}
-	return h.g.Renderer.RenderWorldIntoView(h.view)
+	return h.g.drawRuntimeWorldToView(h.view)
 }
 
 // CVar reads an engine cvar as a plain float.
@@ -68,6 +68,17 @@ func (h *quakuiHost) KeyDest() quakui.KeyDest {
 		return quakui.KeyDestMenu
 	}
 	return quakui.KeyDestGame
+}
+
+// AttachKeyForwarder stores the ui-facing Forwarder the engine's KeyDest
+// router uses to push menu/console input into the ui widget tree (M1.5,
+// ADR-0007). The engine routes via h.g.uiInput; game/HUD-only input never
+// reaches the ui (fallthrough).
+func (h *quakuiHost) AttachKeyForwarder(f quakui.Forwarder) {
+	if h == nil || h.g == nil {
+		return
+	}
+	h.g.uiInput = f
 }
 
 // ExecuteCommandText queues an engine console command.

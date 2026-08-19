@@ -1,9 +1,22 @@
 package quakui
 
 import (
+	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gpucontext"
 )
+
+// Forwarder is the engine-facing input route into the ui widget tree (M1.5,
+// ADR-0007). The engine calls ForwardKey/ForwardChar for menu/console input it
+// decides the ui should see; gameplay/HUD-only input never reaches it. KeyForwarder
+// is the concrete production implementation; tests substitute a recording stub.
+// The interface stays in quakui so the engine (internal/game) depends only on
+// the narrow route, not the gogpu/ui event translation details.
+type Forwarder interface {
+	ForwardKey(ev input.KeyEvent, mods input.ModifierState)
+	ForwardChar(r rune, mods input.ModifierState)
+	ForwardText(text string, mods input.ModifierState)
+}
 
 // KeyDest mirrors the engine's input routing destination as a plain enum so
 // the adapter does not import internal/input (ADR-0009 isolation boundary).
@@ -60,4 +73,10 @@ type Host interface {
 
 	// Quit requests a clean engine shutdown from the ui loop.
 	Quit()
+
+	// AttachKeyForwarder hands the ui's Forwarder to the host so the engine
+	// can push translated menu/console input into the ui widget tree (M1.5,
+	// ADR-0007). Called by quakui.Run after it builds the ui app; the engine
+	// stores it and routes KeyDest events through it. No-op on the legacy path.
+	AttachKeyForwarder(f Forwarder)
 }

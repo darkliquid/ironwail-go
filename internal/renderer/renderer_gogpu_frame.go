@@ -155,9 +155,11 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	var overlayMS float64
 
 	slog.Debug("RenderFrame called", "draw_world", state.DrawWorld, "draw_particles", state.DrawParticles, "draw_2d_overlay", state.Draw2DOverlay)
-	slog.Debug("RenderFrame: surface view (start)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
-	if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
-		slog.Debug("RenderFrame: gogpu frame state (start)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
+	if dc.ctx != nil {
+		slog.Debug("RenderFrame: surface view (start)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
+		if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
+			slog.Debug("RenderFrame: gogpu frame state (start)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
+		}
 	}
 
 	// Phase 1: Clear screen
@@ -166,15 +168,14 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	sceneTargetActive := dc.shouldUseSceneRenderTarget(state) && dc.enableSceneRenderTarget()
 	dc.renderer.resetUniformBuffer()
 	phaseBegin()
-	if !state.DrawWorld && !sceneTargetActive {
-		// When the in-game menu is up without an active world pass, preserve the
-		// previously rendered scene behind the menu instead of force-clearing to black.
-		// This matches Quake-style "menu over frozen gameplay" behavior.
-		if !state.MenuActive {
+	if !state.DrawWorld {
+		if dc.sceneRenderActive && dc.sceneRenderTarget != nil {
+			dc.clearCurrentHALRenderTarget(state.ClearColor)
+		} else if sceneTargetActive {
+			dc.clearCurrentHALRenderTarget(state.ClearColor)
+		} else if !state.MenuActive {
 			dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
 		}
-	} else if sceneTargetActive && !state.DrawWorld {
-		dc.clearCurrentHALRenderTarget(state.ClearColor)
 	}
 	phaseEnd(&clearMS)
 
@@ -188,13 +189,15 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		phaseBegin()
 		dc.renderWorld(state)
 		phaseEnd(&worldMS)
-		slog.Debug("RenderFrame: surface view (after world)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
-		if !sceneTargetActive && dc.markGoGPUFrameContentForOverlay() {
+		if dc.ctx != nil {
+			slog.Debug("RenderFrame: surface view (after world)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
+		}
+		if !sceneTargetActive && !dc.sceneRenderActive && dc.markGoGPUFrameContentForOverlay() {
 			slog.Debug("RenderFrame: marked gogpu frame as pre-populated (HAL world rendered)")
 			if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
 				slog.Debug("RenderFrame: gogpu frame state (after mark)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
 			}
-		} else if !sceneTargetActive {
+		} else if !sceneTargetActive && !dc.sceneRenderActive && dc.ctx != nil {
 			slog.Warn("RenderFrame: unable to mark gogpu frame state; first 2D draw may clear world")
 		}
 	}
@@ -254,9 +257,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		incrementSceneDraws()
 		phaseBegin()
 		if dc.compositeSceneRenderTarget(state.WaterWarp, state.WaterWarpTime, state.ClearColor) {
-			if dc.markGoGPUFrameContentForOverlay() {
+			if !dc.sceneRenderActive && dc.markGoGPUFrameContentForOverlay() {
 				slog.Debug("RenderFrame: marked gogpu frame as pre-populated (scene composite rendered)")
-			} else {
+			} else if !dc.sceneRenderActive {
 				slog.Warn("RenderFrame: unable to mark gogpu frame state after scene composite")
 			}
 		} else {
@@ -432,6 +435,9 @@ func shouldDrawWorldFallbackDots() bool {
 // so the first 2D draw pass uses LoadOpLoad (preserve existing surface content)
 // rather than defaulting to LoadOpClear.
 func (dc *DrawContext) markGoGPUFrameContentForOverlay() bool {
+	if dc == nil || dc.sceneRenderActive {
+		return false
+	}
 	frameClearedField, hasPendingClearField, ok := dc.goGPUFrameStateFields()
 	if !ok {
 		return false

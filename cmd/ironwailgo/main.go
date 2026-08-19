@@ -19,6 +19,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/game"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	_ "github.com/gogpu/gg/gpu"
 )
 
 const (

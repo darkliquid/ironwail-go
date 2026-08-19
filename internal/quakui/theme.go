@@ -25,7 +25,7 @@ func QuakeTheme() *uitheme.Theme {
 	t := uitheme.DefaultDark()
 	t.Name = "quake"
 
-	t.Colors.Background = widget.RGB8(0x00, 0x00, 0x00)    // palette[0]
+	t.Colors.Background = widget.RGBA(0x00, 0x00, 0x00, 0x00) // transparent so compositor reveals world texture below
 	t.Colors.Surface = widget.RGB8(0x3f, 0x3f, 0x3f)       // palette[4]
 	t.Colors.OnSurface = widget.RGB8(0xff, 0xff, 0xff)      // palette[254]
 	t.Colors.Primary = widget.RGB8(0xd7, 0x00, 0x00)        // palette[250]

@@ -38,23 +38,24 @@ func (dc *DrawContext) DisableWorldTexture() {
 }
 
 // RenderWorldIntoView renders the world into the provided gpuview texture
-// view (ADR-0006, research 0006 §4). It runs the world render passes with the
-// gpuview view as the color attachment via the scene-target seam, creating
-// its own command encoder from the engine's raw wgpu device/queue (gogpu's
-// Context is swapchain-scoped and OnDraw-only). Called by the quakui host
-// from the gpuview OnRender callback, outside the engine's OnDraw.
-func (r *Renderer) RenderWorldIntoView(view gpucontext.TextureView) error {
+// view (ADR-0006, research 0006 §4). It runs the world, entity, and post-process
+// render passes with the gpuview view as the color attachment via the
+// scene-target seam. Called by the quakui host from the gpuview OnRender
+// callback, outside the engine's OnDraw.
+func (r *Renderer) RenderWorldIntoView(view gpucontext.TextureView, state *RenderFrameState) error {
 	if r == nil || view.IsNil() {
 		return fmt.Errorf("renderer: RenderWorldIntoView: nil view")
 	}
 	dc := &DrawContext{renderer: r}
-	dc.sceneRenderTarget = (*wgpu.TextureView)(view.Pointer())
-	dc.sceneRenderActive = true
-	if dc.renderer.WorldData() == nil {
-		return nil
+	if err := dc.RenderIntoWorldTexture(view); err != nil {
+		return err
 	}
-	state := DefaultRenderFrameState()
-	state.DrawWorld = true
-	dc.renderWorldInternal(state)
+	if state == nil {
+		state = DefaultRenderFrameState()
+		state.DrawWorld = true
+	}
+	// Suppress 2D legacy overlay in the world texture; quakui composites the UI on top.
+	state.Draw2DOverlay = false
+	dc.RenderFrame(state, nil)
 	return nil
 }

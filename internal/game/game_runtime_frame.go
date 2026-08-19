@@ -12,8 +12,10 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/quakui"
+	quakimenu "github.com/darkliquid/ironwail-go/internal/quakui/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
+	"github.com/gogpu/gpucontext"
 )
 
 type runtimeRendererLoopResult struct {
@@ -131,8 +133,37 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 func (g *Game) runQuakuiLoop() error {
 	host := &quakuiHost{g: g}
 	w, h := g.Renderer.Size()
-	root := quakui.NewWorldTexture(host, w, h)
+	world := quakui.NewWorldTexture(host, w, h)
+
+	// Stack the menu surface over the world texture (spec §3.2). The menu
+	// widget reads the legacy menu.Manager state and renders the active page
+	// with real LMP pics + conchars text (M2.1a, ADR-0008). It is visible only
+	// while the menu is active; otherwise the world shows through.
+	menuRoot := quakimenu.NewMenuRoot(g.Menu, g.Draw, g.quakeUIConchars(), g.quakeUIPalette())
+	root := quakui.NewStack(world, menuRoot)
+
+	// quakui.Run builds the ui app, installs the M1.5 KeyForwarder on the
+	// host (ADR-0007), and hands the loop to desktop.Run. The engine routes
+	// menu/console input into the ui through that forwarder.
 	return quakui.Run(host, root)
+}
+
+// quakeUIConchars returns the engine's conchars atlas bytes for the UI text
+// bridge, or nil if the draw manager is unavailable.
+func (g *Game) quakeUIConchars() []byte {
+	if g.Draw == nil {
+		return nil
+	}
+	return g.Draw.ConcharsData()
+}
+
+// quakeUIPalette returns the engine's 768-byte Quake palette for the UI text
+// bridge, or nil if the draw manager is unavailable.
+func (g *Game) quakeUIPalette() []byte {
+	if g.Draw == nil {
+		return nil
+	}
+	return g.Draw.Palette()
 }
 
 func (g *Game) prepareRuntimeRendererScreenshot(screenshotMode bool) {
@@ -307,6 +338,30 @@ func (g *Game) drawRuntimeRendererFrame(dc renderer.RenderContext) {
 	}
 
 	g.drawRuntimeFallbackFrame(dc)
+}
+
+func (g *Game) drawRuntimeWorldToView(view gpucontext.TextureView) error {
+	if g == nil || g.Renderer == nil || view.IsNil() {
+		return nil
+	}
+	g.ApplyQueuedRendererAssets()
+	origin, angles := g.runtimeViewState()
+	camera := g.runtimeCameraState(origin, angles)
+	g.Renderer.UpdateCamera(camera, 0.1, 65536.0)
+	g.uploadDeferredRuntimeWorld()
+	g.applyRuntimeRendererSkybox(g.Renderer)
+
+	brushEntities := g.collectBrushEntities()
+	aliasEntities := g.collectAliasEntities()
+	spriteEntities := g.collectSpriteEntities()
+	viewModel := g.collectViewModelEntity()
+
+	g.Renderer.PreloadBrushEntities(brushEntities)
+
+	state := g.buildRuntimeRenderFrameState(brushEntities, aliasEntities, spriteEntities, viewModel)
+	state.Draw2DOverlay = false
+
+	return g.Renderer.RenderWorldIntoView(view, state)
 }
 
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {

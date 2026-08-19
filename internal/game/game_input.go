@@ -20,6 +20,27 @@ func (g *Game) pollRuntimeInputEvents() {
 	_ = g.Input.PollEvents()
 }
 
+// forwardUIKey routes an already-KeyDest-decided engine key event into the
+// gogpu/ui widget tree via the M1.5 KeyForwarder (ADR-0007). It is a no-op on
+// the legacy path (g.uiInput nil). The engine also keeps processing menu/
+// console input during M1.x — the quakui menu/console widgets are M2/M3 — so
+// forwarding into the (currently empty) ui tree is harmless; when those
+// widgets land they consume events and the engine's own surface is replaced.
+func (g *Game) forwardUIKey(event input.KeyEvent) {
+	if g.uiInput == nil || g.Input == nil {
+		return
+	}
+	g.uiInput.ForwardKey(event, g.Input.ModifierState())
+}
+
+// forwardUIChar routes an engine character event into the ui widget tree.
+func (g *Game) forwardUIChar(ch rune) {
+	if g.uiInput == nil || g.Input == nil {
+		return
+	}
+	g.uiInput.ForwardChar(ch, g.Input.ModifierState())
+}
+
 func (g *Game) logRuntimeKeyDispatch(path string, event input.KeyEvent) {
 	index := g.inputDispatchLogCount.Add(1)
 	if index > 32 {
@@ -211,7 +232,11 @@ func (g *Game) handleMenuKeyEvent(event input.KeyEvent) {
 		g.cmdToggleConsole(nil)
 		return
 	}
-	g.Menu.M_Key(event.Key)
+	if g.uiInput != nil {
+		g.forwardUIKey(event)
+	} else {
+		g.Menu.M_Key(event.Key)
+	}
 	if g.Input != nil && !g.Menu.IsActive() {
 		g.syncGameplayInputMode()
 		if g.Input.KeyDest() == input.KeyGame {
@@ -224,7 +249,11 @@ func (g *Game) handleMenuCharEvent(ch rune) {
 	if g.Input == nil || g.Input.KeyDest() != input.KeyMenu || g.Menu == nil {
 		return
 	}
-	g.Menu.M_Char(ch)
+	if g.uiInput != nil {
+		g.forwardUIChar(ch)
+	} else {
+		g.Menu.M_Char(ch)
+	}
 }
 
 func (g *Game) handleGameCharEvent(ch rune) {
@@ -237,6 +266,8 @@ func (g *Game) handleGameCharEvent(ch rune) {
 		if ch == '`' {
 			return
 		}
+		// Console captures input: mirror character into the ui (M1.5).
+		g.forwardUIChar(ch)
 		console.AppendInputRune(ch)
 	case input.KeyMessage:
 		// Basic ASCII/Latin filtering, matching Quake's limited text support
@@ -252,6 +283,12 @@ func (g *Game) handleConsoleKeyEvent(event input.KeyEvent) {
 	if !event.Down {
 		return
 	}
+
+	// Console captures input: mirror every console key into the ui widget tree
+	// (M1.5, ADR-0007). During M1.x the ui tree is empty, so the legacy
+	// console state still drives the surface; when the M3 console widget lands
+	// it consumes these in place of the legacy handling below.
+	g.forwardUIKey(event)
 
 	switch event.Key {
 	case input.KEscape, int('`'):

@@ -20,6 +20,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/quakui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
@@ -92,6 +93,13 @@ type Game struct {
 
 	// inputDispatchLogCount caps the verbose input-dispatch log stream.
 	inputDispatchLogCount atomic.Uint32
+
+	// uiInput is the inline-input router installed by the quakui Host on the
+	// ui_backend=1 path (M1.5 / ADR-0007). When non-nil, the engine's KeyDest
+	// router forwards menu/console key and char events into the ui widget
+	// tree; game/HUD-only events remain in the engine (fallthrough). Nil on
+	// the legacy path so the engine never touches the ui input pipeline.
+	uiInput quakui.Forwarder
 
 	// cpuProfile tracks the active CPU profile capture state.
 	cpuProfile cpuProfileState

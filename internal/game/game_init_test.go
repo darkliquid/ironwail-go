@@ -482,7 +482,9 @@ func (reloadTestRenderer) UpdateLights(float32)                              {}
 func (reloadTestRenderer) ClearDynamicLights()                               {}
 func (reloadTestRenderer) InputBackendForSystem(*input.System) input.Backend { return nil }
 func (reloadTestRenderer) GogpuApp() *gogpu.App                              { return nil }
-func (reloadTestRenderer) RenderWorldIntoView(gpucontext.TextureView) error    { return nil }
+func (reloadTestRenderer) RenderWorldIntoView(gpucontext.TextureView, *renderer.RenderFrameState) error {
+	return nil
+}
 
 func TestRuntimeMenuModsUsesCurrentSubsystemFilesystem(t *testing.T) {
 	g := New()

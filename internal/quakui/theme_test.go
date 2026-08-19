@@ -16,8 +16,8 @@ func TestQuakeThemeTokenMapping(t *testing.T) {
 		t.Fatal("QuakeTheme = nil")
 	}
 
-	if th.Colors.Background != widget.RGB8(0x00, 0x00, 0x00) {
-		t.Fatalf("Background = %v, want palette[0] (black)", th.Colors.Background)
+	if th.Colors.Background != widget.RGBA(0x00, 0x00, 0x00, 0x00) {
+		t.Fatalf("Background = %v, want transparent black", th.Colors.Background)
 	}
 	if th.Colors.Surface != widget.RGB8(0x3f, 0x3f, 0x3f) {
 		t.Fatalf("Surface = %v, want palette[4] (0x3f3f3f)", th.Colors.Surface)
