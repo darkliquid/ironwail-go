@@ -15,8 +15,9 @@ import (
 type CenterprintWidget struct {
 	widget.WidgetBase
 
-	cvars *cvar.CVarSystem
-	text  *widgets.QuakeText
+	cvars     *cvar.CVarSystem
+	text      *widgets.QuakeText
+	textValue string
 }
 
 // NewCenterprintWidget builds the centerprint widget from the cvar system
@@ -26,6 +27,14 @@ func NewCenterprintWidget(cvs *cvar.CVarSystem, text *widgets.QuakeText) *Center
 	cw.SetVisible(true)
 	cw.SetEnabled(true)
 	return cw
+}
+
+// SetText sets the message to render (already typewriter-revealed).
+func (cw *CenterprintWidget) SetText(text string) {
+	if cw == nil {
+		return
+	}
+	cw.textValue = text
 }
 
 // RevealedText returns the portion of the center text visible at the given
@@ -88,13 +97,19 @@ func (cw *CenterprintWidget) Layout(ctx widget.Context, c geometry.Constraints) 
 	return size
 }
 
-// Draw renders the revealed message via the QuakeText widget.
+// Draw renders the revealed message via the QuakeText widget, centered
+// horizontally at the legacy centerprint position (y=64).
 func (cw *CenterprintWidget) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if cw == nil || cw.text == nil {
 		return
 	}
-	// The concrete canvas resolves each glyph via QuakeText; the message is
-	// centered with the background mode applied (spec §5.4).
+	// The widget draws the message passed via SetText; the typewriter reveal
+	// is applied by the caller before calling Draw. Centered at y=64.
+	if cw.textValue != "" {
+		width := cw.text.Measure(cw.textValue)
+		x := float32((320 - width) / 2)
+		cw.text.DrawString(canvas, x, 64, cw.textValue)
+	}
 }
 
 // Event consumes no input.

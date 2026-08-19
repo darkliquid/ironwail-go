@@ -25,6 +25,7 @@ import (
 	rworld "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/darkliquid/ironwail-go/internal/server"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
+	"github.com/gogpu/gpucontext"
 )
 
 type globalConsoleAdapter struct{}
@@ -507,8 +508,15 @@ func (g *Game) initGameRenderer() error {
 // re-init; the host only draws when ui_backend=1 (spec §5.1, ADR-0002).
 	gw := quakeui.NewGateway(g.Input)
 	g.UIHost = quakeui.NewHost(quakeui.HostOptions{
-		Provider: tr.GPUContextProvider(),
-		Gateway:  gw,
+		// The gogpu GPU provider is only available after the app renderer
+		// initializes (during Run), so resolve it lazily per frame.
+		ProviderFunc: func() gpucontext.DeviceProvider {
+			if g.Renderer == nil {
+				return nil
+			}
+			return g.Renderer.GPUContextProvider()
+		},
+		Gateway: gw,
 	})
 	g.wireUIHostInput()
 

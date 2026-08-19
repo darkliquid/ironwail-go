@@ -125,6 +125,26 @@ func (wt *QuakeText) GlyphImage(index byte) image.Image {
 	return wt.atlas.SubImage(r)
 }
 
+// DrawString renders the given text at the top-left position (x, y) using
+// the conchars atlas, 8px per glyph. High-bit characters (char + 128) are
+// drawn from the bright glyph row. Characters with no atlas glyph are skipped.
+func (wt *QuakeText) DrawString(canvas widget.Canvas, x, y float32, text string) {
+	if wt == nil || wt.atlas == nil || canvas == nil {
+		return
+	}
+	cx := x
+	for _, ch := range text {
+		if ch < 0 || ch > 255 {
+			continue
+		}
+		img := wt.GlyphImage(byte(ch))
+		if img != nil {
+			canvas.DrawImage(img, geometry.Pt(cx, y))
+		}
+		cx += 8
+	}
+}
+
 // Layout sizes the widget to its content (default 8px glyph cell).
 func (wt *QuakeText) Layout(ctx widget.Context, c geometry.Constraints) geometry.Size {
 	size := c.Constrain(geometry.Sz(8, 8))

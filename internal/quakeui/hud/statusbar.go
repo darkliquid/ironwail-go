@@ -138,13 +138,40 @@ func (sb *StatusBarWidget) Layout(ctx widget.Context, c geometry.Constraints) ge
 	return size
 }
 
-// Draw renders the status bar values via the QuakeText widget.
+// Draw renders the status bar values via the QuakeText widget at the legacy
+// StatusBar positions: health/armor/ammo numbers on the left of the strip.
 func (sb *StatusBarWidget) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if sb == nil || sb.text == nil {
 		return
 	}
-	// The concrete canvas resolves each number's glyphs via QuakeText;
-	// positions follow the legacy StatusBar layout per style.
+	// Classic strip: health at (0,0), armor at (16,0), ammo at (32,0) in the
+	// 320x48 status-bar canvas. Numbers are drawn as text.
+	sb.text.DrawString(canvas, 0, 0, itoa(sb.Health()))
+	sb.text.DrawString(canvas, 16, 0, itoa(sb.Armor()))
+	sb.text.DrawString(canvas, 32, 0, itoa(sb.Ammo()))
+}
+
+// itoa converts an int to its decimal string (small helper to avoid fmt).
+func itoa(v int) string {
+	if v == 0 {
+		return "0"
+	}
+	neg := v < 0
+	if neg {
+		v = -v
+	}
+	var buf [12]byte
+	i := len(buf)
+	for v > 0 {
+		i--
+		buf[i] = byte('0' + v%10)
+		v /= 10
+	}
+	if neg {
+		i--
+		buf[i] = '-'
+	}
+	return string(buf[i:])
 }
 
 // Event consumes no input (HUD is non-interactive).

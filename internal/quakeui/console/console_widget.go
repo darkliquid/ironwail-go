@@ -159,14 +159,28 @@ func (cw *ConsoleWidget) Layout(ctx widget.Context, c geometry.Constraints) geom
 	return size
 }
 
-// Draw renders the console rows via the QuakeText widget.
+// Draw renders the console rows, prompt + input line, and scroll indicator
+// via the QuakeText widget, at the legacy console draw positions (8px cells,
+// prompt at the bottom row).
 func (cw *ConsoleWidget) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if cw == nil || cw.text == nil {
 		return
 	}
 	cw.refresh()
-	// The concrete canvas resolves each row's glyphs via QuakeText.GlyphImage;
-	// row positions follow the legacy console draw layout.
+
+	// Scroll indicator at the top when backscrolled.
+	if cw.scrolled {
+		cw.text.DrawString(canvas, 8, 0, "^^^")
+	}
+
+	// Scrollback rows, 8px pitch.
+	for i, line := range cw.rows {
+		cw.text.DrawString(canvas, 8, float32(8+i*8), line)
+	}
+
+	// Prompt + input line at the bottom.
+	bottomY := float32(200 - 8)
+	cw.text.DrawString(canvas, 8, bottomY, string(cw.Prompt())+cw.input)
 }
 
 // Event consumes no input (console key handling is engine-side).

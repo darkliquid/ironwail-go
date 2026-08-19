@@ -108,18 +108,24 @@ func (r *MenuRoot) Layout(ctx widget.Context, c geometry.Constraints) geometry.S
 	return size
 }
 
-// Draw renders the active page rows via the QuakeText widget.
+// Draw renders the active page rows via the QuakeText widget, at the legacy
+// M_Draw layout positions (research 0001 §3): rows start at (84, 32) with a
+// 20px stride, and the cursor arrow sits at x=54.
 func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if r == nil || r.text == nil {
 		return
 	}
 	r.refresh()
-	// The QuakeText widget draws each row's glyphs; the concrete canvas
-	// resolves GlyphImage per character. Row positions match the legacy
-	// M_Draw layout constants (research 0001 §3).
 	for i, row := range r.rows {
-		_ = i
-		_ = row
+		y := float32(32 + i*20)
+		r.text.DrawString(canvas, 84, y, row.Label)
+		if row.Value != "" {
+			r.text.DrawString(canvas, 160, y, row.Value)
+		}
+	}
+	// Cursor arrow at the active row (legacy drawCursor uses char 12).
+	if r.cursor >= 0 && r.cursor < len(r.rows) {
+		r.text.DrawString(canvas, 54, float32(32+r.cursor*20), string(rune(12)))
 	}
 }
 

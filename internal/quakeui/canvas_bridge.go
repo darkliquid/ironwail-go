@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/gogpu/gg"
+	_ "github.com/gogpu/gg/gpu" // register the GPU accelerator for ggcanvas rendering
 	"github.com/gogpu/gg/integration/ggcanvas"
 	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/ui/render"
@@ -16,19 +17,20 @@ import (
 // render.NewCanvas, and presents the composited result onto the engine
 // surface through a ggcanvas.RenderTarget.
 //
-// With a nil provider the bridge runs in software mode: a plain gg context is
-// created and the canvas is never presented (headless tests).
+// The provider is resolved lazily via providerFunc on first ensure: the gogpu
+// provider is only available after the app renderer initializes (during Run),
+// so the bridge must not capture a nil provider at construction.
 type canvasBridge struct {
-	provider gpucontext.DeviceProvider
-	canvas   *ggcanvas.Canvas
-	software *gg.Context
-	w, h     int
+	providerFunc func() gpucontext.DeviceProvider
+	canvas       *ggcanvas.Canvas
+	software     *gg.Context
+	w, h         int
 }
 
 // newCanvasBridge creates the bridge. The canvas is created lazily on the
 // first ensure call so a headless host can construct without a GPU.
-func newCanvasBridge(provider gpucontext.DeviceProvider) *canvasBridge {
-	return &canvasBridge{provider: provider}
+func newCanvasBridge(providerFunc func() gpucontext.DeviceProvider) *canvasBridge {
+	return &canvasBridge{providerFunc: providerFunc}
 }
 
 // ensure creates or resizes the backing canvas to the given logical size.
@@ -42,8 +44,12 @@ func (b *canvasBridge) ensure(w, h int) error {
 		}
 		return b.canvas.Resize(w, h)
 	}
-	if b.provider != nil {
-		c, err := ggcanvas.New(b.provider, w, h)
+	provider := gpucontext.DeviceProvider(nil)
+	if b.providerFunc != nil {
+		provider = b.providerFunc()
+	}
+	if provider != nil {
+		c, err := ggcanvas.New(provider, w, h)
 		if err != nil {
 			return err
 		}
@@ -74,12 +80,27 @@ func (b *canvasBridge) widgetCanvas(w, h int) widget.Canvas {
 // present composites the canvas onto the engine surface. The dc is the
 // engine's gogpu.ContextRenderTarget (implements ggcanvas.RenderTarget). With
 // a nil provider (software/headless) nothing is presented.
+//
+// The frame sequence mirrors the desktop render loop: begin the accelerator
+// and GPU frames so gg can submit GPU commands, then mark the canvas dirty and
+// render it onto the engine surface.
 func (b *canvasBridge) present(dc ggcanvas.RenderTarget, w, h int) error {
 	if b == nil || b.canvas == nil || dc == nil {
 		return nil
 	}
+	cc := b.canvas.Context()
+	if cc == nil {
+		return nil
+	}
+	gg.BeginAcceleratorFrame()
+	cc.BeginGPUFrame()
+	cc.ResetFrameDamage()
 	b.canvas.MarkDirty()
-	return b.canvas.Render(dc)
+	err := b.canvas.Render(dc)
+	if err != nil {
+		slog.Warn("quakeui canvas present", "error", err)
+	}
+	return err
 }
 
 // close releases the canvas and software context.

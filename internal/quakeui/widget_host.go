@@ -47,6 +47,11 @@ type HostOptions struct {
 	// When nil the host runs headless (app.New with no providers), used by
 	// unit tests and the headless boot path.
 	Provider gpucontext.DeviceProvider
+	// ProviderFunc lazily resolves the GPU context provider on first DrawTo.
+	// This is the preferred path for the engine: the gogpu provider is only
+	// available after the app's renderer is initialized (during Run), so the
+	// host must resolve it lazily rather than at construction.
+	ProviderFunc func() gpucontext.DeviceProvider
 	// EventSource feeds OS input into the ui tree (ADR-0003 gateway). When nil
 	// no events are delivered (headless tests).
 	EventSource gpucontext.EventSource
@@ -63,28 +68,37 @@ type HostOptions struct {
 type Host struct {
 	app      *app.App
 	provider gpucontext.DeviceProvider
+	providerFunc func() gpucontext.DeviceProvider
 	gateway  *Gateway
 	canvas   *canvasBridge
 }
 
-// NewHost constructs the gogpu/ui host. With a nil provider it runs headless
-// (used by tests and the headless boot path); with a provider it wires the ui
-// app to the engine's gogpu.App so the widget tree draws into the engine
-// surface (AC3: boots).
+// NewHost constructs the gogpu/ui host. With a nil provider (and no
+// ProviderFunc) it runs headless (used by tests and the headless boot path);
+// with a provider it wires the ui app to the engine's gogpu.App so the widget
+// tree draws into the engine surface (AC3: boots).
 func NewHost(opts HostOptions) *Host {
+	// Resolve the initial provider: the explicit provider wins, otherwise the
+	// ProviderFunc is called lazily (the gogpu provider is only available after
+	// the app renderer initializes during Run).
+	initialProvider := opts.Provider
+	if initialProvider == nil && opts.ProviderFunc != nil {
+		initialProvider = opts.ProviderFunc()
+	}
 	h := &Host{
-		provider: opts.Provider,
-		gateway:  opts.Gateway,
+		provider:     initialProvider,
+		providerFunc: opts.ProviderFunc,
+		gateway:      opts.Gateway,
 	}
 
 	appOpts := []app.Option{
 		app.WithTheme(theme.QuakeTheme()),
 		app.WithRenderMode(app.RenderModeHostManaged),
 	}
-	if wp, ok := opts.Provider.(gpucontext.WindowProvider); ok && wp != nil {
+	if wp, ok := initialProvider.(gpucontext.WindowProvider); ok && wp != nil {
 		appOpts = append(appOpts, app.WithWindowProvider(wp))
 	}
-	if pp, ok := opts.Provider.(gpucontext.PlatformProvider); ok && pp != nil {
+	if pp, ok := initialProvider.(gpucontext.PlatformProvider); ok && pp != nil {
 		appOpts = append(appOpts, app.WithPlatformProvider(pp))
 	}
 	es := opts.EventSource
@@ -96,8 +110,24 @@ func NewHost(opts HostOptions) *Host {
 	}
 
 	h.app = app.New(appOpts...)
-	h.canvas = newCanvasBridge(opts.Provider)
+	h.canvas = newCanvasBridge(h.resolveProvider)
 	return h
+}
+
+// resolveProvider returns the current GPU context provider, resolving it
+// lazily from ProviderFunc when the initial provider was nil (the gogpu
+// provider becomes available once the app renderer initializes during Run).
+func (h *Host) resolveProvider() gpucontext.DeviceProvider {
+	if h == nil {
+		return nil
+	}
+	if h.provider != nil {
+		return h.provider
+	}
+	if h.providerFunc != nil {
+		h.provider = h.providerFunc()
+	}
+	return h.provider
 }
 
 // Gateway returns the engine input gateway, or nil if none was configured.
