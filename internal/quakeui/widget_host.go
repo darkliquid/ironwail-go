@@ -175,10 +175,20 @@ func (h *Host) DrawTo(dc ggcanvas.RenderTarget) error {
 		return nil
 	}
 	win := h.app.Window()
+
+	// Resolve the real window size from the provider (the gogpu provider is
+	// only available after Run). The widget tree must lay out at the engine's
+	// surface size, not the headless default.
+	provider := h.resolveProvider()
+	w, hgt := 800, 600
+	if wp, ok := provider.(gpucontext.WindowProvider); ok && wp != nil {
+		if cw, ch := wp.Size(); cw > 0 && ch > 0 {
+			w, hgt = cw, ch
+		}
+	}
 	sz := win.WindowSize()
-	w, hgt := int(sz.Width), int(sz.Height)
-	if w <= 0 || hgt <= 0 {
-		w, hgt = 800, 600
+	if int(sz.Width) != w || int(sz.Height) != hgt {
+		win.HandleResize(w, hgt)
 	}
 
 	if err := h.canvas.ensure(w, hgt); err != nil {

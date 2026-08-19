@@ -81,8 +81,8 @@ func (cw *CrosshairWidget) Layout(ctx widget.Context, c geometry.Constraints) ge
 	return size
 }
 
-// Draw renders the crosshair glyph via the QuakeText widget, centered at the
-// crosshair canvas origin (the canvas transform centers it on the viewport).
+// Draw renders the crosshair glyph via the QuakeText widget, centered on the
+// canvas (the legacy crosshair canvas is centered on the viewport midline).
 func (cw *CrosshairWidget) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if cw == nil || cw.text == nil {
 		return
@@ -94,9 +94,16 @@ func (cw *CrosshairWidget) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if glyph == 0 {
 		return
 	}
-	// Centered: the crosshair canvas is centered by the engine transform, so
-	// draw the glyph at (-4, -4) to center the 8x8 cell (legacy behavior).
-	cw.text.DrawString(canvas, -4, -4, string(rune(glyph)))
+	b := cw.Bounds()
+	canvasW := int(b.Max.X - b.Min.X)
+	canvasH := int(b.Max.Y - b.Min.Y)
+	if canvasW <= 0 || canvasH <= 0 {
+		canvasW, canvasH = 320, 200
+	}
+	// Center the 8x8 glyph on the canvas.
+	x := float32(canvasW/2 - 4)
+	y := float32(canvasH/2 - 4)
+	cw.text.DrawString(canvas, x, y, string(rune(glyph)))
 }
 
 // Event consumes no input.

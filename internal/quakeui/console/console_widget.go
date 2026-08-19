@@ -161,26 +161,38 @@ func (cw *ConsoleWidget) Layout(ctx widget.Context, c geometry.Constraints) geom
 
 // Draw renders the console rows, prompt + input line, and scroll indicator
 // via the QuakeText widget, at the legacy console draw positions (8px cells,
-// prompt at the bottom row).
+// prompt at the bottom row). The console fills the canvas width, scaled to the
+// surface size.
 func (cw *ConsoleWidget) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if cw == nil || cw.text == nil {
 		return
 	}
 	cw.refresh()
 
+	// Scale the console to the canvas width (charsWide = canvasW/8 cells).
+	b := cw.Bounds()
+	canvasW := int(b.Max.X - b.Min.X)
+	if canvasW <= 0 {
+		canvasW = 320
+	}
+	scale := float32(canvasW / 320)
+	if scale < 1 {
+		scale = 1
+	}
+
 	// Scroll indicator at the top when backscrolled.
 	if cw.scrolled {
-		cw.text.DrawString(canvas, 8, 0, "^^^")
+		cw.text.DrawStringScaled(canvas, 8*scale, 0, scale, "^^^")
 	}
 
 	// Scrollback rows, 8px pitch.
 	for i, line := range cw.rows {
-		cw.text.DrawString(canvas, 8, float32(8+i*8), line)
+		cw.text.DrawStringScaled(canvas, 8*scale, float32(8+i*8)*scale, scale, line)
 	}
 
 	// Prompt + input line at the bottom.
-	bottomY := float32(200 - 8)
-	cw.text.DrawString(canvas, 8, bottomY, string(cw.Prompt())+cw.input)
+	bottomY := float32(200-8) * scale
+	cw.text.DrawStringScaled(canvas, 8*scale, bottomY, scale, string(cw.Prompt())+cw.input)
 }
 
 // Event consumes no input (console key handling is engine-side).

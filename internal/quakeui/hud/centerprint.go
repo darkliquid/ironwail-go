@@ -98,18 +98,28 @@ func (cw *CenterprintWidget) Layout(ctx widget.Context, c geometry.Constraints) 
 }
 
 // Draw renders the revealed message via the QuakeText widget, centered
-// horizontally at the legacy centerprint position (y=64).
+// horizontally at the legacy centerprint position (y=64 in the 320x200
+// viewport), scaled to the canvas size.
 func (cw *CenterprintWidget) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if cw == nil || cw.text == nil {
 		return
 	}
-	// The widget draws the message passed via SetText; the typewriter reveal
-	// is applied by the caller before calling Draw. Centered at y=64.
-	if cw.textValue != "" {
-		width := cw.text.Measure(cw.textValue)
-		x := float32((320 - width) / 2)
-		cw.text.DrawString(canvas, x, 64, cw.textValue)
+	if cw.textValue == "" {
+		return
 	}
+	b := cw.Bounds()
+	canvasW := int(b.Max.X - b.Min.X)
+	canvasH := int(b.Max.Y - b.Min.Y)
+	if canvasW <= 0 || canvasH <= 0 {
+		canvasW, canvasH = 320, 200
+	}
+	scale := float32(min(canvasW/320, canvasH/200))
+	if scale < 1 {
+		scale = 1
+	}
+	width := cw.text.Measure(cw.textValue)
+	x := float32((canvasW - width*int(scale)) / 2)
+	cw.text.DrawStringScaled(canvas, x, 64*scale, scale, cw.textValue)
 }
 
 // Event consumes no input.

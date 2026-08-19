@@ -110,22 +110,39 @@ func (r *MenuRoot) Layout(ctx widget.Context, c geometry.Constraints) geometry.S
 
 // Draw renders the active page rows via the QuakeText widget, at the legacy
 // M_Draw layout positions (research 0001 §3): rows start at (84, 32) with a
-// 20px stride, and the cursor arrow sits at x=54.
+// 20px stride, and the cursor arrow sits at x=54. The 320x200 menu viewport is
+// scaled to the canvas size (min(canvasW/320, canvasH/200)) and centered,
+// matching the legacy CanvasMenu transform (spec §3.3 R1.5).
 func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if r == nil || r.text == nil {
 		return
 	}
 	r.refresh()
+
+	// Compute the menu viewport scale and centering offset.
+	b := r.Bounds()
+	canvasW := int(b.Max.X - b.Min.X)
+	canvasH := int(b.Max.Y - b.Min.Y)
+	if canvasW <= 0 || canvasH <= 0 {
+		canvasW, canvasH = 320, 200
+	}
+	scale := float32(min(canvasW/320, canvasH/200))
+	if scale < 1 {
+		scale = 1
+	}
+	offsetX := float32(canvasW-320*int(scale)) / 2
+	offsetY := float32(canvasH-200*int(scale)) / 2
+
 	for i, row := range r.rows {
-		y := float32(32 + i*20)
-		r.text.DrawString(canvas, 84, y, row.Label)
+		y := offsetY + float32(32+i*20)*scale
+		r.text.DrawStringScaled(canvas, offsetX+84*scale, y, scale, row.Label)
 		if row.Value != "" {
-			r.text.DrawString(canvas, 160, y, row.Value)
+			r.text.DrawStringScaled(canvas, offsetX+160*scale, y, scale, row.Value)
 		}
 	}
 	// Cursor arrow at the active row (legacy drawCursor uses char 12).
 	if r.cursor >= 0 && r.cursor < len(r.rows) {
-		r.text.DrawString(canvas, 54, float32(32+r.cursor*20), string(rune(12)))
+		r.text.DrawStringScaled(canvas, offsetX+54*scale, offsetY+float32(32+r.cursor*20)*scale, scale, string(rune(12)))
 	}
 }
 

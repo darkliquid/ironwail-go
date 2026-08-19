@@ -139,16 +139,27 @@ func (sb *StatusBarWidget) Layout(ctx widget.Context, c geometry.Constraints) ge
 }
 
 // Draw renders the status bar values via the QuakeText widget at the legacy
-// StatusBar positions: health/armor/ammo numbers on the left of the strip.
+// StatusBar positions: health/armor/ammo numbers on the left of the strip,
+// scaled to the canvas width and positioned at the bottom of the screen.
 func (sb *StatusBarWidget) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if sb == nil || sb.text == nil {
 		return
 	}
-	// Classic strip: health at (0,0), armor at (16,0), ammo at (32,0) in the
-	// 320x48 status-bar canvas. Numbers are drawn as text.
-	sb.text.DrawString(canvas, 0, 0, itoa(sb.Health()))
-	sb.text.DrawString(canvas, 16, 0, itoa(sb.Armor()))
-	sb.text.DrawString(canvas, 32, 0, itoa(sb.Ammo()))
+	b := sb.Bounds()
+	canvasW := int(b.Max.X - b.Min.X)
+	canvasH := int(b.Max.Y - b.Min.Y)
+	if canvasW <= 0 || canvasH <= 0 {
+		canvasW, canvasH = 320, 48
+	}
+	scale := float32(canvasW / 320)
+	if scale < 1 {
+		scale = 1
+	}
+	// Position the 320x48 strip at the bottom of the canvas.
+	offsetY := float32(canvasH - 48*int(scale))
+	sb.text.DrawStringScaled(canvas, 0, offsetY, scale, itoa(sb.Health()))
+	sb.text.DrawStringScaled(canvas, 16*scale, offsetY, scale, itoa(sb.Armor()))
+	sb.text.DrawStringScaled(canvas, 32*scale, offsetY, scale, itoa(sb.Ammo()))
 }
 
 // itoa converts an int to its decimal string (small helper to avoid fmt).

@@ -9,6 +9,7 @@ import (
 	"image"
 
 	"github.com/darkliquid/ironwail-go/internal/draw"
+	"github.com/gogpu/gg"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/widget"
@@ -142,6 +143,47 @@ func (wt *QuakeText) DrawString(canvas widget.Canvas, x, y float32, text string)
 			canvas.DrawImage(img, geometry.Pt(cx, y))
 		}
 		cx += 8
+	}
+}
+
+// DrawStringScaled renders the given text with each glyph scaled by the given
+// factor (e.g. 2 for 16px glyphs). It uses the gg escape hatch on the concrete
+// canvas (Context() *gg.Context) to draw each glyph scaled via DrawImageEx.
+// When the canvas does not expose a gg context, it falls back to unscaled
+// DrawString.
+func (wt *QuakeText) DrawStringScaled(canvas widget.Canvas, x, y float32, scale float32, text string) {
+	if wt == nil || wt.atlas == nil || canvas == nil {
+		return
+	}
+	if scale <= 0 || scale == 1 {
+		wt.DrawString(canvas, x, y, text)
+		return
+	}
+	type ggContextProvider interface {
+		Context() *gg.Context
+	}
+	cc, ok := canvas.(ggContextProvider)
+	if !ok || cc.Context() == nil {
+		wt.DrawString(canvas, x, y, text)
+		return
+	}
+	gc := cc.Context()
+	cx := x
+	for _, ch := range text {
+		if ch < 0 || ch > 255 {
+			continue
+		}
+		img := wt.GlyphImage(byte(ch))
+		if img != nil {
+			gc.DrawImageEx(gg.ImageBufFromImage(img), gg.DrawImageOptions{
+				X:             float64(cx),
+				Y:             float64(y),
+				DstWidth:      float64(8 * scale),
+				DstHeight:     float64(8 * scale),
+				Interpolation: gg.InterpNearest,
+			})
+		}
+		cx += 8 * scale
 	}
 }
 
