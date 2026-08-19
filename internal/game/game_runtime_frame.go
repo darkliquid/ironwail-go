@@ -322,6 +322,14 @@ func (g *Game) drawRuntimeOverlayFrameGogpuUI(overlay renderer.RenderContext) {
 	// root (HUD/console widgets land in M4/M5).
 	g.syncUIHostRoot()
 
+	// CSQC fallback (AC7, spec §1.2): when a mod's CSQC_DrawHud draws, the
+	// HUD falls back to the legacy CSQC canvas path (drawn here, before the
+	// widget composite) and the HUD widget is hidden by syncUIHostRoot.
+	if g.CSQC != nil && g.CSQC.IsLoaded() {
+		showScores := g.ShowScores && g.Client != nil && g.Client.MaxClients > 1
+		g.drawRuntimeCSQCHUD(overlay, showScores)
+	}
+
 	g.UIHost.Frame()
 	if dc, ok := overlay.(interface{ GogpuContext() *gogpu.Context }); ok {
 		if ctx := dc.GogpuContext(); ctx != nil {
@@ -366,11 +374,22 @@ func (g *Game) syncUIHostRoot() {
 		g.UIHost.SetRoot(g.uiStack)
 	}
 
+	// CSQC fallback (AC7, spec §1.2): when a mod's CSQC_DrawHud draws, the
+	// HUD falls back to the legacy CSQC canvas path and the HUD widget is
+	// hidden. Menu and console stay on the widget path.
+	csqcHUD := g.csqcHUDWidgetHidden()
 	if g.hudRoot != nil {
-		g.hudRoot.SetVisible(inGame && g.HUD != nil)
+		g.hudRoot.SetVisible(inGame && g.HUD != nil && !csqcHUD)
 	}
 	g.menuRoot.SetVisible(menuActive)
 	g.consoleRoot.SetVisible(consoleActive)
+}
+
+// csqcHUDWidgetHidden reports whether the path-1 HUD widget should be hidden
+// because a CSQC mod owns the HUD (AC7, spec §1.2): when CSQC progs are
+// loaded, the HUD falls back to the legacy CSQC canvas path.
+func (g *Game) csqcHUDWidgetHidden() bool {
+	return g.CSQC != nil && g.CSQC.IsLoaded()
 }
 
 // quakeUIText builds the QuakeText widget used by the path-1 UI, backed by
