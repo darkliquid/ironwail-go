@@ -97,16 +97,12 @@ func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if ctx != nil {
 		winSize = ctx.WindowSize()
 	}
-	originX := (winSize.Width - 320) * 0.5
-	originY := (winSize.Height - 200) * 0.5
-	if originX < 0 {
-		originX = 0
-	}
-	if originY < 0 {
-		originY = 0
-	}
+	tf := ComputeMenuTransform(MenuScaleParams{
+		WindowWidth:  winSize.Width,
+		WindowHeight: winSize.Height,
+	})
 
-	canvas.PushTransform(geometry.Pt(originX, originY))
+	canvas.PushTransform(geometry.Pt(tf.OriginX, tf.OriginY))
 	defer canvas.PopTransform()
 
 	switch r.mgr.State() {
@@ -116,6 +112,30 @@ func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 		r.drawSinglePlayer(canvas)
 	case legacymenu.MenuOptions:
 		r.drawOptions(canvas)
+	case legacymenu.MenuLoad:
+		r.drawLoad(canvas)
+	case legacymenu.MenuSave:
+		r.drawSave(canvas)
+	case legacymenu.MenuMultiPlayer:
+		r.drawMultiPlayer(canvas)
+	case legacymenu.MenuJoinGame:
+		r.drawJoinGame(canvas)
+	case legacymenu.MenuHostGame:
+		r.drawHostGame(canvas)
+	case legacymenu.MenuControls:
+		r.drawControls(canvas)
+	case legacymenu.MenuVideo:
+		r.drawVideo(canvas)
+	case legacymenu.MenuAudio:
+		r.drawAudio(canvas)
+	case legacymenu.MenuHelp:
+		r.drawHelp(canvas)
+	case legacymenu.MenuQuit:
+		r.drawQuit(canvas)
+	case legacymenu.MenuSetup:
+		r.drawSetup(canvas)
+	case legacymenu.MenuMods:
+		r.drawMods(canvas)
 	}
 }
 

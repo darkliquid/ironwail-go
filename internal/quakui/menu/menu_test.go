@@ -571,4 +571,81 @@ func TestMenuRoot_IsVisibleDynamic(t *testing.T) {
 	}
 }
 
+func TestMenuRoot_Draw_LoadAndSave(t *testing.T) {
+	mgr, root := setupTestMenu(nil)
+
+	// Load
+	mgr.ShowState(legacymenu.MenuLoad)
+	ctx := &testContext{winSize: geometry.Sz(320, 200)}
+	canvas := &testCanvas{}
+	root.Draw(ctx, canvas)
+	if len(canvas.images) == 0 {
+		t.Fatal("expected draw calls for Load menu")
+	}
+
+	// Save
+	mgr.ShowState(legacymenu.MenuSave)
+	canvasSave := &testCanvas{}
+	root.Draw(ctx, canvasSave)
+	if len(canvasSave.images) == 0 {
+		t.Fatal("expected draw calls for Save menu")
+	}
+}
+
+func TestMenuRoot_Draw_MultiPlayerSubmenus(t *testing.T) {
+	mgr, root := setupTestMenu(nil)
+	ctx := &testContext{winSize: geometry.Sz(320, 200)}
+
+	for _, state := range []legacymenu.MenuState{
+		legacymenu.MenuMultiPlayer,
+		legacymenu.MenuJoinGame,
+		legacymenu.MenuHostGame,
+		legacymenu.MenuSetup,
+	} {
+		mgr.ShowState(state)
+		canvas := &testCanvas{}
+		root.Draw(ctx, canvas)
+		if len(canvas.images) == 0 {
+			t.Fatalf("expected draw calls for state %v", state)
+		}
+	}
+}
+
+func TestMenuRoot_Draw_OptionsSubmenus(t *testing.T) {
+	mgr, root := setupTestMenu(nil)
+	ctx := &testContext{winSize: geometry.Sz(320, 200)}
+
+	for _, state := range []legacymenu.MenuState{
+		legacymenu.MenuControls,
+		legacymenu.MenuVideo,
+		legacymenu.MenuAudio,
+	} {
+		mgr.ShowState(state)
+		canvas := &testCanvas{}
+		root.Draw(ctx, canvas)
+		if len(canvas.images) == 0 {
+			t.Fatalf("expected draw calls for state %v", state)
+		}
+	}
+}
+
+func TestMenuRoot_Draw_HelpQuitAndMods(t *testing.T) {
+	mgr, root := setupTestMenu(nil)
+	ctx := &testContext{winSize: geometry.Sz(320, 200)}
+
+	for _, state := range []legacymenu.MenuState{
+		legacymenu.MenuHelp,
+		legacymenu.MenuQuit,
+		legacymenu.MenuMods,
+	} {
+		mgr.ShowState(state)
+		canvas := &testCanvas{}
+		root.Draw(ctx, canvas)
+		if len(canvas.images) == 0 {
+			t.Fatalf("expected draw calls for state %v", state)
+		}
+	}
+}
+
+
 

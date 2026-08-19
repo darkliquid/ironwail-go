@@ -154,3 +154,37 @@ func TestAccessorSetupColors(t *testing.T) {
 		t.Fatalf("Setup colors = (%d,%d), want (0,0)", mgr.SetupTopColor(), mgr.SetupBottomColor())
 	}
 }
+
+// TestAccessorRemaining asserts the remaining accessors for Help, Confirm, Controls, Video, and Audio.
+func TestAccessorRemaining(t *testing.T) {
+	mgr := newAccessorTestManager(t)
+
+	mgr.ShowState(MenuHelp)
+	if mgr.HelpPage() != 0 {
+		t.Fatalf("HelpPage() = %d, want 0", mgr.HelpPage())
+	}
+
+	mgr.ShowState(MenuQuit)
+	lines := mgr.ConfirmLines()
+	if lines[0] != "ARE YOU SURE YOU WANT TO QUIT?" {
+		t.Fatalf("ConfirmLines()[0] = %q, want quit prompt", lines[0])
+	}
+
+	mgr.ShowState(MenuControls)
+	bindings := mgr.ControlBindings()
+	if len(bindings) != len(controlBindings) {
+		t.Fatalf("ControlBindings() length = %d, want %d", len(bindings), len(controlBindings))
+	}
+	if mgr.ControlsRebinding() {
+		t.Fatal("ControlsRebinding() = true, want false")
+	}
+
+	mgr.ShowState(MenuVideo)
+	vrows := mgr.VideoRows()
+	if len(vrows) == 0 {
+		t.Fatal("VideoRows() is empty")
+	}
+
+	mgr.ShowState(MenuAudio)
+	_ = mgr.AudioVolume()
+}

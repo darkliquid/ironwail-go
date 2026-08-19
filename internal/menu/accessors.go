@@ -1,5 +1,11 @@
 package menu
 
+import (
+	"fmt"
+
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+)
+
 // Exported read accessors for the menu state machine (R1.2, gap G.13).
 //
 // The widget pages in internal/quakeui/menu consume these instead of the
@@ -136,4 +142,130 @@ func (m *Manager) SetupBottomColor() int {
 		return 0
 	}
 	return m.setupBottomColor
+}
+
+// HelpPage returns the currently active help screen page index (0 to helpPages-1).
+func (m *Manager) HelpPage() int {
+	if m == nil {
+		return 0
+	}
+	return m.helpPage
+}
+
+// ConfirmLines returns the active 3-line prompt for the quit/confirm screen.
+func (m *Manager) ConfirmLines() [3]string {
+	if m == nil {
+		return [3]string{}
+	}
+	return m.confirmLines
+}
+
+// IsSearchingServers reports whether a LAN server search is currently active.
+func (m *Manager) IsSearchingServers() bool {
+	return m != nil && m.serverBrowser != nil && m.serverBrowser.IsSearching()
+}
+
+// JoinServerResults returns the server browser results list.
+func (m *Manager) JoinServerResults() []inet.HostCacheEntry {
+	if m == nil {
+		return nil
+	}
+	if m.serverBrowser != nil {
+		m.serverResults = m.serverBrowser.Results()
+	}
+	return m.serverResults
+}
+
+// ControlsRebinding reports whether the Controls menu is waiting for a key press.
+func (m *Manager) ControlsRebinding() bool {
+	return m != nil && m.controlsRebinding
+}
+
+// ControlBindingInfo describes a single rebindable action in the Controls menu.
+type ControlBindingInfo struct {
+	Label   string
+	Binding string
+}
+
+// ControlBindings returns the full list of actions and their current key bindings.
+func (m *Manager) ControlBindings() []ControlBindingInfo {
+	if m == nil {
+		return nil
+	}
+	res := make([]ControlBindingInfo, len(controlBindings))
+	for i, cb := range controlBindings {
+		res[i] = ControlBindingInfo{
+			Label:   cb.label,
+			Binding: m.controlBindingLabel(controlsBindingStart + i),
+		}
+	}
+	return res
+}
+
+// ControlMouseSpeed returns the sensitivity cvar value.
+func (m *Manager) ControlMouseSpeed() float32 {
+	if m == nil || m.cvars == nil {
+		return 0
+	}
+	return float32(m.cvars.FloatValue("sensitivity"))
+}
+
+// ControlInvertMouse returns true if m_pitch is negative.
+func (m *Manager) ControlInvertMouse() bool {
+	if m == nil || m.cvars == nil {
+		return false
+	}
+	return m.cvars.FloatValue("m_pitch") < 0
+}
+
+// ControlAlwaysRun returns true if cl_alwaysrun is enabled.
+func (m *Manager) ControlAlwaysRun() bool {
+	if m == nil || m.cvars == nil {
+		return false
+	}
+	return m.cvars.BoolValue("cl_alwaysrun")
+}
+
+// ControlFreeLook returns true if freelook is enabled.
+func (m *Manager) ControlFreeLook() bool {
+	if m == nil || m.cvars == nil {
+		return false
+	}
+	return m.cvars.BoolValue("freelook")
+}
+
+// VideoRowInfo describes a single row on the Video settings menu.
+type VideoRowInfo struct {
+	Label string
+	Value string
+}
+
+// VideoRows returns all configurable rows on the Video settings menu.
+func (m *Manager) VideoRows() []VideoRowInfo {
+	if m == nil || m.cvars == nil {
+		return nil
+	}
+	mode := videoResolutions[m.currentResolutionIndex()]
+	return []VideoRowInfo{
+		{Label: "RESOLUTION", Value: fmt.Sprintf("%dx%d", mode.width, mode.height)},
+		{Label: "FULLSCREEN", Value: boolLabel(m.cvars.BoolValue("vid_fullscreen"))},
+		{Label: "VSYNC", Value: boolLabel(m.cvars.BoolValue("vid_vsync"))},
+		{Label: "MAX FPS", Value: fmt.Sprintf("%d", m.cvars.IntValue("host_maxfps"))},
+		{Label: "GAMMA", Value: fmt.Sprintf("%.1f", m.cvars.FloatValue("r_gamma"))},
+		{Label: "VIEWMODEL", Value: boolLabel(m.cvars.BoolValue("r_drawviewmodel"))},
+		{Label: "WATERWARP", Value: waterwarpLabel(m.cvars.IntValue("r_waterwarp"))},
+		{Label: "HUD STYLE", Value: hudStyleLabel(m.cvars.IntValue("hud_style"))},
+		{Label: "SHOW FPS", Value: boolLabel(m.cvars.FloatValue("scr_showfps") != 0)},
+		{Label: "SHOW SPEED", Value: boolLabel(m.cvars.BoolValue("scr_showspeed"))},
+		{Label: "SHOW TIME", Value: boolLabel(m.cvars.BoolValue("scr_clock"))},
+		{Label: "BACK", Value: ""},
+	}
+}
+
+// AudioVolume returns the sound volume percentage (0 to 100).
+func (m *Manager) AudioVolume() int {
+	if m == nil || m.cvars == nil {
+		return 0
+	}
+	return int(clampFloat(m.cvars.FloatValue("s_volume"), 0, 1)*100 + 0.5)
 }

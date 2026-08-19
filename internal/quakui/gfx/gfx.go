@@ -108,3 +108,47 @@ func (a *ConcharsAtlas) GlyphImage(index byte) image.Image {
 	r := image.Rect(col*8, row*8, col*8+8, row*8+8)
 	return a.atlas.SubImage(r)
 }
+
+// TranslatePlayerSkinPixels remaps Quake player shirt (16-31) and pants (96-111)
+// palette ranges to the selected top/bottom colors.
+func TranslatePlayerSkinPixels(pixels []byte, topColor, bottomColor int) []byte {
+	if len(pixels) == 0 {
+		return nil
+	}
+	translated := make([]byte, len(pixels))
+	copy(translated, pixels)
+
+	topStart := byte((topColor & 15) << 4)
+	bottomStart := byte((bottomColor & 15) << 4)
+
+	for i, pixel := range translated {
+		switch {
+		case pixel >= 16 && pixel < 32:
+			translated[i] = translatedPlayerColor(topStart, pixel-16)
+		case pixel >= 96 && pixel < 112:
+			translated[i] = translatedPlayerColor(bottomStart, pixel-96)
+		}
+	}
+	return translated
+}
+
+func translatedPlayerColor(start, offset byte) byte {
+	if start < 128 {
+		return start + offset
+	}
+	return start + (15 - offset)
+}
+
+// QPicToImageTranslated converts a QPic with top and bottom player color translation.
+func QPicToImageTranslated(pic *qimage.QPic, palette []byte, topColor, bottomColor int) *image.RGBA {
+	if pic == nil {
+		return nil
+	}
+	translatedPixels := TranslatePlayerSkinPixels(pic.Pixels, topColor, bottomColor)
+	translatedPic := &qimage.QPic{
+		Width:  pic.Width,
+		Height: pic.Height,
+		Pixels: translatedPixels,
+	}
+	return QPicToImage(translatedPic, palette)
+}
