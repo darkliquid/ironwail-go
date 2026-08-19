@@ -447,6 +447,20 @@ func (dc *DrawContext) markGoGPUFrameContentForOverlay() bool {
 	frameClearedWritable.SetBool(true)
 	hasPendingClearWritable.SetBool(false)
 
+	// Mark the surface as containing external content so subsequent render
+	// passes (the gogpu/ui gg canvas composite) use LoadOp::Load and preserve
+	// the world instead of clearing it (ADR-0002, MarkPreserveContent). The
+	// call is guarded because test contexts may not have a fully initialized
+	// surface.
+	if dc.ctx != nil {
+		func() {
+			defer func() {
+				_ = recover() //nolint:errcheck // surface may be a test stub
+			}()
+			dc.ctx.MarkPreserveContent()
+		}()
+	}
+
 	return true
 }
 
