@@ -243,6 +243,7 @@ on desktop. CSP/eBPF N/A.
 | --- | --- |
 | UI init failure (desktop.Run/app.New error) | log, keep ui_backend pinned 0, legacy unchanged (fail-open) |
 | `ui_backend 1` + software/screenshot renderer | legacy path always (no gpuview); screenshots stay comparable |
+| `ui_backend 1` + WASM (`GOOS=js`) | gated off: desktop.Run is native-desktop-only (engine wasm uses StepWasmFrame rAF, not App.Run's loop — research 0006 §6); log + legacy path |
 | CSQC mod active | HUD falls back to legacy path |
 | Demo playback active | demo bar legacy-only; skipped on path 1 (deferred) |
 | UI never clears world | gpuview base uses LoadOpLoad; assert in capture/parity |

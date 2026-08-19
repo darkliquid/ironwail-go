@@ -75,6 +75,18 @@ blits the gpuview texture).
 canvas). They stay on `ui_backend=0`. AC5 compares via in-window captures at
 `ui_backend=1`; the screenshot command remains the legacy parity oracle.
 
+### 6. WASM: desktop.Run is native-desktop-only
+
+`desktop.Run` calls `gogpuApp.Run()` (desktop/desktop.go:100), which starts
+the blocking main loop. The engine's wasm path does NOT use `App.Run`'s loop:
+it uses `StepWasmFrame` (a requestAnimationFrame driver) as the single driver
+and disables `App.Run`'s `onUpdate` to avoid double-stepping
+(`renderer_gogpu_runtime.go:283-289`). The browser platform's `WaitEvents` is
+a no-op — the loop must cooperate with rAF, not block
+(`platform_browser.go:79-95`). Therefore `desktop.Run` + GPUView is
+**native-desktop-only**; the wasm build stays on `ui_backend=0` (legacy),
+consistent with ADR-0006's negative consequence and SPEC-002 AC3.
+
 ## Recommended Resolution
 
 - On `ui_backend=1`, the engine does NOT register its own `OnDraw`. Instead it
@@ -89,6 +101,8 @@ canvas). They stay on `ui_backend=0`. AC5 compares via in-window captures at
 - The `quakui.Host` adapter (SPEC-002 §3.1) exposes the world texture as a
   `gpucontext.TextureView` and a `RenderIntoWorldTexture(view)` callback
   implemented in `internal/renderer` and routed through `internal/game`.
+- **WASM:** `ui_backend=1` is gated off on `GOOS=js` (log + legacy path), per
+  ADR-0006 and SPEC-002 AC3.
 
 ## Open Questions / Follow-ups
 
