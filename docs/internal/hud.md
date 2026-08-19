@@ -31,3 +31,18 @@ The `hud` package is responsible for rendering the 2D Heads-Up Display overlays 
 - **Numeric Rendering**: Examine `DrawNumber` in `drawing.go` to see how Quake's iconic red and gold numbers are constructed from individual sprite characters.
 - **Style Composition**: See how `hud_style` affects the logic in `HUD.Draw()` to switch between entirely different layout implementations.
 - **Classic Status Bar**: Read `status.go` to see how the complex, multi-layered classic Quake status bar is faithfully reconstructed in Go.
+
+## gogpu/ui path (`ui_backend 1`)
+
+When `ui_backend=1`, the HUD presentation moves to the gogpu/ui widget tree
+in `internal/quakeui/hud` while this package stays the source of truth:
+
+- `internal/quakeui/hud.StatusBarWidget` presents a `hud.State` snapshot per
+  `hud_style` (health, armor, ammo, weapon, per-type ammo counts, scoreboard).
+- `CrosshairWidget` maps the `crosshair` cvar to a glyph and hides during
+  intermission/cutscene or at `viewsize >= 130`.
+- `CenterprintWidget` reveals text with a typewriter effect at
+  `scr_printspeed` and reads the `scr_centerprintbg` background mode.
+- The `draw*` methods here (`HUD.Draw`, `StatusBar`, `Centerprint`,
+  `Crosshair`) remain the parity oracle for path 0 and the layout-constant
+  reference for the widgets.

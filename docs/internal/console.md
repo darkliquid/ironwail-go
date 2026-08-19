@@ -86,3 +86,19 @@ The `console` package implements the engine's text-based interface. It maintains
 **`TestLogCenterPrintDedupesAndGatesByGameType`** — With `con_logcenterprint=1` (singleplayer only), a multiplayer-mode centerprint is suppressed. With `con_logcenterprint=2` (always), it appears. A duplicate message does not advance the line counter. Prevents scrollback spam from repeated centerprints.
 
 **`TestConsoleCursorEditingAndHistoryRestore`** — After `SetInputLine("hello world")`, `DeleteWordLeft()` must leave `"hello "`. Then verifies that navigating to history and back restores the draft `"draft"`. Ctrl+W word deletion and draft-restore are standard console editing features.
+
+## gogpu/ui path (`ui_backend 1`)
+
+When `ui_backend=1`, the console presentation moves to the gogpu/ui widget
+tree in `internal/quakeui/console` while this package stays the source of
+truth:
+
+- `internal/quakeui/console.ConsoleWidget` reads the ring buffer, input line,
+  backscroll, and notify timestamps via the existing accessors (`Line`,
+  `CurrentLine`, `BackScroll`, `InputLine`, `CursorPos`, `NotifyTimes`,
+  `CVar`) and renders the scrollback, `]` prompt + blink cursor, scroll
+  indicator, and notify fade.
+- `internal/quakeui/console.CompletionBridge` calls `CompleteInput` on Tab
+  and renders the match list as widget text with forward/back cycling.
+- The `draw*` methods here remain the parity oracle for path 0 and the
+  layout-constant reference for the widget.

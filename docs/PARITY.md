@@ -311,6 +311,9 @@ These differ from C on purpose; they are auditable, not silent drift.
 | Deviation | Why it exists | Guard |
 | --- | --- | --- |
 | Entity sends are distance-sorted per client (`entitySendSortKey` in `internal/server/server_net_send.go`) instead of C's edict order | Go addition for deterministic incremental/priority entity sends under message-limit pressure | Parity probes assert same-frame ordering is preserved; documented in plan 23 (D6) |
+| `ui_backend 1` (gogpu/ui path) renders text as TTF from the conchars atlas instead of the 8x8 bitmap glyphs (ADR-0004) | The gogpu/ui text pipeline is TTF-based; exact pixel parity is explicitly out of scope for the experiment (behavioral parity only, spec §1.4 #5) | In-window captures at `ui_backend 1` vs 0; `-screenshot` stays a legacy-only oracle |
+| `ui_backend 1` skips the demo playback progress bar | Demo-bar UI is deferred out of the MVP (spec §1.2); the demo still plays, only the on-screen bar is absent | No crash with demo active on path 1; documented in plan §6 (feeds bd `ironwail-go-cuy`) |
+| `ui_backend 1` with a CSQC mod falls back to the legacy CSQC HUD canvas | CSQC rewiring is out of scope; mod compatibility is preserved by letting CSQC_DrawHud draw on the legacy path (spec §1.2, AC7) | `csqcHUDWidgetHidden` guard + game_csqc_fallback_test.go |
 
 ## Sign-off rules
 

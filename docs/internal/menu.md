@@ -98,3 +98,18 @@ This section is a curated summary of representative menu tests, not an exhaustiv
 **`TestControllerDpadMapsToArrowNavigation`** — D-pad down/up moves the cursor; the alt-layer variant keys (KDpadUpAlt) behave identically to their primary counterparts. Verifies both primary and alt D-pad layers work.
 
 **`TestControllerStartAndBackMapInOptionsMenu`** — Start/Back buttons navigate the options menu as expected (additional coverage of the gamepad button mapping layer).
+
+## gogpu/ui path (`ui_backend 1`)
+
+When `ui_backend=1`, the menu presentation moves to the gogpu/ui widget tree
+in `internal/quakeui/menu` while this package stays the source of truth:
+
+- The legacy `Manager` state machine (state, cursors, text buffers, host
+  settings, mods, save slots) is unchanged and read via the exported
+  accessors in `accessors.go` (`State`, `CursorFor`, `TextBuffer`,
+  `HostSettings`, `Mods`, `CurrentMod`, `SaveSlots`).
+- `internal/quakeui/menu.MenuRoot` reads those accessors each frame, exposes
+  the active page's rows (label + value), and routes key/char events back
+  through `M_Key`/`M_Char` so navigation and actions are shared verbatim.
+- The `draw*` methods here (`M_Draw`) remain the parity oracle for path 0 and
+  the layout-constant reference for the widget row model.

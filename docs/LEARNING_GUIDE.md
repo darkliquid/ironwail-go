@@ -42,6 +42,12 @@ The project is organized into `internal/` packages, each with a specific respons
 | `internal/image` | **Graphics Processing.** Image parsing and palette handling. | Image Processor | [Guide](internal/image.md) |
 | `internal/input` | **The Senses.** Normalizes keyboard/mouse/gamepad into engine commands. | The "input translator." | [Guide](internal/input.md) |
 | `internal/menu` | **The Menus.** State machine for navigation and game options. | UI System | [Guide](internal/menu.md) |
+| `internal/quakeui` | **gogpu/ui Host.** `ui_backend` gate, widget host, input gateway, canvas bridge, surface stacking. | UI Host | — |
+| `internal/quakeui/theme` | **Quake Theme.** Palette tokens + ThemeExtension + pic bridge. | UI Theme | — |
+| `internal/quakeui/widgets` | **Quake Widgets.** QuakeText (conchars atlas) + custom widgets. | UI Widgets | — |
+| `internal/quakeui/menu` | **Menu Widget.** gogpu/ui menu root + page row models (path 1). | UI Menu | — |
+| `internal/quakeui/console` | **Console Widget.** Scrollback + input + completion bridge (path 1). | UI Console | — |
+| `internal/quakeui/hud` | **HUD Widgets.** Status bar, crosshair, centerprint (path 1). | UI HUD | — |
 | `internal/model` | **Assets.** Loader for MDL, SPR, and alias models. | Asset Manager | [Guide](internal/model.md) |
 | `internal/mods` | **Addons.** Addon downloader and installation system. | Mod Loader | [Guide](internal/mods.md) |
 | `internal/net` | **Networking.** Low-level transport and protocol handling. | Network Stack | [Guide](internal/net.md) |
