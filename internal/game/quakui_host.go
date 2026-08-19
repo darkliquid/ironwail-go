@@ -3,6 +3,7 @@ package game
 import (
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/quakui"
+	quakuiconsole "github.com/darkliquid/ironwail-go/internal/quakui/console"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gpucontext"
 )
@@ -11,8 +12,9 @@ import (
 // engine implements the adapter with gogpu/gpucontext types and plain values
 // only; no quakui code lives in the game package.
 type quakuiHost struct {
-	g    *Game
-	view gpucontext.TextureView
+	g       *Game
+	view    gpucontext.TextureView
+	conRoot *quakuiconsole.ConsoleRoot
 }
 
 // GogpuApp returns the engine's gogpu.App, which desktop.Run takes over as
@@ -43,6 +45,10 @@ func (h *quakuiHost) RenderIntoWorldTexture(view gpucontext.TextureView) error {
 func (h *quakuiHost) RenderFrame() error {
 	if h == nil || h.g == nil || h.g.Renderer == nil || h.view.IsNil() {
 		return nil
+	}
+	if h.conRoot != nil {
+		h.conRoot.SetSlideFraction(h.g.ConsoleSlideFraction)
+		h.conRoot.SetForcedUp(h.g.runtimeConsoleForcedUp())
 	}
 	return h.g.drawRuntimeWorldToView(h.view)
 }

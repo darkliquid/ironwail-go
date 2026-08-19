@@ -501,6 +501,9 @@ func consoleCursorGlyph(now time.Time) int {
 }
 
 func (c *Console) consoleNotifyTTL() time.Duration {
+	if c == nil || c.CVar == nil {
+		return consoleNotifyDefaultTTL
+	}
 	secs := c.CVar.FloatValue("con_notifytime")
 	if secs <= 0 {
 		return consoleNotifyDefaultTTL
@@ -509,7 +512,7 @@ func (c *Console) consoleNotifyTTL() time.Duration {
 }
 
 func (c *Console) notifyFadeDuration() time.Duration {
-	if !c.CVar.BoolValue("con_notifyfade") {
+	if c == nil || c.CVar == nil || !c.CVar.BoolValue("con_notifyfade") {
 		return 0
 	}
 	secs := c.CVar.FloatValue("con_notifyfadetime")

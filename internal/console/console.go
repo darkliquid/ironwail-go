@@ -207,6 +207,10 @@ func (c *Console) Init(customBufSize int) error {
 		return nil
 	}
 
+	if c.now == nil {
+		c.now = time.Now
+	}
+
 	if customBufSize > 0 {
 		if customBufSize < MinTextSize {
 			customBufSize = MinTextSize
