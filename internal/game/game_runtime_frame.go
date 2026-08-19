@@ -14,6 +14,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/quakui"
 	quakuiconsole "github.com/darkliquid/ironwail-go/internal/quakui/console"
 	quakuigfx "github.com/darkliquid/ironwail-go/internal/quakui/gfx"
+	quakuihud "github.com/darkliquid/ironwail-go/internal/quakui/hud"
 	quakimenu "github.com/darkliquid/ironwail-go/internal/quakui/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
@@ -137,8 +138,9 @@ func (g *Game) runQuakuiLoop() error {
 	w, h := g.Renderer.Size()
 	world := quakui.NewWorldTexture(host, w, h)
 
-	// Stack the console and menu surfaces over the world texture (spec §3.2, M2, M3).
+	// Stack the HUD, console, and menu surfaces over the world texture (spec §3.2, M2, M3).
 	atlas := quakuigfx.NewConcharsAtlas(g.quakeUIConchars(), g.quakeUIPalette())
+	hudRoot := quakuihud.NewHUDRoot(g.HUD, g.Draw, g.quakeUIConchars(), g.quakeUIPalette())
 	menuRoot := quakimenu.NewMenuRoot(g.Menu, g.Draw, g.quakeUIConchars(), g.quakeUIPalette())
 	conRoot := quakuiconsole.NewConsoleRoot(nil, g.Draw, atlas)
 	if g.Host != nil {
@@ -153,7 +155,7 @@ func (g *Game) runQuakuiLoop() error {
 	}
 	host.conRoot = conRoot
 
-	root := quakui.NewStack(world, conRoot, menuRoot)
+	root := quakui.NewStack(world, hudRoot, conRoot, menuRoot)
 
 	// quakui.Run builds the ui app, installs the M1.5 KeyForwarder on the
 	// host (ADR-0007), and hands the loop to desktop.Run. The engine routes
