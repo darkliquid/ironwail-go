@@ -13,8 +13,16 @@ import (
 // filled with its char index so glyphs are distinguishable.
 func testConchars() []byte {
 	data := make([]byte, 128*128)
-	for i := range data {
-		data[i] = byte(i / 64) // vary per cell
+	for y := 0; y < 128; y++ {
+		for x := 0; x < 128; x++ {
+			// Set only the border of each 8x8 cell (a hollow square glyph) so
+			// glyphs are shaped, not solid blocks.
+			cx := x % 8
+			cy := y % 8
+			if cx == 0 || cy == 0 || cx == 7 || cy == 7 {
+				data[y*128+x] = 254 // white
+			}
+		}
 	}
 	return data
 }

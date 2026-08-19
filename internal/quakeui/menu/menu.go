@@ -133,6 +133,10 @@ func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	offsetX := float32(canvasW-320*int(scale)) / 2
 	offsetY := float32(canvasH-200*int(scale)) / 2
 
+	// Diagnostic backdrop: fill the menu viewport with a semi-transparent
+	// black rect so the menu region is visible.
+	canvas.DrawRect(geometry.NewRect(offsetX, offsetY, 320*scale, 200*scale), widget.RGBA(0, 0, 0, 0.5))
+
 	for i, row := range r.rows {
 		y := offsetY + float32(32+i*20)*scale
 		r.text.DrawStringScaled(canvas, offsetX+84*scale, y, scale, row.Label)
@@ -146,7 +150,8 @@ func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	}
 }
 
-// Event routes key/char events to the manager action path.
+// Event routes key/char events to the manager action path and invalidates the
+// widget so the tree re-renders with the updated cursor/state.
 func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 	if r == nil || r.mgr == nil {
 		return false
@@ -156,11 +161,13 @@ func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 		// through M_Key.
 		if ke.Rune != 0 {
 			r.handleChar(ke.Rune)
+			ctx.Invalidate()
 			return true
 		}
 		key := keyEventToEngine(ke)
 		if key >= 0 {
 			r.handleKey(key)
+			ctx.Invalidate()
 			return true
 		}
 	}

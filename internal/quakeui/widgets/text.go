@@ -9,7 +9,6 @@ import (
 	"image"
 
 	"github.com/darkliquid/ironwail-go/internal/draw"
-	"github.com/gogpu/gg"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/widget"
@@ -147,10 +146,10 @@ func (wt *QuakeText) DrawString(canvas widget.Canvas, x, y float32, text string)
 }
 
 // DrawStringScaled renders the given text with each glyph scaled by the given
-// factor (e.g. 2 for 16px glyphs). It uses the gg escape hatch on the concrete
-// canvas (Context() *gg.Context) to draw each glyph scaled via DrawImageEx.
-// When the canvas does not expose a gg context, it falls back to unscaled
-// DrawString.
+// factor (e.g. 2 for 16px glyphs). Each glyph is pre-scaled on the CPU with
+// nearest-neighbor sampling into a new RGBA image and drawn via the normal
+// canvas.DrawImage path (no gg escape hatch), so the canvas transform/clip
+// apply correctly.
 func (wt *QuakeText) DrawStringScaled(canvas widget.Canvas, x, y float32, scale float32, text string) {
 	if wt == nil || wt.atlas == nil || canvas == nil {
 		return
@@ -159,15 +158,6 @@ func (wt *QuakeText) DrawStringScaled(canvas widget.Canvas, x, y float32, scale 
 		wt.DrawString(canvas, x, y, text)
 		return
 	}
-	type ggContextProvider interface {
-		Context() *gg.Context
-	}
-	cc, ok := canvas.(ggContextProvider)
-	if !ok || cc.Context() == nil {
-		wt.DrawString(canvas, x, y, text)
-		return
-	}
-	gc := cc.Context()
 	cx := x
 	for _, ch := range text {
 		if ch < 0 || ch > 255 {
@@ -175,16 +165,32 @@ func (wt *QuakeText) DrawStringScaled(canvas widget.Canvas, x, y float32, scale 
 		}
 		img := wt.GlyphImage(byte(ch))
 		if img != nil {
-			gc.DrawImageEx(gg.ImageBufFromImage(img), gg.DrawImageOptions{
-				X:             float64(cx),
-				Y:             float64(y),
-				DstWidth:      float64(8 * scale),
-				DstHeight:     float64(8 * scale),
-				Interpolation: gg.InterpNearest,
-			})
+			canvas.DrawImage(scaleGlyph(img, int(scale)), geometry.Pt(cx, y))
 		}
 		cx += 8 * scale
 	}
+}
+
+// scaleGlyph nearest-neighbor scales an 8x8 glyph image by the given integer
+// factor into a new RGBA image.
+func scaleGlyph(src image.Image, factor int) *image.RGBA {
+	if factor <= 1 {
+		if r, ok := src.(*image.RGBA); ok {
+			return r
+		}
+	}
+	srcW := src.Bounds().Dx()
+	srcH := src.Bounds().Dy()
+	dst := image.NewRGBA(image.Rect(0, 0, srcW*factor, srcH*factor))
+	for y := 0; y < srcH*factor; y++ {
+		sy := y / factor
+		for x := 0; x < srcW*factor; x++ {
+			sx := x / factor
+			c := src.At(src.Bounds().Min.X+sx, src.Bounds().Min.Y+sy)
+			dst.Set(x, y, c)
+		}
+	}
+	return dst
 }
 
 // Layout sizes the widget to its content (default 8px glyph cell).
