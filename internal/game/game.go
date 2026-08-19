@@ -100,6 +100,7 @@ type Game struct {
 	// tree; game/HUD-only events remain in the engine (fallthrough). Nil on
 	// the legacy path so the engine never touches the ui input pipeline.
 	uiInput quakui.Forwarder
+	uiHost  *quakuiHost
 
 	// cpuProfile tracks the active CPU profile capture state.
 	cpuProfile cpuProfileState

@@ -23,6 +23,8 @@ func MapEngineKey(k int) event.Key {
 		return event.KeyEscape
 	case input.KSpace:
 		return event.KeySpace
+	case int('`'), int('~'):
+		return event.KeyGrave
 	case input.KUpArrow:
 		return event.KeyUp
 	case input.KDownArrow:

@@ -236,3 +236,27 @@ func TestConsoleRoot_TabCompletionMultipleMatches(t *testing.T) {
 		t.Fatalf("Matches() after typing = %+v, want empty", root.Matches())
 	}
 }
+
+func TestConsoleRoot_IsVisible(t *testing.T) {
+	_, root := setupTestConsole()
+
+	// Initially slideFraction=0, no notify -> not active
+	if root.IsVisible() {
+		t.Fatal("expected IsVisible() == false initially when slideFraction=0")
+	}
+
+	root.SetSlideFraction(0.5)
+	if !root.IsVisible() {
+		t.Fatal("expected IsVisible() == true when slideFraction > 0")
+	}
+
+	root.SetSlideFraction(0.0)
+	if root.IsVisible() {
+		t.Fatal("expected IsVisible() == false after sliding down to 0")
+	}
+
+	root.SetForcedUp(true)
+	if !root.IsVisible() {
+		t.Fatal("expected IsVisible() == true when forcedUp=true")
+	}
+}

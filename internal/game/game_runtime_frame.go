@@ -135,6 +135,8 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 // the loop exits.
 func (g *Game) runQuakuiLoop() error {
 	host := &quakuiHost{g: g}
+	g.uiHost = host
+	defer func() { g.uiHost = nil }()
 	w, h := g.Renderer.Size()
 	world := quakui.NewWorldTexture(host, w, h)
 
@@ -224,6 +226,10 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 
 		consoleVisible := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 		g.updateRuntimeConsoleSlide(dt, consoleVisible, g.runtimeConsoleForcedUp())
+		if g.uiHost != nil && g.uiHost.conRoot != nil {
+			g.uiHost.conRoot.SetSlideFraction(g.ConsoleSlideFraction)
+			g.uiHost.conRoot.SetForcedUp(g.runtimeConsoleForcedUp())
+		}
 
 		transientEvents := g.RunRuntimeFrameUnlessPaused(dt, cb)
 		if g.Host != nil && g.Host.IsAborted() {

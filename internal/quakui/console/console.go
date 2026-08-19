@@ -42,8 +42,22 @@ func NewConsoleRoot(con *console.Console, drawMgr *draw.Manager, atlas *gfx.Conc
 		atlas:         atlas,
 		slideFraction: 0,
 	}
+	r.SetVisible(true)
+	r.SetEnabled(true)
 	r.SetRepaintBoundary(true)
 	return r
+}
+
+// IsVisible reports whether the console widget is active (dropdown open/animating, forced up, or fading notifications).
+func (r *ConsoleRoot) IsVisible() bool {
+	if r == nil {
+		return false
+	}
+	active := r.slideFraction > 0 || r.forcedUp
+	if !active && r.con != nil {
+		active = r.con.HasNotify()
+	}
+	return active
 }
 
 // SetSlideFraction updates the drop-down slide animation progress (0.0 to 1.0).
@@ -56,6 +70,8 @@ func (r *ConsoleRoot) SetSlideFraction(f float32) {
 	}
 	if r.slideFraction != f {
 		r.slideFraction = f
+		r.SetVisible(f > 0 || r.forcedUp)
+		r.SetNeedsRedraw(true)
 		r.InvalidateScene()
 	}
 }
@@ -69,6 +85,8 @@ func (r *ConsoleRoot) SlideFraction() float32 {
 func (r *ConsoleRoot) SetForcedUp(forced bool) {
 	if r.forcedUp != forced {
 		r.forcedUp = forced
+		r.SetVisible(forced || r.slideFraction > 0)
+		r.SetNeedsRedraw(true)
 		r.InvalidateScene()
 	}
 }
@@ -154,17 +172,19 @@ func (r *ConsoleRoot) drawDropdown(canvas widget.Canvas, screenW, screenH float3
 		charsWide = 2
 	}
 
-	// Background
+	// Background: solid black base for dropdown overlay
+	canvas.DrawRect(geometry.NewRect(0, 0, screenW, visibleH), widget.ColorBlack)
 	if r.conbackImg == nil && r.drawMgr != nil {
 		pic := r.drawMgr.Pic("gfx/conback.lmp")
+		if pic == nil {
+			pic = r.drawMgr.Pic("conback")
+		}
 		if pic != nil {
 			r.conbackImg = gfx.QPicToImage(pic, r.drawMgr.Palette())
 		}
 	}
 	if r.conbackImg != nil {
 		canvas.DrawImage(r.conbackImg, geometry.Pt(0, visibleH-conH))
-	} else {
-		canvas.DrawRect(geometry.NewRect(0, 0, screenW, visibleH), widget.ColorBlack)
 	}
 
 	visibleRows := int(visibleH)/8 - 1

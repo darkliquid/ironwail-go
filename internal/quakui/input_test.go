@@ -51,6 +51,8 @@ func TestMapEngineKey(t *testing.T) {
 		{"ctrl", input.KCtrl, event.KeyLeftCtrl},
 		{"alt", input.KAlt, event.KeyLeftAlt},
 		{"command", input.KCommand, event.KeyLeftSuper},
+		{"backtick", int('`'), event.KeyGrave},
+		{"tilde", int('~'), event.KeyGrave},
 		{"ascii letter unmapped", int('a'), event.KeyUnknown},
 		{"mouse button dropped", input.KMouseBegin, event.KeyUnknown},
 		{"unknown dropped", 9999, event.KeyUnknown},

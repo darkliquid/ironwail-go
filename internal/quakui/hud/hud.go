@@ -53,8 +53,18 @@ func NewHUDRoot(provider HUDStateProvider, drawMgr *draw.Manager, conchars []byt
 		atlas:    atlas,
 		palette:  palette,
 	}
+	r.SetVisible(true)
+	r.SetEnabled(true)
 	r.SetRepaintBoundary(true)
 	return r
+}
+
+// IsVisible reports whether the heads-up display is active and should be drawn.
+func (r *HUDRoot) IsVisible() bool {
+	if r == nil || r.provider == nil {
+		return false
+	}
+	return true
 }
 
 // Layout fills the window constraints.

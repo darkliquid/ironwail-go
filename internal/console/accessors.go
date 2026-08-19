@@ -68,3 +68,24 @@ func (c *Console) SnapshotNotify() []NotifyLineSnapshot {
 	}
 	return lines
 }
+
+// HasNotify reports whether any fading notification lines are currently active.
+func (c *Console) HasNotify() bool {
+	if c == nil {
+		return false
+	}
+	now := c.now()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for line := c.current - NumNotifyTimes + 1; line <= c.current; line++ {
+		if line < 0 {
+			continue
+		}
+		ts := c.notifyTimes[line%NumNotifyTimes]
+		if c.notifyAlpha(now, ts) > 0 {
+			return true
+		}
+	}
+	return false
+}
