@@ -94,13 +94,10 @@ type Game struct {
 	// inputDispatchLogCount caps the verbose input-dispatch log stream.
 	inputDispatchLogCount atomic.Uint32
 
-	// uiInput is the inline-input router installed by the quakui Host on the
-	// ui_backend=1 path (M1.5 / ADR-0007). When non-nil, the engine's KeyDest
-	// router forwards menu/console key and char events into the ui widget
-	// tree; game/HUD-only events remain in the engine (fallthrough). Nil on
-	// the legacy path so the engine never touches the ui input pipeline.
-	uiInput quakui.Forwarder
-	uiHost  *quakuiHost
+	// uiInput is the inline-input router installed on the ui_backend=1 path.
+	uiInput       quakui.Forwarder
+	uiHost        *quakuiHost
+	quakuiOverlay *quakui.OverlayRenderer
 
 	// cpuProfile tracks the active CPU profile capture state.
 	cpuProfile cpuProfileState

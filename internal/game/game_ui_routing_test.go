@@ -50,8 +50,7 @@ func newUIRoutingGame(t *testing.T) (*Game, *spyForwarder) {
 	g.Menu = menu.NewManager(nil, g.Input, nil)
 
 	spy := &spyForwarder{}
-	host := &quakuiHost{g: g}
-	host.AttachKeyForwarder(spy)
+	g.uiInput = spy
 	return g, spy
 }
 

@@ -1,7 +1,6 @@
 package quakui
 
 import (
-	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/widget"
@@ -70,22 +69,12 @@ func (s *Stack) Layout(ctx widget.Context, c geometry.Constraints) geometry.Size
 	return size
 }
 
-// Draw renders stacked children in z-order. External texture widgets
-// (such as WorldTexture) are handled by the compositor blit path.
+// Draw renders stacked children in z-order directly to the canvas.
 func (s *Stack) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if s == nil || canvas == nil {
 		return
 	}
-	type boundaryChecker interface {
-		IsRepaintBoundary() bool
-	}
 	for _, child := range s.children {
-		if bc, ok := child.(boundaryChecker); ok && bc.IsRepaintBoundary() {
-			continue
-		}
-		if _, ok := child.(interface{ Texture() gpucontext.TextureView }); ok {
-			continue
-		}
 		visible := true
 		if vs, ok := child.(visibilityChecker); ok {
 			visible = vs.IsVisible()

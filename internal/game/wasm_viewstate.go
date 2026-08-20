@@ -11,5 +11,6 @@ package game
 // runtimeViewState the renderer uses each frame, so the walkthrough's
 // renderer layer panel shows the exact view the engine is drawing.
 func (g *Game) WasmViewState() (origin, angles [3]float32) {
-	return g.runtimeViewState()
+	org, ang := g.runtimeViewState()
+	return [3]float32{org.X, org.Y, org.Z}, [3]float32{ang.X, ang.Y, ang.Z}
 }

@@ -671,9 +671,9 @@ func (g *Game) cmdToggleConsole(_ []string) {
 		}
 		g.Input.SetKeyDest(input.KeyGame)
 		g.syncGameplayInputMode()
-		if g.uiHost != nil && g.uiHost.conRoot != nil {
-			g.uiHost.conRoot.SetSlideFraction(g.ConsoleSlideFraction)
-			g.uiHost.conRoot.SetForcedUp(g.runtimeConsoleForcedUp())
+		if g.quakuiOverlay != nil {
+			g.quakuiOverlay.SetConsoleSlideFraction(g.ConsoleSlideFraction)
+			g.quakuiOverlay.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
 		}
 		return
 	}
@@ -684,9 +684,9 @@ func (g *Game) cmdToggleConsole(_ []string) {
 	console.ResetCompletion()
 	g.Input.SetKeyDest(input.KeyConsole)
 	g.syncGameplayInputMode()
-	if g.uiHost != nil && g.uiHost.conRoot != nil {
-		g.uiHost.conRoot.SetSlideFraction(g.ConsoleSlideFraction)
-		g.uiHost.conRoot.SetForcedUp(g.runtimeConsoleForcedUp())
+	if g.quakuiOverlay != nil {
+		g.quakuiOverlay.SetConsoleSlideFraction(g.ConsoleSlideFraction)
+		g.quakuiOverlay.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
 	}
 }
 

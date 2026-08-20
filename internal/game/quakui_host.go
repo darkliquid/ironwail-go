@@ -1,56 +1,10 @@
 package game
 
-import (
-	"github.com/darkliquid/ironwail-go/internal/input"
-	"github.com/darkliquid/ironwail-go/internal/quakui"
-	quakuiconsole "github.com/darkliquid/ironwail-go/internal/quakui/console"
-	"github.com/gogpu/gogpu"
-	"github.com/gogpu/gpucontext"
-)
-
 // quakuiHost adapts the engine to internal/quakui.Host (ADR-0009, AC7). The
-// engine implements the adapter with gogpu/gpucontext types and plain values
-// only; no quakui code lives in the game package.
+// engine implements the adapter with plain values only; no quakui code lives
+// in the game package.
 type quakuiHost struct {
-	g       *Game
-	view    gpucontext.TextureView
-	conRoot *quakuiconsole.ConsoleRoot
-}
-
-// GogpuApp returns the engine's gogpu.App, which desktop.Run takes over as
-// the window/render-loop owner on ui_backend=1 (ADR-0006).
-func (h *quakuiHost) GogpuApp() *gogpu.App {
-	if h == nil || h.g == nil || h.g.Renderer == nil {
-		return nil
-	}
-	return h.g.Renderer.GogpuApp()
-}
-
-// WorldTexture returns the current gpuview texture (nil/zero until mounted).
-func (h *quakuiHost) WorldTexture() gpucontext.TextureView {
-	if h == nil {
-		return gpucontext.TextureView{}
-	}
-	return h.view
-}
-
-// RenderIntoWorldTexture stores the gpuview view the gpuview OnRender provides.
-func (h *quakuiHost) RenderIntoWorldTexture(view gpucontext.TextureView) error {
-	h.view = view
-	return nil
-}
-
-// RenderFrame renders the world into the stored gpuview view via the
-// renderer's RenderWorldIntoView (scene-target seam + raw wgpu encoders).
-func (h *quakuiHost) RenderFrame() error {
-	if h == nil || h.g == nil || h.g.Renderer == nil || h.view.IsNil() {
-		return nil
-	}
-	if h.conRoot != nil {
-		h.conRoot.SetSlideFraction(h.g.ConsoleSlideFraction)
-		h.conRoot.SetForcedUp(h.g.runtimeConsoleForcedUp())
-	}
-	return h.g.drawRuntimeWorldToView(h.view)
+	g *Game
 }
 
 // CVar reads an engine cvar as a plain float.
@@ -59,32 +13,6 @@ func (h *quakuiHost) CVar(name string) float64 {
 		return 0
 	}
 	return h.g.Host.CVar.FloatValue(name)
-}
-
-// KeyDest returns the plain enum routing destination.
-func (h *quakuiHost) KeyDest() quakui.KeyDest {
-	if h == nil || h.g == nil || h.g.Input == nil {
-		return quakui.KeyDestGame
-	}
-	switch h.g.Input.KeyDest() {
-	case input.KeyConsole:
-		return quakui.KeyDestConsole
-	}
-	if h.g.Menu != nil && h.g.Menu.IsActive() {
-		return quakui.KeyDestMenu
-	}
-	return quakui.KeyDestGame
-}
-
-// AttachKeyForwarder stores the ui-facing Forwarder the engine's KeyDest
-// router uses to push menu/console input into the ui widget tree (M1.5,
-// ADR-0007). The engine routes via h.g.uiInput; game/HUD-only input never
-// reaches the ui (fallthrough).
-func (h *quakuiHost) AttachKeyForwarder(f quakui.Forwarder) {
-	if h == nil || h.g == nil {
-		return
-	}
-	h.g.uiInput = f
 }
 
 // ExecuteCommandText queues an engine console command.

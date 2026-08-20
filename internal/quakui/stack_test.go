@@ -66,45 +66,32 @@ func TestStack_ChildrenFiltering(t *testing.T) {
 	}
 }
 
-type dummyBoundaryWidget struct {
-	widget.WidgetBase
-	drawn bool
+type dummyCanvas struct {
+	widget.Canvas
 }
 
-func (d *dummyBoundaryWidget) Layout(ctx widget.Context, c geometry.Constraints) geometry.Size {
-	return geometry.Sz(c.MaxWidth, c.MaxHeight)
-}
+func TestStack_Draw(t *testing.T) {
+	child1 := &dummyChildWidget{}
+	child1.SetVisible(true)
 
-func (d *dummyBoundaryWidget) Draw(ctx widget.Context, canvas widget.Canvas) {
-	d.drawn = true
-}
+	child2 := &dummyChildWidget{}
+	child2.SetVisible(false)
 
-func (d *dummyBoundaryWidget) Event(ctx widget.Context, e event.Event) bool {
-	return false
-}
+	child3 := &dummyChildWidget{}
+	child3.SetVisible(true)
 
-func (d *dummyBoundaryWidget) Children() []widget.Widget {
-	return nil
-}
+	stack := NewStack(child1, child2, child3)
+	canvas := &dummyCanvas{}
+	stack.Draw(nil, canvas)
 
-func TestStack_Draw_SkipsBoundaries(t *testing.T) {
-	regularChild := &dummyChildWidget{}
-	regularChild.SetVisible(true)
-
-	boundaryChild := &dummyBoundaryWidget{}
-	boundaryChild.SetVisible(true)
-	boundaryChild.SetRepaintBoundary(true)
-
-	stack := NewStack(regularChild, boundaryChild)
-
-	stack.Draw(nil, nil)
-	// Even without canvas, regular child might be evaluated if Draw was naive,
-	// but let's test with minimal non-nil canvas logic if called
-	if regularChild.drawn {
-		t.Fatalf("expected regularChild not drawn with nil canvas")
+	if !child1.drawn {
+		t.Fatalf("expected child1 drawn")
 	}
-	if boundaryChild.drawn {
-		t.Fatalf("expected boundaryChild not drawn (boundary should be skipped)")
+	if child2.drawn {
+		t.Fatalf("expected child2 not drawn (invisible)")
+	}
+	if !child3.drawn {
+		t.Fatalf("expected child3 drawn")
 	}
 }
 

@@ -13,10 +13,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/quakui"
-	quakuiconsole "github.com/darkliquid/ironwail-go/internal/quakui/console"
-	quakuigfx "github.com/darkliquid/ironwail-go/internal/quakui/gfx"
-	quakuihud "github.com/darkliquid/ironwail-go/internal/quakui/hud"
-	quakimenu "github.com/darkliquid/ironwail-go/internal/quakui/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gpucontext"
@@ -100,14 +96,7 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 		g.StartWasmRendererFrameLoop()
 		select {}
 	}
-	var runErr error
-	if quakui.IsGogpuUIPath(g.Host.CVar) && runtime.GOOS != "js" {
-		// ui_backend=1: gogpu/ui owns the loop via desktop.Run (ADR-0006).
-		// The world renders into a gpuview texture; the UI composites above.
-		runErr = g.runQuakuiLoop()
-	} else {
-		runErr = g.Renderer.Run()
-	}
+	runErr := g.Renderer.Run()
 	if runErr != nil {
 		if g.Renderer != nil {
 			g.Renderer.Stop()
@@ -130,40 +119,38 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 	return result, nil
 }
 
-// runQuakuiLoop boots the gogpu/ui path (ui_backend=1): desktop.Run owns the
-// window render loop, the world renders into a gpuview texture via the quakui
-// Host, and the UI composites above (ADR-0006, research 0006). It blocks until
-// the loop exits.
-func (g *Game) runQuakuiLoop() error {
+// ensureQuakuiOverlay returns or instantiates the engine-owned OverlayRenderer
+// on the ui_backend=1 path (SPEC-003, ADR-0010).
+func (g *Game) ensureQuakuiOverlay() *quakui.OverlayRenderer {
+	if g.quakuiOverlay != nil {
+		return g.quakuiOverlay
+	}
 	host := &quakuiHost{g: g}
 	g.uiHost = host
-	defer func() { g.uiHost = nil }()
-	w, h := g.Renderer.Size()
-	world := quakui.NewWorldTexture(host, w, h)
-
-	// Stack the HUD, console, and menu surfaces over the world texture (spec §3.2, M2, M3).
-	atlas := quakuigfx.NewConcharsAtlas(g.quakeUIConchars(), g.quakeUIPalette())
-	hudRoot := quakuihud.NewHUDRoot(g.HUD, g.Draw, g.quakeUIConchars(), g.quakeUIPalette())
-	menuRoot := quakimenu.NewMenuRoot(g.Menu, g.Draw, g.quakeUIConchars(), g.quakeUIPalette())
-	conRoot := quakuiconsole.NewConsoleRoot(console.Global(), g.Draw, atlas)
-	if g.Host != nil {
-		conRoot.SetOnCommand(func(cmd string) {
-			if g.Host.Cmd != nil {
-				g.Host.Cmd.AddText(cmd + "\n")
-			}
-		})
-		conRoot.SetOnToggle(func() {
-			g.cmdToggleConsole(nil)
-		})
+	overlay := quakui.NewOverlayRenderer(
+		host,
+		g.Menu,
+		console.Global(),
+		g.HUD,
+		g.Draw,
+		g.quakeUIConchars(),
+		g.quakeUIPalette(),
+	)
+	if conRoot := overlay.ConsoleRoot(); conRoot != nil {
+		if g.Host != nil {
+			conRoot.SetOnCommand(func(cmd string) {
+				if g.Host.Cmd != nil {
+					g.Host.Cmd.AddText(cmd + "\n")
+				}
+			})
+			conRoot.SetOnToggle(func() {
+				g.cmdToggleConsole(nil)
+			})
+		}
 	}
-	host.conRoot = conRoot
-
-	root := quakui.NewStack(world, hudRoot, conRoot, menuRoot)
-
-	// quakui.Run builds the ui app, installs the M1.5 KeyForwarder on the
-	// host (ADR-0007), and hands the loop to desktop.Run. The engine routes
-	// menu/console input into the ui through that forwarder.
-	return quakui.Run(host, root)
+	g.quakuiOverlay = overlay
+	g.uiInput = quakui.NewKeyForwarder(overlay)
+	return overlay
 }
 
 // quakeUIConchars returns the engine's conchars atlas bytes for the UI text
@@ -227,9 +214,9 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 
 		consoleVisible := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 		g.updateRuntimeConsoleSlide(dt, consoleVisible, g.runtimeConsoleForcedUp())
-		if g.uiHost != nil && g.uiHost.conRoot != nil {
-			g.uiHost.conRoot.SetSlideFraction(g.ConsoleSlideFraction)
-			g.uiHost.conRoot.SetForcedUp(g.runtimeConsoleForcedUp())
+		if g.quakuiOverlay != nil {
+			g.quakuiOverlay.SetConsoleSlideFraction(g.ConsoleSlideFraction)
+			g.quakuiOverlay.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
 		}
 
 		transientEvents := g.RunRuntimeFrameUnlessPaused(dt, cb)
@@ -388,6 +375,22 @@ func (g *Game) drawRuntimeWorldToView(view gpucontext.TextureView) error {
 
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 	w, h := g.Renderer.Size()
+	if quakui.IsGogpuUIPath(g.Host.CVar) {
+		quakuiRenderer := g.ensureQuakuiOverlay()
+		if quakuiRenderer != nil {
+			quakuiRenderer.SetConsoleSlideFraction(g.ConsoleSlideFraction)
+			quakuiRenderer.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
+			if rawView := overlay.SurfaceView(); rawView != nil {
+				if texView, ok := rawView.(gpucontext.TextureView); ok && !texView.IsNil() {
+					if err := quakuiRenderer.DrawOverlay(texView, w, h); err != nil {
+						slog.Warn("quakui overlay draw failed", "error", err)
+					}
+					return
+				}
+			}
+		}
+	}
+
 	consoleVisible := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 	if setter, ok := overlay.(CanvasParamSetter); ok {
 		setter.SetCanvasParams(g.runtimeOverlayCanvasParams(w, h))

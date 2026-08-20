@@ -261,7 +261,7 @@ func inspectorServerState(g *game.Game) any {
 			entry["classname"] = cn
 		}
 		org := ent.Origin(g.Server)
-		entry["origin"] = []float32{org[0], org[1], org[2]}
+		entry["origin"] = []float32{org.X, org.Y, org.Z}
 		edicts = append(edicts, entry)
 	}
 	out["edicts"] = edicts
@@ -400,7 +400,7 @@ func inspectorGetEdict(g *game.Game, args []js.Value) any {
 		out["classname"] = cn
 	}
 	org := ent.Origin(g.Server)
-	out["origin"] = []float32{org[0], org[1], org[2]}
+	out["origin"] = []float32{org.X, org.Y, org.Z}
 	out["health"] = ent.Health(g.Server)
 	mb := ent.MoveType(g.Server)
 	out["movetype"] = mb
