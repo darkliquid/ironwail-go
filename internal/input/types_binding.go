@@ -165,8 +165,22 @@ func (s *System) AnyKeyDown() bool {
 // changing video modes or loading a new level to prevent stuck keys caused
 // by a release event being missed during the transition.
 func (s *System) ClearKeyStates() {
+	s.ClearKeyStatesExcept()
+}
+
+// ClearKeyStatesExcept resets every key to the "up" state except for the
+// specified key codes. This is used during menu transitions to clear latched
+// movement keys without forgetting that the menu trigger key (e.g. Escape) is
+// still held down.
+func (s *System) ClearKeyStatesExcept(exceptions ...int) {
+	exceptMap := make(map[int]bool, len(exceptions))
+	for _, k := range exceptions {
+		exceptMap[k] = true
+	}
 	for i := range s.state.Keys {
-		s.state.Keys[i] = false
+		if !exceptMap[i] {
+			s.state.Keys[i] = false
+		}
 	}
 }
 

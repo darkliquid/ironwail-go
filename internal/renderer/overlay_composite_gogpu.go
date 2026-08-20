@@ -160,7 +160,7 @@ func (r *Renderer) ensureOverlayCompositeResourcesLocked(device *wgpu.Device) er
 				Format: r.sceneSurfaceFormat(),
 				Blend: &gputypes.BlendState{
 					Color: gputypes.BlendComponent{
-						SrcFactor: gputypes.BlendFactorOne,
+						SrcFactor: gputypes.BlendFactorSrcAlpha,
 						DstFactor: gputypes.BlendFactorOneMinusSrcAlpha,
 						Operation: gputypes.BlendOperationAdd,
 					},

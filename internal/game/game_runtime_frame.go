@@ -15,7 +15,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/quakui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
-	"github.com/gogpu/gpucontext"
 )
 
 type runtimeRendererLoopResult struct {
@@ -355,29 +354,6 @@ func (g *Game) drawRuntimeRendererFrame(dc renderer.RenderContext) {
 	g.drawRuntimeFallbackFrame(dc)
 }
 
-func (g *Game) drawRuntimeWorldToView(view gpucontext.TextureView) error {
-	if g == nil || g.Renderer == nil || view.IsNil() {
-		return nil
-	}
-	g.ApplyQueuedRendererAssets()
-	origin, angles := g.runtimeViewState()
-	camera := g.runtimeCameraState(origin, angles)
-	g.Renderer.UpdateCamera(camera, 0.1, 65536.0)
-	g.uploadDeferredRuntimeWorld()
-	g.applyRuntimeRendererSkybox(g.Renderer)
-
-	brushEntities := g.collectBrushEntities()
-	aliasEntities := g.collectAliasEntities()
-	spriteEntities := g.collectSpriteEntities()
-	viewModel := g.collectViewModelEntity()
-
-	g.Renderer.PreloadBrushEntities(brushEntities)
-
-	state := g.buildRuntimeRenderFrameState(brushEntities, aliasEntities, spriteEntities, viewModel)
-	state.Draw2DOverlay = false
-
-	return g.Renderer.RenderWorldIntoView(view, state)
-}
 
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 	w, h := g.Renderer.Size()

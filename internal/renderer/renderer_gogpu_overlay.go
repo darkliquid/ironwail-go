@@ -43,15 +43,6 @@ func (dc *DrawContext) flush2DOverlayWithDraw(doDraw bool) {
 	r := dc.renderer
 	r.mu.Lock()
 	currentDirty := ov.dirtyRect()
-	uploadRect := currentDirty
-	if r.overlayTextureDirtyValid {
-		uploadRect = unionOverlayDirtyRects(uploadRect, overlayDirtyRect{
-			x: r.overlayTextureDirtyX,
-			y: r.overlayTextureDirtyY,
-			w: r.overlayTextureDirtyW,
-			h: r.overlayTextureDirtyH,
-		})
-	}
 	// Reuse cached GPU texture if dimensions match.
 	if r.overlayTexture != nil && r.overlayTextureWidth == ov.width && r.overlayTextureHeight == ov.height {
 		tex := r.overlayTexture

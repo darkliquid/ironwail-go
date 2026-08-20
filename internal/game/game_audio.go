@@ -188,13 +188,19 @@ func (g *Game) syncRuntimeAmbientAudio(viewOrigin types.Vec3, frameTime float32)
 }
 
 func (g *Game) playMenuSound(name string) {
-	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil || name == "" {
+	if name == "" {
+		return
+	}
+	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil {
+		slog.Warn("menu sound dropped (audio or fs nil)", "sound", name, "has_audio", g.Audio != nil, "has_subs", g.Subs != nil)
 		return
 	}
 	if err := g.Audio.PlayLocalSound(name, func() ([]byte, error) {
 		return g.Subs.Files.LoadFile("sound/" + name)
 	}, 1); err != nil {
-		slog.Debug("menu sound skipped", "sound", name, "error", err)
+		slog.Warn("menu sound failed", "sound", name, "error", err)
+	} else {
+		slog.Info("menu sound played", "sound", name)
 	}
 }
 

@@ -213,7 +213,8 @@ func (c *canvasRenderContext) Canvas() renderer.CanvasState {
 }
 
 func (c *canvasRenderContext) transformPos(x, y int) (float32, float32) {
-	if c.curType == renderer.CanvasSbar {
+	switch c.curType {
+	case renderer.CanvasSbar:
 		// CanvasSbar: 320x48 fixed status bar centered at the bottom of the screen
 		originX := (float32(c.width) - 320.0) * 0.5
 		originY := float32(c.height) - 48.0
@@ -224,14 +225,14 @@ func (c *canvasRenderContext) transformPos(x, y int) (float32, float32) {
 			originY = 0
 		}
 		return originX + float32(x), originY + float32(y)
-	} else if c.curType == renderer.CanvasCrosshair {
+	case renderer.CanvasCrosshair:
 		// Centered at screen center
 		originX := float32(c.width) * 0.5
 		originY := float32(c.height) * 0.5
 		return originX + float32(x), originY + float32(y)
+	default:
+		return float32(x), float32(y)
 	}
-
-	return float32(x), float32(y)
 }
 
 func (c *canvasRenderContext) DrawPic(x, y int, pic *qimage.QPic) {

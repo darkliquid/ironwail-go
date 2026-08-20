@@ -249,9 +249,6 @@ func (g *Game) handleMenuKeyEvent(event input.KeyEvent) {
 	}
 	if g.Input != nil && !g.Menu.IsActive() {
 		g.syncGameplayInputMode()
-		if g.Input.KeyDest() == input.KeyGame {
-			g.Input.ClearKeyStates()
-		}
 	}
 }
 
@@ -482,7 +479,7 @@ func (g *Game) syncGameplayInputMode() {
 		if g.Client != nil {
 			g.releaseGameplayButtons()
 		}
-		g.Input.ClearKeyStates()
+		g.Input.ClearKeyStatesExcept(input.KEscape, input.KStart)
 	}
 
 	shouldGrab := !menuActive && wantDest == input.KeyGame

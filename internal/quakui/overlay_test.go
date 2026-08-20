@@ -46,7 +46,7 @@ func setupTestOverlay() *OverlayRenderer {
 	host := &dummyHost{}
 	mgr := legacymenu.NewManager(nil, nil, nil)
 	con := console.NewConsole(1024)
-	con.Init(0)
+	_ = con.Init(0)
 	drawMgr := draw.NewManager()
 	conchars := make([]byte, 128*128)
 	palette := make([]byte, 768)
@@ -95,7 +95,7 @@ func TestOverlayRenderer_Menu_DrawAndEvent(t *testing.T) {
 	mgr := legacymenu.NewManager(nil, nil, nil)
 	mgr.ShowState(legacymenu.MenuMain)
 	con := console.NewConsole(1024)
-	con.Init(0)
+	_ = con.Init(0)
 	drawMgr := draw.NewManager()
 	conchars := make([]byte, 128*128)
 	for i := range conchars {
@@ -143,7 +143,7 @@ func TestOverlayRenderer_Console_FullFlow(t *testing.T) {
 	host := &dummyHost{}
 	mgr := legacymenu.NewManager(nil, nil, nil)
 	con := console.NewConsole(1024)
-	con.Init(0)
+	_ = con.Init(0)
 	drawMgr := draw.NewManager()
 	conchars := make([]byte, 128*128)
 	palette := make([]byte, 768)
@@ -207,7 +207,7 @@ func TestOverlayRenderer_HUD_DrawAndFallthrough(t *testing.T) {
 	host := &dummyHost{}
 	mgr := legacymenu.NewManager(nil, nil, nil)
 	con := console.NewConsole(1024)
-	con.Init(0)
+	_ = con.Init(0)
 	hudProv := &testHUDProvider{}
 	drawMgr := draw.NewManager()
 	conchars := make([]byte, 128*128)
