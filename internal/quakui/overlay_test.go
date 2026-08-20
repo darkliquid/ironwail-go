@@ -1,14 +1,15 @@
 package quakui
 
 import (
+	"image"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	"github.com/darkliquid/ironwail-go/internal/hud"
+	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	legacymenu "github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
-	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/ui/event"
 )
 
@@ -18,6 +19,28 @@ func (d *dummyHost) CVar(string) float64       { return 0 }
 func (d *dummyHost) PlaySound(string)          {}
 func (d *dummyHost) ExecuteCommandText(string) {}
 func (d *dummyHost) Quit()                     {}
+
+type testOverlayRenderContext struct {
+	drawRGBACalled bool
+	lastImage      *image.RGBA
+}
+
+func (t *testOverlayRenderContext) Clear(r, g, b, a float32)            {}
+func (t *testOverlayRenderContext) DrawTriangle(r, g, b, a float32)     {}
+func (t *testOverlayRenderContext) SurfaceView() any                    { return nil }
+func (t *testOverlayRenderContext) Gamma() float32                      { return 1 }
+func (t *testOverlayRenderContext) DrawPic(x, y int, pic *qimage.QPic)  {}
+func (t *testOverlayRenderContext) DrawMenuPic(x, y int, pic *qimage.QPic) {}
+func (t *testOverlayRenderContext) DrawFill(x, y, w, h int, color byte) {}
+func (t *testOverlayRenderContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {}
+func (t *testOverlayRenderContext) DrawCharacter(x, y int, num int)     {}
+func (t *testOverlayRenderContext) DrawMenuCharacter(x, y int, num int) {}
+func (t *testOverlayRenderContext) DrawRGBA(x, y int, img *image.RGBA) {
+	t.drawRGBACalled = true
+	t.lastImage = img
+}
+func (t *testOverlayRenderContext) SetCanvas(ct renderer.CanvasType)     {}
+func (t *testOverlayRenderContext) Canvas() renderer.CanvasState         { return renderer.CanvasState{} }
 
 func setupTestOverlay() *OverlayRenderer {
 	host := &dummyHost{}
@@ -49,7 +72,7 @@ func TestOverlayRenderer_Creation(t *testing.T) {
 
 func TestOverlayRenderer_DrawOverlay_NilTarget(t *testing.T) {
 	r := setupTestOverlay()
-	err := r.DrawOverlay(gpucontext.TextureView{}, 640, 480)
+	err := r.DrawOverlay(nil, 640, 480)
 	if err != nil {
 		t.Fatalf("expected nil error for nil target view, got: %v", err)
 	}
@@ -82,9 +105,13 @@ func TestOverlayRenderer_Menu_DrawAndEvent(t *testing.T) {
 		t.Fatal("expected MenuRoot to be visible when MenuMain active")
 	}
 
-	err := r.DrawOverlay(gpucontext.TextureView{}, 640, 480)
+	rc := &testOverlayRenderContext{}
+	err := r.DrawOverlay(rc, 640, 480)
 	if err != nil {
 		t.Fatalf("expected nil error on DrawOverlay: %v", err)
+	}
+	if !rc.drawRGBACalled {
+		t.Fatal("expected DrawRGBA to be called on render context")
 	}
 
 	// Down arrow should navigate menu
@@ -129,9 +156,13 @@ func TestOverlayRenderer_Console_FullFlow(t *testing.T) {
 
 	con.Printf("Console output line\n")
 
-	err := r.DrawOverlay(gpucontext.TextureView{}, 640, 480)
+	rc := &testOverlayRenderContext{}
+	err := r.DrawOverlay(rc, 640, 480)
 	if err != nil {
 		t.Fatalf("expected nil error on DrawOverlay: %v", err)
+	}
+	if !rc.drawRGBACalled {
+		t.Fatal("expected DrawRGBA to be called on render context")
 	}
 }
 
@@ -174,9 +205,13 @@ func TestOverlayRenderer_HUD_DrawAndFallthrough(t *testing.T) {
 
 	// Draw at multiple resolutions to test dynamic resize adaptation
 	for _, size := range [][2]int{{640, 480}, {1280, 720}, {1920, 1080}} {
-		err := r.DrawOverlay(gpucontext.TextureView{}, size[0], size[1])
+		rc := &testOverlayRenderContext{}
+		err := r.DrawOverlay(rc, size[0], size[1])
 		if err != nil {
 			t.Fatalf("expected nil error on DrawOverlay at %dx%d: %v", size[0], size[1], err)
+		}
+		if !rc.drawRGBACalled {
+			t.Fatalf("expected DrawRGBA to be called at %dx%d", size[0], size[1])
 		}
 	}
 

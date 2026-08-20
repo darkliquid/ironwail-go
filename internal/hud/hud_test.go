@@ -4,6 +4,7 @@
 package hud
 
 import (
+	stdimage "image"
 	"math"
 	"strings"
 	"testing"
@@ -132,6 +133,7 @@ func (m *mockRenderContext) DrawCharacterAlpha(x, y int, num int, alpha float32)
 func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
 	m.DrawCharacter(x, y, num)
 }
+func (m *mockRenderContext) DrawRGBA(x, y int, img *stdimage.RGBA) {}
 func (m *mockRenderContext) SetCanvas(ct renderer.CanvasType) {
 	m.canvas.Type = ct
 	m.canvasSwitch = append(m.canvasSwitch, ct)

@@ -1,6 +1,8 @@
 package quakui
 
 import (
+	"image"
+
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	legacymenu "github.com/darkliquid/ironwail-go/internal/menu"
@@ -8,8 +10,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
 	quakuihud "github.com/darkliquid/ironwail-go/internal/quakui/hud"
 	quakuimenu "github.com/darkliquid/ironwail-go/internal/quakui/menu"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/gogpu/gg"
-	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/render"
@@ -96,8 +98,8 @@ func (r *OverlayRenderer) SetConsoleForcedUp(forced bool) {
 	}
 }
 
-// DrawOverlay records and flushes the 2D widget overlay onto the target GPU texture view.
-func (r *OverlayRenderer) DrawOverlay(targetView gpucontext.TextureView, width, height int) error {
+// DrawOverlay records and draws the 2D widget overlay onto the target RenderContext.
+func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, height int) error {
 	if r == nil || width <= 0 || height <= 0 {
 		return nil
 	}
@@ -117,8 +119,11 @@ func (r *OverlayRenderer) DrawOverlay(targetView gpucontext.TextureView, width, 
 	r.stack.Layout(ctx, geometry.Loose(geometry.Sz(float32(width), float32(height))))
 	r.stack.Draw(ctx, canvas)
 
-	if !targetView.IsNil() {
-		return r.dc.FlushGPUWithViewPreserveContent(targetView, uint32(width), uint32(height))
+	if target != nil {
+		img := r.dc.Image()
+		if rgba, ok := img.(*image.RGBA); ok {
+			target.DrawRGBA(0, 0, rgba)
+		}
 	}
 	return nil
 }

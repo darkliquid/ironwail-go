@@ -1,6 +1,8 @@
 package renderer
 
 import (
+	stdimage "image"
+
 	"github.com/darkliquid/ironwail-go/internal/image"
 )
 
@@ -55,6 +57,9 @@ type RenderContext interface {
 
 	// DrawMenuCharacter renders a single menu character in 320x200 menu-space coordinates.
 	DrawMenuCharacter(x, y int, num int)
+
+	// DrawRGBA renders an RGBA image at screen coordinates with alpha blending.
+	DrawRGBA(x, y int, img *stdimage.RGBA)
 
 	// SetCanvas switches the active 2D canvas coordinate system.
 	// Subsequent draw calls use coordinates in the canvas's logical space.

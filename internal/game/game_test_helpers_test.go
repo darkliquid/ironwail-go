@@ -3,6 +3,7 @@ package game
 import (
 	"bytes"
 	"encoding/binary"
+	stdimage "image"
 	"os"
 	"path/filepath"
 	"testing"
@@ -235,6 +236,7 @@ func (dc *loadingPlaqueDrawContext) DrawPic(x, y int, pic *qimage.QPic) {
 func (dc *loadingPlaqueDrawContext) DrawMenuPic(x, y int, pic *qimage.QPic) {
 	dc.menuPics = append(dc.menuPics, loadingPlaqueDrawCall{x: x, y: y, pic: pic})
 }
+func (dc *loadingPlaqueDrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {}
 func (dc *loadingPlaqueDrawContext) SetCanvas(ct renderer.CanvasType) {
 	dc.canvas.Type = ct
 }
@@ -277,6 +279,7 @@ func (dc *csqcDrawTestContext) DrawFill(x, y, w, h int, color byte) {
 func (dc *csqcDrawTestContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
 	dc.fills = append(dc.fills, csqcDrawFillCall{x: x, y: y, w: w, h: h, color: color, alpha: alpha})
 }
+func (dc *csqcDrawTestContext) DrawRGBA(x, y int, img *stdimage.RGBA) {}
 func (dc *csqcDrawTestContext) SetCanvas(ct renderer.CanvasType) {
 	dc.canvas.Type = ct
 }
@@ -422,6 +425,7 @@ func (dc *consoleOverlayDrawContext) DrawCharacter(x, y int, num int) {
 func (dc *consoleOverlayDrawContext) DrawMenuCharacter(x, y int, num int) {
 	dc.DrawCharacter(x, y, num)
 }
+func (dc *consoleOverlayDrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {}
 func (dc *consoleOverlayDrawContext) SetCanvas(ct renderer.CanvasType) { dc.canvas.Type = ct }
 func (dc *consoleOverlayDrawContext) Canvas() renderer.CanvasState     { return dc.canvas }
 func (dc *consoleOverlayDrawContext) SetCanvasParams(p renderer.CanvasTransformParams) {
@@ -473,6 +477,7 @@ func (dc *telemetryOverlayDrawContext) DrawCharacter(x, y int, num int) {
 func (dc *telemetryOverlayDrawContext) DrawMenuCharacter(x, y int, num int) {
 	dc.DrawCharacter(x, y, num)
 }
+func (dc *telemetryOverlayDrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {}
 func (dc *telemetryOverlayDrawContext) SetCanvas(ct renderer.CanvasType) {
 	dc.canvas.Type = ct
 	if ct == renderer.CanvasCrosshair {

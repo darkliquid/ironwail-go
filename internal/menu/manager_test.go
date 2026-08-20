@@ -2,6 +2,7 @@ package menu
 
 import (
 	"fmt"
+	stdimage "image"
 	"sort"
 	"strings"
 	"testing"
@@ -59,6 +60,7 @@ func (m *mockMenuRenderContext) DrawCharacter(x, y int, num int) {
 func (m *mockMenuRenderContext) DrawMenuCharacter(x, y int, num int) {
 	m.menuCharacters = append(m.menuCharacters, struct{ x, y, num int }{x, y, num})
 }
+func (m *mockMenuRenderContext) DrawRGBA(x, y int, img *stdimage.RGBA) {}
 func (m *mockMenuRenderContext) SetCanvas(ct renderer.CanvasType) { m.canvas.Type = ct }
 func (m *mockMenuRenderContext) Canvas() renderer.CanvasState     { return m.canvas }
 

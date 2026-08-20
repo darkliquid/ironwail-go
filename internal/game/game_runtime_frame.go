@@ -380,14 +380,10 @@ func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 		if quakuiRenderer != nil {
 			quakuiRenderer.SetConsoleSlideFraction(g.ConsoleSlideFraction)
 			quakuiRenderer.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
-			if rawView := overlay.SurfaceView(); rawView != nil {
-				if texView, ok := rawView.(gpucontext.TextureView); ok && !texView.IsNil() {
-					if err := quakuiRenderer.DrawOverlay(texView, w, h); err != nil {
-						slog.Warn("quakui overlay draw failed", "error", err)
-					}
-					return
-				}
+			if err := quakuiRenderer.DrawOverlay(overlay, w, h); err != nil {
+				slog.Warn("quakui overlay draw failed", "error", err)
 			}
+			return
 		}
 	}
 

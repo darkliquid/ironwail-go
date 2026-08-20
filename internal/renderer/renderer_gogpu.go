@@ -329,6 +329,9 @@ type overlayRendererState struct {
 	// Pooled CPU pixel buffer — avoids ~4.5MB allocation per frame.
 	overlayPixelBuf          []byte
 	overlayUploadBuf         []byte
+	uiOverlayTexture         *gogpu.Texture
+	uiOverlayTextureWidth    int
+	uiOverlayTextureHeight   int
 	overlayTextureDirtyX     int
 	overlayTextureDirtyY     int
 	overlayTextureDirtyW     int

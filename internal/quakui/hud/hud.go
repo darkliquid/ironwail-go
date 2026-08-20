@@ -147,6 +147,12 @@ func (c *canvasRenderContext) DrawTriangle(r, g, b, a float32)     {}
 func (c *canvasRenderContext) SurfaceView() any                    { return nil }
 func (c *canvasRenderContext) Gamma() float32                      { return 1.0 }
 
+func (c *canvasRenderContext) DrawRGBA(x, y int, img *image.RGBA) {
+	if c.canvas != nil && img != nil {
+		c.canvas.DrawImage(img, geometry.Pt(float32(x), float32(y)))
+	}
+}
+
 func (c *canvasRenderContext) SetCanvasParams(params renderer.CanvasTransformParams) {
 	c.params = params
 }

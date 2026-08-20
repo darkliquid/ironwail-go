@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	stdimage "image"
 	"log/slog"
 
 	"github.com/darkliquid/ironwail-go/internal/image"
@@ -586,6 +587,66 @@ func transformCanvasPointToScreen(transform DrawTransform, screenW, screenH, x, 
 	screenX = (ndcX + 1) * 0.5 * screenW
 	screenY = (1 - (ndcY+1)*0.5) * screenH
 	return screenX, screenY
+}
+
+// DrawRGBA draws an RGBA image at screen coordinates (x, y) with alpha blending onto the active render context.
+func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
+	if img == nil || dc == nil || dc.ctx == nil {
+		return
+	}
+	w := img.Rect.Dx()
+	h := img.Rect.Dy()
+	if w <= 0 || h <= 0 {
+		return
+	}
+
+	r := dc.renderer
+	r.mu.Lock()
+	if r.uiOverlayTexture != nil && r.uiOverlayTextureWidth == w && r.uiOverlayTextureHeight == h {
+		tex := r.uiOverlayTexture
+		r.mu.Unlock()
+		if err := tex.UpdateData(img.Pix); err != nil {
+			slog.Error("DrawRGBA: texture update failed", "error", err)
+			return
+		}
+		if err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
+			X:      float32(x),
+			Y:      float32(y),
+			Width:  float32(w),
+			Height: float32(h),
+			Alpha:  1.0,
+		}); err != nil {
+			slog.Error("DrawRGBA: draw failed", "error", err)
+		}
+		return
+	}
+
+	if r.uiOverlayTexture != nil {
+		r.uiOverlayTexture.Destroy()
+		r.uiOverlayTexture = nil
+	}
+	r.mu.Unlock()
+
+	tex, err := uploadRGBAThruGogpu(dc.ctx, w, h, img.Pix)
+	if err != nil {
+		slog.Error("DrawRGBA: texture upload failed", "error", err)
+		return
+	}
+	r.mu.Lock()
+	r.uiOverlayTexture = tex
+	r.uiOverlayTextureWidth = w
+	r.uiOverlayTextureHeight = h
+	r.mu.Unlock()
+
+	if err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
+		X:      float32(x),
+		Y:      float32(y),
+		Width:  float32(w),
+		Height: float32(h),
+		Alpha:  1.0,
+	}); err != nil {
+		slog.Error("DrawRGBA: draw failed", "error", err)
+	}
 }
 
 // getCharPic returns (or lazily creates) an 8×8 QPic for character num extracted

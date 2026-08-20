@@ -1,6 +1,7 @@
 package console
 
 import (
+	stdimage "image"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +56,7 @@ func (m *mockRenderContext) DrawCharacter(x, y int, num int) {
 func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
 	m.DrawCharacter(x, y, num)
 }
+func (m *mockRenderContext) DrawRGBA(x, y int, img *stdimage.RGBA) {}
 
 // TestConsoleDrawRendersConsoleLinesAndPrompt tests the console's rendering logic.
 // It ensures the console correctly displays logged text lines, the command prompt (]), and the current input line.

@@ -249,6 +249,44 @@ func (s *SoftwareRenderer) DrawMenuCharacter(x, y int, num int) {
 	s.DrawFill(screenX, screenY, screenW, screenH, byte(num%255))
 }
 
+// DrawRGBA draws an RGBA image onto the software buffer with alpha blending.
+func (s *SoftwareRenderer) DrawRGBA(x, y int, src *stdimage.RGBA) {
+	if s == nil || s.img == nil || src == nil {
+		return
+	}
+	srcW := src.Rect.Dx()
+	srcH := src.Rect.Dy()
+	for dy := 0; dy < srcH; dy++ {
+		sy := y + dy
+		if sy < 0 || sy >= s.height {
+			continue
+		}
+		for dx := 0; dx < srcW; dx++ {
+			sx := x + dx
+			if sx < 0 || sx >= s.width {
+				continue
+			}
+			sc := src.RGBAAt(dx, dy)
+			if sc.A == 0 {
+				continue
+			}
+			if sc.A == 255 {
+				s.img.SetRGBA(sx, sy, sc)
+				continue
+			}
+			sa := float32(sc.A) / 255.0
+			inv := 1.0 - sa
+			dst := s.img.RGBAAt(sx, sy)
+			s.img.SetRGBA(sx, sy, color.RGBA{
+				R: uint8(float32(sc.R)*sa + float32(dst.R)*inv),
+				G: uint8(float32(sc.G)*sa + float32(dst.G)*inv),
+				B: uint8(float32(sc.B)*sa + float32(dst.B)*inv),
+				A: uint8(float32(sc.A) + float32(dst.A)*inv),
+			})
+		}
+	}
+}
+
 func (s *SoftwareRenderer) screenPicRect(x, y, w, h int) picRect {
 	screenX, screenY, screenW, screenH := s.canvasRectToScreen(x, y, w, h)
 	return picRect{
