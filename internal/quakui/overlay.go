@@ -133,7 +133,7 @@ func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, heig
 		r.lastLogMenuVis = menuVis
 		r.lastLogConVis = conVis
 		r.lastLogHUDVis = hudVis
-		slog.Info("quakui overlay draw",
+		slog.Debug("quakui overlay draw",
 			"frame", r.drawCount,
 			"width", width, "height", height,
 			"menu_vis", menuVis,
@@ -160,7 +160,7 @@ func (r *OverlayRenderer) Event(e event.Event) bool {
 	ctx := widget.NewContext()
 	ctx.SetWindowSize(geometry.Sz(float32(r.width), float32(r.height)))
 	handled := r.stack.Event(ctx, e)
-	slog.Info("quakui overlay event",
+	slog.Debug("quakui overlay event",
 		"event", fmt.Sprintf("%T", e),
 		"handled", handled,
 		"menu_vis", r.menuRoot != nil && r.menuRoot.IsVisible(),

@@ -364,7 +364,7 @@ func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 		if g.Host != nil {
 			uiBackend = quakui.UIBackend(g.Host.CVar)
 		}
-		slog.Info("drawRuntimeOverlayFrame",
+		slog.Debug("drawRuntimeOverlayFrame",
 			"frame", frameCount,
 			"ui_backend", uiBackend,
 			"is_gogpu_ui", isGogpu,

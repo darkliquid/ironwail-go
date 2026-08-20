@@ -306,7 +306,7 @@ func (dc *DrawContext) renderOverlayTextureHAL(tex *gogpu.Texture) bool {
 		return false
 	}
 	if dc.drawRGBACount <= 5 || dc.drawRGBACount%300 == 0 {
-		slog.Info("renderOverlayTextureHAL submitted successfully",
+		slog.Debug("renderOverlayTextureHAL submitted successfully",
 			"w", width, "h", height,
 			"call_count", dc.drawRGBACount,
 		)

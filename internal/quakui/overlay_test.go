@@ -6,11 +6,16 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/draw"
+	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/hud"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	legacymenu "github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/testutil"
+	"github.com/gogpu/gg"
 	"github.com/gogpu/ui/event"
+	"github.com/gogpu/ui/geometry"
+	"github.com/gogpu/ui/render"
 )
 
 type dummyHost struct{}
@@ -233,7 +238,7 @@ func TestOverlayRenderer_HUD_DrawAndFallthrough(t *testing.T) {
 	}
 
 	if !hudProv.drawCalled {
-		t.Fatal("expected HUD provider Draw method to be called")
+		t.Fatal("expected HUD Draw to be called")
 	}
 
 	// When only HUD is visible (no console/menu), key events must NOT be consumed (fallthrough)
@@ -241,5 +246,70 @@ func TestOverlayRenderer_HUD_DrawAndFallthrough(t *testing.T) {
 	handled := r.Event(ke)
 	if handled {
 		t.Fatal("expected gameplay key event to fall through when only HUD is visible")
+	}
+}
+
+func TestGGDrawImage(t *testing.T) {
+	dc := gg.NewContext(640, 480)
+	dc.Clear()
+	canvas := render.NewCanvas(dc, 640, 480)
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	for i := range img.Pix {
+		img.Pix[i] = 255
+	}
+	canvas.DrawImage(img, geometry.Pt(50, 50))
+
+	outImg := dc.Image()
+	var nonZero int
+	if rgba, ok := outImg.(*image.RGBA); ok {
+		for _, b := range rgba.Pix {
+			if b != 0 {
+				nonZero++
+			}
+		}
+	}
+	t.Logf("nonZero pixels: %d", nonZero)
+	if nonZero == 0 {
+		t.Fatal("expected nonZero > 0")
+	}
+}
+
+func TestOverlayRenderer_RealPak_DrawOverlay(t *testing.T) {
+	quakeDir, err := testutil.LocateQuakeDir()
+	if err != nil || quakeDir == "" {
+		t.Skip("quake dir not found")
+	}
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(quakeDir, "id1"); err != nil {
+		t.Fatalf("fs init: %v", err)
+	}
+	drawMgr := draw.NewManager()
+	if err := drawMgr.Init(fileSys); err != nil {
+		t.Fatalf("draw init: %v", err)
+	}
+	host := &dummyHost{}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	mgr.ShowState(legacymenu.MenuMain)
+	con := console.NewConsole(1024)
+	_ = con.Init(0)
+	hudProv := hud.NewHUD(drawMgr, nil)
+
+	r := NewOverlayRenderer(host, mgr, con, hudProv, drawMgr, drawMgr.ConcharsData(), drawMgr.Palette())
+	r.SetConsoleForcedUp(true)
+	rc := &testOverlayRenderContext{}
+	if err := r.DrawOverlay(rc, 1892, 1072); err != nil {
+		t.Fatalf("DrawOverlay error: %v", err)
+	}
+	var nonZero int
+	if rc.lastImage != nil {
+		for i := 3; i < len(rc.lastImage.Pix); i += 4 {
+			if rc.lastImage.Pix[i] > 0 {
+				nonZero++
+			}
+		}
+	}
+	t.Logf("nonZero alpha pixels: %d out of %d", nonZero, len(rc.lastImage.Pix)/4)
+	if nonZero == 0 {
+		t.Fatal("expected nonZero > 0 with real pak")
 	}
 }

@@ -135,7 +135,7 @@ func (r *ConsoleRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	}
 	r.drawCount++
 	if r.drawCount <= 5 || r.drawCount%300 == 0 {
-		slog.Info("quakui console draw", "slide", r.slideFraction, "forced", r.forcedUp, "has_notify", r.con != nil && r.con.HasNotify(), "frame", r.drawCount)
+		slog.Debug("quakui console draw", "slide", r.slideFraction, "forced", r.forcedUp, "has_notify", r.con != nil && r.con.HasNotify(), "frame", r.drawCount)
 	}
 
 	winSize := geometry.Sz(320, 200)
@@ -378,7 +378,7 @@ func (r *ConsoleRoot) Event(ctx widget.Context, e event.Event) bool {
 		return false
 	}
 
-	slog.Info("quakui console event", "ui_key", ke.Key, "rune", ke.Rune, "slide", r.slideFraction, "forced", r.forcedUp)
+	slog.Debug("quakui console event", "ui_key", ke.Key, "rune", ke.Rune, "slide", r.slideFraction, "forced", r.forcedUp)
 
 	ctrl := ke.IsCtrl()
 

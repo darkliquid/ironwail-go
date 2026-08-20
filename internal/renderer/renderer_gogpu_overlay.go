@@ -593,7 +593,7 @@ func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
 
 	dc.drawRGBACount++
 	if dc.drawRGBACount <= 5 || dc.drawRGBACount%300 == 0 {
-		slog.Info("renderer DrawRGBA called",
+		slog.Debug("renderer DrawRGBA called",
 			"x", x, "y", y,
 			"w", w, "h", h,
 			"call_count", dc.drawRGBACount,

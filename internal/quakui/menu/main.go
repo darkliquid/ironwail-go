@@ -1,6 +1,8 @@
 package menu
 
 import (
+	"log/slog"
+
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/gogpu/ui/widget"
 )
@@ -28,6 +30,13 @@ func (r *MenuRoot) drawMain(canvas widget.Canvas) {
 	r.drawPlaqueAndTitle(canvas, "gfx/ttl_main.lmp")
 
 	pic := r.pic("gfx/mainmenu.lmp")
+	if r.drawCount <= 5 {
+		slog.Debug("quakui drawMain",
+			"has_plaque", r.pic("gfx/qplaque.lmp") != nil,
+			"has_title", r.pic("gfx/ttl_main.lmp") != nil,
+			"has_mainmenu", pic != nil,
+		)
+	}
 	if pic == nil {
 		// Text-only fallback (no graphics loaded).
 		r.drawText(canvas, 84, 32, "SINGLE PLAYER", true)

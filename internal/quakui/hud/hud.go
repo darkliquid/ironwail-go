@@ -95,7 +95,7 @@ func (r *HUDRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	r.drawCount++
 	if r.drawCount <= 5 || r.drawCount%300 == 0 {
 		st := r.provider.State()
-		slog.Info("quakui hud draw",
+		slog.Debug("quakui hud draw",
 			"health", st.Health,
 			"armor", st.Armor,
 			"ammo", st.Ammo,

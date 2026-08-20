@@ -200,7 +200,7 @@ func (g *Game) playMenuSound(name string) {
 	}, 1); err != nil {
 		slog.Warn("menu sound failed", "sound", name, "error", err)
 	} else {
-		slog.Info("menu sound played", "sound", name)
+		slog.Debug("menu sound played", "sound", name)
 	}
 }
 

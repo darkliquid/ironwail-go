@@ -136,7 +136,7 @@ func (f *KeyForwarder) ForwardKey(ev input.KeyEvent, mods input.ModifierState) {
 		r = rune(ev.Key)
 	}
 	mappedKey := MapEngineKey(ev.Key)
-	slog.Info("quakui forward key",
+	slog.Debug("quakui forward key",
 		"key", input.KeyToString(ev.Key),
 		"key_code", ev.Key,
 		"down", ev.Down,
@@ -153,7 +153,7 @@ func (f *KeyForwarder) ForwardChar(r rune, mods input.ModifierState) {
 	if f == nil || f.ui == nil || r == 0 {
 		return
 	}
-	slog.Info("quakui forward char", "rune", r, "char", string(r))
+	slog.Debug("quakui forward char", "rune", r, "char", string(r))
 	f.ui.HandleEvent(event.NewKeyEvent(event.KeyPress, event.KeyUnknown, r, Modifiers(mods)))
 }
 
@@ -164,7 +164,7 @@ func (f *KeyForwarder) ForwardText(text string, mods input.ModifierState) {
 		return
 	}
 	uiMods := Modifiers(mods)
-	slog.Info("quakui forward text", "text", text)
+	slog.Debug("quakui forward text", "text", text)
 	for _, r := range text {
 		f.ui.HandleEvent(event.NewKeyEvent(event.KeyPress, event.KeyUnknown, r, uiMods))
 	}

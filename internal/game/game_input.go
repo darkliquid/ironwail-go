@@ -56,7 +56,7 @@ func (g *Game) logRuntimeKeyDispatch(path string, event input.KeyEvent) {
 		keyDest = g.keyDestName(g.Input.KeyDest())
 	}
 	uiInputActive := g.uiInput != nil
-	slog.Info("input dispatch",
+	slog.Debug("input dispatch",
 		"path", path,
 		"key", keyName,
 		"key_code", event.Key,

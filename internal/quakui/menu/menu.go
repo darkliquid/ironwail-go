@@ -90,7 +90,7 @@ func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	}
 	r.drawCount++
 	if r.drawCount <= 5 || r.drawCount%300 == 0 {
-		slog.Info("quakui menu draw", "state", r.mgr.State(), "frame", r.drawCount)
+		slog.Debug("quakui menu draw", "state", r.mgr.State(), "frame", r.drawCount)
 	}
 	if sched, ok := ctx.(widget.AnimationScheduler); ok {
 		sched.ScheduleAnimationFrame()
@@ -107,6 +107,9 @@ func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 		WindowWidth:  winSize.Width,
 		WindowHeight: winSize.Height,
 	})
+	if r.drawCount <= 5 {
+		slog.Debug("quakui menu draw params", "winSize", winSize, "tf", tf, "has_drawMgr", r.drawMgr != nil)
+	}
 
 	canvas.PushTransform(geometry.Pt(tf.OriginX, tf.OriginY))
 	defer canvas.PopTransform()
@@ -157,7 +160,7 @@ func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 		return false
 	}
 	if ke.Rune != 0 {
-		slog.Info("quakui menu event rune", "rune", ke.Rune, "state", r.mgr.State())
+		slog.Debug("quakui menu event rune", "rune", ke.Rune, "state", r.mgr.State())
 		switch r.mgr.State() {
 		case legacymenu.MenuSetup, legacymenu.MenuJoinGame, legacymenu.MenuHostGame:
 			r.mgr.M_Char(ke.Rune)
@@ -174,7 +177,7 @@ func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 		return true
 	}
 	if key := keyEventToEngine(ke); key >= 0 {
-		slog.Info("quakui menu event key", "key", key, "ui_key", ke.Key, "state", r.mgr.State())
+		slog.Debug("quakui menu event key", "key", key, "ui_key", ke.Key, "state", r.mgr.State())
 		r.mgr.M_Key(key)
 		r.SetNeedsRedraw(true)
 		r.InvalidateScene()
