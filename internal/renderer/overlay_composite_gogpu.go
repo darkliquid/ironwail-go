@@ -22,9 +22,12 @@ fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
         vec2<f32>(-1.0,  3.0),
     );
     var uvs = array<vec2<f32>, 3>(
-        vec2<f32>(0.0, 0.0),
-        vec2<f32>(2.0, 0.0),
-        vec2<f32>(0.0, 2.0),
+        // WebGPU textures are Y=0-at-top; clip Y=-1 is screen bottom.
+        // Flipping UV Y maps screen-bottom -> texture-bottom,
+        // producing a right-side-up composite.
+        vec2<f32>(0.0,  1.0),
+        vec2<f32>(2.0,  1.0),
+        vec2<f32>(0.0, -1.0),
     );
 
     var output: VertexOutput;
