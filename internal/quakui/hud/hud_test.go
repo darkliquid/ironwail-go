@@ -27,8 +27,9 @@ func (c *testContext) WindowSize() geometry.Size {
 
 type testCanvas struct {
 	widget.Canvas
-	images []image.Image
-	rects  []geometry.Rect
+	images  []image.Image
+	imgPts  []geometry.Point
+	rects   []geometry.Rect
 }
 
 func (c *testCanvas) PushTransform(offset geometry.Point) {}
@@ -36,6 +37,7 @@ func (c *testCanvas) PopTransform()                       {}
 func (c *testCanvas) TransformOffset() geometry.Point     { return geometry.Pt(0, 0) }
 func (c *testCanvas) DrawImage(img image.Image, at geometry.Point) {
 	c.images = append(c.images, img)
+	c.imgPts = append(c.imgPts, at)
 }
 func (c *testCanvas) DrawRect(bounds geometry.Rect, col widget.Color) {
 	c.rects = append(c.rects, bounds)
@@ -80,7 +82,7 @@ func TestHUDRoot_Layout(t *testing.T) {
 
 func TestHUDRoot_Draw(t *testing.T) {
 	root := setupTestHUDRoot()
-	ctx := &testContext{winSize: geometry.Sz(640, 480)}
+	ctx := &testContext{winSize: geometry.Sz(1892, 1072)}
 	canvas := &testCanvas{}
 
 	root.Draw(ctx, canvas)
@@ -90,6 +92,16 @@ func TestHUDRoot_Draw(t *testing.T) {
 	}
 	if len(canvas.rects) == 0 {
 		t.Fatal("expected rect draw calls from HUD DrawFill")
+	}
+
+	// In a 1892x1072 window:
+	// CanvasSbar originX = (1892 - 320) / 2 = 786
+	// CanvasSbar originY = 1072 - 48 = 1024
+	// DrawPic at (10, 10) -> (786 + 10, 1024 + 10) = (796, 1034)
+	expectedX := float32(796)
+	expectedY := float32(1034)
+	if canvas.imgPts[0].X != expectedX || canvas.imgPts[0].Y != expectedY {
+		t.Fatalf("Status bar image position = %+v, want (%f, %f)", canvas.imgPts[0], expectedX, expectedY)
 	}
 }
 

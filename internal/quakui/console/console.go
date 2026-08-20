@@ -264,6 +264,9 @@ func (r *ConsoleRoot) drawText(canvas widget.Canvas, x, y int, text string, whit
 		return
 	}
 	for i, ch := range []byte(text) {
+		if ch == 0 || ch == ' ' {
+			continue
+		}
 		code := int(ch)
 		if white {
 			code += 128

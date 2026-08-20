@@ -301,14 +301,11 @@ func (c *Console) drawNotify(rc DrawContext, charsWide int) {
 // backScroll, notifyTimes) under a single lock acquisition for consistency,
 // then call lineBytesLocked for each visible line.
 func (c *Console) lineBytesLocked(lineNum int) []byte {
-	if c.totalLines <= 0 || c.lineWidth <= 0 || len(c.text) == 0 {
+	if c.totalLines <= 0 || c.lineWidth <= 0 || len(c.text) == 0 || lineNum < 0 || lineNum > c.current {
 		return nil
 	}
 
 	line := lineNum % c.totalLines
-	if line < 0 {
-		line += c.totalLines
-	}
 
 	start := line * c.lineWidth
 	if start < 0 || start >= len(c.text) {

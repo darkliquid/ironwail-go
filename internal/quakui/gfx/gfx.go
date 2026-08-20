@@ -56,10 +56,12 @@ func QPicToImage(pic *qimage.QPic, palette []byte) *image.RGBA {
 // ConcharsAtlas is the conchars bitmap font as an RGBA atlas (128x128,
 // 16x16 grid of 8x8 glyphs). Palette index 0 is transparent (Quake
 // console-font convention); glyph cells fall at col*8, row*8 for char
-// index (col = index%16, row = index/16). Text is drawn per-glyph via
-// GlyphImage SubImage views (ADR-0008 — no TTF for menu text).
+// index (col = index%16, row = index/16). All 256 glyphs are pre-extracted
+// into standalone 8x8 RGBA images with (0,0) origins for fast, zero-copy
+// rendering without bounds translation bugs (ADR-0008).
 type ConcharsAtlas struct {
-	atlas *image.RGBA
+	atlas  *image.RGBA
+	glyphs [256]*image.RGBA
 }
 
 // NewConcharsAtlas builds the atlas from the raw 128x128 indexed conchars
@@ -71,7 +73,9 @@ func NewConcharsAtlas(conchars []byte, palette []byte) *ConcharsAtlas {
 	if len(palette) < 768 {
 		palette = draw.DefaultQuakePalette()
 	}
-	atlas := image.NewRGBA(image.Rect(0, 0, 128, 128))
+	ca := &ConcharsAtlas{
+		atlas: image.NewRGBA(image.Rect(0, 0, 128, 128)),
+	}
 	for i, idx := range conchars {
 		if i >= 128*128 {
 			break
@@ -80,12 +84,23 @@ func NewConcharsAtlas(conchars []byte, palette []byte) *ConcharsAtlas {
 			continue // transparent background
 		}
 		off := int(idx) * 3
-		atlas.Pix[i*4+0] = palette[off]
-		atlas.Pix[i*4+1] = palette[off+1]
-		atlas.Pix[i*4+2] = palette[off+2]
-		atlas.Pix[i*4+3] = 255
+		ca.atlas.Pix[i*4+0] = palette[off]
+		ca.atlas.Pix[i*4+1] = palette[off+1]
+		ca.atlas.Pix[i*4+2] = palette[off+2]
+		ca.atlas.Pix[i*4+3] = 255
 	}
-	return &ConcharsAtlas{atlas: atlas}
+	for idx := 0; idx < 256; idx++ {
+		col := idx % 16
+		row := idx / 16
+		g := image.NewRGBA(image.Rect(0, 0, 8, 8))
+		for y := 0; y < 8; y++ {
+			srcOff := ((row*8+y)*128 + col*8) * 4
+			dstOff := y * 8 * 4
+			copy(g.Pix[dstOff:dstOff+32], ca.atlas.Pix[srcOff:srcOff+32])
+		}
+		ca.glyphs[idx] = g
+	}
+	return ca
 }
 
 // Bounds returns the atlas bounds (128x128).
@@ -96,17 +111,12 @@ func (a *ConcharsAtlas) Bounds() image.Rectangle {
 	return a.atlas.Bounds()
 }
 
-// GlyphImage returns an 8x8 sub-image view into the atlas for a character
-// index (col = index%16, row = index/16). The view shares the atlas backing
-// pixels (zero-copy).
+// GlyphImage returns an 8x8 RGBA glyph image for a character index (0..255).
 func (a *ConcharsAtlas) GlyphImage(index byte) image.Image {
-	if a == nil || a.atlas == nil {
+	if a == nil {
 		return nil
 	}
-	col := int(index) % 16
-	row := int(index) / 16
-	r := image.Rect(col*8, row*8, col*8+8, row*8+8)
-	return a.atlas.SubImage(r)
+	return a.glyphs[index]
 }
 
 // TranslatePlayerSkinPixels remaps Quake player shirt (16-31) and pants (96-111)

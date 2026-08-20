@@ -147,22 +147,28 @@ func (c *canvasRenderContext) getImage(pic *qimage.QPic) *image.RGBA {
 	return img
 }
 
+func (c *canvasRenderContext) Canvas() renderer.CanvasState {
+	return renderer.CanvasState{
+		Type:   c.curType,
+		Left:   0,
+		Right:  float32(c.width),
+		Top:    0,
+		Bottom: float32(c.height),
+	}
+}
+
 func (c *canvasRenderContext) transformPos(x, y int) (float32, float32) {
 	if c.curType == renderer.CanvasSbar {
-		// CanvasSbar: 320x48 centered at bottom
-		scale := float32(c.width) / 320.0
-		if scale < 1.0 {
-			scale = 1.0
-		}
-		originX := (float32(c.width) - 320.0*scale) * 0.5
-		originY := float32(c.height) - 48.0*scale
+		// CanvasSbar: 320x48 fixed status bar centered at the bottom of the screen
+		originX := (float32(c.width) - 320.0) * 0.5
+		originY := float32(c.height) - 48.0
 		if originX < 0 {
 			originX = 0
 		}
 		if originY < 0 {
 			originY = 0
 		}
-		return originX + float32(x)*scale, originY + float32(y)*scale
+		return originX + float32(x), originY + float32(y)
 	} else if c.curType == renderer.CanvasCrosshair {
 		// Centered at screen center
 		originX := float32(c.width) * 0.5
@@ -192,12 +198,6 @@ func (c *canvasRenderContext) DrawMenuCharacter(x, y int, num int) {
 	c.DrawCharacter(x, y, num)
 }
 
-func (c *canvasRenderContext) Canvas() renderer.CanvasState {
-	return renderer.CanvasState{
-		Type: c.curType,
-	}
-}
-
 func (c *canvasRenderContext) DrawPicAlpha(x, y int, pic *qimage.QPic, alpha float32) {
 	if pic == nil || c.canvas == nil || alpha <= 0 {
 		return
@@ -213,7 +213,10 @@ func (c *canvasRenderContext) DrawCharacter(x, y int, num int) {
 	if c == nil || c.atlas == nil || c.canvas == nil {
 		return
 	}
-	if num < 0 || num > 255 {
+	if num <= 0 || num == ' ' {
+		return
+	}
+	if num > 255 {
 		num = '?'
 	}
 	if img := c.atlas.GlyphImage(byte(num)); img != nil {

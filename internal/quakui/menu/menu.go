@@ -239,6 +239,10 @@ func (r *MenuRoot) drawText(canvas widget.Canvas, x, y int, text string, white b
 	}
 	cx := float32(x)
 	for _, ch := range text {
+		if ch == 0 || ch == ' ' {
+			cx += 8
+			continue
+		}
 		index := ch
 		if ch < 0 || ch > 255 {
 			index = '?'
