@@ -524,8 +524,8 @@ func TestMenuRoot_Draw_CenteringAtWindowSizes(t *testing.T) {
 
 func TestMenuRoot_IsRepaintBoundary(t *testing.T) {
 	_, root := setupTestMenu(nil)
-	if root.IsRepaintBoundary() {
-		t.Fatal("expected MenuRoot to not be a separate RepaintBoundary (renders in main scene pass)")
+	if !root.IsRepaintBoundary() {
+		t.Fatal("expected MenuRoot to have IsRepaintBoundary() == true for dedicated PictureLayer")
 	}
 }
 
@@ -540,6 +540,10 @@ func TestMenuRoot_IsVisibleDynamic(t *testing.T) {
 	if root.WidgetBase.IsVisible() {
 		t.Fatal("expected WidgetBase.IsVisible() == false after transition to inactive")
 	}
+	if !root.IsSceneDirty() {
+		t.Fatal("expected IsSceneDirty() == true after transition to inactive")
+	}
+	root.ClearSceneDirty()
 
 	// Active menu
 	mgr.ShowState(legacymenu.MenuMain)
@@ -549,6 +553,10 @@ func TestMenuRoot_IsVisibleDynamic(t *testing.T) {
 	if !root.WidgetBase.IsVisible() {
 		t.Fatal("expected WidgetBase.IsVisible() == true after transition to active")
 	}
+	if !root.IsSceneDirty() {
+		t.Fatal("expected IsSceneDirty() == true after transition to active")
+	}
+	root.ClearSceneDirty()
 
 	// Hide again (e.g. game started)
 	mgr.HideMenu()
@@ -557,6 +565,9 @@ func TestMenuRoot_IsVisibleDynamic(t *testing.T) {
 	}
 	if root.WidgetBase.IsVisible() {
 		t.Fatal("expected WidgetBase.IsVisible() == false after HideMenu()")
+	}
+	if !root.IsSceneDirty() {
+		t.Fatal("expected IsSceneDirty() == true after HideMenu()")
 	}
 }
 

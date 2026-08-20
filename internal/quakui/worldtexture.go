@@ -14,11 +14,12 @@ import (
 type WorldTexture struct {
 	widget.WidgetBase
 
-	host    Host
-	width   int
-	height  int
-	texture gpucontext.TextureView
-	release func()
+	host          Host
+	width         int
+	height        int
+	texture       gpucontext.TextureView
+	release       func()
+	needsRecreate bool
 }
 
 // NewWorldTexture builds the world texture widget wired to the host's world render.
@@ -70,11 +71,7 @@ func (w *WorldTexture) Layout(ctx widget.Context, c geometry.Constraints) geomet
 	if width != w.width || height != w.height {
 		w.width = width
 		w.height = height
-		if w.release != nil {
-			w.release()
-			w.release = nil
-		}
-		w.texture = gpucontext.TextureView{}
+		w.needsRecreate = true
 	}
 	size := geometry.Sz(float32(w.width), float32(w.height))
 	w.SetBounds(geometry.FromPointSize(geometry.Pt(0, 0), size))
@@ -88,12 +85,17 @@ func (w *WorldTexture) Draw(ctx widget.Context, canvas widget.Canvas) {
 		return
 	}
 
-	if w.texture.IsNil() && ctx != nil {
+	if (w.texture.IsNil() || w.needsRecreate) && ctx != nil {
 		if provider, ok := ctx.(widget.GPUTextureProvider); ok {
+			oldRelease := w.release
 			texAny, release := provider.CreateGPUTexture(w.width, w.height)
 			if tex, ok := texAny.(gpucontext.TextureView); ok && !tex.IsNil() {
 				w.texture = tex
 				w.release = release
+				w.needsRecreate = false
+				if oldRelease != nil {
+					oldRelease()
+				}
 			}
 		}
 	}

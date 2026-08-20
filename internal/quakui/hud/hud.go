@@ -55,6 +55,7 @@ func NewHUDRoot(provider HUDStateProvider, drawMgr *draw.Manager, conchars []byt
 	}
 	r.SetVisible(true)
 	r.SetEnabled(true)
+	r.SetRepaintBoundary(true)
 	return r
 }
 

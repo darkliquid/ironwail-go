@@ -50,6 +50,7 @@ func NewMenuRoot(mgr *legacymenu.Manager, drawMgr *draw.Manager, conchars, palet
 	}
 	r.SetVisible(active)
 	r.SetEnabled(true)
+	r.SetRepaintBoundary(true)
 	return r
 }
 

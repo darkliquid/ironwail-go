@@ -45,6 +45,7 @@ func NewConsoleRoot(con *console.Console, drawMgr *draw.Manager, atlas *gfx.Conc
 	}
 	r.SetVisible(true)
 	r.SetEnabled(true)
+	r.SetRepaintBoundary(true)
 	return r
 }
 
