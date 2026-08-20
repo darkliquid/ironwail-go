@@ -1,4 +1,4 @@
-package quakui
+package quakeui
 
 import (
 	"github.com/gogpu/ui/event"

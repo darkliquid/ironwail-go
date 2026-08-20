@@ -55,7 +55,7 @@ does not register its own OnDraw on path 1; it builds the ui app with a
 `core/gpuview` widget as the base, implements `gpuview.OnRender(view)` to
 render the world into the gpuview texture (reusing the offscreen-target
 machinery), and lets the desktop compositor blit the gpuview texture under the
-UI widgets. The `quakui.Host` adapter exposes the world texture as a
+UI widgets. The `quakeui.Host` adapter exposes the world texture as a
 `gpucontext.TextureView` and a `RenderIntoWorldTexture(view)` callback
 implemented in `internal/renderer` and routed through `internal/game`.
 

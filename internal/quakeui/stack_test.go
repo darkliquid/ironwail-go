@@ -1,4 +1,4 @@
-package quakui
+package quakeui
 
 import (
 	"testing"

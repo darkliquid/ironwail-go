@@ -46,7 +46,7 @@ the original conchars bitmap look, not a TTF font.
 ## Decision Outcome
 
 Real LMP pics for menu art + conchars bitmap text, at the legacy 320x200
-layout, scaled by the `CANVAS_MENU` transform (spec §4.4). The `quakui` pics
+layout, scaled by the `CANVAS_MENU` transform (spec §4.4). The `quakeui` pics
 bridge (`QPicToImage`) converts palette-indexed WAD pics to RGBA for
 `canvas.DrawImage`; the conchars atlas provides per-glyph SubImage draws.
 

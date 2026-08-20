@@ -7,7 +7,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	"github.com/darkliquid/ironwail-go/internal/hud"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
-	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
+	"github.com/darkliquid/ironwail-go/internal/quakeui/gfx"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
@@ -95,7 +95,7 @@ func (r *HUDRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	r.drawCount++
 	if r.drawCount <= 5 || r.drawCount%300 == 0 {
 		st := r.provider.State()
-		slog.Debug("quakui hud draw",
+		slog.Debug("quakeui hud draw",
 			"health", st.Health,
 			"armor", st.Armor,
 			"ammo", st.Ammo,

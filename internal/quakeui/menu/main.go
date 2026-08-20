@@ -31,7 +31,7 @@ func (r *MenuRoot) drawMain(canvas widget.Canvas) {
 
 	pic := r.pic("gfx/mainmenu.lmp")
 	if r.drawCount <= 5 {
-		slog.Debug("quakui drawMain",
+		slog.Debug("quakeui drawMain",
 			"has_plaque", r.pic("gfx/qplaque.lmp") != nil,
 			"has_title", r.pic("gfx/ttl_main.lmp") != nil,
 			"has_mainmenu", pic != nil,

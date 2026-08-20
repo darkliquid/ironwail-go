@@ -54,7 +54,7 @@ type RendererInput interface {
 
 // RendererGPUView defines the gogpu/ui world-texture integration surface
 // (ADR-0009): the engine exposes its gogpu.App (desktop.Run's loop owner) and
-// can render the world into a gpuview texture view (M1.4b). The quakui Host
+// can render the world into a gpuview texture view (M1.4b). The quakeui Host
 // routes to these using gogpu/gpucontext types only.
 type RendererGPUView interface {
 	// GogpuApp returns the underlying gogpu application.

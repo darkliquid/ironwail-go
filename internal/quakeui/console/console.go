@@ -9,7 +9,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
-	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
+	"github.com/darkliquid/ironwail-go/internal/quakeui/gfx"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/widget"
@@ -135,7 +135,7 @@ func (r *ConsoleRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	}
 	r.drawCount++
 	if r.drawCount <= 5 || r.drawCount%300 == 0 {
-		slog.Debug("quakui console draw", "slide", r.slideFraction, "forced", r.forcedUp, "has_notify", r.con != nil && r.con.HasNotify(), "frame", r.drawCount)
+		slog.Debug("quakeui console draw", "slide", r.slideFraction, "forced", r.forcedUp, "has_notify", r.con != nil && r.con.HasNotify(), "frame", r.drawCount)
 	}
 
 	winSize := geometry.Sz(320, 200)
@@ -378,7 +378,7 @@ func (r *ConsoleRoot) Event(ctx widget.Context, e event.Event) bool {
 		return false
 	}
 
-	slog.Debug("quakui console event", "ui_key", ke.Key, "rune", ke.Rune, "slide", r.slideFraction, "forced", r.forcedUp)
+	slog.Debug("quakeui console event", "ui_key", ke.Key, "rune", ke.Rune, "slide", r.slideFraction, "forced", r.forcedUp)
 
 	ctrl := ke.IsCtrl()
 

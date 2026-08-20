@@ -10,17 +10,17 @@
 ## Phase 1 (M1): Engine-Owned Overlay Driver & Stack Refactoring
 
 ### Goal
-Eliminate `desktop.Run` and `WorldTexture`. Create `OverlayRenderer` in `internal/quakui/` that renders 2D widget layers directly over the 3D world in the engine's overlay frame pass using `FlushGPUWithViewPreserveContent`.
+Eliminate `desktop.Run` and `WorldTexture`. Create `OverlayRenderer` in `internal/quakeui/` that renders 2D widget layers directly over the 3D world in the engine's overlay frame pass using `FlushGPUWithViewPreserveContent`.
 
 ### Tasks
-1. **Task 1.1: Create `OverlayRenderer` in `internal/quakui/overlay.go`**
+1. **Task 1.1: Create `OverlayRenderer` in `internal/quakeui/overlay.go`**
    - Implement `NewOverlayRenderer(host Host, mgr *legacymenu.Manager, con *console.Console, hudProv hud.Provider, drawMgr *draw.Manager, conchars []byte, palette []byte) *OverlayRenderer`.
    - Implement `DrawOverlay(targetView gpucontext.TextureView, width, height int) error`.
    - Implement `Event(e event.Event) bool`.
-   - Test command: `TMPDIR=.../.tmp CGO_ENABLED=0 go test ./internal/quakui/... -count=1`
+   - Test command: `TMPDIR=.../.tmp CGO_ENABLED=0 go test ./internal/quakeui/... -count=1`
 2. **Task 1.2: Remove `desktop.Run` and `WorldTexture`**
-   - Delete `internal/quakui/run.go` and `internal/quakui/worldtexture.go`.
-   - Update `Stack` in `internal/quakui/stack.go` to hold `[HUDRoot, ConsoleRoot, MenuRoot]`.
+   - Delete `internal/quakeui/run.go` and `internal/quakeui/worldtexture.go`.
+   - Update `Stack` in `internal/quakeui/stack.go` to hold `[HUDRoot, ConsoleRoot, MenuRoot]`.
 3. **Task 1.3: Wire `OverlayRenderer` in `internal/game`**
    - In `internal/game/game_runtime_frame.go`, instantiate `OverlayRenderer` during UI initialization.
    - In `drawRuntimeOverlayFrame`, invoke `g.overlayRenderer.DrawOverlay(targetView, w, h)`.
@@ -36,31 +36,32 @@ Verify that `MenuRoot` renders over the 3D scene with real LMP pics, conchars fo
 ### Tasks
 1. **Task 2.1: Verify `MenuRoot` rendering and input**
    - Assert menu layout at 320x200 centered viewport.
-   - Test command: `TMPDIR=.../.tmp CGO_ENABLED=0 go test ./internal/quakui/menu/... -count=1`
+   - Test command: `TMPDIR=.../.tmp CGO_ENABLED=0 go test ./internal/quakeui/menu/... -count=1`
 
 ---
 
 ## Phase 3 (M3): Dropdown Console Verification
 
 ### Goal
-Verify that `ConsoleRoot` animates and renders scrollback history, typing prompt, and autocompletion using single-image batched compositing.
+Verify that `ConsoleRoot` slides down smoothly, receives keyboard text input, executes engine commands, and handles notification message fading.
 
 ### Tasks
-1. **Task 3.1: Verify `ConsoleRoot` rendering and input**
-   - Assert console typing, backspace, history, toggle grave/escape, and notify messages.
-   - Test command: `TMPDIR=.../.tmp CGO_ENABLED=0 go test ./internal/quakui/console/... -count=1`
+1. **Task 3.1: Verify `ConsoleRoot` rendering and interaction**
+   - Assert toggle key opens/closes console.
+   - Assert command execution through engine command buffer.
+   - Test command: `TMPDIR=.../.tmp CGO_ENABLED=0 go test ./internal/quakeui/console/... -count=1`
 
 ---
 
-## Phase 4 (M4): Player HUD & Dynamic Resize
+## Phase 4 (M4): HUD & Non-Interactive Fallthrough Verification
 
 ### Goal
-Verify that `HUDRoot` draws the status bar, ammo/health numbers, face animations, and crosshair, dynamically adapting to window resize.
+Verify that `HUDRoot` draws the status bar, crosshair, and centerprints while preserving full gameplay input fallthrough.
 
 ### Tasks
-1. **Task 4.1: Verify `HUDRoot` resize and drawing**
-   - Assert bottom-center status bar positioning on resize.
-   - Test command: `TMPDIR=.../.tmp CGO_ENABLED=0 go test ./internal/quakui/hud/... -count=1`
+1. **Task 4.1: Verify `HUDRoot` rendering and fallthrough**
+   - Assert key events fall through to `KeyGame` when only HUD is visible.
+   - Test command: `TMPDIR=.../.tmp CGO_ENABLED=0 go test ./internal/quakeui/hud/... -count=1`
 
 ---
 

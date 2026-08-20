@@ -1,4 +1,4 @@
-package quakui
+package quakeui
 
 import (
 	"fmt"
@@ -8,10 +8,10 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	legacymenu "github.com/darkliquid/ironwail-go/internal/menu"
-	quakuiconsole "github.com/darkliquid/ironwail-go/internal/quakui/console"
-	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
-	quakuihud "github.com/darkliquid/ironwail-go/internal/quakui/hud"
-	quakuimenu "github.com/darkliquid/ironwail-go/internal/quakui/menu"
+	quakeuiconsole "github.com/darkliquid/ironwail-go/internal/quakeui/console"
+	"github.com/darkliquid/ironwail-go/internal/quakeui/gfx"
+	quakeuihud "github.com/darkliquid/ironwail-go/internal/quakeui/hud"
+	quakeuimenu "github.com/darkliquid/ironwail-go/internal/quakeui/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/gogpu/gg"
 	"github.com/gogpu/ui/event"
@@ -27,9 +27,9 @@ import (
 type OverlayRenderer struct {
 	host     Host
 	stack    *Stack
-	menuRoot *quakuimenu.MenuRoot
-	conRoot  *quakuiconsole.ConsoleRoot
-	hudRoot  *quakuihud.HUDRoot
+	menuRoot *quakeuimenu.MenuRoot
+	conRoot  *quakeuiconsole.ConsoleRoot
+	hudRoot  *quakeuihud.HUDRoot
 
 	dc             *gg.Context
 	width          int
@@ -45,15 +45,15 @@ func NewOverlayRenderer(
 	host Host,
 	mgr *legacymenu.Manager,
 	con *console.Console,
-	hudProv quakuihud.HUDStateProvider,
+	hudProv quakeuihud.HUDStateProvider,
 	drawMgr *draw.Manager,
 	conchars []byte,
 	palette []byte,
 ) *OverlayRenderer {
 	atlas := gfx.NewConcharsAtlas(conchars, palette)
-	menuRoot := quakuimenu.NewMenuRoot(mgr, drawMgr, conchars, palette)
-	conRoot := quakuiconsole.NewConsoleRoot(con, drawMgr, atlas)
-	hudRoot := quakuihud.NewHUDRoot(hudProv, drawMgr, conchars, palette)
+	menuRoot := quakeuimenu.NewMenuRoot(mgr, drawMgr, conchars, palette)
+	conRoot := quakeuiconsole.NewConsoleRoot(con, drawMgr, atlas)
+	hudRoot := quakeuihud.NewHUDRoot(hudProv, drawMgr, conchars, palette)
 
 	stack := NewStack(hudRoot, conRoot, menuRoot)
 
@@ -67,7 +67,7 @@ func NewOverlayRenderer(
 }
 
 // MenuRoot returns the underlying MenuRoot widget.
-func (r *OverlayRenderer) MenuRoot() *quakuimenu.MenuRoot {
+func (r *OverlayRenderer) MenuRoot() *quakeuimenu.MenuRoot {
 	if r == nil {
 		return nil
 	}
@@ -75,7 +75,7 @@ func (r *OverlayRenderer) MenuRoot() *quakuimenu.MenuRoot {
 }
 
 // ConsoleRoot returns the underlying ConsoleRoot widget.
-func (r *OverlayRenderer) ConsoleRoot() *quakuiconsole.ConsoleRoot {
+func (r *OverlayRenderer) ConsoleRoot() *quakeuiconsole.ConsoleRoot {
 	if r == nil {
 		return nil
 	}
@@ -83,7 +83,7 @@ func (r *OverlayRenderer) ConsoleRoot() *quakuiconsole.ConsoleRoot {
 }
 
 // HUDRoot returns the underlying HUDRoot widget.
-func (r *OverlayRenderer) HUDRoot() *quakuihud.HUDRoot {
+func (r *OverlayRenderer) HUDRoot() *quakeuihud.HUDRoot {
 	if r == nil {
 		return nil
 	}
@@ -133,7 +133,7 @@ func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, heig
 		r.lastLogMenuVis = menuVis
 		r.lastLogConVis = conVis
 		r.lastLogHUDVis = hudVis
-		slog.Debug("quakui overlay draw",
+		slog.Debug("quakeui overlay draw",
 			"frame", r.drawCount,
 			"width", width, "height", height,
 			"menu_vis", menuVis,
@@ -160,7 +160,7 @@ func (r *OverlayRenderer) Event(e event.Event) bool {
 	ctx := widget.NewContext()
 	ctx.SetWindowSize(geometry.Sz(float32(r.width), float32(r.height)))
 	handled := r.stack.Event(ctx, e)
-	slog.Debug("quakui overlay event",
+	slog.Debug("quakeui overlay event",
 		"event", fmt.Sprintf("%T", e),
 		"handled", handled,
 		"menu_vis", r.menuRoot != nil && r.menuRoot.IsVisible(),

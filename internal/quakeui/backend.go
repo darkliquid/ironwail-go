@@ -1,9 +1,9 @@
-// Package quakui hosts the gogpu/ui integration for the v2 UI rewrite
+// Package quakeui hosts the gogpu/ui integration for the v2 UI rewrite
 // (IRONWAIL-SPEC-002, ADR-0009). It is self-contained: it imports only
 // gogpu/ui, the legacy state machines (read-only via accessors), and
-// internal/image. The engine (internal/game) implements the quakui.Host
-// adapter and calls quakui.Run; no engine code lives in this package.
-package quakui
+// internal/image. The engine (internal/game) implements the quakeui.Host
+// adapter and calls quakeui.Run; no engine code lives in this package.
+package quakeui
 
 import "github.com/darkliquid/ironwail-go/internal/cvar"
 

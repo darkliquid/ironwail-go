@@ -23,7 +23,7 @@ func (g *Game) pollRuntimeInputEvents() {
 // forwardUIKey routes an already-KeyDest-decided engine key event into the
 // gogpu/ui widget tree via the M1.5 KeyForwarder (ADR-0007). It is a no-op on
 // the legacy path (g.uiInput nil). The engine also keeps processing menu/
-// console input during M1.x — the quakui menu/console widgets are M2/M3 — so
+// console input during M1.x — the quakeui menu/console widgets are M2/M3 — so
 // forwarding into the (currently empty) ui tree is harmless; when those
 // widgets land they consume events and the engine's own surface is replaced.
 func (g *Game) forwardUIKey(event input.KeyEvent) {

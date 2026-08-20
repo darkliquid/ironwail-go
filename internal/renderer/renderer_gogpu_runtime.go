@@ -29,7 +29,7 @@ func (r *Renderer) DeviceProvider() gogpu.DeviceProvider {
 }
 
 // GogpuApp returns the underlying gogpu application (window/render-loop
-// owner). Used by the quakui host on ui_backend=1, where desktop.Run takes
+// owner). Used by the quakeui host on ui_backend=1, where desktop.Run takes
 // over the loop (ADR-0006).
 func (r *Renderer) GogpuApp() *gogpu.App {
 	if r == nil {

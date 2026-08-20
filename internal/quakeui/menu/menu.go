@@ -1,13 +1,13 @@
 // Package menu implements the gogpu/ui menu widget tree for the v2 UI
 // rewrite (IRONWAIL-SPEC-002, ADR-0008). It renders the real gfx/*.lmp menu
-// art via the quakui pic bridge and conchars bitmap text at the legacy 320x200
+// art via the quakeui pic bridge and conchars bitmap text at the legacy 320x200
 // layout positions. The legacy menu.Manager state machine remains the source
 // of truth: the widget reads State()/CursorFor()/accessors each frame and
 // routes key/char events back through M_Key/M_Char. Only the presentation
 // moves to gogpu/ui; the action side is shared verbatim.
 //
 // The package is self-contained: it imports only the legacy menu/draw state
-// machines, internal/quakui (for the pic + conchars bridges), and gogpu/ui.
+// machines, internal/quakeui (for the pic + conchars bridges), and gogpu/ui.
 // It never imports internal/game or internal/renderer (AC7, ADR-0009).
 package menu
 
@@ -19,7 +19,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	legacymenu "github.com/darkliquid/ironwail-go/internal/menu"
-	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
+	"github.com/darkliquid/ironwail-go/internal/quakeui/gfx"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/widget"
@@ -90,7 +90,7 @@ func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	}
 	r.drawCount++
 	if r.drawCount <= 5 || r.drawCount%300 == 0 {
-		slog.Debug("quakui menu draw", "state", r.mgr.State(), "frame", r.drawCount)
+		slog.Debug("quakeui menu draw", "state", r.mgr.State(), "frame", r.drawCount)
 	}
 	if sched, ok := ctx.(widget.AnimationScheduler); ok {
 		sched.ScheduleAnimationFrame()
@@ -108,7 +108,7 @@ func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 		WindowHeight: winSize.Height,
 	})
 	if r.drawCount <= 5 {
-		slog.Debug("quakui menu draw params", "winSize", winSize, "tf", tf, "has_drawMgr", r.drawMgr != nil)
+		slog.Debug("quakeui menu draw params", "winSize", winSize, "tf", tf, "has_drawMgr", r.drawMgr != nil)
 	}
 
 	canvas.PushTransform(geometry.Pt(tf.OriginX, tf.OriginY))
@@ -160,7 +160,7 @@ func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 		return false
 	}
 	if ke.Rune != 0 {
-		slog.Debug("quakui menu event rune", "rune", ke.Rune, "state", r.mgr.State())
+		slog.Debug("quakeui menu event rune", "rune", ke.Rune, "state", r.mgr.State())
 		switch r.mgr.State() {
 		case legacymenu.MenuSetup, legacymenu.MenuJoinGame, legacymenu.MenuHostGame:
 			r.mgr.M_Char(ke.Rune)
@@ -177,7 +177,7 @@ func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 		return true
 	}
 	if key := keyEventToEngine(ke); key >= 0 {
-		slog.Debug("quakui menu event key", "key", key, "ui_key", ke.Key, "state", r.mgr.State())
+		slog.Debug("quakeui menu event key", "key", key, "ui_key", ke.Key, "state", r.mgr.State())
 		r.mgr.M_Key(key)
 		r.SetNeedsRedraw(true)
 		r.InvalidateScene()
@@ -186,7 +186,7 @@ func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 		}
 		return true
 	}
-	slog.Warn("quakui menu event unhandled", "ui_key", ke.Key, "rune", ke.Rune, "state", r.mgr.State())
+	slog.Warn("quakeui menu event unhandled", "ui_key", ke.Key, "rune", ke.Rune, "state", r.mgr.State())
 	return false
 }
 

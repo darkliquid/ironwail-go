@@ -1,9 +1,9 @@
-// Package gfx provides the Quake graphics bridges shared by the quakui parent
+// Package gfx provides the Quake graphics bridges shared by the quakeui parent
 // package and its widget subpackages (menu, console, hud): palette-indexed
 // QPic -> RGBA conversion and the conchars bitmap atlas (ADR-0008, spec §4.3).
 //
-// It is a leaf package so the quakui widget subpackages can use the bridges
-// without importing the quakui parent (which would create an import cycle).
+// It is a leaf package so the quakeui widget subpackages can use the bridges
+// without importing the quakeui parent (which would create an import cycle).
 // The parent package re-exports these for backward compatibility.
 package gfx
 

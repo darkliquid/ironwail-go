@@ -1,4 +1,4 @@
-# ADR-0009: Self-Contained `internal/quakui` with a Narrow Engine Adapter
+# ADR-0009: Self-Contained `internal/quakeui` with a Narrow Engine Adapter
 
 **Status:** Accepted (2026-08-19)
 **Deciders:** darkliquid (v2 Stage 1: self-contained), lifecycle driver
@@ -10,7 +10,7 @@
 SPEC-001 leaked UI wiring into `internal/game`: host construction, `ui_backend`
 branching, input raw sinks, CSQC fallback, and `UIHost`/root fields all lived in
 game code. SPEC-002 requires the UI subsystem to be self-contained with clean
-package boundaries (AC7): `internal/quakui` must not import `internal/game`,
+package boundaries (AC7): `internal/quakeui` must not import `internal/game`,
 `internal/renderer`, or `internal/renderer/*`.
 
 ## Decision Drivers
@@ -19,36 +19,36 @@ package boundaries (AC7): `internal/quakui` must not import `internal/game`,
 - The UI needs the legacy state machines (`menu.Manager`, `console.Console`,
   `hud.State`) read-only, and the engine's world texture + cvars + command
   text + sound.
-- `internal/quakui` must not import engine internals; the world texture is a
+- `internal/quakeui` must not import engine internals; the world texture is a
   `gpucontext.TextureView` (a gogpu type, not an engine type).
 
 ## Considered Options
 
 1. **UI code in `internal/game` (v1)** — rejected: it is the failed SPEC-001
    approach; game wiring leaks.
-2. **Self-contained `internal/quakui` + a `quakui.Host` adapter** — chosen.
-   `internal/quakui` imports only gogpu/ui, the legacy state machines
+2. **Self-contained `internal/quakeui` + a `quakeui.Host` adapter** — chosen.
+   `internal/quakeui` imports only gogpu/ui, the legacy state machines
    (read-only via accessors), and `internal/image`. It defines a `Host`
    adapter interface whose types are gogpu/gpucontext types (a
    `gpucontext.TextureView` for the world, plain value reads for cvars, and
    `func(string)` sinks for command text/sound). `internal/game` implements
-   `quakui.Host` and calls `quakui.Run(host)`. The engine renderer exposes
+   `quakeui.Host` and calls `quakeui.Run(host)`. The engine renderer exposes
    `RenderIntoWorldTexture(view)` implemented in `internal/renderer` and
    routed through `internal/game`'s adapter — never imported by
-   `internal/quakui`. Pros: clean boundary; the UI is testable in isolation;
+   `internal/quakeui`. Pros: clean boundary; the UI is testable in isolation;
    the engine touches one function. Cons: the adapter must abstract enough of
    the engine surface (world texture, cvars, input keydest, command text,
    sound) without leaking engine types.
 3. **Adapter package `internal/uiadapter`** — rejected: an extra package with
-   no benefit; the `Host` interface inside `internal/quakui` is the adapter.
+   no benefit; the `Host` interface inside `internal/quakeui` is the adapter.
 
 ## Decision Outcome
 
-`internal/quakui` is self-contained. It defines `quakui.Host` (world texture
+`internal/quakeui` is self-contained. It defines `quakeui.Host` (world texture
 as `gpucontext.TextureView`, cvar reads as values, command text/sound sinks as
-`func(string)`, input keydest as a plain enum) and `quakui.Run(host)`.
-`internal/game` implements the adapter and calls `quakui.Run`. No `internal/game`
-or `internal/renderer` import inside `internal/quakui`; the engine renderer's
+`func(string)`, input keydest as a plain enum) and `quakeui.Run(host)`.
+`internal/game` implements the adapter and calls `quakeui.Run`. No `internal/game`
+or `internal/renderer` import inside `internal/quakeui`; the engine renderer's
 `RenderIntoWorldTexture(view)` is routed through the adapter.
 
 - **Positive:** clean boundary; UI testable in isolation; one engine touch

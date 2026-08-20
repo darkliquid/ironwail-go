@@ -1,4 +1,4 @@
-package quakui
+package quakeui
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/input"
@@ -8,7 +8,7 @@ import (
 // ADR-0007). The engine calls ForwardKey/ForwardChar for menu/console input it
 // decides the ui should see; gameplay/HUD-only input never reaches it. KeyForwarder
 // is the concrete production implementation; tests substitute a recording stub.
-// The interface stays in quakui so the engine (internal/game) depends only on
+// The interface stays in quakeui so the engine (internal/game) depends only on
 // the narrow route, not the gogpu/ui event translation details.
 type Forwarder interface {
 	ForwardKey(ev input.KeyEvent, mods input.ModifierState)
@@ -29,7 +29,7 @@ const (
 	KeyDestMenu
 )
 
-// Host is the narrow engine-facing adapter that internal/quakui consumes
+// Host is the narrow engine-facing adapter that internal/quakeui consumes
 // (ADR-0009, AC7). Its types are plain Go values — never internal/game or
 // internal/renderer types.
 type Host interface {

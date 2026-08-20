@@ -1,10 +1,10 @@
-package quakui
+package quakeui
 
 import (
 	"image"
 
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
-	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
+	"github.com/darkliquid/ironwail-go/internal/quakeui/gfx"
 )
 
 // QPicToImage converts a palette-indexed Quake QPic into an RGBA image

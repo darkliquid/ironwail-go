@@ -31,17 +31,24 @@ signal (research 0007 §2), so the engine must decide by KeyDest up front.
    learn whether a widget swallowed an event (research 0007 §2).
 2. **Engine-owned EventSource shim routing by KeyDest** — chosen. The engine
    keeps one authoritative EventSource registration (the shim in
-   `internal/quakui`). It routes per KeyDest:
-   - KeyMenu/KeyConsole → forward the translated event to the ui app
-     (`uiApp.HandleEvent(e)` or the ui EventSource bridge). The ui widget tree
-     consumes it; the game does not also process it.
-   - KeyGame/HUD-only → do NOT forward to the ui; the event goes only to the
-     game's KeyDest router (fallthrough).
-   - Backtick/binding capture runs first (engine-side, unchanged).
+   `internal/quakeui`). It routes per KeyDest:
+   - `KeyDestGame`: route to engine input only (`g.handleGameKeyEvent`);
+     gameplay latches run verbatim. No ui dispatch.
+   - `KeyDestMenu`: route to `uiInput.ForwardKey` (M1.5). If unhandled,
+     forward to engine (`g.handleMenuKeyEvent`).
+   - `KeyDestConsole`: route to `uiInput.ForwardKey` (M1.5).
+
+3. **EventSource Shim (M1.5)**:
+   An engine-owned EventSource shim in `internal/quakeui` (the sole EventSource
+   registration under `desktop.Run`) routes input by KeyDest: menu/console →
+   ui; HUD-only/game → game (fallthrough). The HUD widget tree is draw-only
+   (structural non-interactivity). The engine's KeyDest router and latching state
+   machine are unchanged; the shim routes, it does not re-implement.
+
    Pros: KeyDest semantics intact; HUD structurally non-interactive; latching
    tests untouched; single authoritative input path. Cons: the shim is new
    code mapping two event systems; must track gogpu's event API.
-3. **Hybrid (ui owns EventSource, engine polls unconsumed)** — rejected: no
+4. **Hybrid (ui owns EventSource, engine polls unconsumed)** — rejected: no
    poll API exists; double-delivery risk; breaks latching.
 
 ## Decision Outcome

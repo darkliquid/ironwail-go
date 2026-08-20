@@ -1,4 +1,4 @@
-package quakui
+package quakeui
 
 import (
 	"log/slog"
@@ -94,7 +94,7 @@ func Modifiers(m input.ModifierState) event.Modifiers {
 }
 
 // HandleEvents is the minimal ui surface the KeyForwarder needs: a single
-// push-events-into-the-tree method. quakui uses *app.App in production and a
+// push-events-into-the-tree method. quakeui uses *app.App in production and a
 // recording stub in tests, keeping the shim dependency narrow (ADR-0009).
 type HandleEvents interface {
 	HandleEvent(e event.Event)
@@ -136,7 +136,7 @@ func (f *KeyForwarder) ForwardKey(ev input.KeyEvent, mods input.ModifierState) {
 		r = rune(ev.Key)
 	}
 	mappedKey := MapEngineKey(ev.Key)
-	slog.Debug("quakui forward key",
+	slog.Debug("quakeui forward key",
 		"key", input.KeyToString(ev.Key),
 		"key_code", ev.Key,
 		"down", ev.Down,
@@ -153,7 +153,7 @@ func (f *KeyForwarder) ForwardChar(r rune, mods input.ModifierState) {
 	if f == nil || f.ui == nil || r == 0 {
 		return
 	}
-	slog.Debug("quakui forward char", "rune", r, "char", string(r))
+	slog.Debug("quakeui forward char", "rune", r, "char", string(r))
 	f.ui.HandleEvent(event.NewKeyEvent(event.KeyPress, event.KeyUnknown, r, Modifiers(mods)))
 }
 
@@ -164,7 +164,7 @@ func (f *KeyForwarder) ForwardText(text string, mods input.ModifierState) {
 		return
 	}
 	uiMods := Modifiers(mods)
-	slog.Debug("quakui forward text", "text", text)
+	slog.Debug("quakeui forward text", "text", text)
 	for _, r := range text {
 		f.ui.HandleEvent(event.NewKeyEvent(event.KeyPress, event.KeyUnknown, r, uiMods))
 	}

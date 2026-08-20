@@ -12,7 +12,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/input"
-	"github.com/darkliquid/ironwail-go/internal/quakui"
+	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
@@ -56,8 +56,8 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 		screenshotMode: screenshotPath != "",
 	}
 
-	if g.Host != nil && quakui.IsGogpuUIPath(g.Host.CVar) {
-		g.ensureQuakuiOverlay()
+	if g.Host != nil && quakeui.IsGogpuUIPath(g.Host.CVar) {
+		g.ensureQuakeUIOverlay()
 	}
 
 	g.installRuntimeRendererCallbacks(gameCallbacks{g: g}, state)
@@ -122,15 +122,15 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 	return result, nil
 }
 
-// ensureQuakuiOverlay returns or instantiates the engine-owned OverlayRenderer
+// ensureQuakeUIOverlay returns or instantiates the engine-owned OverlayRenderer
 // on the ui_backend=1 path (SPEC-003, ADR-0010).
-func (g *Game) ensureQuakuiOverlay() *quakui.OverlayRenderer {
-	if g.quakuiOverlay != nil {
-		return g.quakuiOverlay
+func (g *Game) ensureQuakeUIOverlay() *quakeui.OverlayRenderer {
+	if g.quakeuiOverlay != nil {
+		return g.quakeuiOverlay
 	}
-	host := &quakuiHost{g: g}
+	host := &quakeuiHost{g: g}
 	g.uiHost = host
-	overlay := quakui.NewOverlayRenderer(
+	overlay := quakeui.NewOverlayRenderer(
 		host,
 		g.Menu,
 		console.Global(),
@@ -151,8 +151,8 @@ func (g *Game) ensureQuakuiOverlay() *quakui.OverlayRenderer {
 			})
 		}
 	}
-	g.quakuiOverlay = overlay
-	g.uiInput = quakui.NewKeyForwarder(overlay)
+	g.quakeuiOverlay = overlay
+	g.uiInput = quakeui.NewKeyForwarder(overlay)
 	return overlay
 }
 
@@ -217,10 +217,10 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 
 		consoleVisible := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 		g.updateRuntimeConsoleSlide(dt, consoleVisible, g.runtimeConsoleForcedUp())
-		if g.Host != nil && quakui.IsGogpuUIPath(g.Host.CVar) {
-			if quakuiRenderer := g.ensureQuakuiOverlay(); quakuiRenderer != nil {
-				quakuiRenderer.SetConsoleSlideFraction(g.ConsoleSlideFraction)
-				quakuiRenderer.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
+		if g.Host != nil && quakeui.IsGogpuUIPath(g.Host.CVar) {
+			if quakeuiRenderer := g.ensureQuakeUIOverlay(); quakeuiRenderer != nil {
+				quakeuiRenderer.SetConsoleSlideFraction(g.ConsoleSlideFraction)
+				quakeuiRenderer.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
 			}
 		}
 
@@ -358,11 +358,11 @@ func (g *Game) drawRuntimeRendererFrame(dc renderer.RenderContext) {
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 	w, h := g.Renderer.Size()
 	frameCount := g.overlayFrameCount.Add(1)
-	isGogpu := g.Host != nil && quakui.IsGogpuUIPath(g.Host.CVar)
+	isGogpu := g.Host != nil && quakeui.IsGogpuUIPath(g.Host.CVar)
 	if frameCount <= 5 || frameCount%300 == 0 {
 		uiBackend := 0
 		if g.Host != nil {
-			uiBackend = quakui.UIBackend(g.Host.CVar)
+			uiBackend = quakeui.UIBackend(g.Host.CVar)
 		}
 		slog.Debug("drawRuntimeOverlayFrame",
 			"frame", frameCount,
@@ -374,12 +374,12 @@ func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 
 	if isGogpu {
 		g.updateHUDFromServer()
-		quakuiRenderer := g.ensureQuakuiOverlay()
-		if quakuiRenderer != nil {
-			quakuiRenderer.SetConsoleSlideFraction(g.ConsoleSlideFraction)
-			quakuiRenderer.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
-			if err := quakuiRenderer.DrawOverlay(overlay, w, h); err != nil {
-				slog.Warn("quakui overlay draw failed", "error", err)
+		quakeuiRenderer := g.ensureQuakeUIOverlay()
+		if quakeuiRenderer != nil {
+			quakeuiRenderer.SetConsoleSlideFraction(g.ConsoleSlideFraction)
+			quakeuiRenderer.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
+			if err := quakeuiRenderer.DrawOverlay(overlay, w, h); err != nil {
+				slog.Warn("quakeui overlay draw failed", "error", err)
 			}
 			return
 		}

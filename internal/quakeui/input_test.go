@@ -1,4 +1,4 @@
-package quakui
+package quakeui
 
 import (
 	"testing"
@@ -181,7 +181,7 @@ func TestKeyForwarderNilSafe(t *testing.T) {
 	f2.ForwardText("ab", input.ModifierState{})
 }
 
-// TestKeyForwarderIsolation preserves AC7/ADR-0009: the quakui package must not
+// TestKeyForwarderIsolation preserves AC7/ADR-0009: the quakeui package must not
 // import internal/game or internal/renderer. The KeyForwarder consumes the
 // engine input types (internal/input), which is the documented legacy-state
 // dependency, not an engine-package import.

@@ -20,7 +20,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/qc"
-	"github.com/darkliquid/ironwail-go/internal/quakui"
+	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
@@ -96,9 +96,9 @@ type Game struct {
 	overlayFrameCount     atomic.Uint64
 
 	// uiInput is the inline-input router installed on the ui_backend=1 path.
-	uiInput       quakui.Forwarder
-	uiHost        *quakuiHost
-	quakuiOverlay *quakui.OverlayRenderer
+	uiInput        quakeui.Forwarder
+	uiHost         *quakeuiHost
+	quakeuiOverlay *quakeui.OverlayRenderer
 
 	// cpuProfile tracks the active CPU profile capture state.
 	cpuProfile cpuProfileState

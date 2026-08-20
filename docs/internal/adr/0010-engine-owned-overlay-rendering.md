@@ -21,7 +21,7 @@ We need a UI rendering architecture that allows the engine to maintain authorita
 - **Engine Authority**: Frame pacing, world simulation, and swapchain presentation must remain directly owned by `Game.RenderFrame()`.
 - **Cross-Platform Compatibility**: Full support for Native Desktop, WebAssembly in the browser, and headless test harnesses.
 - **Rendering Performance & Reliability**: Zero offscreen GPU texture churn, zero Vulkan presentation crashes, single-pass overlay compositing.
-- **Codebase Isolation**: `internal/quakui` must remain self-contained without circular dependencies on `internal/game` or `internal/renderer`.
+- **Codebase Isolation**: `internal/quakeui` must remain self-contained without circular dependencies on `internal/game` or `internal/renderer`.
 
 ## Considered Options
 
@@ -29,7 +29,7 @@ We need a UI rendering architecture that allows the engine to maintain authorita
    - *Pros*: Uses upstream `desktop` framework loop.
    - *Cons*: Incompatible with WASM browser loops; complex offscreen texture lifecycle; Vulkan presentation instability.
 2. **Option 2: Direct Single-Pass Overlay via `FlushGPUWithViewPreserveContent` (Chosen)**:
-   - *Pros*: Engine renders 3D world directly to swapchain texture view; `quakui.OverlayRenderer` records 2D UI widgets and flushes them directly to the swapchain view in a single pass with `LoadOpLoad`; zero offscreen texture allocation; works identically in native, WASM, and headless.
+   - *Pros*: Engine renders 3D world directly to swapchain texture view; `quakeui.OverlayRenderer` records 2D UI widgets and flushes them directly to the swapchain view in a single pass with `LoadOpLoad`; zero offscreen texture allocation; works identically in native, WASM, and headless.
    - *Cons*: Engine must explicitly invoke `overlayRenderer.DrawOverlay` during overlay passes.
 3. **Option 3: CPU Readback / Software Blit**:
    - *Pros*: Simple software frame buffer.
@@ -47,4 +47,4 @@ Chosen Option: **Option 2 (Direct Single-Pass Overlay via `FlushGPUWithViewPrese
   - Vulkan command buffer retirement conflicts and swapchain presentation failures are permanently resolved.
   - Frame rendering is consolidated into a single pass: 3D scene -> 2D overlay (`LoadOpLoad`) -> present.
 - **Negative**:
-  - `quakui` cannot rely on `desktop.Run`'s window event listeners, requiring explicit KeyDest event routing from `game_input.go`.
+  - `quakeui` cannot rely on `desktop.Run`'s window event listeners, requiring explicit KeyDest event routing from `game_input.go`.

@@ -29,7 +29,7 @@ func (s *spyForwarder) ForwardChar(r rune, m input.ModifierState) {
 func (s *spyForwarder) ForwardText(text string, m input.ModifierState) {}
 
 // newUIRoutingGame builds a Game wired with a real input.System and a
-// spyForwarder installed through the production quakui path (AttachKeyForwarder
+// spyForwarder installed through the production quakeui path (AttachKeyForwarder
 // sets g.uiInput). The KeyDest router then drives the shim.
 func newUIRoutingGame(t *testing.T) (*Game, *spyForwarder) {
 	t.Helper()
@@ -122,7 +122,7 @@ func TestUIRoutingMenuCharForwards(t *testing.T) {
 	}
 }
 
-// TestLegacyPathNoForwarder asserts the default path (quakui Host absent) leaves
+// TestLegacyPathNoForwarder asserts the default path (quakeui Host absent) leaves
 // g.uiInput nil, so the routing guards are no-ops and gameplay is untouched.
 func TestLegacyPathNoForwarder(t *testing.T) {
 	g := newInputTestGame(t)

@@ -1,4 +1,4 @@
-package quakui
+package quakeui
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/draw"
@@ -6,9 +6,9 @@ import (
 	"github.com/gogpu/ui/widget"
 )
 
-// ThemeExtensionName is the stable name under which the quakui
+// ThemeExtensionName is the stable name under which the quakeui
 // ThemeExtension is registered on the Quake theme.
-const ThemeExtensionName = "quakui"
+const ThemeExtensionName = "quakeui"
 
 // QuakeTheme returns a dark gogpu/ui theme with the Quake palette tokens
 // applied (spec §4.3, ADR-0008):
@@ -19,7 +19,7 @@ const ThemeExtensionName = "quakui"
 //   - Primary:    palette index 250 (0xd70000) — bright red accent.
 //   - OnBackground: palette index 253 (0xfff7c7) — warm off-white.
 //
-// The quakui ThemeExtension is registered with the glyph conventions and the
+// The quakeui ThemeExtension is registered with the glyph conventions and the
 // raw 768-byte palette for exact per-index lookups.
 func QuakeTheme() *uitheme.Theme {
 	t := uitheme.DefaultDark()

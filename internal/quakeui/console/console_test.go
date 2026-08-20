@@ -6,7 +6,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/draw"
-	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
+	"github.com/darkliquid/ironwail-go/internal/quakeui/gfx"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/widget"

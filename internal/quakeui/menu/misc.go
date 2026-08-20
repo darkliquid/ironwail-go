@@ -5,7 +5,7 @@ import (
 	"image"
 	"time"
 
-	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
+	"github.com/darkliquid/ironwail-go/internal/quakeui/gfx"
 	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/widget"
 )
