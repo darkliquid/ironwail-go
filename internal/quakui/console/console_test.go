@@ -85,11 +85,8 @@ func TestConsoleRoot_Draw_Dropdown(t *testing.T) {
 	canvas := &testCanvas{}
 	root.Draw(ctx, canvas)
 
-	if len(canvas.rects) == 0 {
-		t.Fatal("expected background rectangle drawn")
-	}
 	if len(canvas.images) == 0 {
-		t.Fatal("expected text glyph images drawn")
+		t.Fatal("expected composited dropdown image drawn")
 	}
 }
 

@@ -173,8 +173,12 @@ func (r *ConsoleRoot) drawDropdown(canvas widget.Canvas, screenW, screenH float3
 		charsWide = 2
 	}
 
-	// Background: solid black base for dropdown overlay
-	canvas.DrawRect(geometry.NewRect(0, 0, screenW, visibleH), widget.ColorBlack)
+	visW := int(screenW)
+	visH := int(visibleH)
+	if visW <= 0 || visH <= 0 {
+		return
+	}
+
 	if r.drawMgr != nil {
 		reqW := int(screenW)
 		reqH := int(conH)
@@ -188,33 +192,38 @@ func (r *ConsoleRoot) drawDropdown(canvas widget.Canvas, screenW, screenH float3
 			}
 		}
 	}
-	if r.conbackImg != nil && visibleH > 0 {
+
+	frameImg := image.NewRGBA(image.Rect(0, 0, visW, visH))
+	if r.conbackImg != nil {
 		srcY := int(conH - visibleH)
 		if srcY < 0 {
 			srcY = 0
 		}
-		visH := int(visibleH)
-		if srcY+visH > r.conbackImg.Bounds().Dy() {
-			visH = r.conbackImg.Bounds().Dy() - srcY
+		copyH := visH
+		if srcY+copyH > r.conbackImg.Bounds().Dy() {
+			copyH = r.conbackImg.Bounds().Dy() - srcY
 		}
-		if visH > 0 {
-			visImg := image.NewRGBA(image.Rect(0, 0, int(screenW), visH))
-			srcOffset := srcY * r.conbackImg.Stride
-			dstOffset := 0
-			rowBytes := int(screenW) * 4
-			if rowBytes > r.conbackImg.Stride {
-				rowBytes = r.conbackImg.Stride
-			}
-			for y := 0; y < visH; y++ {
-				copy(visImg.Pix[dstOffset:dstOffset+rowBytes], r.conbackImg.Pix[srcOffset:srcOffset+rowBytes])
-				srcOffset += r.conbackImg.Stride
-				dstOffset += visImg.Stride
-			}
-			canvas.DrawImage(visImg, geometry.Pt(0, 0))
+		srcOffset := srcY * r.conbackImg.Stride
+		dstOffset := 0
+		rowBytes := visW * 4
+		if rowBytes > r.conbackImg.Stride {
+			rowBytes = r.conbackImg.Stride
+		}
+		for y := 0; y < copyH; y++ {
+			copy(frameImg.Pix[dstOffset:dstOffset+rowBytes], r.conbackImg.Pix[srcOffset:srcOffset+rowBytes])
+			srcOffset += r.conbackImg.Stride
+			dstOffset += frameImg.Stride
+		}
+	} else {
+		for i := 0; i < len(frameImg.Pix); i += 4 {
+			frameImg.Pix[i+0] = 0
+			frameImg.Pix[i+1] = 0
+			frameImg.Pix[i+2] = 0
+			frameImg.Pix[i+3] = 255
 		}
 	}
 
-	visibleRows := int(visibleH)/8 - 1
+	visibleRows := visH/8 - 1
 	if visibleRows < 1 {
 		visibleRows = 1
 	}
@@ -223,20 +232,20 @@ func (r *ConsoleRoot) drawDropdown(canvas widget.Canvas, screenW, screenH float3
 
 	// Scroll indicator row
 	if snap.BackScroll > 0 {
-		r.drawText(canvas, 8, 0, strings.Repeat("^", charsWide-2), false)
+		r.blitText(frameImg, 8, 0, strings.Repeat("^", charsWide-2), false)
 	}
 
 	// Scrollback lines
-	y := int(visibleH) - 8 - len(snap.Lines)*8
+	y := visH - 8 - len(snap.Lines)*8
 	for _, line := range snap.Lines {
-		if y >= 0 && y < int(visibleH)-8 {
-			r.drawText(canvas, 8, y, line, false)
+		if y >= 0 && y < visH-8 {
+			r.blitText(frameImg, 8, y, line, false)
 		}
 		y += 8
 	}
 
 	// Input line + blinking cursor
-	inputY := int(visibleH) - 8
+	inputY := visH - 8
 	if inputY >= 0 {
 		// Render candidate matches list above the prompt if multiple candidates exist
 		if len(r.matches) > 1 {
@@ -245,24 +254,26 @@ func (r *ConsoleRoot) drawDropdown(canvas widget.Canvas, screenW, screenH float3
 				if matchY < 0 {
 					break
 				}
-				r.drawText(canvas, 16, matchY, r.matches[i], true)
+				r.blitText(frameImg, 16, matchY, r.matches[i], true)
 				matchY -= 8
 			}
 		}
 
 		prompt := "]" + snap.InputLine
-		r.drawText(canvas, 8, inputY, prompt, false)
+		r.blitText(frameImg, 8, inputY, prompt, false)
 		cursorX := 8 + (snap.CursorPos+1)*8
-		r.drawCursor(canvas, cursorX, inputY)
+		r.blitCursor(frameImg, cursorX, inputY)
 
 		// Title / version string in bottom-right
 		if len(snap.Title) > 0 {
-			titleX := int(screenW) - len(snap.Title)*8 - 8
+			titleX := visW - len(snap.Title)*8 - 8
 			if titleX > cursorX+16 {
-				r.drawText(canvas, titleX, inputY, snap.Title, true)
+				r.blitText(frameImg, titleX, inputY, snap.Title, true)
 			}
 		}
 	}
+
+	canvas.DrawImage(frameImg, geometry.Pt(0, 0))
 }
 
 // drawNotify renders floating notification lines at the top of the screen when console is closed.
@@ -275,19 +286,33 @@ func (r *ConsoleRoot) drawNotify(canvas widget.Canvas, screenW float32) {
 		return
 	}
 
+	activeCount := 0
+	for _, line := range notifies {
+		if line.Alpha > 0 {
+			activeCount++
+		}
+	}
+	if activeCount == 0 {
+		return
+	}
+
+	visW := int(screenW)
+	visH := len(notifies) * 8
+	notifyImg := image.NewRGBA(image.Rect(0, 0, visW, visH))
 	y := 0
 	for _, line := range notifies {
 		if line.Alpha <= 0 {
 			continue
 		}
-		r.drawText(canvas, 8, y, line.Text, false)
+		r.blitText(notifyImg, 8, y, line.Text, false)
 		y += 8
 	}
+	canvas.DrawImage(notifyImg, geometry.Pt(0, 0))
 }
 
-// drawText renders a line of conchars text at (x, y).
-func (r *ConsoleRoot) drawText(canvas widget.Canvas, x, y int, text string, white bool) {
-	if r == nil || r.atlas == nil || canvas == nil {
+// blitText renders a line of conchars text directly into the destination RGBA image.
+func (r *ConsoleRoot) blitText(dst *image.RGBA, x, y int, text string, white bool) {
+	if r == nil || r.atlas == nil || dst == nil {
 		return
 	}
 	for i, ch := range []byte(text) {
@@ -301,21 +326,17 @@ func (r *ConsoleRoot) drawText(canvas widget.Canvas, x, y int, text string, whit
 		if code < 0 || code > 255 {
 			code = '?'
 		}
-		if img := r.atlas.GlyphImage(byte(code)); img != nil {
-			canvas.DrawImage(img, geometry.Pt(float32(x+i*8), float32(y)))
-		}
+		r.atlas.DrawGlyph(dst, x+i*8, y, byte(code))
 	}
 }
 
-// drawCursor renders the blinking cursor character.
-func (r *ConsoleRoot) drawCursor(canvas widget.Canvas, x, y int) {
-	if r == nil || r.atlas == nil || canvas == nil {
+// blitCursor renders the blinking cursor character directly into the destination RGBA image.
+func (r *ConsoleRoot) blitCursor(dst *image.RGBA, x, y int) {
+	if r == nil || r.atlas == nil || dst == nil {
 		return
 	}
 	frame := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
-	if img := r.atlas.GlyphImage(byte(frame)); img != nil {
-		canvas.DrawImage(img, geometry.Pt(float32(x), float32(y)))
-	}
+	r.atlas.DrawGlyph(dst, x, y, byte(frame))
 }
 
 // Event routes key and character events when the console is active.

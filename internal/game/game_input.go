@@ -266,9 +266,11 @@ func (g *Game) handleGameCharEvent(ch rune) {
 		if ch == '`' {
 			return
 		}
-		// Console captures input: mirror character into the ui (M1.5).
-		g.forwardUIChar(ch)
-		console.AppendInputRune(ch)
+		if g.uiInput != nil {
+			g.forwardUIChar(ch)
+		} else {
+			console.AppendInputRune(ch)
+		}
 	case input.KeyMessage:
 		// Basic ASCII/Latin filtering, matching Quake's limited text support
 		if ch >= 32 && ch < 127 {
@@ -284,11 +286,20 @@ func (g *Game) handleConsoleKeyEvent(event input.KeyEvent) {
 		return
 	}
 
-	// Console captures input: mirror every console key into the ui widget tree
-	// (M1.5, ADR-0007). During M1.x the ui tree is empty, so the legacy
-	// console state still drives the surface; when the M3 console widget lands
-	// it consumes these in place of the legacy handling below.
-	g.forwardUIKey(event)
+	if g.uiInput != nil {
+		g.forwardUIKey(event)
+		if event.Key == input.KEscape || event.Key == int('`') {
+			console.ResetCompletion()
+			if g.runtimeConsoleForcedUp() && g.Menu != nil {
+				g.showRuntimeMenuState(menu.MenuMain)
+				g.syncGameplayInputMode()
+				return
+			}
+			g.Input.SetKeyDest(input.KeyGame)
+			g.syncGameplayInputMode()
+		}
+		return
+	}
 
 	switch event.Key {
 	case input.KEscape, int('`'):

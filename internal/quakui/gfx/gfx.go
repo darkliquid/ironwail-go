@@ -119,6 +119,35 @@ func (a *ConcharsAtlas) GlyphImage(index byte) image.Image {
 	return a.glyphs[index]
 }
 
+// DrawGlyph blits an 8x8 glyph directly into a destination RGBA image with alpha testing.
+func (a *ConcharsAtlas) DrawGlyph(dst *image.RGBA, x, y int, index byte) {
+	if a == nil || dst == nil {
+		return
+	}
+	g := a.glyphs[index]
+	if g == nil {
+		return
+	}
+	dstW := dst.Rect.Dx()
+	dstH := dst.Rect.Dy()
+	if x < 0 || x+8 > dstW || y < 0 || y+8 > dstH {
+		return
+	}
+	for row := 0; row < 8; row++ {
+		srcOff := row * 32
+		dstOff := (y+row)*dst.Stride + x*4
+		for col := 0; col < 8; col++ {
+			alpha := g.Pix[srcOff+col*4+3]
+			if alpha > 0 {
+				dst.Pix[dstOff+col*4+0] = g.Pix[srcOff+col*4+0]
+				dst.Pix[dstOff+col*4+1] = g.Pix[srcOff+col*4+1]
+				dst.Pix[dstOff+col*4+2] = g.Pix[srcOff+col*4+2]
+				dst.Pix[dstOff+col*4+3] = 255
+			}
+		}
+	}
+}
+
 // TranslatePlayerSkinPixels remaps Quake player shirt (16-31) and pants (96-111)
 // palette ranges to the selected top/bottom colors.
 func TranslatePlayerSkinPixels(pixels []byte, topColor, bottomColor int) []byte {
