@@ -63,3 +63,30 @@ func TestOverlayRenderer_Event(t *testing.T) {
 		t.Fatal("expected console to handle key event")
 	}
 }
+
+func TestOverlayRenderer_Menu_DrawAndEvent(t *testing.T) {
+	host := &dummyHost{}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	mgr.ShowState(legacymenu.MenuMain)
+	con := console.NewConsole(1024)
+	drawMgr := draw.NewManager()
+	conchars := make([]byte, 128*128)
+	palette := make([]byte, 768)
+
+	r := NewOverlayRenderer(host, mgr, con, nil, drawMgr, conchars, palette)
+	if !r.MenuRoot().IsVisible() {
+		t.Fatal("expected MenuRoot to be visible when MenuMain active")
+	}
+
+	err := r.DrawOverlay(gpucontext.TextureView{}, 640, 480)
+	if err != nil {
+		t.Fatalf("expected nil error on DrawOverlay: %v", err)
+	}
+
+	// Down arrow should navigate menu
+	ke := event.NewKeyEvent(event.KeyPress, event.KeyDown, 0, event.ModNone)
+	handled := r.Event(ke)
+	if !handled {
+		t.Fatal("expected menu to handle DownArrow key event")
+	}
+}
