@@ -115,7 +115,7 @@ func (r *HUDRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 
 	rc := &canvasRenderContext{
 		canvas:  canvas,
-		atlas:   r.atlas,
+		atlas:   r.ensureAtlas(),
 		palette: r.palette,
 		width:   w,
 		height:  h,
@@ -123,6 +123,21 @@ func (r *HUDRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	}
 
 	r.provider.Draw(rc)
+}
+
+func (r *HUDRoot) ensureAtlas() *gfx.ConcharsAtlas {
+	if r == nil {
+		return nil
+	}
+	if r.atlas != nil {
+		return r.atlas
+	}
+	if r.drawMgr != nil {
+		if conchars := r.drawMgr.ConcharsData(); len(conchars) >= 128*128 {
+			r.atlas = gfx.NewConcharsAtlas(conchars, r.drawMgr.Palette())
+		}
+	}
+	return r.atlas
 }
 
 // Event returns false so all input falls through to the game simulation (ADR-0007).

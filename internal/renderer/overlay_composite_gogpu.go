@@ -159,7 +159,7 @@ func (r *Renderer) ensureOverlayCompositeResourcesLocked(device *wgpu.Device) er
 				Format: r.sceneSurfaceFormat(),
 				Blend: &gputypes.BlendState{
 					Color: gputypes.BlendComponent{
-						SrcFactor: gputypes.BlendFactorSrcAlpha,
+						SrcFactor: gputypes.BlendFactorOne,
 						DstFactor: gputypes.BlendFactorOneMinusSrcAlpha,
 						Operation: gputypes.BlendOperationAdd,
 					},
@@ -281,7 +281,10 @@ func (dc *DrawContext) renderOverlayTextureHAL(tex *gogpu.Texture) bool {
 	}
 	renderPass.SetPipeline(pipeline)
 	renderPass.SetBindGroup(0, bindGroup, nil)
-	width, height := r.Size()
+	width, height := tex.Width(), tex.Height()
+	if width <= 0 || height <= 0 {
+		width, height = r.Size()
+	}
 	if width > 0 && height > 0 {
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))

@@ -310,9 +310,25 @@ func (r *ConsoleRoot) drawNotify(canvas widget.Canvas, screenW float32) {
 	canvas.DrawImage(notifyImg, geometry.Pt(0, 0))
 }
 
+func (r *ConsoleRoot) ensureAtlas() *gfx.ConcharsAtlas {
+	if r == nil {
+		return nil
+	}
+	if r.atlas != nil {
+		return r.atlas
+	}
+	if r.drawMgr != nil {
+		if conchars := r.drawMgr.ConcharsData(); len(conchars) >= 128*128 {
+			r.atlas = gfx.NewConcharsAtlas(conchars, r.drawMgr.Palette())
+		}
+	}
+	return r.atlas
+}
+
 // blitText renders a line of conchars text directly into the destination RGBA image.
 func (r *ConsoleRoot) blitText(dst *image.RGBA, x, y int, text string, white bool) {
-	if r == nil || r.atlas == nil || dst == nil {
+	atlas := r.ensureAtlas()
+	if r == nil || atlas == nil || dst == nil {
 		return
 	}
 	for i, ch := range []byte(text) {
@@ -326,17 +342,18 @@ func (r *ConsoleRoot) blitText(dst *image.RGBA, x, y int, text string, white boo
 		if code < 0 || code > 255 {
 			code = '?'
 		}
-		r.atlas.DrawGlyph(dst, x+i*8, y, byte(code))
+		atlas.DrawGlyph(dst, x+i*8, y, byte(code))
 	}
 }
 
 // blitCursor renders the blinking cursor character directly into the destination RGBA image.
 func (r *ConsoleRoot) blitCursor(dst *image.RGBA, x, y int) {
-	if r == nil || r.atlas == nil || dst == nil {
+	atlas := r.ensureAtlas()
+	if r == nil || atlas == nil || dst == nil {
 		return
 	}
 	frame := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
-	r.atlas.DrawGlyph(dst, x, y, byte(frame))
+	atlas.DrawGlyph(dst, x, y, byte(frame))
 }
 
 // Event routes key and character events when the console is active.

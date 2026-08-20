@@ -230,11 +230,27 @@ func (r *MenuRoot) drawPic(canvas widget.Canvas, x, y int, img *image.RGBA) {
 	canvas.DrawImage(img, geometry.Pt(float32(x), float32(y)))
 }
 
+func (r *MenuRoot) ensureAtlas() *gfx.ConcharsAtlas {
+	if r == nil {
+		return nil
+	}
+	if r.atlas != nil {
+		return r.atlas
+	}
+	if r.drawMgr != nil {
+		if conchars := r.drawMgr.ConcharsData(); len(conchars) >= 128*128 {
+			r.atlas = gfx.NewConcharsAtlas(conchars, r.drawMgr.Palette())
+		}
+	}
+	return r.atlas
+}
+
 // drawText renders a conchars string at legacy 320x200 coordinates. If white
 // is true the high-bit bright row is used (char + 128), matching the legacy
 // drawText.
 func (r *MenuRoot) drawText(canvas widget.Canvas, x, y int, text string, white bool) {
-	if r == nil || r.atlas == nil || canvas == nil {
+	atlas := r.ensureAtlas()
+	if r == nil || atlas == nil || canvas == nil {
 		return
 	}
 	cx := float32(x)
@@ -253,7 +269,7 @@ func (r *MenuRoot) drawText(canvas widget.Canvas, x, y int, text string, white b
 				index = 255
 			}
 		}
-		if img := r.atlas.GlyphImage(byte(index)); img != nil {
+		if img := atlas.GlyphImage(byte(index)); img != nil {
 			canvas.DrawImage(img, geometry.Pt(cx, float32(y)))
 		}
 		cx += 8
