@@ -188,8 +188,30 @@ func (r *ConsoleRoot) drawDropdown(canvas widget.Canvas, screenW, screenH float3
 			}
 		}
 	}
-	if r.conbackImg != nil {
-		canvas.DrawImage(r.conbackImg, geometry.Pt(0, visibleH-conH))
+	if r.conbackImg != nil && visibleH > 0 {
+		srcY := int(conH - visibleH)
+		if srcY < 0 {
+			srcY = 0
+		}
+		visH := int(visibleH)
+		if srcY+visH > r.conbackImg.Bounds().Dy() {
+			visH = r.conbackImg.Bounds().Dy() - srcY
+		}
+		if visH > 0 {
+			visImg := image.NewRGBA(image.Rect(0, 0, int(screenW), visH))
+			srcOffset := srcY * r.conbackImg.Stride
+			dstOffset := 0
+			rowBytes := int(screenW) * 4
+			if rowBytes > r.conbackImg.Stride {
+				rowBytes = r.conbackImg.Stride
+			}
+			for y := 0; y < visH; y++ {
+				copy(visImg.Pix[dstOffset:dstOffset+rowBytes], r.conbackImg.Pix[srcOffset:srcOffset+rowBytes])
+				srcOffset += r.conbackImg.Stride
+				dstOffset += visImg.Stride
+			}
+			canvas.DrawImage(visImg, geometry.Pt(0, 0))
+		}
 	}
 
 	visibleRows := int(visibleH)/8 - 1
@@ -318,17 +340,25 @@ func (r *ConsoleRoot) Event(ctx widget.Context, e event.Event) bool {
 		r.matches = nil
 	}
 
+	markDirty := func() {
+		r.SetNeedsRedraw(true)
+		r.InvalidateScene()
+		if ctx != nil {
+			ctx.Invalidate()
+		}
+	}
+
 	switch ke.Key {
 	case event.KeyGrave:
 		if r.onToggle != nil {
 			r.onToggle()
 		}
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyEscape:
 		if !r.forcedUp && r.onToggle != nil {
 			r.onToggle()
-			r.InvalidateScene()
+			markDirty()
 			return true
 		}
 	case event.KeyEnter:
@@ -336,58 +366,58 @@ func (r *ConsoleRoot) Event(ctx widget.Context, e event.Event) bool {
 		if len(cmd) > 0 && r.onCommand != nil {
 			r.onCommand(cmd)
 		}
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyTab:
 		forward := !ke.Modifiers().IsShift()
 		r.Complete(forward)
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyUp:
 		r.con.PreviousHistory()
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyDown:
 		r.con.NextHistory()
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyPageUp:
 		r.con.Scroll(5)
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyPageDown:
 		r.con.Scroll(-5)
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyBackspace:
 		r.con.BackspaceInput()
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyDelete:
 		r.con.DeleteInput()
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyLeft:
 		r.con.MoveCursorLeft(ctrl)
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyRight:
 		r.con.MoveCursorRight(ctrl)
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyHome:
 		r.con.MoveCursorStart()
-		r.InvalidateScene()
+		markDirty()
 		return true
 	case event.KeyEnd:
 		r.con.MoveCursorEnd()
-		r.InvalidateScene()
+		markDirty()
 		return true
 	}
 
-	if ke.Rune >= 32 && !ctrl {
+	if ke.Rune >= 32 && ke.Rune != '`' && ke.Rune != '~' && !ctrl {
 		r.con.AppendInputRune(ke.Rune)
-		r.InvalidateScene()
+		markDirty()
 		return true
 	}
 

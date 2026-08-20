@@ -79,6 +79,8 @@ func (r *HUDRoot) Layout(ctx widget.Context, c geometry.Constraints) geometry.Si
 	}
 	sz := geometry.Sz(w, h)
 	r.SetBounds(geometry.NewRect(0, 0, w, h))
+	r.SetNeedsRedraw(true)
+	r.InvalidateScene()
 	return sz
 }
 
@@ -104,6 +106,11 @@ func (r *HUDRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 
 	if sizer, ok := r.provider.(interface{ SetScreenSize(int, int) }); ok {
 		sizer.SetScreenSize(w, h)
+	}
+
+	if sched, ok := ctx.(interface{ ScheduleAnimationFrame() }); ok {
+		sched.ScheduleAnimationFrame()
+		r.SetNeedsRedraw(true)
 	}
 
 	rc := &canvasRenderContext{
