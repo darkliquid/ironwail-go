@@ -591,7 +591,7 @@ func transformCanvasPointToScreen(transform DrawTransform, screenW, screenH, x, 
 
 // DrawRGBA draws an RGBA image at screen coordinates (x, y) with alpha blending onto the active render context.
 func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
-	if img == nil || dc == nil || dc.ctx == nil {
+	if img == nil || dc == nil || dc.renderer == nil {
 		return
 	}
 	w := img.Rect.Dx()
@@ -609,14 +609,8 @@ func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
 			slog.Error("DrawRGBA: texture update failed", "error", err)
 			return
 		}
-		if err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
-			X:      float32(x),
-			Y:      float32(y),
-			Width:  float32(w),
-			Height: float32(h),
-			Alpha:  1.0,
-		}); err != nil {
-			slog.Error("DrawRGBA: draw failed", "error", err)
+		if !dc.renderOverlayTextureHAL(tex) {
+			slog.Error("DrawRGBA: renderOverlayTextureHAL failed")
 		}
 		return
 	}
@@ -638,14 +632,8 @@ func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
 	r.uiOverlayTextureHeight = h
 	r.mu.Unlock()
 
-	if err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
-		X:      float32(x),
-		Y:      float32(y),
-		Width:  float32(w),
-		Height: float32(h),
-		Alpha:  1.0,
-	}); err != nil {
-		slog.Error("DrawRGBA: draw failed", "error", err)
+	if !dc.renderOverlayTextureHAL(tex) {
+		slog.Error("DrawRGBA: renderOverlayTextureHAL failed")
 	}
 }
 

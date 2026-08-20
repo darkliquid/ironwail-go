@@ -169,13 +169,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	dc.renderer.resetUniformBuffer()
 	phaseBegin()
 	if !state.DrawWorld {
-		if dc.sceneRenderActive && dc.sceneRenderTarget != nil {
-			dc.clearCurrentHALRenderTarget(state.ClearColor)
-		} else if sceneTargetActive {
-			dc.clearCurrentHALRenderTarget(state.ClearColor)
-		} else if !state.MenuActive {
-			dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
-		}
+		dc.clearCurrentHALRenderTarget(state.ClearColor)
 	}
 	phaseEnd(&clearMS)
 
