@@ -1,6 +1,8 @@
 package quakui
 
 import (
+	"log/slog"
+
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/gogpu/ui/event"
 )
@@ -12,6 +14,15 @@ import (
 // ui never sees the engine's numeric key codes; the KeyForwarder (M1.5 /
 // ADR-0007) routes translated ui keys into the widget tree.
 func MapEngineKey(k int) event.Key {
+	if k >= 'a' && k <= 'z' {
+		return event.Key(int(event.KeyA) + (k - 'a'))
+	}
+	if k >= 'A' && k <= 'Z' {
+		return event.Key(int(event.KeyA) + (k - 'A'))
+	}
+	if k >= '0' && k <= '9' {
+		return event.Key(int(event.Key0) + (k - '0'))
+	}
 	switch k {
 	case input.KBackspace:
 		return event.KeyBackspace
@@ -63,11 +74,6 @@ func MapEngineKey(k int) event.Key {
 	case input.KCommand:
 		return event.KeyLeftSuper
 	default:
-		// Printable ASCII (letters, digits, punctuation) has no distinct
-		// event.Key in the ui domain for character input; character events
-		// reach the ui via Rune. Navigation/modifier keys above are mapped.
-		// Mouse buttons (KMouseBegin+) and unhandled special keys translate
-		// to KeyUnknown; the shim drops them rather than misroute.
 		return event.KeyUnknown
 	}
 }
@@ -125,7 +131,19 @@ func (f *KeyForwarder) ForwardKey(ev input.KeyEvent, mods input.ModifierState) {
 		ktype = event.KeyPress
 	}
 	uiMods := Modifiers(mods)
-	f.ui.HandleEvent(event.NewKeyEvent(ktype, MapEngineKey(ev.Key), 0, uiMods))
+	var r rune
+	if ev.Key >= 32 && ev.Key < 127 {
+		r = rune(ev.Key)
+	}
+	mappedKey := MapEngineKey(ev.Key)
+	slog.Info("quakui forward key",
+		"key", input.KeyToString(ev.Key),
+		"key_code", ev.Key,
+		"down", ev.Down,
+		"ui_key", mappedKey,
+		"rune", r,
+	)
+	f.ui.HandleEvent(event.NewKeyEvent(ktype, mappedKey, r, uiMods))
 }
 
 // ForwardChar routes an engine character event (rune) into the ui as a text
@@ -135,6 +153,7 @@ func (f *KeyForwarder) ForwardChar(r rune, mods input.ModifierState) {
 	if f == nil || f.ui == nil || r == 0 {
 		return
 	}
+	slog.Info("quakui forward char", "rune", r, "char", string(r))
 	f.ui.HandleEvent(event.NewKeyEvent(event.KeyPress, event.KeyUnknown, r, Modifiers(mods)))
 }
 
@@ -145,6 +164,7 @@ func (f *KeyForwarder) ForwardText(text string, mods input.ModifierState) {
 		return
 	}
 	uiMods := Modifiers(mods)
+	slog.Info("quakui forward text", "text", text)
 	for _, r := range text {
 		f.ui.HandleEvent(event.NewKeyEvent(event.KeyPress, event.KeyUnknown, r, uiMods))
 	}

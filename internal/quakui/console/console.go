@@ -2,6 +2,7 @@ package console
 
 import (
 	"image"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ type ConsoleRoot struct {
 	onCommand     func(cmd string)
 	onToggle      func()
 	matches       []string
+	drawCount     uint64
 
 	// Cached converted background pic
 	conbackImg *image.RGBA
@@ -130,6 +132,10 @@ func (r *ConsoleRoot) Layout(ctx widget.Context, c geometry.Constraints) geometr
 func (r *ConsoleRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if r == nil || canvas == nil {
 		return
+	}
+	r.drawCount++
+	if r.drawCount <= 5 || r.drawCount%300 == 0 {
+		slog.Info("quakui console draw", "slide", r.slideFraction, "forced", r.forcedUp, "has_notify", r.con != nil && r.con.HasNotify(), "frame", r.drawCount)
 	}
 
 	winSize := geometry.Sz(320, 200)
@@ -371,6 +377,8 @@ func (r *ConsoleRoot) Event(ctx widget.Context, e event.Event) bool {
 	if !ok || ke.KeyType != event.KeyPress {
 		return false
 	}
+
+	slog.Info("quakui console event", "ui_key", ke.Key, "rune", ke.Rune, "slide", r.slideFraction, "forced", r.forcedUp)
 
 	ctrl := ke.IsCtrl()
 

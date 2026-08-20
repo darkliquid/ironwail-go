@@ -600,6 +600,15 @@ func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
 		return
 	}
 
+	dc.drawRGBACount++
+	if dc.drawRGBACount <= 5 || dc.drawRGBACount%300 == 0 {
+		slog.Info("renderer DrawRGBA called",
+			"x", x, "y", y,
+			"w", w, "h", h,
+			"call_count", dc.drawRGBACount,
+		)
+	}
+
 	r := dc.renderer
 	r.mu.Lock()
 	if r.uiOverlayTexture != nil && r.uiOverlayTextureWidth == w && r.uiOverlayTextureHeight == h {
@@ -610,7 +619,7 @@ func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
 			return
 		}
 		if !dc.renderOverlayTextureHAL(tex) {
-			slog.Error("DrawRGBA: renderOverlayTextureHAL failed")
+			slog.Error("DrawRGBA: renderOverlayTextureHAL failed (cached texture)")
 		}
 		return
 	}
@@ -633,7 +642,7 @@ func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
 	r.mu.Unlock()
 
 	if !dc.renderOverlayTextureHAL(tex) {
-		slog.Error("DrawRGBA: renderOverlayTextureHAL failed")
+		slog.Error("DrawRGBA: renderOverlayTextureHAL failed (new texture)")
 	}
 }
 

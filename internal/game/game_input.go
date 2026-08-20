@@ -43,7 +43,7 @@ func (g *Game) forwardUIChar(ch rune) {
 
 func (g *Game) logRuntimeKeyDispatch(path string, event input.KeyEvent) {
 	index := g.inputDispatchLogCount.Add(1)
-	if index > 32 {
+	if index > 200 {
 		return
 	}
 	keyName := input.KeyToString(event.Key)
@@ -55,7 +55,17 @@ func (g *Game) logRuntimeKeyDispatch(path string, event input.KeyEvent) {
 	if g.Input != nil {
 		keyDest = g.keyDestName(g.Input.KeyDest())
 	}
-	slog.Debug("input dispatch", "path", path, "key", keyName, "key_code", event.Key, "down", event.Down, "key_dest", keyDest, "menu_active", menuActive, "event_index", index)
+	uiInputActive := g.uiInput != nil
+	slog.Info("input dispatch",
+		"path", path,
+		"key", keyName,
+		"key_code", event.Key,
+		"down", event.Down,
+		"key_dest", keyDest,
+		"menu_active", menuActive,
+		"ui_input_active", uiInputActive,
+		"event_index", index,
+	)
 }
 
 func (g *Game) handleGameKeyEvent(event input.KeyEvent) {

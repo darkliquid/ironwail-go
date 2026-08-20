@@ -45,6 +45,7 @@ type DrawContext struct {
 	aliasVertexOffsets   []uint64
 	aliasVertexCounts    []uint32
 	aliasUniformOffsets  []uint32
+	drawRGBACount        uint64
 }
 
 type gpuPreparedAliasDraw struct {

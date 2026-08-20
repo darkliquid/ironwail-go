@@ -2,6 +2,7 @@ package hud
 
 import (
 	"image"
+	"log/slog"
 
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	"github.com/darkliquid/ironwail-go/internal/hud"
@@ -28,10 +29,11 @@ type HUDStateProvider interface {
 type HUDRoot struct {
 	widget.WidgetBase
 
-	provider HUDStateProvider
-	drawMgr  *draw.Manager
-	atlas    *gfx.ConcharsAtlas
-	palette  []byte
+	provider  HUDStateProvider
+	drawMgr   *draw.Manager
+	atlas     *gfx.ConcharsAtlas
+	palette   []byte
+	drawCount uint64
 }
 
 // NewHUDRoot constructs a new HUDRoot widget.
@@ -88,6 +90,18 @@ func (r *HUDRoot) Layout(ctx widget.Context, c geometry.Constraints) geometry.Si
 func (r *HUDRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if r == nil || r.provider == nil || canvas == nil {
 		return
+	}
+
+	r.drawCount++
+	if r.drawCount <= 5 || r.drawCount%300 == 0 {
+		st := r.provider.State()
+		slog.Info("quakui hud draw",
+			"health", st.Health,
+			"armor", st.Armor,
+			"ammo", st.Ammo,
+			"weapon", st.ActiveWeapon,
+			"frame", r.drawCount,
+		)
 	}
 
 	bounds := r.Bounds()

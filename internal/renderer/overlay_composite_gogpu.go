@@ -2,6 +2,7 @@ package renderer
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gputypes"
@@ -291,15 +292,24 @@ func (dc *DrawContext) renderOverlayTextureHAL(tex *gogpu.Texture) bool {
 	}
 	renderPass.Draw(3, 1, 0, 0)
 	if err := renderPass.End(); err != nil {
+		slog.Error("renderOverlayTextureHAL: renderPass.End failed", "error", err)
 		return false
 	}
 
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
+		slog.Error("renderOverlayTextureHAL: encoder.Finish failed", "error", err)
 		return false
 	}
 	if _, err := queue.Submit(cmdBuffer); err != nil {
+		slog.Error("renderOverlayTextureHAL: queue.Submit failed", "error", err)
 		return false
+	}
+	if dc.drawRGBACount <= 5 || dc.drawRGBACount%300 == 0 {
+		slog.Info("renderOverlayTextureHAL submitted successfully",
+			"w", width, "h", height,
+			"call_count", dc.drawRGBACount,
+		)
 	}
 	return true
 }

@@ -1,7 +1,9 @@
 package quakui
 
 import (
+	"fmt"
 	"image"
+	"log/slog"
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/draw"
@@ -29,9 +31,13 @@ type OverlayRenderer struct {
 	conRoot  *quakuiconsole.ConsoleRoot
 	hudRoot  *quakuihud.HUDRoot
 
-	dc     *gg.Context
-	width  int
-	height int
+	dc             *gg.Context
+	width          int
+	height         int
+	drawCount      uint64
+	lastLogMenuVis bool
+	lastLogConVis  bool
+	lastLogHUDVis  bool
 }
 
 // NewOverlayRenderer constructs an OverlayRenderer with the standard Quake UI widget stack.
@@ -119,6 +125,24 @@ func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, heig
 	r.stack.Layout(ctx, geometry.Loose(geometry.Sz(float32(width), float32(height))))
 	r.stack.Draw(ctx, canvas)
 
+	r.drawCount++
+	menuVis := r.menuRoot != nil && r.menuRoot.IsVisible()
+	conVis := r.conRoot != nil && r.conRoot.IsVisible()
+	hudVis := r.hudRoot != nil && r.hudRoot.IsVisible()
+	if r.drawCount <= 5 || r.drawCount%300 == 0 || menuVis != r.lastLogMenuVis || conVis != r.lastLogConVis || hudVis != r.lastLogHUDVis {
+		r.lastLogMenuVis = menuVis
+		r.lastLogConVis = conVis
+		r.lastLogHUDVis = hudVis
+		slog.Info("quakui overlay draw",
+			"frame", r.drawCount,
+			"width", width, "height", height,
+			"menu_vis", menuVis,
+			"con_vis", conVis,
+			"hud_vis", hudVis,
+			"target_nil", target == nil,
+		)
+	}
+
 	if target != nil {
 		img := r.dc.Image()
 		if rgba, ok := img.(*image.RGBA); ok {
@@ -135,7 +159,14 @@ func (r *OverlayRenderer) Event(e event.Event) bool {
 	}
 	ctx := widget.NewContext()
 	ctx.SetWindowSize(geometry.Sz(float32(r.width), float32(r.height)))
-	return r.stack.Event(ctx, e)
+	handled := r.stack.Event(ctx, e)
+	slog.Info("quakui overlay event",
+		"event", fmt.Sprintf("%T", e),
+		"handled", handled,
+		"menu_vis", r.menuRoot != nil && r.menuRoot.IsVisible(),
+		"con_vis", r.conRoot != nil && r.conRoot.IsVisible(),
+	)
+	return handled
 }
 
 // HandleEvent implements the HandleEvents interface so KeyForwarder can dispatch into the stack.

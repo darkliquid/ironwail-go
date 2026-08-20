@@ -381,7 +381,22 @@ func (g *Game) drawRuntimeWorldToView(view gpucontext.TextureView) error {
 
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 	w, h := g.Renderer.Size()
-	if quakui.IsGogpuUIPath(g.Host.CVar) {
+	frameCount := g.overlayFrameCount.Add(1)
+	isGogpu := g.Host != nil && quakui.IsGogpuUIPath(g.Host.CVar)
+	if frameCount <= 5 || frameCount%300 == 0 {
+		uiBackend := 0
+		if g.Host != nil {
+			uiBackend = quakui.UIBackend(g.Host.CVar)
+		}
+		slog.Info("drawRuntimeOverlayFrame",
+			"frame", frameCount,
+			"ui_backend", uiBackend,
+			"is_gogpu_ui", isGogpu,
+			"w", w, "h", h,
+		)
+	}
+
+	if isGogpu {
 		g.updateHUDFromServer()
 		quakuiRenderer := g.ensureQuakuiOverlay()
 		if quakuiRenderer != nil {

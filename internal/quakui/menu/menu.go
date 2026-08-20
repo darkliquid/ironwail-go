@@ -14,6 +14,7 @@ package menu
 import (
 	"fmt"
 	"image"
+	"log/slog"
 	"time"
 
 	"github.com/darkliquid/ironwail-go/internal/draw"
@@ -35,6 +36,7 @@ type MenuRoot struct {
 	drawMgr    *draw.Manager
 	atlas      *gfx.ConcharsAtlas
 	lastActive bool
+	drawCount  uint64
 }
 
 // NewMenuRoot builds the menu widget. mgr is the legacy menu state machine;
@@ -85,6 +87,10 @@ func (r *MenuRoot) Layout(ctx widget.Context, c geometry.Constraints) geometry.S
 func (r *MenuRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if r == nil || !r.IsVisible() || r.mgr == nil || canvas == nil {
 		return
+	}
+	r.drawCount++
+	if r.drawCount <= 5 || r.drawCount%300 == 0 {
+		slog.Info("quakui menu draw", "state", r.mgr.State(), "frame", r.drawCount)
 	}
 	if sched, ok := ctx.(widget.AnimationScheduler); ok {
 		sched.ScheduleAnimationFrame()
@@ -151,6 +157,7 @@ func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 		return false
 	}
 	if ke.Rune != 0 {
+		slog.Info("quakui menu event rune", "rune", ke.Rune, "state", r.mgr.State())
 		switch r.mgr.State() {
 		case legacymenu.MenuSetup, legacymenu.MenuJoinGame, legacymenu.MenuHostGame:
 			r.mgr.M_Char(ke.Rune)
@@ -167,6 +174,7 @@ func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 		return true
 	}
 	if key := keyEventToEngine(ke); key >= 0 {
+		slog.Info("quakui menu event key", "key", key, "ui_key", ke.Key, "state", r.mgr.State())
 		r.mgr.M_Key(key)
 		r.SetNeedsRedraw(true)
 		r.InvalidateScene()
@@ -175,6 +183,7 @@ func (r *MenuRoot) Event(ctx widget.Context, e event.Event) bool {
 		}
 		return true
 	}
+	slog.Warn("quakui menu event unhandled", "ui_key", ke.Key, "rune", ke.Rune, "state", r.mgr.State())
 	return false
 }
 

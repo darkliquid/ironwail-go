@@ -93,6 +93,7 @@ type Game struct {
 
 	// inputDispatchLogCount caps the verbose input-dispatch log stream.
 	inputDispatchLogCount atomic.Uint32
+	overlayFrameCount     atomic.Uint64
 
 	// uiInput is the inline-input router installed on the ui_backend=1 path.
 	uiInput       quakui.Forwarder

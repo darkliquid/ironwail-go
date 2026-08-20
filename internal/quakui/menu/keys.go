@@ -69,6 +69,12 @@ func keyEventToEngine(ke *event.KeyEvent) int {
 	case event.KeyF12:
 		return input.KF12
 	}
+	if ke.Key >= event.KeyA && ke.Key <= event.KeyZ {
+		return int('a') + int(ke.Key-event.KeyA)
+	}
+	if ke.Key >= event.Key0 && ke.Key <= event.Key9 {
+		return int('0') + int(ke.Key-event.Key0)
+	}
 	// Printable ASCII keys (letters/digits) map via their rune when present.
 	if ke.Rune != 0 && ke.Rune < 128 {
 		return int(ke.Rune)
