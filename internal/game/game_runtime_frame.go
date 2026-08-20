@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/quakui"
 	quakuiconsole "github.com/darkliquid/ironwail-go/internal/quakui/console"
@@ -144,7 +145,7 @@ func (g *Game) runQuakuiLoop() error {
 	atlas := quakuigfx.NewConcharsAtlas(g.quakeUIConchars(), g.quakeUIPalette())
 	hudRoot := quakuihud.NewHUDRoot(g.HUD, g.Draw, g.quakeUIConchars(), g.quakeUIPalette())
 	menuRoot := quakimenu.NewMenuRoot(g.Menu, g.Draw, g.quakeUIConchars(), g.quakeUIPalette())
-	conRoot := quakuiconsole.NewConsoleRoot(nil, g.Draw, atlas)
+	conRoot := quakuiconsole.NewConsoleRoot(console.Global(), g.Draw, atlas)
 	if g.Host != nil {
 		conRoot.SetOnCommand(func(cmd string) {
 			if g.Host.Cmd != nil {

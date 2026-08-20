@@ -120,7 +120,7 @@ func TestHUDRoot_Event_Fallthrough(t *testing.T) {
 
 func TestHUDRoot_RepaintBoundary(t *testing.T) {
 	root := setupTestHUDRoot()
-	if !root.IsRepaintBoundary() {
-		t.Fatal("expected HUDRoot to be a RepaintBoundary")
+	if root.IsRepaintBoundary() {
+		t.Fatal("expected HUDRoot to not be a separate RepaintBoundary (renders in main scene pass)")
 	}
 }

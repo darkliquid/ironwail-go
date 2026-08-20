@@ -55,7 +55,6 @@ func NewHUDRoot(provider HUDStateProvider, drawMgr *draw.Manager, conchars []byt
 	}
 	r.SetVisible(true)
 	r.SetEnabled(true)
-	r.SetRepaintBoundary(true)
 	return r
 }
 
@@ -88,17 +87,30 @@ func (r *HUDRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 		return
 	}
 
-	winSize := geometry.Sz(320, 200)
-	if ctx != nil {
-		winSize = ctx.WindowSize()
+	bounds := r.Bounds()
+	w, h := int(bounds.Width()), int(bounds.Height())
+	if (w <= 0 || h <= 0) && ctx != nil {
+		winSize := ctx.WindowSize()
+		w = int(winSize.Width)
+		h = int(winSize.Height)
+	}
+	if w <= 0 {
+		w = 320
+	}
+	if h <= 0 {
+		h = 200
+	}
+
+	if sizer, ok := r.provider.(interface{ SetScreenSize(int, int) }); ok {
+		sizer.SetScreenSize(w, h)
 	}
 
 	rc := &canvasRenderContext{
 		canvas:  canvas,
 		atlas:   r.atlas,
 		palette: r.palette,
-		width:   int(winSize.Width),
-		height:  int(winSize.Height),
+		width:   w,
+		height:  h,
 		picMap:  make(map[*qimage.QPic]*image.RGBA),
 	}
 

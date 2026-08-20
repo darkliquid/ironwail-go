@@ -171,8 +171,8 @@ func TestConsoleRoot_ToggleAndEscape(t *testing.T) {
 
 func TestConsoleRoot_IsRepaintBoundary(t *testing.T) {
 	_, root := setupTestConsole()
-	if !root.IsRepaintBoundary() {
-		t.Fatal("expected ConsoleRoot to be a RepaintBoundary")
+	if root.IsRepaintBoundary() {
+		t.Fatal("expected ConsoleRoot to not be a separate RepaintBoundary (renders in main scene pass)")
 	}
 }
 

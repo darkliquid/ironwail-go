@@ -7,6 +7,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/draw"
+	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/quakui/gfx"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
@@ -44,7 +45,6 @@ func NewConsoleRoot(con *console.Console, drawMgr *draw.Manager, atlas *gfx.Conc
 	}
 	r.SetVisible(true)
 	r.SetEnabled(true)
-	r.SetRepaintBoundary(true)
 	return r
 }
 
@@ -174,13 +174,17 @@ func (r *ConsoleRoot) drawDropdown(canvas widget.Canvas, screenW, screenH float3
 
 	// Background: solid black base for dropdown overlay
 	canvas.DrawRect(geometry.NewRect(0, 0, screenW, visibleH), widget.ColorBlack)
-	if r.conbackImg == nil && r.drawMgr != nil {
-		pic := r.drawMgr.Pic("gfx/conback.lmp")
-		if pic == nil {
-			pic = r.drawMgr.Pic("conback")
-		}
-		if pic != nil {
-			r.conbackImg = gfx.QPicToImage(pic, r.drawMgr.Palette())
+	if r.drawMgr != nil {
+		reqW := int(screenW)
+		reqH := int(conH)
+		if r.conbackImg == nil || r.conbackImg.Bounds().Dx() != reqW || r.conbackImg.Bounds().Dy() != reqH {
+			pic := r.drawMgr.Pic("gfx/conback.lmp")
+			if pic == nil {
+				pic = r.drawMgr.Pic("conback")
+			}
+			if pic != nil {
+				r.conbackImg = scalePicRGBA(pic, r.drawMgr.Palette(), reqW, reqH)
+			}
 		}
 	}
 	if r.conbackImg != nil {
@@ -380,11 +384,40 @@ func (r *ConsoleRoot) Event(ctx widget.Context, e event.Event) bool {
 		return true
 	}
 
-	if ke.Rune >= 32 {
+	if ke.Rune >= 32 && !ctrl {
 		r.con.AppendInputRune(ke.Rune)
 		r.InvalidateScene()
 		return true
 	}
 
 	return false
+}
+
+// scalePicRGBA scales a palette-indexed QPic to (dstW x dstH) using nearest-neighbor sampling.
+func scalePicRGBA(pic *qimage.QPic, palette []byte, dstW, dstH int) *image.RGBA {
+	if pic == nil || dstW <= 0 || dstH <= 0 || pic.Width == 0 || pic.Height == 0 {
+		return nil
+	}
+	if len(palette) < 768 {
+		palette = draw.DefaultQuakePalette()
+	}
+	srcW := int(pic.Width)
+	srcH := int(pic.Height)
+	img := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
+	for y := 0; y < dstH; y++ {
+		srcY := (y * srcH) / dstH
+		for x := 0; x < dstW; x++ {
+			srcX := (x * srcW) / dstW
+			srcIdx := pic.Pixels[srcY*srcW+srcX]
+			if srcIdx != 255 {
+				off := int(srcIdx) * 3
+				dstOff := (y*dstW + x) * 4
+				img.Pix[dstOff+0] = palette[off]
+				img.Pix[dstOff+1] = palette[off+1]
+				img.Pix[dstOff+2] = palette[off+2]
+				img.Pix[dstOff+3] = 255
+			}
+		}
+	}
+	return img
 }

@@ -24,7 +24,6 @@ func NewStack(children ...widget.Widget) *Stack {
 	s := &Stack{children: children}
 	s.SetVisible(true)
 	s.SetEnabled(true)
-	s.SetRepaintBoundary(true)
 	for _, child := range children {
 		if ps, ok := child.(interface{ SetParent(widget.Widget) }); ok {
 			ps.SetParent(s)
@@ -71,16 +70,11 @@ func (s *Stack) Layout(ctx widget.Context, c geometry.Constraints) geometry.Size
 	return size
 }
 
-// Draw renders non-boundary children. Children that are RepaintBoundaries or
-// ExternalTextureWidgets are recorded into their own layers by the framework.
+// Draw renders stacked children in z-order. External texture widgets
+// (such as WorldTexture) are handled by the compositor blit path.
 func (s *Stack) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if s == nil || canvas == nil {
 		return
-	}
-	bounds := s.Bounds()
-	w, h := bounds.Width(), bounds.Height()
-	if w > 0 && h > 0 {
-		canvas.DrawRect(geometry.NewRect(0, 0, w, h), widget.ColorBlack)
 	}
 	type boundaryChecker interface {
 		IsRepaintBoundary() bool
