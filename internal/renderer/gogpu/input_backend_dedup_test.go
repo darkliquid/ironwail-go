@@ -29,7 +29,7 @@ func TestPollEventsDoesNotDoubleDeliverKeyEdges(t *testing.T) {
 	// Simulate the callback path already delivered events (the gogpu App
 	// dispatches to EventSource callbacks AND to the raw Input() state from
 	// the same platform event).
-	backend.markCallbackSeen()
+	backend.markKeyCallbackSeen()
 
 	// Seed the raw pressed state as if the same key is physically down.
 	backend.app.Input().Keyboard().SetKey(ginput.KeyW, true)
@@ -57,7 +57,7 @@ func TestMousePressMarksCallbackActive(t *testing.T) {
 	}
 
 	// Simulate a callback-mode mouse press (what the real EventSource does).
-	backend.markCallbackSeen()
+	backend.markMouseButtonCallbackSeen()
 
 	// Polling must NOT re-deliver the mouse-button edge.
 	backend.app.Input().Mouse().SetButton(ginput.MouseButtonLeft, true)
@@ -85,7 +85,7 @@ func TestCallbackPathIsAuthoritativeForGameplay(t *testing.T) {
 	if err := backend.Init(); err != nil {
 		t.Fatalf("backend Init: %v", err)
 	}
-	backend.markCallbackSeen()
+	backend.markKeyCallbackSeen()
 
 	// A single physical press: the app sets the raw pressed state; the
 	// callback path would have delivered the Down. PollEvents must NOT add a
@@ -122,21 +122,22 @@ func TestFirstInputMouseMoveArmsCallbackPath(t *testing.T) {
 		t.Fatalf("backend Init: %v", err)
 	}
 
-	// First input: a mouse move (marks seen only, not input-OK).
-	backend.markCallbackSeen()
-	if !backend.hasCallbackSeen() {
-		t.Fatal("markCallbackSeen must arm the seen flag")
+	// First input: a mouse move (marks mouse move seen only).
+	backend.markMouseMoveCallbackSeen()
+	if !backend.hasMouseMoveCallbackSeen() {
+		t.Fatal("markMouseMoveCallbackSeen must arm the mouse move seen flag")
 	}
 
-	// Raw polling now sees a held key (the app set it when the physical key
-	// went down in the same frame as the mouse move). It must NOT be delivered.
+	// Key callbacks have not been seen yet in this test, so keys are still polled.
+	// When key callbacks are seen, key polling is suppressed.
+	backend.markKeyCallbackSeen()
 	backend.app.Input().Keyboard().SetKey(ginput.KeyW, true)
 	backend.PollEvents()
 	backend.app.Input().Keyboard().SetKey(ginput.KeyW, false)
 	backend.PollEvents()
 
 	if len(events) != 0 {
-		t.Fatalf("after first mouse-move callback, raw polling delivered %d events, want 0 (double delivery of first key press)", len(events))
+		t.Fatalf("after key callback marked seen, raw polling delivered %d events, want 0 (double delivery of first key press)", len(events))
 	}
 }
 func TestMouseMoveNotDoubleCounted(t *testing.T) {
@@ -147,7 +148,7 @@ func TestMouseMoveNotDoubleCounted(t *testing.T) {
 	if err := backend.Init(); err != nil {
 		t.Fatalf("backend Init: %v", err)
 	}
-	backend.markCallbackSeen()
+	backend.markMouseMoveCallbackSeen()
 
 	// Simulate one physical move: the app fed the OnPointer callback (which
 	// accumulated 50/25 into the backend) AND its raw Input() state (position

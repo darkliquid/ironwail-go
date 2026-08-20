@@ -376,6 +376,7 @@ func (g *Game) drawRuntimeWorldToView(view gpucontext.TextureView) error {
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 	w, h := g.Renderer.Size()
 	if quakui.IsGogpuUIPath(g.Host.CVar) {
+		g.updateHUDFromServer()
 		quakuiRenderer := g.ensureQuakuiOverlay()
 		if quakuiRenderer != nil {
 			quakuiRenderer.SetConsoleSlideFraction(g.ConsoleSlideFraction)
