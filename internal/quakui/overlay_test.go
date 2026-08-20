@@ -90,3 +90,42 @@ func TestOverlayRenderer_Menu_DrawAndEvent(t *testing.T) {
 		t.Fatal("expected menu to handle DownArrow key event")
 	}
 }
+
+func TestOverlayRenderer_Console_FullFlow(t *testing.T) {
+	host := &dummyHost{}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	con := console.NewConsole(1024)
+	drawMgr := draw.NewManager()
+	conchars := make([]byte, 128*128)
+	palette := make([]byte, 768)
+
+	r := NewOverlayRenderer(host, mgr, con, nil, drawMgr, conchars, palette)
+	r.SetConsoleSlideFraction(1.0)
+	r.SetConsoleForcedUp(true)
+
+	var executedCmd string
+	r.ConsoleRoot().SetOnCommand(func(cmd string) {
+		executedCmd = cmd
+	})
+
+	// Type characters
+	for _, ch := range "echo hello" {
+		ke := event.NewKeyEvent(event.KeyPress, event.KeyUnknown, ch, event.ModNone)
+		r.Event(ke)
+	}
+
+	// Press Enter
+	enterEvent := event.NewKeyEvent(event.KeyPress, event.KeyEnter, 0, event.ModNone)
+	r.Event(enterEvent)
+
+	if executedCmd != "echo hello" {
+		t.Fatalf("expected executedCmd %q, got %q", "echo hello", executedCmd)
+	}
+
+	con.Printf("Console output line\n")
+
+	err := r.DrawOverlay(gpucontext.TextureView{}, 640, 480)
+	if err != nil {
+		t.Fatalf("expected nil error on DrawOverlay: %v", err)
+	}
+}
