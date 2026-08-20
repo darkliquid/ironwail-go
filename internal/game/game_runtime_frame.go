@@ -57,6 +57,10 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 		screenshotMode: screenshotPath != "",
 	}
 
+	if g.Host != nil && quakui.IsGogpuUIPath(g.Host.CVar) {
+		g.ensureQuakuiOverlay()
+	}
+
 	g.installRuntimeRendererCallbacks(gameCallbacks{g: g}, state)
 	g.prepareRuntimeRendererScreenshot(state.screenshotMode)
 
@@ -214,9 +218,11 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 
 		consoleVisible := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 		g.updateRuntimeConsoleSlide(dt, consoleVisible, g.runtimeConsoleForcedUp())
-		if g.quakuiOverlay != nil {
-			g.quakuiOverlay.SetConsoleSlideFraction(g.ConsoleSlideFraction)
-			g.quakuiOverlay.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
+		if g.Host != nil && quakui.IsGogpuUIPath(g.Host.CVar) {
+			if quakuiRenderer := g.ensureQuakuiOverlay(); quakuiRenderer != nil {
+				quakuiRenderer.SetConsoleSlideFraction(g.ConsoleSlideFraction)
+				quakuiRenderer.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
+			}
 		}
 
 		transientEvents := g.RunRuntimeFrameUnlessPaused(dt, cb)

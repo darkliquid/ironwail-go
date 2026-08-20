@@ -98,7 +98,13 @@ func TestOverlayRenderer_Menu_DrawAndEvent(t *testing.T) {
 	con.Init(0)
 	drawMgr := draw.NewManager()
 	conchars := make([]byte, 128*128)
+	for i := range conchars {
+		conchars[i] = byte(i%255 + 1)
+	}
 	palette := make([]byte, 768)
+	for i := range palette {
+		palette[i] = 255
+	}
 
 	r := NewOverlayRenderer(host, mgr, con, nil, drawMgr, conchars, palette)
 	if !r.MenuRoot().IsVisible() {
@@ -112,6 +118,17 @@ func TestOverlayRenderer_Menu_DrawAndEvent(t *testing.T) {
 	}
 	if !rc.drawRGBACalled {
 		t.Fatal("expected DrawRGBA to be called on render context")
+	}
+	var nonZero int
+	if rc.lastImage != nil {
+		for _, b := range rc.lastImage.Pix {
+			if b != 0 {
+				nonZero++
+			}
+		}
+	}
+	if nonZero == 0 {
+		t.Fatal("expected non-zero pixels in rendered overlay image")
 	}
 
 	// Down arrow should navigate menu
