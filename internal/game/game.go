@@ -100,6 +100,19 @@ type Game struct {
 	uiHost         *quakeuiHost
 	quakeuiOverlay *quakeui.OverlayRenderer
 
+	// uiBackendFrozen is the startup-only UI path selection (G11, ADR-0012
+	// A1): parsed once when the runtime renderer loop starts and never
+	// re-read. uiBackendPath is the frozen decision (true = gogpu/ui).
+	// uiBackendForceLegacy records a forced fallback (headless/software or a
+	// uiApp init failure — AC4 fail-open).
+	uiBackendFrozen      bool
+	uiBackendPath        bool
+	uiBackendForceLegacy bool
+
+	// uiTeardownRegistered true once the gogpuApp.OnClose teardown for the
+	// quakeui overlay has been wired (idempotent per session).
+	uiTeardownRegistered bool
+
 	// cpuProfile tracks the active CPU profile capture state.
 	cpuProfile cpuProfileState
 

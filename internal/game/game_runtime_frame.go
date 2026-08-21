@@ -58,9 +58,10 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 		screenshotMode: screenshotPath != "",
 	}
 
-	if g.Host != nil && quakeui.IsGogpuUIPath(g.Host.CVar) {
-		g.ensureQuakeUIOverlay()
-	}
+	// M1.3 startup-only UI path selection (G11, ADR-0012 A1): freeze the
+	// ui_backend decision once and build the uiApp/overlay (with teardown
+	// wiring) when the gogpu/ui path is selected.
+	g.initializeUIPath()
 
 	g.installRuntimeRendererCallbacks(gameCallbacks{g: g}, state)
 	g.prepareRuntimeRendererScreenshot(state.screenshotMode)
@@ -255,7 +256,7 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 
 		consoleVisible := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 		g.updateRuntimeConsoleSlide(dt, consoleVisible, g.runtimeConsoleForcedUp())
-		if g.Host != nil && quakeui.IsGogpuUIPath(g.Host.CVar) {
+		if g.uiPathActive() {
 			if quakeuiRenderer := g.ensureQuakeUIOverlay(); quakeuiRenderer != nil {
 				quakeuiRenderer.SetConsoleSlideFraction(g.ConsoleSlideFraction)
 				quakeuiRenderer.SetConsoleForcedUp(g.runtimeConsoleForcedUp())
@@ -403,11 +404,11 @@ func (g *Game) drawRuntimeRendererFrame(dc renderer.RenderContext) {
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 	w, h := g.Renderer.Size()
 	frameCount := g.overlayFrameCount.Add(1)
-	isGogpu := g.Host != nil && quakeui.IsGogpuUIPath(g.Host.CVar)
+	isGogpu := g.uiPathActive()
 	if frameCount <= 5 || frameCount%300 == 0 {
 		uiBackend := 0
-		if g.Host != nil {
-			uiBackend = quakeui.UIBackend(g.Host.CVar)
+		if g.uiPathActive() {
+			uiBackend = 1
 		}
 		slog.Debug("drawRuntimeOverlayFrame",
 			"frame", frameCount,

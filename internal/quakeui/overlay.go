@@ -140,7 +140,6 @@ func (r *OverlayRenderer) SetConsoleForcedUp(forced bool) {
 // DrawOverlay records and draws the 2D widget overlay onto the target
 // RenderContext. Per-frame it lays out and draws the widget stack into a
 // canvas and composites the result:
-//
 //   - GPU path (Scenario A): the stack draws into a GPU-backed ggcanvas, then
 //     RenderDirect(sv, sw, sh) flushes it onto the swapchain surface with
 //     LoadOp::Load (the world pass is preserved via MarkPreserveContent).
@@ -295,4 +294,17 @@ func (r *OverlayRenderer) Event(e event.Event) bool {
 // HandleEvent implements the HandleEvents interface so KeyForwarder can dispatch into the stack.
 func (r *OverlayRenderer) HandleEvent(e event.Event) {
 	r.Event(e)
+}
+
+// Close releases the GPU canvas owned by the overlay. Called from the engine
+// teardown (gogpuApp.OnClose, G11 lifecycle). Safe on the software path where
+// no GPU canvas was created.
+func (r *OverlayRenderer) Close() {
+	if r == nil {
+		return
+	}
+	if r.gpuCanvas != nil {
+		_ = r.gpuCanvas.Close()
+		r.gpuCanvas = nil
+	}
 }
