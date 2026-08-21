@@ -561,3 +561,47 @@ func TestOverlayRenderer_ConsoleOnGPUCanvasRendersDropdown(t *testing.T) {
 		t.Fatal("GPU canvas console draw did not flush (RenderDirect) — dropdown did not render on Scenario A canvas")
 	}
 }
+
+// TestOverlayRenderer_HUDOnGPUCanvasDrawsStatusBar is the M4.1 Scenario A RED:
+// with a HUD provider and a GPU provider, DrawOverlay must drive the HUD
+// through the GPU ggcanvas (window.DrawTo -> stack -> HUDRoot -> provider.Draw
+// -> RenderDirect). The GPU flush must occur and the provider's Draw must have
+// been called — status bar/crosshair/centerprint render on the Scenario A
+// canvas.
+func TestOverlayRenderer_HUDOnGPUCanvasDrawsStatusBar(t *testing.T) {
+	var flushCount int
+	acc := &gpuCaptureAccelerator{flushes: &flushCount}
+	if err := gg.RegisterAccelerator(acc); err != nil {
+		t.Fatalf("RegisterAccelerator: %v", err)
+	}
+	t.Cleanup(gg.CloseAccelerator)
+
+	host := &gpuAwareHost{
+		dummyHost: &dummyHost{},
+		provider:  &mockDeviceProvider{},
+		view:      gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe)),
+	}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	con := console.NewConsole(1024)
+	_ = con.Init(0)
+	hudProv := &testHUDProvider{}
+	drawMgr := draw.NewManager()
+	conchars := make([]byte, 128*128)
+	palette := make([]byte, 768)
+	r := NewOverlayRenderer(host, mgr, con, hudProv, drawMgr, conchars, palette)
+	r.SetConsoleSlideFraction(0)
+
+	if !r.HUDRoot().IsVisible() {
+		t.Fatal("HUDRoot not visible")
+	}
+	flushCount = 0
+	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+		t.Fatalf("DrawOverlay (GPU path): %v", err)
+	}
+	if flushCount == 0 {
+		t.Fatal("GPU canvas HUD draw did not flush (RenderDirect) — HUD did not render on Scenario A canvas")
+	}
+	if !hudProv.drawCalled {
+		t.Fatal("HUD provider Draw was not called — status bar did not render")
+	}
+}

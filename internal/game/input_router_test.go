@@ -349,3 +349,49 @@ func TestConsoleInputExecutesViaUIOnly(t *testing.T) {
 		t.Fatal("console input latched an engine gameplay button (double-dispatch)")
 	}
 }
+
+// TestHUDKeysFallThroughToEngine is the M4.1 GAME-level RED (AC9): the HUD is
+// draw-only — at KeyGame a gameplay key reaches the engine (forward latch)
+// even when the quakeui HUD root is active in the overlay stack.
+func TestHUDKeysFallThroughToEngine(t *testing.T) {
+	g := New()
+	g.Host = host.NewHost()
+	g.Client = client.NewClient()
+	g.Client.State = client.StateActive
+	g.Input = input.NewSystem(nil)
+	_ = g.Input.Init()
+
+	g.Menu = menu.NewManager(nil, g.Input, g.Host.CVar)
+	g.Input.OnMenuKey = g.handleMenuKeyEvent
+	registerGameplayButtonCommands(g)
+	g.applyDefaultGameplayBindings()
+	g.ensureGameplayBindings()
+
+	overlay := g.ensureQuakeUIOverlay()
+	if overlay == nil || overlay.HUDRoot() == nil {
+		t.Fatal("quakeui overlay/HUDRoot not built")
+	}
+
+	// Install the router exactly as installInputRouter does.
+	g.inputRouter = NewInputRouter(
+		g.handleGameKeyEvent,
+		g.forwardUIKey,
+		func() bool { return true },
+		func(key int) bool { return key == int('`') },
+	)
+	uiSink := g.inputRouter.RouteKeyEvent
+	g.Input.OnMenuKey = func(ev input.KeyEvent) { uiSink(ev, input.KeyMenu) }
+	g.Input.OnKey = func(ev input.KeyEvent) {
+		if g.Input.KeyDest() == input.KeyMenu {
+			return
+		}
+		uiSink(ev, g.Input.KeyDest())
+	}
+
+	// KeyGame with the HUD active: W must latch the engine forward button.
+	g.Input.SetKeyDest(input.KeyGame)
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
+	if g.Client.InputForward.State&1 == 0 {
+		t.Fatal("gameplay key did not reach the engine with the HUD active — HUD must fall through (draw-only)")
+	}
+}
