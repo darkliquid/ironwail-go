@@ -514,3 +514,50 @@ func TestOverlayRenderer_MenuOnGPUCanvasRendersTransform(t *testing.T) {
 		t.Fatal("GPU canvas menu draw did not flush (RenderDirect) — menu did not render on Scenario A canvas")
 	}
 }
+
+// TestOverlayRenderer_ConsoleOnGPUCanvasRendersDropdown is the M3.2 Scenario A
+// RED: with the console open (or forced up) and a GPU provider, DrawOverlay
+// must drive the console through the GPU ggcanvas (window.DrawTo -> stack ->
+// ConsoleRoot) and composite onto the surface via RenderDirect. The GPU flush
+// must occur, proving the dropdown renders on the Scenario A canvas.
+func TestOverlayRenderer_ConsoleOnGPUCanvasRendersDropdown(t *testing.T) {
+	var flushCount int
+	acc := &gpuCaptureAccelerator{flushes: &flushCount}
+	if err := gg.RegisterAccelerator(acc); err != nil {
+		t.Fatalf("RegisterAccelerator: %v", err)
+	}
+	t.Cleanup(gg.CloseAccelerator)
+
+	host := &gpuAwareHost{
+		dummyHost: &dummyHost{},
+		provider:  &mockDeviceProvider{},
+		view:      gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe)),
+	}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	con := console.NewConsole(1024)
+	_ = con.Init(0)
+	con.Printf("monster 1\nanother line")
+	drawMgr := draw.NewManager()
+	conchars := make([]byte, 128*128)
+	for i := range conchars {
+		conchars[i] = byte(i%255 + 1)
+	}
+	palette := make([]byte, 768)
+	for i := range palette {
+		palette[i] = 255
+	}
+	r := NewOverlayRenderer(host, mgr, con, nil, drawMgr, conchars, palette)
+	r.SetConsoleForcedUp(true)
+	r.SetConsoleSlideFraction(1.0)
+
+	if !r.ConsoleRoot().IsVisible() {
+		t.Fatal("ConsoleRoot not visible with forcedUp")
+	}
+	flushCount = 0
+	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+		t.Fatalf("DrawOverlay (GPU path): %v", err)
+	}
+	if flushCount == 0 {
+		t.Fatal("GPU canvas console draw did not flush (RenderDirect) — dropdown did not render on Scenario A canvas")
+	}
+}

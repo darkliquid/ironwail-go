@@ -283,3 +283,69 @@ func TestMenuNavigationKeysReachUIOnly(t *testing.T) {
 		t.Fatal("menu navigation key latched an engine gameplay button (double-dispatch)")
 	}
 }
+
+// TestConsoleInputExecutesViaUIOnly is the M3.2 GAME-level RED (AC1/AC9):
+// with a real quakeui overlay + decoupled router at KeyConsole, typed console
+// input and Enter flow to the UI widget tree only (ConsoleRoot callback fires
+// with the submitted command), and no engine gameplay button latches.
+func TestConsoleInputExecutesViaUIOnly(t *testing.T) {
+	g := New()
+	g.Host = host.NewHost()
+	g.Client = client.NewClient()
+	g.Client.State = client.StateActive
+	g.Input = input.NewSystem(nil)
+	_ = g.Input.Init()
+
+	g.Menu = menu.NewManager(nil, g.Input, g.Host.CVar)
+	g.Input.OnMenuKey = g.handleMenuKeyEvent
+	g.Input.OnChar = g.handleGameCharEvent
+	g.Menu.SetCommandText(g.Host.Cmd.AddText)
+	registerGameplayButtonCommands(g)
+	g.applyDefaultGameplayBindings()
+	g.ensureGameplayBindings()
+
+	overlay := g.ensureQuakeUIOverlay()
+	if overlay == nil || overlay.ConsoleRoot() == nil {
+		t.Fatal("quakeui overlay/ConsoleRoot not built")
+	}
+	var executed []string
+	overlay.ConsoleRoot().SetOnCommand(func(cmd string) { executed = append(executed, cmd) })
+
+	// Install the router exactly as installInputRouter does.
+	g.inputRouter = NewInputRouter(
+		g.handleGameKeyEvent,
+		g.forwardUIKey,
+		func() bool { return true },
+		func(key int) bool { return key == int('`') },
+	)
+	uiSink := g.inputRouter.RouteKeyEvent
+	g.Input.OnMenuKey = func(ev input.KeyEvent) { uiSink(ev, input.KeyMenu) }
+	g.Input.OnKey = func(ev input.KeyEvent) {
+		if g.Input.KeyDest() == input.KeyMenu {
+			return
+		}
+		uiSink(ev, g.Input.KeyDest())
+	}
+
+	// Enter console mode and open the dropdown so ConsoleRoot consumes events.
+	g.Input.SetKeyDest(input.KeyConsole)
+	overlay.SetConsoleForcedUp(true)
+	overlay.SetConsoleSlideFraction(1.0)
+
+	// Type 'echo hi' and press Enter — through the input System (router peels
+	// KeyConsole to the UI).
+	for _, ch := range "echo hi" {
+		g.Input.HandleCharEvent(ch)
+	}
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+
+	if len(executed) == 0 {
+		t.Fatal("console command was not executed through the UI widget tree")
+	}
+	if executed[0] != "echo hi" {
+		t.Fatalf("executed cmd = %q, want %q", executed[0], "echo hi")
+	}
+	if g.Client.InputForward.State&1 != 0 {
+		t.Fatal("console input latched an engine gameplay button (double-dispatch)")
+	}
+}
