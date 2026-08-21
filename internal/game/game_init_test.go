@@ -481,6 +481,9 @@ func (reloadTestRenderer) SpawnKeyedDynamicLight(renderer.DynamicLight) bool { r
 func (reloadTestRenderer) UpdateLights(float32)                              {}
 func (reloadTestRenderer) ClearDynamicLights()                               {}
 func (reloadTestRenderer) InputBackendForSystem(*input.System) input.Backend { return nil }
+func (reloadTestRenderer) PollOnlyInputBackendForSystem(*input.System) input.Backend {
+	return nil
+}
 func (reloadTestRenderer) GogpuApp() *gogpu.App                              { return nil }
 func (reloadTestRenderer) RenderWorldIntoView(gpucontext.TextureView, *renderer.RenderFrameState) error {
 	return nil

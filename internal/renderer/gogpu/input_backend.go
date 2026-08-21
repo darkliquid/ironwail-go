@@ -16,6 +16,7 @@ type InputBackend struct {
 	sys             *iinput.System
 	cursorMode      iinput.CursorMode
 	callbacksInited bool
+	pollOnly        bool // never registers EventSource callbacks (ADR-0012).
 	modifiers       iinput.ModifierState
 
 	mu                     sync.Mutex
@@ -39,8 +40,21 @@ func NewInputBackend(app *gg.App, sys *iinput.System) iinput.Backend {
 	return &InputBackend{app: app, sys: sys}
 }
 
+// NewPollOnlyInputBackend returns a Backend that drives all input from
+// gogpu's polled app.Input() state (ADR-0012 §5.2: engine gameplay input
+// migrates from the callback backend to polling). It never registers
+// EventSource callbacks — the UI owns the EventSource on the gogpu/ui path,
+// so callbacks would double-deliver. The polling loop below synthesizes
+// press/release edges from held-state transitions exactly as the callback
+// path would.
+func NewPollOnlyInputBackend(app *gg.App, sys *iinput.System) iinput.Backend {
+	return &InputBackend{app: app, sys: sys, pollOnly: true}
+}
+
 func (b *InputBackend) Init() error {
-	b.initCallbacks()
+	if !b.pollOnly {
+		b.initCallbacks()
+	}
 	slog.Debug("gogpu input backend initialized")
 	return nil
 }
@@ -93,7 +107,7 @@ func (b *InputBackend) PollEvents() bool {
 		b.lastPollLog = time.Now()
 	}
 
-	if !b.hasKeyCallbackSeen() {
+	if !b.hasKeyCallbackSeen() || b.pollOnly {
 		if len(b.pollPrevPressed) != len(PollingKeyMap) {
 			b.pollPrevPressed = make([]bool, len(PollingKeyMap))
 		}
@@ -108,7 +122,7 @@ func (b *InputBackend) PollEvents() bool {
 		}
 	}
 
-	if !b.hasMouseButtonCallbackSeen() {
+	if !b.hasMouseButtonCallbackSeen() || b.pollOnly {
 		if len(b.pollPrevMouse) != len(PollingMouseButtonMap) {
 			b.pollPrevMouse = make([]bool, len(PollingMouseButtonMap))
 		}
@@ -133,7 +147,7 @@ func (b *InputBackend) PollEvents() bool {
 		_ = scrollX
 	}
 
-	if !b.hasMouseMoveCallbackSeen() {
+	if !b.hasMouseMoveCallbackSeen() || b.pollOnly {
 		dx, dy := mouse.Delta()
 		x, y := mouse.Position()
 		b.accumulateMousePosition(int32(dx), int32(dy), float64(x), float64(y))

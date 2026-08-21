@@ -50,6 +50,10 @@ type RendererLights interface {
 // RendererInput defines input backend methods.
 type RendererInput interface {
 	InputBackendForSystem(*input.System) input.Backend
+	// PollOnlyInputBackendForSystem returns a backend that polls app.Input()
+	// exclusively (no EventSource callbacks) — the ADR-0012 gameplay path used
+	// on the gogpu/ui path where the UI owns the EventSource.
+	PollOnlyInputBackendForSystem(*input.System) input.Backend
 }
 
 // RendererGPUView defines the gogpu/ui world-texture integration surface

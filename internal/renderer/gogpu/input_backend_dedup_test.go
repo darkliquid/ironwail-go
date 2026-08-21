@@ -167,3 +167,68 @@ func TestMouseMoveNotDoubleCounted(t *testing.T) {
 		t.Fatalf("mouse delta after one move = (%d, %d), want (50, 25) — move double-counted", dx, dy)
 	}
 }
+
+// TestPollOnlyBackendDrivesGameplayEdgesWithoutCallbacks pins M2.2 (ADR-0012
+// §5.2): the poll-only backend used on the gogpu/ui path must never register
+// EventSource callbacks (the UI owns the EventSource), and gameplay key edges
+// must be synthesized purely from polled app.Input() state — press on
+// descent, release on ascent — matching the callback backend's edge
+// semantics exactly.
+func TestPollOnlyBackendDrivesGameplayEdgesWithoutCallbacks(t *testing.T) {
+	app := gg.NewApp(gg.Config{})
+	sys := iinput.NewSystem(nil)
+	backend := &InputBackend{
+		app:      app,
+		sys:      sys,
+		pollOnly: true,
+	}
+
+	var events []iinput.KeyEvent
+	sys.OnKey = func(ev iinput.KeyEvent) { events = append(events, ev) }
+
+	if err := backend.Init(); err != nil {
+		t.Fatalf("backend Init: %v", err)
+	}
+	if backend.hasKeyCallbackSeen() && backend.callbacksInited {
+		t.Fatal("poll-only backend registered EventSource callbacks — UI owns the EventSource on path 1")
+	}
+
+	press := func() {
+		app.Input().Keyboard().SetKey(ginput.KeyW, true)
+		if !backend.PollEvents() {
+			t.Fatal("PollEvents returned false")
+		}
+	}
+	release := func() {
+		app.Input().Keyboard().SetKey(ginput.KeyW, false)
+		if !backend.PollEvents() {
+			t.Fatal("PollEvents returned false")
+		}
+	}
+
+	press()
+	if len(events) != 1 || !events[0].Down || events[0].Key != int('w') {
+		t.Fatalf("after poll press: events = %+v, want single press of 'w'", events)
+	}
+
+	// Held across frames: no repeat edge.
+	events = nil
+	if !backend.PollEvents() {
+		t.Fatal("PollEvents returned false")
+	}
+	if len(events) != 0 {
+		t.Fatalf("held frame delivered %d events, want 0 (no repeat)", len(events))
+	}
+
+	release()
+	if len(events) != 1 || events[0].Down || events[0].Key != int('w') {
+		t.Fatalf("after poll release: events = %+v, want single release of 'w'", events)
+	}
+
+	// Release again (already up): no spurious release.
+	events = nil
+	release()
+	if len(events) != 0 {
+		t.Fatalf("double release delivered %d events, want 0", len(events))
+	}
+}

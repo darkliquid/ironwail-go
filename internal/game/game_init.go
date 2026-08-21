@@ -847,7 +847,19 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 	if !dedicated && g.Renderer != nil && g.Input != nil {
 		// Some renderers provide a backend factory to adapt window events
 		// to the engine input system.
-		if bb := g.Renderer.InputBackendForSystem(g.Input); bb != nil {
+		if g.startupUIPathSelected() {
+			// ADR-0012 §5.2 (M2.2): on the gogpu/ui path the engine gameplay
+			// input polls app.Input(); UI owns the EventSource. Use the
+			// poll-only backend so the engine never registers EventSource
+			// callbacks (which would double-deliver via the router).
+			if po, ok := g.Renderer.(interface{ PollOnlyInputBackendForSystem(*input.System) input.Backend }); ok {
+				if bb := po.PollOnlyInputBackendForSystem(g.Input); bb != nil {
+					if err := g.Input.SetBackend(bb); err != nil {
+						return fmt.Errorf("failed to set poll-only renderer input backend: %w", err)
+					}
+				}
+			}
+		} else if bb := g.Renderer.InputBackendForSystem(g.Input); bb != nil {
 			if err := g.Input.SetBackend(bb); err != nil {
 				return fmt.Errorf("failed to set renderer input backend: %w", err)
 			}

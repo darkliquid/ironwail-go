@@ -50,7 +50,9 @@ func (g *Game) initializeUIPath() {
 // OnMenuKey and the general OnKey sink delegate to the router, which makes
 // the exclusive engine-vs-ui split per KeyDest. The legacy handlers remain
 // reachable as the router's engine sink; when the path is later forced legacy
-// the router routes everything to the engine anyway (fail-open).
+// the router routes everything to the engine anyway (fail-open). The
+// poll-only backend was already selected at init (InitSubsystems, M2.2), so
+// the EventSource callback path is never active here — the UI owns it.
 func (g *Game) installInputRouter() {
 	if g == nil || g.Input == nil {
 		return
@@ -99,6 +101,20 @@ func (g *Game) WaitingForKeyBinding() bool {
 // after startup has no effect (G11 frozen path).
 func (g *Game) uiPathActive() bool {
 	return g != nil && g.uiBackendFrozen && g.uiBackendPath && !g.uiBackendForceLegacy
+}
+
+// startupUIPathSelected is the pre-freeze heuristic mirroring the selection
+// initializeUIPath performs: ui_backend != 0 AND a gogpu provider is
+// available. Called during init (before the freeze) to pick the input
+// backend; initializeUIPath performs the authoritative frozen decision later.
+func (g *Game) startupUIPathSelected() bool {
+	if g == nil || g.Host == nil {
+		return false
+	}
+	if !quakeui.IsGogpuUIPath(g.Host.CVar) {
+		return false
+	}
+	return g.gpuContextProvider() != nil
 }
 
 // wireUITeardown registers the gogpuApp.OnClose teardown for the quakeui
