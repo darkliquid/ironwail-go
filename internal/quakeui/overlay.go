@@ -9,6 +9,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	legacymenu "github.com/darkliquid/ironwail-go/internal/menu"
 	quakeuiconsole "github.com/darkliquid/ironwail-go/internal/quakeui/console"
+	quakeuidemobar "github.com/darkliquid/ironwail-go/internal/quakeui/demobar"
 	"github.com/darkliquid/ironwail-go/internal/quakeui/gfx"
 	quakeuihud "github.com/darkliquid/ironwail-go/internal/quakeui/hud"
 	quakeuimenu "github.com/darkliquid/ironwail-go/internal/quakeui/menu"
@@ -34,6 +35,7 @@ type OverlayRenderer struct {
 	menuRoot *quakeuimenu.MenuRoot
 	conRoot  *quakeuiconsole.ConsoleRoot
 	hudRoot  *quakeuihud.HUDRoot
+	demoBar  *quakeuidemobar.DemoBarRoot
 
 	// uiApp is the gogpu/ui application hosting the widget root. It is
 	// created once at startup on the ui_backend=1 path (G11) and reused for
@@ -80,8 +82,9 @@ func NewOverlayRenderer(
 	menuRoot := quakeuimenu.NewMenuRoot(mgr, drawMgr, conchars, palette)
 	conRoot := quakeuiconsole.NewConsoleRoot(con, drawMgr, atlas)
 	hudRoot := quakeuihud.NewHUDRoot(hudProv, drawMgr, conchars, palette)
+	demoBar := quakeuidemobar.NewDemoBarRoot(nil, conchars, palette)
 
-	stack := NewStack(hudRoot, conRoot, menuRoot)
+	stack := NewStack(hudRoot, conRoot, menuRoot, demoBar)
 
 	// Create the ui app once at startup (G11). No window provider: the engine
 	// owns the window loop; the app window is only the retained widget-tree
@@ -95,8 +98,26 @@ func NewOverlayRenderer(
 		menuRoot: menuRoot,
 		conRoot:  conRoot,
 		hudRoot:  hudRoot,
+		demoBar:  demoBar,
 		uiApp:    a,
 	}
+}
+
+// SetDemoBarStateProvider wires the per-frame demo playback state source
+// (the engine's DemoState adapter) into the display-only demo bar.
+func (r *OverlayRenderer) SetDemoBarStateProvider(p quakeuidemobar.StateProvider) {
+	if r == nil || r.demoBar == nil {
+		return
+	}
+	r.demoBar.SetProvider(p)
+}
+
+// DemoBar returns the underlying demo bar widget.
+func (r *OverlayRenderer) DemoBar() *quakeuidemobar.DemoBarRoot {
+	if r == nil {
+		return nil
+	}
+	return r.demoBar
 }
 
 // MenuRoot returns the underlying MenuRoot widget.

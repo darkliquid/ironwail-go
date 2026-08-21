@@ -11,6 +11,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/hud"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	legacymenu "github.com/darkliquid/ironwail-go/internal/menu"
+	quakeuidemobar "github.com/darkliquid/ironwail-go/internal/quakeui/demobar"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
 	"github.com/gogpu/gg"
@@ -603,5 +604,55 @@ func TestOverlayRenderer_HUDOnGPUCanvasDrawsStatusBar(t *testing.T) {
 	}
 	if !hudProv.drawCalled {
 		t.Fatal("HUD provider Draw was not called — status bar did not render")
+	}
+}
+
+// testDemoBarProvider feeds a fixed playing-demobar state to the DemoBarRoot.
+type testDemoBarProvider struct{}
+
+func (testDemoBarProvider) DemoBarState() quakeuidemobar.DemoBarState {
+	return quakeuidemobar.DemoBarState{
+		Playback:   true,
+		Show:       true,
+		Speed:      1,
+		BaseSpeed:  1,
+		Progress:   0.4,
+		Name:       "timedemo",
+		ClientTime: 42,
+	}
+}
+
+// TestOverlayRenderer_DemoBarOnGPUCanvasRenders is the M4.2 Scenario A RED
+// (AC11): with a live demo playback state and a GPU provider, DrawOverlay must
+// drive the demo bar through the GPU ggcanvas (window.DrawTo -> stack ->
+// DemoBarRoot -> RenderDirect). The GPU flush must occur.
+func TestOverlayRenderer_DemoBarOnGPUCanvasRenders(t *testing.T) {
+	var flushCount int
+	acc := &gpuCaptureAccelerator{flushes: &flushCount}
+	if err := gg.RegisterAccelerator(acc); err != nil {
+		t.Fatalf("RegisterAccelerator: %v", err)
+	}
+	t.Cleanup(gg.CloseAccelerator)
+
+	host := &gpuAwareHost{
+		dummyHost: &dummyHost{},
+		provider:  &mockDeviceProvider{},
+		view:      gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe)),
+	}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	con := console.NewConsole(1024)
+	_ = con.Init(0)
+	r := NewOverlayRenderer(host, mgr, con, nil, draw.NewManager(), make([]byte, 128*128), make([]byte, 768))
+	r.SetDemoBarStateProvider(testDemoBarProvider{})
+
+	if r.DemoBar() == nil || !r.DemoBar().IsVisible() {
+		t.Fatal("DemoBar not visible with playing state")
+	}
+	flushCount = 0
+	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+		t.Fatalf("DrawOverlay (GPU path): %v", err)
+	}
+	if flushCount == 0 {
+		t.Fatal("GPU canvas demo bar draw did not flush (RenderDirect) — bar did not render on Scenario A canvas")
 	}
 }

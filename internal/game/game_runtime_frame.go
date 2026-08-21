@@ -142,6 +142,9 @@ func (g *Game) ensureQuakeUIOverlay() *quakeui.OverlayRenderer {
 		g.quakeUIConchars(),
 		g.quakeUIPalette(),
 	)
+	// Wire the display-only demo bar to the engine's demo playback state
+	// (ADR-0015: progress track/cursor/status glyph/speed/name/M:SS).
+	overlay.SetDemoBarStateProvider(&gameDemoBarState{g: g})
 	if conRoot := overlay.ConsoleRoot(); conRoot != nil {
 		if g.Host != nil {
 			conRoot.SetOnCommand(func(cmd string) {
