@@ -137,7 +137,7 @@ func (g *Game) ensureQuakeUIOverlay() *quakeui.OverlayRenderer {
 		host,
 		g.Menu,
 		console.Global(),
-		g.HUD,
+		&csqcAwareHUDProvider{hud: g.HUD, g: g},
 		g.Draw,
 		g.quakeUIConchars(),
 		g.quakeUIPalette(),

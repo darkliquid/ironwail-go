@@ -61,12 +61,44 @@ func NewHUDRoot(provider HUDStateProvider, drawMgr *draw.Manager, conchars []byt
 	return r
 }
 
+// SkipProvider is an optional capability of HUDStateProvider: when the
+// provider reports true, the HUDRoot is not drawn. This implements the CSQC
+// fallback (SPEC-004 §5.3): when a mod's CSQC_DrawHud draws, the native HUD
+// widget is skipped and the legacy CSQC canvas path takes over.
+type SkipProvider interface {
+	SkipHUD() bool
+}
+
 // IsVisible reports whether the heads-up display is active and should be drawn.
 func (r *HUDRoot) IsVisible() bool {
 	if r == nil || r.provider == nil {
 		return false
 	}
+	if sp, ok := r.provider.(SkipProvider); ok && sp.SkipHUD() {
+		return false	}
 	return true
+}
+
+// skipReported returns true when the provider requests skipping the native
+// HUD (CSQC fallback); the Draw gate uses it so the widget tree still draws
+// nothing even if visibility was cached.
+func (r *HUDRoot) skipReported() bool {
+	if r == nil || r.provider == nil {
+		return false
+	}
+	if sp, ok := r.provider.(SkipProvider); ok {
+		return sp.SkipHUD()
+	}
+	return false
+}
+
+// Provider returns the HUD state provider driving this widget (tests and the
+// overlay wiring use it to inspect the skip contract).
+func (r *HUDRoot) Provider() HUDStateProvider {
+	if r == nil {
+		return nil
+	}
+	return r.provider
 }
 
 // Layout fills the window constraints.
@@ -89,6 +121,10 @@ func (r *HUDRoot) Layout(ctx widget.Context, c geometry.Constraints) geometry.Si
 // Draw renders the status bar, crosshair, and centerprint.
 func (r *HUDRoot) Draw(ctx widget.Context, canvas widget.Canvas) {
 	if r == nil || r.provider == nil || canvas == nil {
+		return
+	}
+	if r.skipReported() {
+		// CSQC fallback: the mod's CSQC_DrawHud owns the HUD this frame.
 		return
 	}
 

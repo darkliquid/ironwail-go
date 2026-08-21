@@ -118,6 +118,10 @@ type Game struct {
 	// quakeui overlay has been wired (idempotent per session).
 	uiTeardownRegistered bool
 
+	// csqcOwnsHUDTest is a test seam overriding csqcOwnsHUD() (nil = live
+	// CSQC state). Used by M4.3 tests to force the CSQC HUD fallback.
+	csqcOwnsHUDTest *bool
+
 	// cpuProfile tracks the active CPU profile capture state.
 	cpuProfile cpuProfileState
 
