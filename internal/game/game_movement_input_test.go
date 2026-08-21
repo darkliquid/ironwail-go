@@ -76,6 +76,41 @@ func releaseKey(t *testing.T, g *Game, key int) {
 	g.Input.HandleKeyEvent(input.KeyEvent{Key: key, Down: false})
 }
 
+// newGamePollableInput is a gogpu-shaped polled input stub used to drive the
+// ADR-0012 polling path in tests. It holds engine key codes directly (the
+// polling adapter receives already-mapped codes) and synthesizes press/held/
+// release snapshots per frame.
+type gamePollableInput struct {
+	currentHeld map[int]bool
+}
+
+func newGamePollableInput() *gamePollableInput {
+	return &gamePollableInput{currentHeld: make(map[int]bool)}
+}
+
+func (s *gamePollableInput) Poll() input.PolledInput {
+	out := input.PolledInput{
+		KeyPressed:   make(map[int]bool),
+		MousePressed: make(map[int]bool),
+	}
+	for key, held := range s.currentHeld {
+		if held {
+			out.KeyPressed[key] = true
+		}
+	}
+	return out
+}
+
+// setGameKeyHeld transitions a key's held state. The change is reflected on
+// the next Poll as a press or release edge.
+func (s *gamePollableInput) setGameKeyHeld(key int, held bool) {
+	if held {
+		s.currentHeld[key] = true
+	} else {
+		delete(s.currentHeld, key)
+	}
+}
+
 // TestMovementCommandsReleaseOnKeyUp validates the core regression: a
 // movement button pressed and released through the full input->command->button
 // path must not remain latched. Covers forward, strafe, attack, and mouse1.
@@ -115,6 +150,60 @@ func TestMovementCommandsReleaseOnKeyUp(t *testing.T) {
 			}
 			if btn.Down[0] != 0 || btn.Down[1] != 0 {
 				t.Fatalf("after release: Down slots = %v, want [0 0] — key still tracked", btn.Down)
+			}
+		})
+	}
+}
+
+// TestMovementCommandsReleaseOnKeyUpPolling is the M0.2 spike: the same
+// latching case driven through the ADR-0012 polling adapter instead of the
+// callback backend. The synthesized press/release edges must produce the
+// identical button state transitions (release clears bit0 and the Down
+// slots), proving the polling path preserves engine latching semantics.
+func TestMovementCommandsReleaseOnKeyUpPolling(t *testing.T) {
+	g := newInputTestGame(t)
+	if g.Input.KeyDest() != input.KeyGame {
+		g.Input.SetKeyDest(input.KeyGame)
+	}
+
+	stub := newGamePollableInput()
+	adapter := input.NewPollingAdapter(stub)
+	pollPress := func(key int) { stub.setGameKeyHeld(key, true); g.Input.SyncPolled(adapter) }
+	pollRelease := func(key int) { stub.setGameKeyHeld(key, false); g.Input.SyncPolled(adapter) }
+
+	cases := []struct {
+		name       string
+		key        int
+		button     func(*client.Client) *client.KButton
+	}{
+		{name: "forward", key: int('w'), button: func(c *client.Client) *client.KButton { return &c.InputForward }},
+		{name: "back", key: int('s'), button: func(c *client.Client) *client.KButton { return &c.InputBack }},
+		{name: "moveleft", key: int('a'), button: func(c *client.Client) *client.KButton { return &c.InputMoveLeft }},
+		{name: "moveright", key: int('d'), button: func(c *client.Client) *client.KButton { return &c.InputMoveRight }},
+		{name: "strafe", key: input.KAlt, button: func(c *client.Client) *client.KButton { return &c.InputStrafe }},
+		{name: "attack", key: input.KCtrl, button: func(c *client.Client) *client.KButton { return &c.InputAttack }},
+		{name: "attack-mouse1", key: input.KMouse1, button: func(c *client.Client) *client.KButton { return &c.InputAttack }},
+		{name: "jump", key: input.KSpace, button: func(c *client.Client) *client.KButton { return &c.InputJump }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			btn := tc.button(g.Client)
+
+			// Polled press edge must register the button exactly once.
+			pollPress(tc.key)
+			if btn.State&1 == 0 {
+				t.Fatalf("after polled press: button state = %d, want bit0 (down) set", btn.State)
+			}
+			// Holding across frames must not re-fire the press.
+			g.Input.SyncPolled(adapter)
+			pollRelease(tc.key)
+
+			if btn.State&1 != 0 {
+				t.Fatalf("after polled release: button state = %d, want bit0 (down) cleared — button stuck", btn.State)
+			}
+			if btn.Down[0] != 0 || btn.Down[1] != 0 {
+				t.Fatalf("after polled release: Down slots = %v, want [0 0] — key still tracked", btn.Down)
 			}
 		})
 	}

@@ -250,6 +250,20 @@ func (s *System) HandleKeyEvent(event KeyEvent) {
 
 }
 
+// SyncPolled feeds a frame of polled input (the ADR-0012 gameplay path) into
+// the engine exactly as if it had arrived through the callback backend: each
+// synthesized press/release edge from the adapter is routed through
+// HandleKeyEvent, so dedup, key-state tracking, modifier flags, and KeyDest
+// dispatch all behave identically to platform events.
+func (s *System) SyncPolled(adapter *PollingAdapter) {
+	if s == nil || adapter == nil {
+		return
+	}
+	for _, event := range adapter.Poll() {
+		s.HandleKeyEvent(event)
+	}
+}
+
 // HandleCharEvent processes a text-input character. The rune is appended to
 // the frame's character buffer (state.Chars) and dispatched to the
 // appropriate callback. In menu mode both OnMenuChar and OnChar are called.
