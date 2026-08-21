@@ -656,3 +656,57 @@ func TestOverlayRenderer_DemoBarOnGPUCanvasRenders(t *testing.T) {
 		t.Fatal("GPU canvas demo bar draw did not flush (RenderDirect) — bar did not render on Scenario A canvas")
 	}
 }
+
+// lateProviderHost simulates the WASM-after-Run ordering (AC3b/AC6): the
+// gogpu provider is nil before App.Run and becomes available after it. The
+// overlay must fall back to software pre-Run, then lazily create the GPU
+// ggcanvas once the provider appears.
+type lateProviderHost struct {
+	Host
+	provider gpucontext.DeviceProvider
+	view     gpucontext.TextureView
+}
+
+func (h *lateProviderHost) GPUContextProvider() gpucontext.DeviceProvider { return h.provider }
+func (h *lateProviderHost) SurfaceView() gpucontext.TextureView           { return h.view }
+
+// TestOverlayRenderer_WASMLateProviderResolvesLazily is the M5.1 RED (AC3b):
+// pre-Run (nil provider) DrawOverlay renders via the software fallback without
+// panic; after the provider appears it creates the GPU canvas and can flush.
+func TestOverlayRenderer_WASMLateProviderResolvesLazily(t *testing.T) {
+	host := &lateProviderHost{Host: &dummyHost{}, view: gpucontext.TextureView{}}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	con := console.NewConsole(1024)
+	_ = con.Init(0)
+	r := NewOverlayRenderer(host, mgr, con, nil, draw.NewManager(), make([]byte, 128*128), make([]byte, 768))
+
+	// Pre-Run: nil provider -> software path, no panic, and the GPU canvas is
+	// not created.
+	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+		t.Fatalf("pre-Run DrawOverlay: %v", err)
+	}
+	if r.gpuCanvas != nil {
+		t.Fatal("GPU canvas created before the provider existed (WASM pre-Run)")
+	}
+
+	// Post-Run: provider available -> the next DrawOverlay lazily upgrades to
+	// the GPU canvas.
+	var flushCount int
+	acc := &gpuCaptureAccelerator{flushes: &flushCount}
+	if err := gg.RegisterAccelerator(acc); err != nil {
+		t.Fatalf("RegisterAccelerator: %v", err)
+	}
+	t.Cleanup(gg.CloseAccelerator)
+
+	host.provider = &mockDeviceProvider{}
+	host.view = gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe))
+	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+		t.Fatalf("post-Run DrawOverlay: %v", err)
+	}
+	if r.gpuCanvas == nil {
+		t.Fatal("GPU canvas not created after the provider became available (WASM-after-Run resolution failed)")
+	}
+	if flushCount == 0 {
+		t.Fatal("post-Run GPU draw did not flush (RenderDirect)")
+	}
+}
