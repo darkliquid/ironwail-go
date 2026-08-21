@@ -3,6 +3,7 @@ package game
 import (
 	"log/slog"
 
+	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/quakeui"
 )
 
@@ -39,8 +40,58 @@ func (g *Game) initializeUIPath() {
 
 	if selected {
 		g.ensureQuakeUIOverlay()
+		g.installInputRouter()
 		g.wireUITeardown()
 	}
+}
+
+// installInputRouter builds the decoupled input router (ADR-0012 §4.2) and
+// installs it as the input system's policy point on the gogpu/ui path:
+// OnMenuKey and the general OnKey sink delegate to the router, which makes
+// the exclusive engine-vs-ui split per KeyDest. The legacy handlers remain
+// reachable as the router's engine sink; when the path is later forced legacy
+// the router routes everything to the engine anyway (fail-open).
+func (g *Game) installInputRouter() {
+	if g == nil || g.Input == nil {
+		return
+	}
+	router := NewInputRouter(
+		g.handleGameKeyEvent,
+		g.forwardUIKey,
+		g.uiPathActive,
+		func(key int) bool {
+			// Engine pre-route: backtick toggles the console; binding capture
+			// must always reach the engine regardless of KeyDest (R1.2).
+			return key == int('`') || g.WaitingForKeyBinding()
+		},
+	)
+	g.inputRouter = router
+
+	uiSink := router.RouteKeyEvent
+	// Menu-mode exclusivity: the input system fires BOTH OnMenuKey and OnKey
+	// while in KeyMenu mode (types_binding.go menu branch). On the gogpu/ui
+	// path OnMenuKey already routed the event through the router (menu→ui),
+	// so the OnKey wrapper must not re-route the same event (double-dispatch
+	// guard, R1.2).
+	g.Input.OnMenuKey = func(ev input.KeyEvent) {
+		uiSink(ev, input.KeyMenu)
+	}
+	g.Input.OnKey = func(ev input.KeyEvent) {
+		if g.Input.KeyDest() == input.KeyMenu {
+			return // OnMenuKey already routed this event
+		}
+		uiSink(ev, g.Input.KeyDest())
+	}
+}
+
+// WaitingForKeyBinding reports whether the menu is in key-capture mode (any
+// key should reach the engine for binding assignment). Compact helper so the
+// router's capture predicate stays readable.
+func (g *Game) WaitingForKeyBinding() bool {
+	if g == nil || g.Menu == nil {
+		return false
+	}
+	return g.Menu.WaitingForKeyBinding()
 }
 
 // uiPathActive reports whether the frozen startup decision selected the

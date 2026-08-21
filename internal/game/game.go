@@ -100,6 +100,11 @@ type Game struct {
 	uiHost         *quakeuiHost
 	quakeuiOverlay *quakeui.OverlayRenderer
 
+	// inputRouter is the decoupled input policy point (ADR-0012 §4.2) used on
+	// the gogpu/ui path: exclusive key routing between the engine and the ui
+	// widget tree. Nil on the legacy path.
+	inputRouter *InputRouter
+
 	// uiBackendFrozen is the startup-only UI path selection (G11, ADR-0012
 	// A1): parsed once when the runtime renderer loop starts and never
 	// re-read. uiBackendPath is the frozen decision (true = gogpu/ui).
