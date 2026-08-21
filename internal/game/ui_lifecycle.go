@@ -27,11 +27,14 @@ func (g *Game) initializeUIPath() {
 		selected = true
 	}
 
-	// Software/headless fallback: without a live gogpu device provider the
-	// ggcanvas cannot composite over the world; force the legacy path so the
-	// session never renders a broken overlay (AC3c/AC4 fail-open).
-	if selected && g.gpuContextProvider() == nil {
-		slog.Warn("quakeui: software/headless UI path unavailable; forcing legacy ui path")
+	// Headless fail-open (AC3c): with no renderer there is no window/surface
+	// at all, so the gogpu/ui path is impossible — force legacy. A native
+	// boot with a renderer selects the ui path even though the gogpu
+	// provider may not be live yet (it appears during App.Run(); the
+	// ggcanvas is resolved lazily on first draw, WASM guard P2). The
+	// software-adapter case is handled at draw time by ensureCanvas.
+	if selected && g.Renderer == nil {
+		slog.Warn("quakeui: headless UI path unavailable; forcing legacy ui path")
 		g.uiBackendForceLegacy = true
 		selected = false
 	}
@@ -104,9 +107,10 @@ func (g *Game) uiPathActive() bool {
 }
 
 // startupUIPathSelected is the pre-freeze heuristic mirroring the selection
-// initializeUIPath performs: ui_backend != 0 AND a gogpu provider is
-// available. Called during init (before the freeze) to pick the input
-// backend; initializeUIPath performs the authoritative frozen decision later.
+// initializeUIPath performs: ui_backend != 0 AND the renderer exists. Called
+// during init (before the freeze) to pick the input backend; initializeUIPath
+// performs the authoritative frozen decision later. A native boot selects the
+// gogpu/ui path even though the provider livens only during App.Run.
 func (g *Game) startupUIPathSelected() bool {
 	if g == nil || g.Host == nil {
 		return false
@@ -114,7 +118,7 @@ func (g *Game) startupUIPathSelected() bool {
 	if !quakeui.IsGogpuUIPath(g.Host.CVar) {
 		return false
 	}
-	return g.gpuContextProvider() != nil
+	return g.Renderer != nil
 }
 
 // wireUITeardown registers the gogpuApp.OnClose teardown for the quakeui

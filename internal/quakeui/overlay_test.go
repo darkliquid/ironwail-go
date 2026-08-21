@@ -58,6 +58,11 @@ func (t *testOverlayRenderContext) SetCanvas(ct renderer.CanvasType)     {}
 func (t *testOverlayRenderContext) Canvas() renderer.CanvasState         { return renderer.CanvasState{} }
 
 func setupTestOverlay() *OverlayRenderer {
+	// The gg/gpu accelerator is registered globally; without a bound device it
+	// would intercept CPU draws (queueing into the void) and produce no
+	// pixels. Close it so software-path contexts render into the pixmap (the
+	// canon gg pattern for CPU-only tests; GPU-path tests re-register).
+	gg.CloseAccelerator()
 	host := &dummyHost{}
 	mgr := legacymenu.NewManager(nil, nil, nil)
 	con := console.NewConsole(1024)
@@ -260,6 +265,11 @@ func TestOverlayRenderer_HUD_DrawAndFallthrough(t *testing.T) {
 }
 
 func TestGGDrawImage(t *testing.T) {
+	// The gg/gpu accelerator is registered globally; without a bound device it
+	// would queue image draws into the void. Unregister it so pure-CPU
+	// contexts render into the pixmap (gg.CloseAccelerator is the canon test
+	// pattern for CPU-only paths).
+	gg.CloseAccelerator()
 	dc := gg.NewContext(640, 480)
 	dc.Clear()
 	canvas := render.NewCanvas(dc, 640, 480)

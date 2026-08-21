@@ -34,22 +34,23 @@ func TestInitializeUIPathFreezesDecision(t *testing.T) {
 	}
 }
 
-// TestInitializeUIPathForcesLegacyWithoutProvider pins the AC3c/AC4 fail-open:
-// when a provider is unavailable (software/headless/pre-init), selecting
-// ui_backend 1 must force the legacy path instead of rendering a broken
-// overlay.
-func TestInitializeUIPathForcesLegacyWithoutProvider(t *testing.T) {
+// TestInitializeUIPathNativeSelectsPathBeforeProviderLive pins the native
+// boot contract (M5.3 regression): a renderer exists but the gogpu provider
+// has not livened yet (it appears during App.Run) — the ui path is still
+// selected at the freeze; the ggcanvas resolves lazily on first draw (WASM
+// guard P2). Only a missing renderer (true headless) forces legacy.
+func TestInitializeUIPathNativeSelectsPathBeforeProviderLive(t *testing.T) {
 	g := New()
 	g.Host = host.NewHost()
 	g.Host.CVar.Set("ui_backend", "1")
-	g.Renderer = &reloadTestRenderer{} // no GPUContextProvider / nil GogpuApp
+	g.Renderer = &reloadTestRenderer{} // renderer exists, provider not live yet
 
 	g.initializeUIPath()
-	if !g.uiBackendForceLegacy {
-		t.Fatal("expected forced legacy without a gogpu provider (software/headless fail-open)")
+	if g.uiBackendForceLegacy {
+		t.Fatal("native boot forced legacy — provider liveness is lazy, only headless (nil renderer) forces legacy")
 	}
-	if g.uiPathActive() {
-		t.Fatal("uiPathActive() = true despite forced legacy")
+	if !g.uiPathActive() {
+		t.Fatal("uiPathActive() = false on a native boot at ui_backend 1 before provider liveness")
 	}
 }
 

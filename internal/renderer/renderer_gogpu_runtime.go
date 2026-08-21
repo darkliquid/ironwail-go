@@ -14,6 +14,10 @@ import (
 	"time"
 
 	"github.com/darkliquid/ironwail-go/internal/renderer/pipeline"
+	// gg/gpu accelerator is registered via gg_accelerator_native.go (!js) /
+	// gg_accelerator_wasm.go (js stub) so ggcanvas.RenderDirect can GPU-flush
+	// on native without breaking the browser build (wgpu/core is excluded on
+	// js/wasm).
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/input"
 	"github.com/gogpu/gpucontext"

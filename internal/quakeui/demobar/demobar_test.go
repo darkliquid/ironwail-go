@@ -30,6 +30,10 @@ func renderBar(t *testing.T, st DemoBarState) []byte {
 	}
 	bar := NewDemoBarRoot(&stubProvider{st: st}, conchars, palette)
 
+	// The gg/gpu accelerator is registered globally; unregister it so the
+	// pure-CPU context renders into the pixmap (gg.CloseAccelerator is the
+	// canon pattern for CPU-only tests).
+	gg.CloseAccelerator()
 	dc := gg.NewContext(320, 200)
 	dc.Clear()
 	canvas := render.NewCanvas(dc, 320, 200)

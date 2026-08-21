@@ -243,8 +243,17 @@ func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, heig
 	}
 	w, h := gpu.Size()
 	if err := gpu.RenderDirect(sv, uint32(w), uint32(h)); err != nil {
-		slog.Warn("quakeui overlay: RenderDirect failed", "error", err)
-		return err
+		// Graceful degradation: when the gg GPU accelerator is unavailable
+		// (software adapter, unbound device, or CPU-only setup) RenderDirect
+		// falls back with an error. Preserve the UI by blitting the CPU
+		// readback through the render context instead of failing the frame
+		// (AC3a/AC3c: software/headless must not break the overlay).
+		slog.Warn("quakeui overlay: RenderDirect fell back to CPU; blitting readback", "error", err)
+		if img := gpu.Context().Image(); img != nil {
+			if rgba, ok := img.(*image.RGBA); ok {
+				target.DrawRGBA(0, 0, rgba)
+			}
+		}
 	}
 	return r.drawCountLogged(target, width, height)
 }
