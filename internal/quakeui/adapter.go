@@ -2,6 +2,7 @@ package quakeui
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/gogpu/gpucontext"
 )
 
 // Forwarder is the engine-facing input route into the ui widget tree (M1.5,
@@ -30,8 +31,9 @@ const (
 )
 
 // Host is the narrow engine-facing adapter that internal/quakeui consumes
-// (ADR-0009, AC7). Its types are plain Go values — never internal/game or
-// internal/renderer types.
+// (ADR-0009, AC7). Its types are plain Go values plus gpucontext (gogpu
+// ecosystem, not engine internals) — never internal/game or internal/renderer
+// types.
 type Host interface {
 	// CVar returns the value of an engine cvar as a plain float64. Unknown
 	// cvars return 0. The adapter reads only (the engine owns writes).
@@ -45,4 +47,15 @@ type Host interface {
 
 	// Quit requests a clean engine shutdown from the ui loop.
 	Quit()
+
+	// GPUContextProvider exposes the gogpu DeviceProvider used to back the
+	// GPU-accelerated ggcanvas (Scenario A, ADR-0011). It may be nil (before
+	// the gogpu renderer exists, or on software/headless = fail open), in
+	// which case quakeui falls back to a software canvas.
+	GPUContextProvider() gpucontext.DeviceProvider
+
+	// SurfaceView returns the current frame's GPU texture view for the
+	// composite pass. An empty view means the frame has no live surface yet
+	// (the call is skipped; the world pass preserves it via MarkPreserveContent).
+	SurfaceView() gpucontext.TextureView
 }

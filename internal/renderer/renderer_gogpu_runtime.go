@@ -16,6 +16,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer/pipeline"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/input"
+	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -29,13 +30,34 @@ func (r *Renderer) DeviceProvider() gogpu.DeviceProvider {
 }
 
 // GogpuApp returns the underlying gogpu application (window/render-loop
-// owner). Used by the quakeui host on ui_backend=1, where desktop.Run takes
-// over the loop (ADR-0006).
+// owner). Used by the quakeui host on ui_backend=1 (ADR-0011).
 func (r *Renderer) GogpuApp() *gogpu.App {
 	if r == nil {
 		return nil
 	}
 	return r.app
+}
+
+// GPUContextProvider exposes the gogpu device provider for the GPU-accelerated
+// ggcanvas used on the ui_backend=1 path (Scenario A composite, ADR-0011).
+// It is nil before the gogpu app creates its renderer (startup ordering) so
+// the ui falls back to the software canvas in that window.
+func (r *Renderer) GPUContextProvider() gpucontext.DeviceProvider {
+	if r == nil || r.app == nil {
+		return nil
+	}
+	return r.app.GPUContextProvider()
+}
+
+// CurrentSurfaceView returns the engine's active gogpu surface view for the
+// current frame, as an opaque gpucontext texture view the quakeui host hands
+// to the Scenario A composite pass (RenderDirect). Returns an empty view when
+// no draw context is active.
+func (r *Renderer) CurrentSurfaceView() gpucontext.TextureView {
+	if r == nil || r.currentDrawCtx == nil || r.currentDrawCtx.ctx == nil {
+		return gpucontext.TextureView{}
+	}
+	return r.currentDrawCtx.ctx.RenderTarget().SurfaceView()
 }
 
 func New() (*Renderer, error) {
@@ -221,6 +243,9 @@ func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 				gamma:    gamma,
 				renderer: r,
 			}
+			r.mu.Lock()
+			r.currentDrawCtx = dc
+			r.mu.Unlock()
 			// Guarded so a panic inside the draw path prints its true origin
 			// instead of being re-raised through gogpu's render thread and
 			// losing the stack (see runRendererSafe).
@@ -234,6 +259,9 @@ func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 				}()
 				callback(dc)
 			}()
+			r.mu.Lock()
+			r.currentDrawCtx = nil
+			r.mu.Unlock()
 		}
 	})
 }

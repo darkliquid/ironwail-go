@@ -1,5 +1,9 @@
 package game
 
+import (
+	"github.com/gogpu/gpucontext"
+)
+
 // quakeuiHost adapts the engine to internal/quakeui.Host (ADR-0009, AC7). The
 // engine implements the adapter with plain values only; no quakeui code lives
 // in the game package.
@@ -37,4 +41,25 @@ func (h *quakeuiHost) Quit() {
 		return
 	}
 	h.g.Host.Abort("quakeui quit")
+}
+
+// GPUContextProvider exposes the gogpu DeviceProvider for the GPU-backed
+// ggcanvas used by the Scenario A overlay (ADR-0011). Returns nil until the
+// gogpu renderer has been created (startup), and after it has been released.
+func (h *quakeuiHost) GPUContextProvider() gpucontext.DeviceProvider {
+	if h == nil || h.g == nil {
+		return nil
+	}
+	return h.g.gpuContextProvider()
+}
+
+// SurfaceView returns the current frame's GPU texture view from the active
+// render context, suitable for RenderDirect(sv, sw, sh). This is how the
+// engine-owned loop hands the swapchain surface to the UI composite pass
+// without the UI depending on engine renderer internals.
+func (h *quakeuiHost) SurfaceView() gpucontext.TextureView {
+	if h == nil || h.g == nil {
+		return gpucontext.TextureView{}
+	}
+	return h.g.currentUISurfaceView()
 }

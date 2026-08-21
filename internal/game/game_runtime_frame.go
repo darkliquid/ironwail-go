@@ -15,6 +15,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
+	"github.com/gogpu/gogpu"
+	"github.com/gogpu/gpucontext"
 )
 
 type runtimeRendererLoopResult struct {
@@ -163,6 +165,42 @@ func (g *Game) quakeUIConchars() []byte {
 		return nil
 	}
 	return g.Draw.ConcharsData()
+}
+
+// gpuContextProvider returns the gogpu DeviceProvider used to back the
+// GPU-accelerated ggcanvas on the ui_backend=1 path (Scenario A composite,
+// ADR-0011). The gogpu renderer's app exposes it; before the renderer exists
+// (startup ordering) or after it is released this returns nil, which makes
+// the UI fall back to the software canvas.
+func (g *Game) gpuContextProvider() gpucontext.DeviceProvider {
+	if g.Renderer == nil {
+		return nil
+	}
+	if provider, ok := g.Renderer.(interface{ GPUContextProvider() gpucontext.DeviceProvider }); ok {
+		return provider.GPUContextProvider()
+	}
+	// The concrete renderer also exposes the underlying gogpu app directly;
+	// reach the provider through it when the Renderer shim lacks the method.
+	if app, ok := g.Renderer.(interface{ GogpuApp() *gogpu.App }); ok {
+		if a := app.GogpuApp(); a != nil {
+			return a.GPUContextProvider()
+		}
+	}
+	return nil
+}
+
+// currentUISurfaceView returns the current frame's GPU surface view for the
+// UI composite pass, via the active draw context. The overlay callback runs
+// inside RenderFrame after the world pass; the draw context's surface view is
+// the swapchain target the UI must composite onto (LoadOp::Load preserve).
+func (g *Game) currentUISurfaceView() gpucontext.TextureView {
+	if g.Renderer == nil {
+		return gpucontext.TextureView{}
+	}
+	if view, ok := g.Renderer.(interface{ CurrentSurfaceView() gpucontext.TextureView }); ok {
+		return view.CurrentSurfaceView()
+	}
+	return gpucontext.TextureView{}
 }
 
 // quakeUIPalette returns the engine's 768-byte Quake palette for the UI text

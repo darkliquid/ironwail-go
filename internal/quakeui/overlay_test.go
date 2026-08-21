@@ -3,6 +3,7 @@ package quakeui
 import (
 	"image"
 	"testing"
+	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/draw"
@@ -13,6 +14,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
 	"github.com/gogpu/gg"
+	"github.com/gogpu/gpucontext"
+	"github.com/gogpu/gputypes"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/render"
@@ -24,6 +27,12 @@ func (d *dummyHost) CVar(string) float64       { return 0 }
 func (d *dummyHost) PlaySound(string)          {}
 func (d *dummyHost) ExecuteCommandText(string) {}
 func (d *dummyHost) Quit()                     {}
+func (d *dummyHost) GPUContextProvider() gpucontext.DeviceProvider {
+	return nil // software fallback path in tests
+}
+func (d *dummyHost) SurfaceView() gpucontext.TextureView {
+	return gpucontext.TextureView{}
+}
 
 type testOverlayRenderContext struct {
 	drawRGBACalled bool
@@ -313,3 +322,150 @@ func TestOverlayRenderer_RealPak_DrawOverlay(t *testing.T) {
 		t.Fatal("expected nonZero > 0 with real pak")
 	}
 }
+
+// gpuAwareHost is a Host whose GPUContextProvider returns a mock device
+// provider (so the overlay takes the GPU canvas path) and whose SurfaceView
+// returns the view RenderDirect should target.
+type gpuAwareHost struct {
+	*dummyHost
+	provider gpucontext.DeviceProvider
+	view     gpucontext.TextureView
+}
+
+func (h *gpuAwareHost) GPUContextProvider() gpucontext.DeviceProvider { return h.provider }
+func (h *gpuAwareHost) SurfaceView() gpucontext.TextureView           { return h.view }
+
+// gpuCaptureAccelerator is a GPUAccelerator + GPURenderContextProvider that
+// hands each gg.Context a per-context ops stub (gpuContextOps shape) whose
+// Flush increments flushes — proving RenderDirect reached the GPU flush path.
+type gpuCaptureAccelerator struct {
+	flushes *int
+}
+
+func (a *gpuCaptureAccelerator) Name() string          { return "quakeui-gpu-capture" }
+func (a *gpuCaptureAccelerator) Init() error            { return nil }
+func (a *gpuCaptureAccelerator) Close()                 {}
+func (a *gpuCaptureAccelerator) CanAccelerate(gg.AcceleratedOp) bool {
+	return true
+}
+func (a *gpuCaptureAccelerator) FillPath(gg.GPURenderTarget, *gg.Path, *gg.Paint) error {
+	return gg.ErrFallbackToCPU
+}
+func (a *gpuCaptureAccelerator) StrokePath(gg.GPURenderTarget, *gg.Path, *gg.Paint) error {
+	return gg.ErrFallbackToCPU
+}
+func (a *gpuCaptureAccelerator) FillShape(gg.GPURenderTarget, gg.DetectedShape, *gg.Paint) error {
+	return gg.ErrFallbackToCPU
+}
+func (a *gpuCaptureAccelerator) StrokeShape(gg.GPURenderTarget, gg.DetectedShape, *gg.Paint) error {
+	return gg.ErrFallbackToCPU
+}
+func (a *gpuCaptureAccelerator) Flush(gg.GPURenderTarget) error { return nil }
+
+// NewGPURenderContext implements gg.GPURenderContextProvider with a shared
+// ops stub whose Flush counts into the shared counter.
+func (a *gpuCaptureAccelerator) NewGPURenderContext() any {
+	return &gpuCaptureOps{flushes: a.flushes}
+}
+
+// gpuCaptureOps implements the gg gpuContextOps contract (structural) with a
+// no-op Flush that increments the shared counter. All draw ops fall back to
+// CPU so the capture only observes the flush path.
+type gpuCaptureOps struct {
+	flushes *int
+}
+
+func (o *gpuCaptureOps) FillShape(gg.GPURenderTarget, gg.DetectedShape, *gg.Paint) error {
+	return gg.ErrFallbackToCPU
+}
+func (o *gpuCaptureOps) StrokeShape(gg.GPURenderTarget, gg.DetectedShape, *gg.Paint) error {
+	return gg.ErrFallbackToCPU
+}
+func (o *gpuCaptureOps) FillPath(gg.GPURenderTarget, *gg.Path, *gg.Paint) error {
+	return gg.ErrFallbackToCPU
+}
+func (o *gpuCaptureOps) StrokePath(gg.GPURenderTarget, *gg.Path, *gg.Paint) error {
+	return gg.ErrFallbackToCPU
+}
+func (o *gpuCaptureOps) DrawText(gg.GPURenderTarget, any, string, float64, float64, gg.RGBA, gg.Matrix, float64) error {
+	return gg.ErrFallbackToCPU
+}
+func (o *gpuCaptureOps) DrawGlyphMaskText(gg.GPURenderTarget, any, string, float64, float64, gg.RGBA, gg.Matrix, float64) error {
+	return gg.ErrFallbackToCPU
+}
+func (o *gpuCaptureOps) QueueImageDraw(gg.GPURenderTarget, []byte, uint64, int, int, int, float32, float32, float32, float32, float32, uint32, uint32, float32, float32, float32, float32) {
+}
+func (o *gpuCaptureOps) QueueGPUTextureDraw(gg.GPURenderTarget, gpucontext.TextureView, float32, float32, float32, float32, float32, uint32, uint32) {
+}
+func (o *gpuCaptureOps) QueueBaseLayer(gg.GPURenderTarget, gpucontext.TextureView, float32, float32, float32, float32, float32, uint32, uint32) {
+}
+func (o *gpuCaptureOps) Flush(gg.GPURenderTarget) error {
+	if o.flushes != nil {
+		*o.flushes++
+	}
+	return nil
+}
+func (o *gpuCaptureOps) SetClipRect(uint32, uint32, uint32, uint32) {}
+func (o *gpuCaptureOps) ClearClipRect()                             {}
+func (o *gpuCaptureOps) SetClipRRect(float32, float32, float32, float32, float32) {
+}
+func (o *gpuCaptureOps) ClearClipRRect()     {}
+func (o *gpuCaptureOps) SetClipPath(*gg.Path) {}
+func (o *gpuCaptureOps) ClearClipPath()      {}
+func (o *gpuCaptureOps) BeginFrame()         {}
+func (o *gpuCaptureOps) MarkFrameRendered()  {}
+func (o *gpuCaptureOps) SetPipelineMode(gg.PipelineMode) {}
+func (o *gpuCaptureOps) SetAntiAlias(bool)   {}
+func (o *gpuCaptureOps) PendingCount() int   { return 0 }
+func (o *gpuCaptureOps) Close()              {}
+
+// mockDeviceProvider satisfies gpucontext.DeviceProvider with opaque handles.
+type mockDeviceProvider struct{}
+
+func (m *mockDeviceProvider) Device() gpucontext.Device             { return gpucontext.Device{} }
+func (m *mockDeviceProvider) Queue() gpucontext.Queue               { return gpucontext.Queue{} }
+func (m *mockDeviceProvider) Adapter() gpucontext.Adapter           { return gpucontext.Adapter{} }
+func (m *mockDeviceProvider) SurfaceFormat() gputypes.TextureFormat { return gputypes.TextureFormatBGRA8Unorm }
+func (m *mockDeviceProvider) AdapterInfo() gpucontext.AdapterInfo {
+	return gpucontext.AdapterInfo{Type: gpucontext.AdapterTypeUnknown}
+}
+
+// TestOverlayRenderer_GPUCAnvasRendersStackToSurface drives the Scenario A
+// GPU canvas path (ADR-0011): with a device provider present, DrawOverlay must
+// create the GPU ggcanvas, draw the widget stack into it, and composite onto
+// the surface view via RenderDirect. The capture accelerator's Flush receives
+// the target holding the provided surface view.
+func TestOverlayRenderer_GPUCAnvasRendersStackToSurface(t *testing.T) {
+	var flushCount int
+	acc := &gpuCaptureAccelerator{flushes: &flushCount}
+	if err := gg.RegisterAccelerator(acc); err != nil {
+		t.Fatalf("RegisterAccelerator: %v", err)
+	}
+	t.Cleanup(gg.CloseAccelerator)
+
+	host := &gpuAwareHost{
+		dummyHost: &dummyHost{},
+		provider:  &mockDeviceProvider{},
+		// A non-nil view handle so RenderDirect does not early-return as "no
+		// live surface" (matches the in-frame engine path where the view is
+		// acquired).
+		view: gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe)),
+	}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	mgr.ShowState(legacymenu.MenuMain)
+	con := console.NewConsole(1024)
+	_ = con.Init(0)
+	r := NewOverlayRenderer(host, mgr, con, nil, draw.NewManager(), make([]byte, 128*128), make([]byte, 768))
+
+	flushCount = 0
+	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+		t.Fatalf("DrawOverlay: %v", err)
+	}
+	if flushCount == 0 {
+		t.Fatal("expected RenderDirect to flush the GPU canvas (accelerator Flush called)")
+	}
+}
+
+// gpuSurfaceProbe is a fake *wgpu.TextureView-backed handle so the mock
+// surface view passed to RenderDirect is non-nil.
+var gpuSurfaceProbe byte

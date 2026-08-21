@@ -130,6 +130,12 @@ type Renderer struct {
 	// updateCallback is called each frame for game logic updates.
 	updateCallback func(dt float64)
 
+	// currentDrawCtx is the DrawContext active for the current frame, set
+	// right before the draw callback runs and cleared after. The quakeui host
+	// reads it to reach the frame's surface view for the Scenario A composite
+	// pass (ADR-0011). Guarded by mu.
+	currentDrawCtx *DrawContext
+
 	// closeCallback is called when the window is closed.
 	closeCallback func()
 
