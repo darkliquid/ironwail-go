@@ -469,3 +469,48 @@ func TestOverlayRenderer_GPUCAnvasRendersStackToSurface(t *testing.T) {
 // gpuSurfaceProbe is a fake *wgpu.TextureView-backed handle so the mock
 // surface view passed to RenderDirect is non-nil.
 var gpuSurfaceProbe byte
+
+// TestOverlayRenderer_MenuOnGPUCanvasRendersTransform is the M3.1 Scenario A
+// RED: with an active menu and a GPU provider, DrawOverlay must drive the
+// menu through the GPU ggcanvas (window.DrawTo → stack → MenuRoot) and
+// composite onto the surface via RenderDirect. The menu draws at its 320x200
+// transform inside the canvas (no CPU readback) — the GPU flush must occur.
+func TestOverlayRenderer_MenuOnGPUCanvasRendersTransform(t *testing.T) {
+	var flushCount int
+	acc := &gpuCaptureAccelerator{flushes: &flushCount}
+	if err := gg.RegisterAccelerator(acc); err != nil {
+		t.Fatalf("RegisterAccelerator: %v", err)
+	}
+	t.Cleanup(gg.CloseAccelerator)
+
+	host := &gpuAwareHost{
+		dummyHost: &dummyHost{},
+		provider:  &mockDeviceProvider{},
+		view:      gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe)),
+	}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	mgr.ShowState(legacymenu.MenuMain)
+	con := console.NewConsole(1024)
+	_ = con.Init(0)
+	drawMgr := draw.NewManager()
+	conchars := make([]byte, 128*128)
+	for i := range conchars {
+		conchars[i] = byte(i%255 + 1)
+	}
+	palette := make([]byte, 768)
+	for i := range palette {
+		palette[i] = 255
+	}
+	r := NewOverlayRenderer(host, mgr, con, nil, drawMgr, conchars, palette)
+
+	if !r.MenuRoot().IsVisible() {
+		t.Fatal("MenuRoot not visible with MenuMain active")
+	}
+	flushCount = 0
+	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+		t.Fatalf("DrawOverlay (GPU path): %v", err)
+	}
+	if flushCount == 0 {
+		t.Fatal("GPU canvas menu draw did not flush (RenderDirect) — menu did not render on Scenario A canvas")
+	}
+}

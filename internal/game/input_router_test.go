@@ -6,6 +6,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/host"
 	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/menu"
 )
 
 // recordingSink records every event it receives.
@@ -216,5 +217,69 @@ func TestInputRouterWiredIntoInputSystemNoDoubleDispatch(t *testing.T) {
 	}
 	if len(uiFwd.keys) != 0 {
 		t.Fatalf("gameplay key reached the ui sink (%d), want 0 (exclusive)", len(uiFwd.keys))
+	}
+}
+
+// TestMenuNavigationKeysReachUIOnly is the M3.1 GAME-level RED (AC9): with a
+// real quakeui overlay + decoupled router wired on the gogpu/ui path, a menu
+// navigation key at KeyMenu reaches the UI widget tree (advancing the menu
+// cursor via M_Key) and never also latches an engine gameplay button.
+func TestMenuNavigationKeysReachUIOnly(t *testing.T) {
+	g := New()
+	g.Host = host.NewHost()
+	g.Client = client.NewClient()
+	g.Client.State = client.StateActive
+	g.Input = input.NewSystem(nil)
+	_ = g.Input.Init()
+
+	// Real menu manager (legacy state machine driving the quakeui MenuRoot).
+	g.Menu = menu.NewManager(nil, g.Input, g.Host.CVar)
+	g.Input.OnMenuKey = g.handleMenuKeyEvent
+	g.Menu.SetCommandText(g.Host.Cmd.AddText)
+	registerGameplayButtonCommands(g)
+	g.applyDefaultGameplayBindings()
+	g.ensureGameplayBindings()
+
+	// Wire the quakeui overlay + forwarder (ensureQuakeUIOverlay builds the
+	// real MenuRoot into the stack and installs uiInput).
+	overlay := g.ensureQuakeUIOverlay()
+	if overlay == nil || overlay.MenuRoot() == nil {
+		t.Fatal("quakeui overlay/MenuRoot not built")
+	}
+
+	// Install the router exactly as installInputRouter does.
+	g.inputRouter = NewInputRouter(
+		g.handleGameKeyEvent,
+		g.forwardUIKey,
+		func() bool { return true },
+		func(key int) bool { return key == int('`') },
+	)
+	uiSink := g.inputRouter.RouteKeyEvent
+	g.Input.OnMenuKey = func(ev input.KeyEvent) { uiSink(ev, input.KeyMenu) }
+	g.Input.OnKey = func(ev input.KeyEvent) {
+		if g.Input.KeyDest() == input.KeyMenu {
+			return
+		}
+		uiSink(ev, g.Input.KeyDest())
+	}
+
+	// Open the menu, capture the cursor position.
+	g.Menu.ToggleMenu()
+	g.Menu.ShowState(menu.MenuMain)
+	if g.Input.KeyDest() != input.KeyMenu {
+		t.Fatalf("KeyDest = %v, want KeyMenu", g.Input.KeyDest())
+	}
+	cursorBefore := g.Menu.MainCursor()
+
+	// Down arrow at KeyMenu.
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+
+	cursorAfter := g.Menu.MainCursor()
+	if cursorAfter == cursorBefore {
+		t.Fatal("menu navigation key did not advance the menu cursor — the UI did not receive it")
+	}
+	// No engine side effect: forward button must stay up.
+	if g.Client.InputForward.State&1 != 0 {
+		t.Fatal("menu navigation key latched an engine gameplay button (double-dispatch)")
 	}
 }
