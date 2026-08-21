@@ -29,6 +29,9 @@
 !/article/**/*.md
 !/article/**/*.txt
 
+# UI rewrite spike notes (M0.3) — keep markdown next to the code it describes
+!/internal/**/notes/*.md
+
 # Parity tooling files
 !/tasks/*.sh
 tasks/perf_gate_reference.csv
