@@ -120,3 +120,29 @@ func (l *lifecycleStubProvider) SurfaceFormat() gputypes.TextureFormat { return 
 func (l *lifecycleStubProvider) AdapterInfo() gpucontext.AdapterInfo {
 	return gpucontext.AdapterInfo{Type: gpucontext.AdapterTypeUnknown}
 }
+
+// TestInitializeUIPathHeadlessFailsOpenLegacy is the M5.2 RED (AC3c): a
+// headless boot (no renderer, hence no gogpu device provider) at ui_backend 1
+// must fail open to legacy cleanly — the frozen path is legacy, uiPathActive
+// is false, and no UI render is attempted (no overlay built).
+func TestInitializeUIPathHeadlessFailsOpenLegacy(t *testing.T) {
+	g := New()
+	g.Host = host.NewHost()
+	g.Host.CVar.Set("ui_backend", "1")
+	// nil Renderer == headless (no window, no gogpu provider).
+	g.Renderer = nil
+
+	g.initializeUIPath()
+	if !g.uiBackendFrozen {
+		t.Fatal("initializeUIPath did not freeze the decision")
+	}
+	if !g.uiBackendForceLegacy {
+		t.Fatal("headless ui_backend 1 did not force legacy (AC3c fail-open violated)")
+	}
+	if g.uiPathActive() {
+		t.Fatal("uiPathActive() = true on headless — UI render would be attempted without a surface")
+	}
+	if g.quakeuiOverlay != nil {
+		t.Fatal("overlay built on headless fail-open path — must not attempt UI render")
+	}
+}
