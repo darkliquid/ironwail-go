@@ -422,6 +422,16 @@ func (dc *DrawContext) markGoGPUFrameContentForOverlay() bool {
 	return true
 }
 
+// MarkSurfacePreservedForOverlay is the engine-facing seam (M1.2, ADR-0011):
+// the engine frame driver calls this after the world pass (and after the
+// scene composite when the scene target was active) and before the overlay
+// callback, so the widget overlay composites with LoadOp::Load and never
+// clears the world. It is the public wrapper over the internal marking; the
+// internal RenderFrame marking remains as defense-in-depth (idempotent).
+func (dc *DrawContext) MarkSurfacePreservedForOverlay() bool {
+	return dc.markGoGPUFrameContentForOverlay()
+}
+
 // preserveMarkTarget reports whether the seam can reach a live gogpu context
 // whose active surface can receive the MarkPreserveContent call. Both are
 // returned as booleans so a non-nil but still-born context stays observable;

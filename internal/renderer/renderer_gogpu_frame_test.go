@@ -47,3 +47,52 @@ func drawContextWithGoGPUPrimarySurface(t *testing.T) *DrawContext {
 func setUnexportedReflectField(field, value reflect.Value) {
 	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(value)
 }
+
+// TestMarkPreserveContentOrderingSceneCompositeActive pins ADR-0011 A2:
+// when the scene render target is active (waterwarp/translucent-liquid
+// retargets the world offscreen), the preserve mark must NOT be applied
+// before the scene composite — the surface only holds the composited scene
+// after compositeSceneRenderTarget runs. The mark helper therefore refuses
+// to pre-mark while the scene target is active (returns false), and the
+// warning branch in RenderFrame takes over for the composite ordering.
+func TestMarkPreserveContentOrderingSceneCompositeActive(t *testing.T) {
+	dc := drawContextWithGoGPUPrimarySurface(t)
+	dc.sceneRenderActive = true
+
+	if dc.markGoGPUFrameContentForOverlay() {
+		t.Fatal("markGoGPUFrameContentForOverlay() = true while scene target active — must not pre-mark before scene composite (ADR-0011 A2)")
+	}
+
+	// After the composite completes, the scene target is disabled; the mark
+	// must then succeed so the overlay pass uses LoadOp::Load.
+	dc.sceneRenderActive = false
+	if !dc.markGoGPUFrameContentForOverlay() {
+		t.Fatal("markGoGPUFrameContentForOverlay() = false after scene composite — overlay would clear the composited scene")
+	}
+}
+
+// TestMarkSurfacePreservedForOverlayIsEngineSeam pins the engine-frame seam
+// (M1.2, ADR-0011): MarkSurfacePreservedForOverlay is the public wrapper the
+// game overlay driver calls before painting the widget stack. It must be
+// reachable, idempotent, and refuse to fire while the scene target is active
+// (A2: the mark belongs AFTER the scene composite). The LoadOp::Load effect
+// itself is gogpu's tested contract.
+func TestMarkSurfacePreservedForOverlayIsEngineSeam(t *testing.T) {
+	dc := drawContextWithGoGPUPrimarySurface(t)
+	if dc == nil {
+		t.Fatal("nil DrawContext")
+	}
+	if !dc.MarkSurfacePreservedForOverlay() {
+		t.Fatal("MarkSurfacePreservedForOverlay() = false for a live seam")
+	}
+	// Idempotent: a second call must not fail or panic.
+	if !dc.MarkSurfacePreservedForOverlay() {
+		t.Fatal("MarkSurfacePreservedForOverlay() = false on second call (must be idempotent)")
+	}
+
+	// A2: with the scene target active the seam must refuse to pre-mark.
+	dc.sceneRenderActive = true
+	if dc.MarkSurfacePreservedForOverlay() {
+		t.Fatal("MarkSurfacePreservedForOverlay() = true while scene target active — must wait for the scene composite (ADR-0011 A2)")
+	}
+}

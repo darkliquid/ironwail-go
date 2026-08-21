@@ -384,6 +384,13 @@ func (g *Game) drawRuntimeRendererFrame(dc renderer.RenderContext) {
 	if drawCtx, ok := dc.(*renderer.DrawContext); ok {
 		state := g.buildRuntimeRenderFrameState(brushEntities, aliasEntities, spriteEntities, viewModel)
 		drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
+			// M1.2 seam (ADR-0011 A2): RenderFrame has finished the world
+			// pass (and the scene composite, when the scene target was
+			// active) by the time this callback runs. Mark the surface
+			// preserved so the widget overlay composites with LoadOp::Load
+			// and never clears the world (AC9/AC10). The mark is idempotent
+			// with the internal RenderFrame guard.
+			drawCtx.MarkSurfacePreservedForOverlay()
 			g.drawRuntimeOverlayFrame(overlay)
 		})
 		return
