@@ -260,16 +260,9 @@ func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, heig
 		return r.drawCountLogged(target, width, height)
 	}
 
-	// GPU path finalize: present the pixmap onto the current surface.
-	// Production uses the target-aware ggcanvas Render (borrows the frame's
-	// shared encoder, never submits against a retired surface). Tests and
-	// targets without a live RenderTarget fall back to RenderDirect against
-	// the surface view, then to a readback blit.
-	// GPU path finalize: composite the overlay pixmap onto the preserved
-	// surface via the engine's overlay blend (LoadOpLoad over the world).
-	// Overlay composite: the CPU-readback blit (engine overlay blend,
-	// LoadOp over the preserved world). GPU-direct via gg is deferred: the gg
-	// GPU flush finishes+submits the SHARED gogpu frame encoder itself and
+	// Overlay composite: the CPU-readback blit (engine overlay blend, LoadOp
+	// over the preserved world). GPU-direct via gg is deferred: the gg GPU
+	// flush finishes+submits the SHARED gogpu frame encoder itself and
 	// retains the command buffer across frames (render_session.go), racing
 	// gogpu's swapchain present/release ("references destroyed texture").
 	// See notes/gpu-direct-root-cause.md for the full analysis and the
