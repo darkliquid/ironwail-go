@@ -91,7 +91,24 @@ deferred cross-frame lifetime exists. Not zero-copy, but lifetime-correct.
 3. `s.frameRendered`/frame-state interactions with gogpu's `frameCleared`
    reset must be reconciled (or suppressed when using a shared encoder).
 
-## 6. Cross-references
+## 6. Follow-up finding (accelerator + CPU-blit readback)
+
+Re-enabling the accelerator while the overlay composites via the CPU-readback
+blit made the UI INVISIBLE (inputs still worked). Cause: with the SDF
+accelerator registered, gg routes draw ops to the GPU queue and does NOT
+rasterize into the CPU pixmap, so `ggcanvas.Context().Image()` (the readback
+the blit reads) is empty. The accelerator and the CPU-blit composite are
+mutually exclusive:
+
+- Accelerator ON + GPU-direct flush → swapchain lifetime race (section 3).
+- Accelerator ON + CPU-blit readback → empty pixmap, invisible UI.
+- Accelerator OFF + CPU-blit readback → visible UI, lifetime-safe (current).
+
+So the accelerator import is removed from the engine for now. Re-enabling
+GPU-direct requires one of the section-5 changes (record-only gg flush, or
+offscreen-composition where gogpu owns the single submit).
+
+## 7. Cross-references
 
 - ADR-0011 (Scenario A composite); redraw-model-spike.md (M0.3)
 - gogpu shared frame encoder: `context.go` `CommandEncoder()`, `ensureFrameEncoder()`
