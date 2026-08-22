@@ -243,7 +243,14 @@ func (g *Game) handleMenuKeyEvent(event input.KeyEvent) {
 		return
 	}
 	if g.uiInput != nil {
-		g.forwardUIKey(event)
+		// Forward control/function keys to the UI only; printable ASCII keys
+		// are delivered to the UI as text chars via handleMenuCharEvent (the
+		// platform emits both a key-down and a text-input char for the same
+		// physical key). Forwarding the printable key too would print each
+		// typed character twice in text-entry fields.
+		if event.Key < 32 || event.Key >= 127 || event.Key == input.KBackspace {
+			g.forwardUIKey(event)
+		}
 	} else {
 		g.Menu.M_Key(event.Key)
 	}
@@ -294,7 +301,14 @@ func (g *Game) handleConsoleKeyEvent(event input.KeyEvent) {
 	}
 
 	if g.uiInput != nil {
-		g.forwardUIKey(event)
+		// Forward control/function keys to the UI only. Printable ASCII keys
+		// are NOT forwarded here: the platform delivers them twice (a physical
+		// key down AND a text-input char), and the char arrives via
+		// forwardUIChar in handleGameCharEvent — forwarding the printable key
+		// as well would print each typed character twice in the console.
+		if event.Key < 32 || event.Key >= 127 || event.Key == input.KBackspace {
+			g.forwardUIKey(event)
+		}
 		if event.Key == input.KEscape || event.Key == int('`') {
 			console.ResetCompletion()
 			if g.runtimeConsoleForcedUp() && g.Menu != nil {
