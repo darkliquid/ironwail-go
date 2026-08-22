@@ -48,7 +48,7 @@ func TestInputRouterExclusiveKeyRouting(t *testing.T) {
 	for _, tc := range dests {
 		engine.events = nil
 		ui.events = nil
-		ev := input.KeyEvent{Key: int('w'), Down: true}
+		ev := input.KeyEvent{Key: input.KTab, Down: true}
 		got := router.RouteKeyEvent(ev, tc.dest)
 		if got != tc.want {
 			t.Fatalf("%s: RouteKeyEvent = %q, want %q", tc.name, got, tc.want)
@@ -90,14 +90,26 @@ func TestInputRouterNoDoubleDispatch(t *testing.T) {
 		t.Fatalf("menu key double-dispatched: ui=%d engine=%d, want ui=1 engine=0", ui.count(), engine.count())
 	}
 
-	// Console key (backtick) at console dest: ui only.
+	// Console control key (tab) at console dest: ui only.
 	engine.events = nil
 	ui.events = nil
-	if got := router.RouteKeyEvent(input.KeyEvent{Key: int('`'), Down: true}, input.KeyConsole); got != "ui" {
+	if got := router.RouteKeyEvent(input.KeyEvent{Key: input.KTab, Down: true}, input.KeyConsole); got != "ui" {
 		t.Fatalf("console key routed to %q, want ui", got)
 	}
 	if ui.count() != 1 || engine.count() != 0 {
 		t.Fatalf("console key double-dispatched: ui=%d engine=%d, want ui=1 engine=0", ui.count(), engine.count())
+	}
+
+	// Printable key at console dest must be dropped entirely: the platform
+	// also delivers the text char via the character channel, so forwarding
+	// the key too would print the character twice.
+	engine.events = nil
+	ui.events = nil
+	if got := router.RouteKeyEvent(input.KeyEvent{Key: int('x'), Down: true}, input.KeyConsole); got != "none" {
+		t.Fatalf("printable console key routed to %q, want none (char arrives via text channel)", got)
+	}
+	if ui.count() != 0 || engine.count() != 0 {
+		t.Fatalf("printable console key delivered: ui=%d engine=%d, want 0/0", ui.count(), engine.count())
 	}
 
 	// Gameplay key (w) at game dest: engine only.
@@ -333,8 +345,12 @@ func TestConsoleInputExecutesViaUIOnly(t *testing.T) {
 	overlay.SetConsoleSlideFraction(1.0)
 
 	// Type 'echo hi' and press Enter — through the input System (router peels
-	// KeyConsole to the UI).
+	// KeyConsole to the UI). The platform delivers BOTH a physical key-down
+	// AND a text-input char for each printable key; both are fed here so the
+	// test reproduces the real delivery (guards the double-print bug where
+	// the printable key event AND the char event both reached the console).
 	for _, ch := range "echo hi" {
+		g.Input.HandleKeyEvent(input.KeyEvent{Key: int(ch), Down: true})
 		g.Input.HandleCharEvent(ch)
 	}
 	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
@@ -343,7 +359,7 @@ func TestConsoleInputExecutesViaUIOnly(t *testing.T) {
 		t.Fatal("console command was not executed through the UI widget tree")
 	}
 	if executed[0] != "echo hi" {
-		t.Fatalf("executed cmd = %q, want %q", executed[0], "echo hi")
+		t.Fatalf("executed cmd = %q, want %q — printable key+char double-delivered to the console", executed[0], "echo hi")
 	}
 	if g.Client.InputForward.State&1 != 0 {
 		t.Fatal("console input latched an engine gameplay button (double-dispatch)")

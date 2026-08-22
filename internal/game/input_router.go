@@ -83,6 +83,13 @@ func (r *InputRouter) RouteKeyEvent(ev input.KeyEvent, dest input.KeyDest) strin
 	case input.KeyConsole, input.KeyMenu:
 		// Exclusive: the widget tree consumes menu/console input on path 1.
 		// The engine must NOT also process these (guards double-dispatch).
+		// Printable keys are skipped here: the platform emits both a key-down
+		// and a text-input char for the same physical key, and the rune
+		// arrives via the character channel — forwarding the printable key
+		// too would print each typed character twice in the console/fields.
+		if isPrintableKey(ev.Key) {
+			return "none"
+		}
 		r.ui(ev)
 		return "ui"
 	case input.KeyGame, input.KeyMessage:
@@ -92,4 +99,13 @@ func (r *InputRouter) RouteKeyEvent(ev input.KeyEvent, dest input.KeyDest) strin
 		r.engine(ev)
 		return "engine"
 	}
+}
+
+// isPrintableKey reports whether an engine key code carries a printable ASCII
+// character (32..126, excluding Backspace at 127). The platform delivers both
+// a physical key-down and a text-input char for printable keys; the console
+// and menu receive the printable rune via the character channel only, so the
+// key event must not also forward it (double-print guard).
+func isPrintableKey(key int) bool {
+	return key >= 32 && key < 127
 }
