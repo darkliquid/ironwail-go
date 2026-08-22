@@ -551,8 +551,17 @@ func TestOverlayRenderer_MenuOnGPUCanvasRendersTransform(t *testing.T) {
 	if err := r.DrawOverlay(rc, 640, 480); err != nil {
 		t.Fatalf("DrawOverlay (GPU path): %v", err)
 	}
-	// v4 composite blits the ggcanvas readback over the preserved surface.
-	assertOverlayBlit(t, rc)
+	// The fresh corrected-size draw must deliver visible menu pixels (the
+	// prior stale-size/cached-boundary path produced an empty or top-left
+	// overlay).
+	assertOverlayBlitContent(t, rc)
+
+	// The menu must render near the window center (320x200 menu centered on
+	// 640x480 -> panel spans x[160..480] y[140..340]), not pinned top-left.
+	cx := centerOfPixels(rc.lastImage, 640, 480)
+	if cx < 240 || cx > 400 {
+		t.Fatalf("menu content center x = %d, want within [240..400] for a centered 320x200 panel on 640x480", cx)
+	}
 }
 
 // TestOverlayRenderer_ConsoleOnGPUCanvasRendersDropdown is the M3.2 Scenario A
@@ -722,4 +731,93 @@ func TestOverlayRenderer_WASMLateProviderResolvesLazily(t *testing.T) {
 		t.Fatal("GPU canvas not created after the provider became available (WASM-after-Run resolution failed)")
 	}
 	assertOverlayBlitContent(t, rc)
+}
+
+// centerOfPixels returns the average x of non-transparent pixels (a proxy for
+// where the visible UI content sits horizontally).
+func centerOfPixels(img *image.RGBA, w, h int) int {
+	if img == nil {
+		return -1
+	}
+	sum, count := 0, 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			off := (y*w + x) * 4
+			if img.Pix[off+3] > 0 {
+				sum += x
+				count++
+			}
+		}
+	}
+	if count == 0 {
+		return -1
+	}
+	return sum / count
+}
+
+// TestOverlayRenderer_MenuStateChangeClearsPreviousPage pins the leftover-page
+// bug: switching from the main menu to a sub-menu must not leave the main
+// menu's pixels baked into the next frame. The fresh per-frame transparent
+// clear + draw guarantees each state renders alone.
+func TestOverlayRenderer_MenuStateChangeClearsPreviousPage(t *testing.T) {
+	host := &gpuAwareHost{
+		dummyHost: &dummyHost{},
+		provider:  &mockDeviceProvider{},
+		view:      gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe)),
+	}
+	mgr := legacymenu.NewManager(nil, nil, nil)
+	con := console.NewConsole(1024)
+	_ = con.Init(0)
+	drawMgr := draw.NewManager()
+	conchars := make([]byte, 128*128)
+	for i := range conchars {
+		conchars[i] = byte(i%255 + 1)
+	}
+	palette := make([]byte, 768)
+	for i := range palette {
+		palette[i] = 255
+	}
+	r := NewOverlayRenderer(host, mgr, con, nil, drawMgr, conchars, palette)
+
+	// Draw the main menu.
+	mgr.ShowState(legacymenu.MenuMain)
+	rc1 := &testOverlayRenderContext{}
+	if err := r.DrawOverlay(rc1, 640, 480); err != nil {
+		t.Fatalf("main draw: %v", err)
+	}
+	if !rc1.drawRGBACalled || rc1.lastImage == nil {
+		t.Fatal("main menu did not render")
+	}
+	// Count the pixels that match the main menu header ("MAIN MENU" title area).
+	headerCount1 := countOpaqueInBand(rc1.lastImage, 640, 480, 150, 200, 320, 20)
+
+	// Draw the Single Player sub-menu (state change).
+	mgr.ShowState(legacymenu.MenuSinglePlayer)
+	rc2 := &testOverlayRenderContext{}
+	if err := r.DrawOverlay(rc2, 640, 480); err != nil {
+		t.Fatalf("submenu draw: %v", err)
+	}
+	headerCount2 := countOpaqueInBand(rc2.lastImage, 640, 480, 150, 200, 320, 20)
+
+	// The sub-menu must not carry the main menu's title pixels. Allow a small
+	// tolerance for shared glyphs; a leftover full page would add far more.
+	if headerCount2 > headerCount1*3/2 {
+		t.Fatalf("sub-menu frame retains main-menu pixels: band opaque %d vs main %d", headerCount2, headerCount1)
+	}
+}
+
+// countOpaqueInBand counts non-transparent pixels in the given band.
+func countOpaqueInBand(img *image.RGBA, w, h, bx, by, bw, bh int) int {
+	if img == nil {
+		return 0
+	}
+	count := 0
+	for y := by; y < by+bh && y < h; y++ {
+		for x := bx; x < bx+bw && x < w; x++ {
+			if img.Pix[(y*w+x)*4+3] > 0 {
+				count++
+			}
+		}
+	}
+	return count
 }

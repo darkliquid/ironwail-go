@@ -229,26 +229,23 @@ func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, heig
 		// tree accumulates onto the previous frame: menu items ghost, sub
 		// menus draw over each other, and the cursor stays painted. The
 		// transparent clear leaves the world pass visible under the overlay
-		// (RenderDirect/LoadOp::Load composites on top).
+		// (the composite LoadOp::Loads on top).
 		cc.Identity()
 		cc.Clear()
 
-		// GPU canvas: let the ui window drive the full retained tree
-		// (Window.DrawTo runs layout + draw of the root stack) so widget
-		// state (SetNeedsRedraw/invalidation) is honored, then RenderDirect
-		// composites onto the preserved surface.
-		if r.uiApp == nil || r.uiApp.Window() == nil {
-			// Fall back to the direct-stack draw if the ui app is missing.
-			gpu.Draw(func(dcc *gg.Context) {
-				wi := widget.NewContext()
-				wi.SetWindowSize(geometry.Sz(float32(width), float32(height)))
-				r.stack.Draw(wi, canvas)
-			})
-		} else {
-			gpu.Draw(func(dcc *gg.Context) {
-				r.uiApp.Window().DrawTo(canvas)
-			})
-		}
+		// Draw the widget stack directly into the canvas with a fresh,
+		// correctly-sized widget context (matching the software path). The
+		// ui window's own layout only runs during App.Frame, which the
+		// engine never calls in hosted mode; using it here would keep the
+		// stale default size (top-left menu) and replay cached boundary
+		// scenes (stale cursor, leftover pages). Fresh per-frame layout +
+		// draw matches the G4 full-redraw model exactly.
+		wi := widget.NewContext()
+		wi.SetWindowSize(geometry.Sz(float32(width), float32(height)))
+		r.stack.Layout(wi, geometry.Loose(geometry.Sz(float32(width), float32(height))))
+		gpu.Draw(func(dcc *gg.Context) {
+			r.stack.Draw(wi, canvas)
+		})
 	} else {
 		// Software fallback: clear + draw the tree, then blit via DrawRGBA
 		// (v3 behavior, CPU readback).
