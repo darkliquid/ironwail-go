@@ -267,9 +267,13 @@ func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, heig
 	// the surface view, then to a readback blit.
 	// GPU path finalize: composite the overlay pixmap onto the preserved
 	// surface via the engine's overlay blend (LoadOpLoad over the world).
-	// Without the gg/gpu accelerator (which corrupts the engine's swapchain
-	// lifetime when bound into the same device), RenderDirect/GPU-direct is
-	// unavailable; the proven v3 composite is the CPU-readback blit.
+	// Overlay composite: the CPU-readback blit (engine overlay blend,
+	// LoadOp over the preserved world). GPU-direct via gg is deferred: the gg
+	// GPU flush finishes+submits the SHARED gogpu frame encoder itself and
+	// retains the command buffer across frames (render_session.go), racing
+	// gogpu's swapchain present/release ("references destroyed texture").
+	// See notes/gpu-direct-root-cause.md for the full analysis and the
+	// conditions under which the accelerator path can be re-enabled.
 	if target == nil {
 		r.drawCountLogged(target, width, height)
 		return nil
