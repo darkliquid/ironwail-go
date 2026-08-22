@@ -1,6 +1,6 @@
 # ADR-0011: Engine-Owned Scenario A Composite (MarkPreserveContent) — Supersedes ADR-0010
 
-**Status:** Accepted (2026-08-21)
+**Status:** Amended (2026-08-22) — offscreen-composition refinement (ADR-0016)
 **Deciders:** darkliquid (v4 Stage 1: surface Scenario A), lifecycle driver
 **Date:** 2026-08-21
 **Supersedes:** ADR-0010 (v3: CPU gg.Context + custom WGSL blit + reflection)
@@ -99,3 +99,27 @@ MarkPreserveContent-vs-reflection finding is verified against the v3 source.
 Fix A2 applied: the scene-target caveat (waterwarp retargets the world
 offscreen; MarkPreserveContent must come after the scene composite) is now
 pinned in the Decision Outcome and SPEC-004 §3.3.
+
+## Amendment (2026-08-22) — Offscreen-Composition Composite (ADR-0016)
+
+**This amendment SUPERSEDES the composite description in the Decision Outcome
+above** (the `canvas.RenderDirect(sv, sw, sh)` wording at §Decision Outcome and
+§3.3). The world-preserve seam (`MarkPreserveContent`), the engine-owned loop,
+and the scene-target A2 ordering are unchanged.
+
+The original Decision Outcome described the UI composite as "ggcanvas.Canvas
+(GPU-backed) + render.NewCanvas + window.DrawTo + canvas.RenderDirect". v4
+found `RenderDirect`/`FlushGPUWithView` finishes+submits gogpu's shared frame
+encoder itself, racing the swapchain present/release (research 0009,
+`notes/gpu-direct-root-cause.md`). The composite is amended to the
+**offscreen-composition path**: gg renders the widget tree into the ggcanvas,
+`FlushPixmap()` uploads it to a canvas-owned GPU texture, `PixmapTextureView()`
+exposes it, and a gogpu blit pass records into the shared frame encoder
+sampling that texture onto the swapchain. gg never touches the swapchain image
+and never submits; gogpu owns the single submit (ADR-0016).
+
+## Review Log (Amendment, 2026-08-22)
+
+Verdict: APPROVED. Amendment explicitly supersedes the body's stale
+`canvas.RenderDirect` composite description; the offscreen-composition path
+(ADR-0016) is consistent with SPEC-005 and research 0009.
