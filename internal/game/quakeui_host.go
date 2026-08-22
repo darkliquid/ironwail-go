@@ -1,6 +1,7 @@
 package game
 
 import (
+	"github.com/gogpu/gg/integration/ggcanvas"
 	"github.com/gogpu/gpucontext"
 )
 
@@ -62,4 +63,25 @@ func (h *quakeuiHost) SurfaceView() gpucontext.TextureView {
 		return gpucontext.TextureView{}
 	}
 	return h.g.currentUISurfaceView()
+}
+
+// WindowSize reports the engine's current logical window size (0,0 when no
+// renderer is available). The ui window mirrors it so the 320x200 menu
+// transform and widget layout match the real viewport.
+func (h *quakeuiHost) WindowSize() (width, height int) {
+	if h == nil || h.g == nil || h.g.Renderer == nil {
+		return 0, 0
+	}
+	w, hh := h.g.Renderer.Size()
+	return w, hh
+}
+
+// RenderTarget returns the current frame's gogpu render target for the
+// target-aware ggcanvas composite (canvas.Render), borrowed from the frame's
+// live draw context. Nil when no frame is active.
+func (h *quakeuiHost) RenderTarget() ggcanvas.RenderTarget {
+	if h == nil || h.g == nil {
+		return nil
+	}
+	return h.g.currentUIRenderTarget()
 }

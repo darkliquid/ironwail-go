@@ -2,6 +2,7 @@ package quakeui
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/gogpu/gg/integration/ggcanvas"
 	"github.com/gogpu/gpucontext"
 )
 
@@ -58,4 +59,16 @@ type Host interface {
 	// composite pass. An empty view means the frame has no live surface yet
 	// (the call is skipped; the world pass preserves it via MarkPreserveContent).
 	SurfaceView() gpucontext.TextureView
+
+	// RenderTarget returns the current frame's gogpu render target so the
+	// ggcanvas can composite through the target-aware path (canvas.Render),
+	// which borrows the frame's shared encoder and never submits against a
+	// stale/retired surface view. Returns nil when no frame is active.
+	RenderTarget() ggcanvas.RenderTarget
+
+	// WindowSize returns the engine's current framebuffer/logical window size
+	// (width, height in logical points). The ui window mirrors it so the
+	// 320x200 menu transform and widget layout match the real viewport.
+	// Returns 0,0 when not available.
+	WindowSize() (width, height int)
 }

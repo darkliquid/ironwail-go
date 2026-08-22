@@ -15,6 +15,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/quakeui"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/pkg/types"
+	"github.com/gogpu/gg/integration/ggcanvas"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gpucontext"
 )
@@ -205,6 +206,19 @@ func (g *Game) currentUISurfaceView() gpucontext.TextureView {
 		return view.CurrentSurfaceView()
 	}
 	return gpucontext.TextureView{}
+}
+
+// currentUIRenderTarget returns the current frame's gogpu render target for
+// the target-aware ggcanvas composite (canvas.Render), which borrows the
+// frame's shared encoder so no submission races a retired surface view.
+func (g *Game) currentUIRenderTarget() ggcanvas.RenderTarget {
+	if g.Renderer == nil {
+		return nil
+	}
+	if rt, ok := g.Renderer.(interface{ CurrentRenderTarget() ggcanvas.RenderTarget }); ok {
+		return rt.CurrentRenderTarget()
+	}
+	return nil
 }
 
 // quakeUIPalette returns the engine's 768-byte Quake palette for the UI text

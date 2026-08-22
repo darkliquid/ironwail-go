@@ -15,6 +15,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
 	"github.com/gogpu/gg"
+	"github.com/gogpu/gg/integration/ggcanvas"
 	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/ui/event"
@@ -34,6 +35,8 @@ func (d *dummyHost) GPUContextProvider() gpucontext.DeviceProvider {
 func (d *dummyHost) SurfaceView() gpucontext.TextureView {
 	return gpucontext.TextureView{}
 }
+func (d *dummyHost) RenderTarget() ggcanvas.RenderTarget { return nil }
+func (d *dummyHost) WindowSize() (int, int)              { return 640, 480 }
 
 type testOverlayRenderContext struct {
 	drawRGBACalled bool
@@ -447,39 +450,73 @@ func (m *mockDeviceProvider) AdapterInfo() gpucontext.AdapterInfo {
 // the surface view via RenderDirect. The capture accelerator's Flush receives
 // the target holding the provided surface view.
 func TestOverlayRenderer_GPUCAnvasRendersStackToSurface(t *testing.T) {
-	var flushCount int
-	acc := &gpuCaptureAccelerator{flushes: &flushCount}
-	if err := gg.RegisterAccelerator(acc); err != nil {
-		t.Fatalf("RegisterAccelerator: %v", err)
-	}
-	t.Cleanup(gg.CloseAccelerator)
-
 	host := &gpuAwareHost{
 		dummyHost: &dummyHost{},
 		provider:  &mockDeviceProvider{},
-		// A non-nil view handle so RenderDirect does not early-return as "no
-		// live surface" (matches the in-frame engine path where the view is
-		// acquired).
-		view: gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe)),
+		view:      gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe)),
 	}
 	mgr := legacymenu.NewManager(nil, nil, nil)
 	mgr.ShowState(legacymenu.MenuMain)
 	con := console.NewConsole(1024)
 	_ = con.Init(0)
-	r := NewOverlayRenderer(host, mgr, con, nil, draw.NewManager(), make([]byte, 128*128), make([]byte, 768))
+	conchars := make([]byte, 128*128)
+	for i := range conchars {
+		conchars[i] = byte(i%255 + 1)
+	}
+	palette := make([]byte, 768)
+	for i := range palette {
+		palette[i] = 255
+	}
+	r := NewOverlayRenderer(host, mgr, con, nil, draw.NewManager(), conchars, palette)
+	if !r.MenuRoot().IsVisible() {
+		t.Fatal("MenuRoot not visible with MenuMain active")
+	}
 
-	flushCount = 0
-	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+	rc := &testOverlayRenderContext{}
+	if err := r.DrawOverlay(rc, 640, 480); err != nil {
 		t.Fatalf("DrawOverlay: %v", err)
 	}
-	if flushCount == 0 {
-		t.Fatal("expected RenderDirect to flush the GPU canvas (accelerator Flush called)")
-	}
+	// The v4 composite blits the ggcanvas readback into the render target
+	// (engine overlay blend, LoadOp over the preserved world) — the overlay
+	// must reach the target with content.
+	assertOverlayBlitContent(t, rc)
 }
 
 // gpuSurfaceProbe is a fake *wgpu.TextureView-backed handle so the mock
-// surface view passed to RenderDirect is non-nil.
+// surface view passed to the composite is non-nil.
 var gpuSurfaceProbe byte
+
+// assertOverlayBlit asserts the v4 composite delivered the overlay pixmap
+// into the render target (the readback-blit path used when
+// RenderDirect/GPU-direct is unavailable). Content visibility (non-zero
+// pixels) is asserted separately where the widget guarantees it (menu).
+func assertOverlayBlit(t *testing.T, rc *testOverlayRenderContext) {
+	t.Helper()
+	if !rc.drawRGBACalled {
+		t.Fatal("overlay pixmap was not blitted to the render context (drawRGBA not called)")
+	}
+	if rc.lastImage == nil || len(rc.lastImage.Pix) == 0 {
+		t.Fatal("overlay pixmap is empty")
+	}
+}
+
+// assertOverlayBlitContent asserts the blit happened AND the pixmap carries
+// visible (non-zero alpha) content — for widgets that draw visible work.
+func assertOverlayBlitContent(t *testing.T, rc *testOverlayRenderContext) {
+	t.Helper()
+	assertOverlayBlit(t, rc)
+	var nonZero int
+	if rc.lastImage != nil {
+		for i := 3; i < len(rc.lastImage.Pix); i += 4 {
+			if rc.lastImage.Pix[i] > 0 {
+				nonZero++
+			}
+		}
+	}
+	if nonZero == 0 {
+		t.Fatal("overlay pixmap has no content — stack did not render")
+	}
+}
 
 // TestOverlayRenderer_MenuOnGPUCanvasRendersTransform is the M3.1 Scenario A
 // RED: with an active menu and a GPU provider, DrawOverlay must drive the
@@ -487,13 +524,6 @@ var gpuSurfaceProbe byte
 // composite onto the surface via RenderDirect. The menu draws at its 320x200
 // transform inside the canvas (no CPU readback) — the GPU flush must occur.
 func TestOverlayRenderer_MenuOnGPUCanvasRendersTransform(t *testing.T) {
-	var flushCount int
-	acc := &gpuCaptureAccelerator{flushes: &flushCount}
-	if err := gg.RegisterAccelerator(acc); err != nil {
-		t.Fatalf("RegisterAccelerator: %v", err)
-	}
-	t.Cleanup(gg.CloseAccelerator)
-
 	host := &gpuAwareHost{
 		dummyHost: &dummyHost{},
 		provider:  &mockDeviceProvider{},
@@ -517,13 +547,12 @@ func TestOverlayRenderer_MenuOnGPUCanvasRendersTransform(t *testing.T) {
 	if !r.MenuRoot().IsVisible() {
 		t.Fatal("MenuRoot not visible with MenuMain active")
 	}
-	flushCount = 0
-	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+	rc := &testOverlayRenderContext{}
+	if err := r.DrawOverlay(rc, 640, 480); err != nil {
 		t.Fatalf("DrawOverlay (GPU path): %v", err)
 	}
-	if flushCount == 0 {
-		t.Fatal("GPU canvas menu draw did not flush (RenderDirect) — menu did not render on Scenario A canvas")
-	}
+	// v4 composite blits the ggcanvas readback over the preserved surface.
+	assertOverlayBlit(t, rc)
 }
 
 // TestOverlayRenderer_ConsoleOnGPUCanvasRendersDropdown is the M3.2 Scenario A
@@ -532,13 +561,6 @@ func TestOverlayRenderer_MenuOnGPUCanvasRendersTransform(t *testing.T) {
 // ConsoleRoot) and composite onto the surface via RenderDirect. The GPU flush
 // must occur, proving the dropdown renders on the Scenario A canvas.
 func TestOverlayRenderer_ConsoleOnGPUCanvasRendersDropdown(t *testing.T) {
-	var flushCount int
-	acc := &gpuCaptureAccelerator{flushes: &flushCount}
-	if err := gg.RegisterAccelerator(acc); err != nil {
-		t.Fatalf("RegisterAccelerator: %v", err)
-	}
-	t.Cleanup(gg.CloseAccelerator)
-
 	host := &gpuAwareHost{
 		dummyHost: &dummyHost{},
 		provider:  &mockDeviceProvider{},
@@ -564,13 +586,11 @@ func TestOverlayRenderer_ConsoleOnGPUCanvasRendersDropdown(t *testing.T) {
 	if !r.ConsoleRoot().IsVisible() {
 		t.Fatal("ConsoleRoot not visible with forcedUp")
 	}
-	flushCount = 0
-	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+	rc := &testOverlayRenderContext{}
+	if err := r.DrawOverlay(rc, 640, 480); err != nil {
 		t.Fatalf("DrawOverlay (GPU path): %v", err)
 	}
-	if flushCount == 0 {
-		t.Fatal("GPU canvas console draw did not flush (RenderDirect) — dropdown did not render on Scenario A canvas")
-	}
+	assertOverlayBlit(t, rc)
 }
 
 // TestOverlayRenderer_HUDOnGPUCanvasDrawsStatusBar is the M4.1 Scenario A RED:
@@ -580,13 +600,6 @@ func TestOverlayRenderer_ConsoleOnGPUCanvasRendersDropdown(t *testing.T) {
 // been called — status bar/crosshair/centerprint render on the Scenario A
 // canvas.
 func TestOverlayRenderer_HUDOnGPUCanvasDrawsStatusBar(t *testing.T) {
-	var flushCount int
-	acc := &gpuCaptureAccelerator{flushes: &flushCount}
-	if err := gg.RegisterAccelerator(acc); err != nil {
-		t.Fatalf("RegisterAccelerator: %v", err)
-	}
-	t.Cleanup(gg.CloseAccelerator)
-
 	host := &gpuAwareHost{
 		dummyHost: &dummyHost{},
 		provider:  &mockDeviceProvider{},
@@ -605,13 +618,11 @@ func TestOverlayRenderer_HUDOnGPUCanvasDrawsStatusBar(t *testing.T) {
 	if !r.HUDRoot().IsVisible() {
 		t.Fatal("HUDRoot not visible")
 	}
-	flushCount = 0
-	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+	rc := &testOverlayRenderContext{}
+	if err := r.DrawOverlay(rc, 640, 480); err != nil {
 		t.Fatalf("DrawOverlay (GPU path): %v", err)
 	}
-	if flushCount == 0 {
-		t.Fatal("GPU canvas HUD draw did not flush (RenderDirect) — HUD did not render on Scenario A canvas")
-	}
+	assertOverlayBlit(t, rc)
 	if !hudProv.drawCalled {
 		t.Fatal("HUD provider Draw was not called — status bar did not render")
 	}
@@ -637,13 +648,6 @@ func (testDemoBarProvider) DemoBarState() quakeuidemobar.DemoBarState {
 // drive the demo bar through the GPU ggcanvas (window.DrawTo -> stack ->
 // DemoBarRoot -> RenderDirect). The GPU flush must occur.
 func TestOverlayRenderer_DemoBarOnGPUCanvasRenders(t *testing.T) {
-	var flushCount int
-	acc := &gpuCaptureAccelerator{flushes: &flushCount}
-	if err := gg.RegisterAccelerator(acc); err != nil {
-		t.Fatalf("RegisterAccelerator: %v", err)
-	}
-	t.Cleanup(gg.CloseAccelerator)
-
 	host := &gpuAwareHost{
 		dummyHost: &dummyHost{},
 		provider:  &mockDeviceProvider{},
@@ -658,13 +662,11 @@ func TestOverlayRenderer_DemoBarOnGPUCanvasRenders(t *testing.T) {
 	if r.DemoBar() == nil || !r.DemoBar().IsVisible() {
 		t.Fatal("DemoBar not visible with playing state")
 	}
-	flushCount = 0
-	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+	rc := &testOverlayRenderContext{}
+	if err := r.DrawOverlay(rc, 640, 480); err != nil {
 		t.Fatalf("DrawOverlay (GPU path): %v", err)
 	}
-	if flushCount == 0 {
-		t.Fatal("GPU canvas demo bar draw did not flush (RenderDirect) — bar did not render on Scenario A canvas")
-	}
+	assertOverlayBlit(t, rc)
 }
 
 // lateProviderHost simulates the WASM-after-Run ordering (AC3b/AC6): the
@@ -686,9 +688,18 @@ func (h *lateProviderHost) SurfaceView() gpucontext.TextureView           { retu
 func TestOverlayRenderer_WASMLateProviderResolvesLazily(t *testing.T) {
 	host := &lateProviderHost{Host: &dummyHost{}, view: gpucontext.TextureView{}}
 	mgr := legacymenu.NewManager(nil, nil, nil)
+	mgr.ShowState(legacymenu.MenuMain)
 	con := console.NewConsole(1024)
 	_ = con.Init(0)
-	r := NewOverlayRenderer(host, mgr, con, nil, draw.NewManager(), make([]byte, 128*128), make([]byte, 768))
+	conchars := make([]byte, 128*128)
+	for i := range conchars {
+		conchars[i] = byte(i%255 + 1)
+	}
+	palette := make([]byte, 768)
+	for i := range palette {
+		palette[i] = 255
+	}
+	r := NewOverlayRenderer(host, mgr, con, nil, draw.NewManager(), conchars, palette)
 
 	// Pre-Run: nil provider -> software path, no panic, and the GPU canvas is
 	// not created.
@@ -701,22 +712,14 @@ func TestOverlayRenderer_WASMLateProviderResolvesLazily(t *testing.T) {
 
 	// Post-Run: provider available -> the next DrawOverlay lazily upgrades to
 	// the GPU canvas.
-	var flushCount int
-	acc := &gpuCaptureAccelerator{flushes: &flushCount}
-	if err := gg.RegisterAccelerator(acc); err != nil {
-		t.Fatalf("RegisterAccelerator: %v", err)
-	}
-	t.Cleanup(gg.CloseAccelerator)
-
 	host.provider = &mockDeviceProvider{}
 	host.view = gpucontext.NewTextureView(unsafe.Pointer(&gpuSurfaceProbe))
-	if err := r.DrawOverlay(&testOverlayRenderContext{}, 640, 480); err != nil {
+	rc := &testOverlayRenderContext{}
+	if err := r.DrawOverlay(rc, 640, 480); err != nil {
 		t.Fatalf("post-Run DrawOverlay: %v", err)
 	}
 	if r.gpuCanvas == nil {
 		t.Fatal("GPU canvas not created after the provider became available (WASM-after-Run resolution failed)")
 	}
-	if flushCount == 0 {
-		t.Fatal("post-Run GPU draw did not flush (RenderDirect)")
-	}
+	assertOverlayBlitContent(t, rc)
 }

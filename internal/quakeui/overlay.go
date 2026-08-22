@@ -65,6 +65,25 @@ type OverlayRenderer struct {
 	lastLogHUDVis  bool
 }
 
+// hostWindowProvider adapts the engine Host to gpucontext.WindowProvider so
+// the ui window mirrors the engine's real viewport (size + redraw requests).
+// The engine owns the frame loop; RequestRedraw is a no-op here because the
+// engine drives each frame (continuous on native, rAF on wasm).
+type hostWindowProvider struct {
+	host Host
+}
+
+func (w *hostWindowProvider) Size() (width, height int) {
+	if w == nil || w.host == nil {
+		return 0, 0
+	}
+	return w.host.WindowSize()
+}
+
+func (w *hostWindowProvider) ScaleFactor() float64 { return 1.0 }
+
+func (w *hostWindowProvider) RequestRedraw() {}
+
 // NewOverlayRenderer constructs an OverlayRenderer with the standard Quake UI
 // widget stack. It also creates the gogpu/ui app (headless construction is
 // safe before gogpu.Run, ADR-0011) and installs the stack as its window root
@@ -86,10 +105,14 @@ func NewOverlayRenderer(
 
 	stack := NewStack(hudRoot, conRoot, menuRoot, demoBar)
 
-	// Create the ui app once at startup (G11). No window provider: the engine
-	// owns the window loop; the app window is only the retained widget-tree
-	// host (headless defaults, DrawTo contract). The engine drives drawing.
-	a := uiapp.New(uiapp.WithRenderMode(uiapp.RenderModeHostManaged))
+	// Create the ui app once at startup (G11). The window provider mirrors the
+	// engine's real framebuffer size so widget layout and the 320x200 menu
+	// transform match the viewport; the engine still owns the frame loop and
+	// the app window is only the retained widget-tree host (DrawTo contract).
+	a := uiapp.New(
+		uiapp.WithRenderMode(uiapp.RenderModeHostManaged),
+		uiapp.WithWindowProvider(&hostWindowProvider{host: host}),
+	)
 	a.SetRoot(stack)
 
 	return &OverlayRenderer{
@@ -201,6 +224,15 @@ func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, heig
 	r.stack.Layout(ctx, geometry.Loose(geometry.Sz(float32(width), float32(height))))
 
 	if gpu != nil {
+		// GPU canvas: clear transparent first — HostManaged DrawTo does NOT
+		// clear (the host paints the background), so without this the widget
+		// tree accumulates onto the previous frame: menu items ghost, sub
+		// menus draw over each other, and the cursor stays painted. The
+		// transparent clear leaves the world pass visible under the overlay
+		// (RenderDirect/LoadOp::Load composites on top).
+		cc.Identity()
+		cc.Clear()
+
 		// GPU canvas: let the ui window drive the full retained tree
 		// (Window.DrawTo runs layout + draw of the root stack) so widget
 		// state (SetNeedsRedraw/invalidation) is honored, then RenderDirect
@@ -231,31 +263,49 @@ func (r *OverlayRenderer) DrawOverlay(target renderer.RenderContext, width, heig
 		return r.drawCountLogged(target, width, height)
 	}
 
-	// GPU path finalize: present the pixmap onto the current surface view.
+	// GPU path finalize: present the pixmap onto the current surface.
+	// Production uses the target-aware ggcanvas Render (borrows the frame's
+	// shared encoder, never submits against a retired surface). Tests and
+	// targets without a live RenderTarget fall back to RenderDirect against
+	// the surface view, then to a readback blit.
+	// GPU path finalize: composite the overlay pixmap onto the preserved
+	// surface via the engine's overlay blend (LoadOpLoad over the world).
+	// Without the gg/gpu accelerator (which corrupts the engine's swapchain
+	// lifetime when bound into the same device), RenderDirect/GPU-direct is
+	// unavailable; the proven v3 composite is the CPU-readback blit.
 	if target == nil {
 		r.drawCountLogged(target, width, height)
 		return nil
 	}
-	sv := r.host.SurfaceView()
-	if sv.IsNil() {
-		r.drawCountLogged(target, width, height)
+	r.blitToTarget(target, r.gpuCanvasContextImage(gpu))
+	return r.drawCountLogged(target, width, height)
+}
+
+// gpuCanvasContextImage returns the ggcanvas's CPU pixmap as RGBA (the readback
+// used when the GPU-direct composite is unavailable).
+func (r *OverlayRenderer) gpuCanvasContextImage(gpu *ggcanvas.Canvas) *image.RGBA {
+	if gpu == nil || gpu.Context() == nil {
 		return nil
 	}
-	w, h := gpu.Size()
-	if err := gpu.RenderDirect(sv, uint32(w), uint32(h)); err != nil {
-		// Graceful degradation: when the gg GPU accelerator is unavailable
-		// (software adapter, unbound device, or CPU-only setup) RenderDirect
-		// falls back with an error. Preserve the UI by blitting the CPU
-		// readback through the render context instead of failing the frame
-		// (AC3a/AC3c: software/headless must not break the overlay).
-		slog.Warn("quakeui overlay: RenderDirect fell back to CPU; blitting readback", "error", err)
-		if img := gpu.Context().Image(); img != nil {
-			if rgba, ok := img.(*image.RGBA); ok {
-				target.DrawRGBA(0, 0, rgba)
-			}
-		}
+	img := gpu.Context().Image()
+	if rgba, ok := img.(*image.RGBA); ok {
+		return rgba
 	}
-	return r.drawCountLogged(target, width, height)
+	return nil
+}
+
+// blitToTarget draws the RGBA pixmap through the render context. Uses the
+// fresh-texture draw when available so the cached engine overlay texture
+// (whose lifetime may be retired by a surface retarget) is never reused.
+func (r *OverlayRenderer) blitToTarget(target renderer.RenderContext, rgba *image.RGBA) {
+	if target == nil || rgba == nil {
+		return
+	}
+	if fr, ok := target.(interface{ DrawRGBAFresh(int, int, *image.RGBA) }); ok {
+		fr.DrawRGBAFresh(0, 0, rgba)
+	} else {
+		target.DrawRGBA(0, 0, rgba)
+	}
 }
 
 // drawCountLogged centralizes the per-frame draw-count telemetry that the v3

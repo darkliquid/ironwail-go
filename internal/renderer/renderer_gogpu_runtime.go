@@ -18,6 +18,7 @@ import (
 	// gg_accelerator_wasm.go (js stub) so ggcanvas.RenderDirect can GPU-flush
 	// on native without breaking the browser build (wgpu/core is excluded on
 	// js/wasm).
+	"github.com/gogpu/gg/integration/ggcanvas"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/input"
 	"github.com/gogpu/gpucontext"
@@ -62,6 +63,21 @@ func (r *Renderer) CurrentSurfaceView() gpucontext.TextureView {
 		return gpucontext.TextureView{}
 	}
 	return r.currentDrawCtx.ctx.RenderTarget().SurfaceView()
+}
+
+// CurrentRenderTarget returns the current frame's gogpu render target for the
+// target-aware ggcanvas composite (canvas.Render), which borrows the frame's
+// shared encoder and never submits against a stale surface. Nil when no draw
+// context is active.
+// CurrentRenderTarget returns the current frame's gogpu render target for the
+// target-aware ggcanvas composite (canvas.Render), which borrows the frame's
+// shared encoder and never submits against a stale surface. Nil when no draw
+// context is active.
+func (r *Renderer) CurrentRenderTarget() ggcanvas.RenderTarget {
+	if r == nil || r.currentDrawCtx == nil || r.currentDrawCtx.ctx == nil {
+		return nil
+	}
+	return r.currentDrawCtx.ctx.RenderTarget()
 }
 
 func New() (*Renderer, error) {

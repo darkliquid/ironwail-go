@@ -582,6 +582,20 @@ func transformCanvasPointToScreen(transform DrawTransform, screenW, screenH, x, 
 
 // DrawRGBA draws an RGBA image at screen coordinates (x, y) with alpha blending onto the active render context.
 func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
+	dc.drawRGBA(x, y, img, false)
+}
+
+// DrawRGBAFresh is like DrawRGBA but always uploads a fresh texture, never
+// reusing the cached overlay texture. Used by the v4 Scenario A overlay
+// fallback (ADR-0011): when RenderDirect CPU-falls-back, the cached texture
+// may reference a surface/retarget that was already released, causing
+// "resource already released" submits. A fresh per-frame texture has a
+// lifetime tied to the current frame.
+func (dc *DrawContext) DrawRGBAFresh(x, y int, img *stdimage.RGBA) {
+	dc.drawRGBA(x, y, img, true)
+}
+
+func (dc *DrawContext) drawRGBA(x, y int, img *stdimage.RGBA, fresh bool) {
 	if img == nil || dc == nil || dc.renderer == nil {
 		return
 	}
@@ -602,7 +616,12 @@ func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
 
 	r := dc.renderer
 	r.mu.Lock()
-	if r.uiOverlayTexture != nil && r.uiOverlayTextureWidth == w && r.uiOverlayTextureHeight == h {
+	cached := !fresh && r.uiOverlayTexture != nil && r.uiOverlayTextureWidth == w && r.uiOverlayTextureHeight == h
+	if !cached && r.uiOverlayTexture != nil {
+		r.uiOverlayTexture.Destroy()
+		r.uiOverlayTexture = nil
+	}
+	if cached {
 		tex := r.uiOverlayTexture
 		r.mu.Unlock()
 		if err := tex.UpdateData(img.Pix); err != nil {
@@ -614,11 +633,6 @@ func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
 		}
 		return
 	}
-
-	if r.uiOverlayTexture != nil {
-		r.uiOverlayTexture.Destroy()
-		r.uiOverlayTexture = nil
-	}
 	r.mu.Unlock()
 
 	tex, err := uploadRGBAThruGogpu(dc.ctx, w, h, img.Pix)
@@ -626,11 +640,13 @@ func (dc *DrawContext) DrawRGBA(x, y int, img *stdimage.RGBA) {
 		slog.Error("DrawRGBA: texture upload failed", "error", err)
 		return
 	}
-	r.mu.Lock()
-	r.uiOverlayTexture = tex
-	r.uiOverlayTextureWidth = w
-	r.uiOverlayTextureHeight = h
-	r.mu.Unlock()
+	if !fresh {
+		r.mu.Lock()
+		r.uiOverlayTexture = tex
+		r.uiOverlayTextureWidth = w
+		r.uiOverlayTextureHeight = h
+		r.mu.Unlock()
+	}
 
 	if !dc.renderOverlayTextureHAL(tex) {
 		slog.Error("DrawRGBA: renderOverlayTextureHAL failed (new texture)")
