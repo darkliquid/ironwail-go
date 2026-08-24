@@ -77,11 +77,11 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 
-	// Create command encoder
-	slog.Debug("renderWorldInternal: creating command encoder")
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{
-		Label: "World Render Command Encoder",
-	})
+	// Obtain the frame's command encoder. When the frame graph is live this is
+	// the single shared encoder every stage records into; otherwise we create a
+	// private encoder so this stage still works standalone.
+	slog.Debug("renderWorldInternal: obtaining command encoder")
+	encoder, encoderOwned, err := dc.frameEncoder(device, "World Render Command Encoder")
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to create command encoder", "error", err)
 		return
@@ -151,21 +151,38 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Warn("renderWorldInternal: invalid viewport size", "w", w, "h", h)
 	}
 
-	// Update uniform buffer with VP matrix
+	// SINGLE-SUBMIT UNIFORM MODEL: the whole frame submits once, so we cannot
+	// overwrite the uniform buffer at a fixed offset between passes the way the
+	// old per-pass-submit code did — gogpu flushes every queued WriteBuffer
+	// before the single command buffer runs, so only the LAST write to offset 0
+	// would be visible to ALL draws. Instead each distinct uniform state gets its
+	// OWN dynamic offset via allocateUniformBuffer, and we re-bind group 0 to that
+	// offset. The scratch is flushed to the GPU buffer once at the end of the
+	// pass, and because every draw references its own offset the values stay
+	// correct.
 	vpMatrix := dc.renderer.ViewProjectionMatrix()
 	camera := dc.renderer.cameraState
 	cameraOrigin, fogDensity, timeValue := gogpuWorldUniformInputs(state, camera)
 	currentLitWater := float32(0)
-	var uniformBytes [worldUniformBufferSize]byte
-	fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, worldFogUniformDensity(fogDensity), timeValue, 1, currentLitWater)
-	slog.Debug("renderWorldInternal: VP matrix",
-		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
-	slog.Debug("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
-	err = queue.WriteBuffer(dc.renderer.resources.UniformBuffer, 0, uniformBytes[:])
-	if err != nil {
-		slog.Error("renderWorldInternal: Failed to update uniform buffer", "error", err)
-		_ = renderPass.End()
-		return
+
+	// worldPassUniformBase records where this pass's uniform writes begin in the
+	// shared scratch so we can flush exactly that region before submitting.
+	worldPassUniformBase := dc.renderer.uniformOffset
+
+	// bindWorldUniformOffset binds group 0 to a freshly-allocated dynamic offset
+	// holding one uniform state. Returns false if the buffer could not grow.
+	bindWorldUniformOffset := func(alpha, litWater, activeFogDensity float32, externalSky bool) bool {
+		offset, uData := dc.renderer.allocateUniformBuffer(worldUniformBufferSize)
+		if uData == nil {
+			return false
+		}
+		if externalSky {
+			fillWorldSceneUniformBytesWithExternalSkyWind(uData, vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, dc.renderer.worldSkyExternalWind, dc.renderer.resources.WorldSkyExternalWindLoaded)
+		} else {
+			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, alpha, litWater)
+		}
+		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, []uint32{offset})
+		return true
 	}
 
 	// Set vertex buffer
@@ -176,14 +193,15 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	slog.Debug("renderWorldInternal: setting index buffer", "buffer", fmt.Sprintf("%T", dc.renderer.worldIndexBuffer), "count", dc.renderer.worldIndexCount)
 	renderPass.SetIndexBuffer(dc.renderer.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
 
-	// Set uniform bind group.
+	// Bind the base uniform state (alpha=1, no lit water, default fog) at a
+	// freshly allocated dynamic offset. Binding 0 is a dynamic-uniform buffer;
+	// strict-validating browsers reject SetBindGroup with 0 offsets for a layout
+	// with 1 dynamic buffer, and under single-submit every state must live at its
+	// own offset rather than overwriting offset 0.
 	if dc.renderer.resources.UniformBindGroup != nil {
-		slog.Debug("renderWorldInternal: setting bind group", "group", fmt.Sprintf("%T", dc.renderer.resources.UniformBindGroup))
-		// Binding 0 is a dynamic-uniform buffer; the world path writes its
-		// scene uniforms at offset 0 each frame, so supply the single dynamic
-		// offset the layout declares (strict-validating browsers reject
-		// SetBindGroup with 0 offsets for a layout with 1 dynamic buffer).
-		renderPass.SetBindGroup(0, dc.renderer.resources.UniformBindGroup, []uint32{0})
+		if !bindWorldUniformOffset(1, currentLitWater, worldFogUniformDensity(fogDensity), false) {
+			slog.Warn("renderWorldInternal: failed to bind base world uniform offset")
+		}
 	} else {
 		slog.Warn("renderWorldInternal: NO uniform bind group set")
 	}
@@ -223,6 +241,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
 	currentAlpha := float32(1)
 	currentFogDensity := worldFogUniformDensity(fogDensity)
+	// Each writer allocates a NEW dynamic offset for the new state and re-binds
+	// group 0 to it. The dedup guard (currentAlpha/litWater/fogDensity) still
+	// avoids redundant rebinds when the state has not actually changed.
 	writeWorldUniformWithFog := func(alpha float32, litWater float32, activeFogDensity float32) bool {
 		if currentAlpha == alpha && currentLitWater == litWater && currentFogDensity == activeFogDensity {
 			return true
@@ -230,8 +251,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		currentAlpha = alpha
 		currentLitWater = litWater
 		currentFogDensity = activeFogDensity
-		fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, alpha, litWater)
-		return queue.WriteBuffer(dc.renderer.resources.UniformBuffer, 0, uniformBytes[:]) == nil
+		return bindWorldUniformOffset(alpha, litWater, activeFogDensity, false)
 	}
 	writeWorldUniform := func(alpha float32, litWater float32) bool {
 		return writeWorldUniformWithFog(alpha, litWater, worldFogUniformDensity(fogDensity))
@@ -240,8 +260,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		currentAlpha = 1
 		currentLitWater = 0
 		currentFogDensity = activeFogDensity
-		fillWorldSceneUniformBytesWithExternalSkyWind(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, dc.renderer.worldSkyExternalWind, dc.renderer.resources.WorldSkyExternalWindLoaded)
-		return queue.WriteBuffer(dc.renderer.resources.UniformBuffer, 0, uniformBytes[:]) == nil
+		return bindWorldUniformOffset(1, 0, activeFogDensity, true)
 	}
 	cameraLeafIndex := worldLeafIndex(worldData.Geometry.Tree, camera.Origin)
 	cacheEntry := dc.renderer.gogpuWorldBatchCacheEntry(cameraLeafIndex, liquidAlpha)
@@ -433,10 +452,19 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)
 	}
 
-	if IsGlobalPassEnabled(PassTranslucentLiquids) {
-		if err := dc.renderWorldTranslucentPass(renderPass, translucentLiquidFaces, worldHasLitWater, liquidAlpha, writeWorldUniform); err != nil {
-			slog.Warn("renderWorldInternal: translucent liquid pass error", "error", err)
-		}
+	// Translucent world liquid faces are NOT drawn here. They are deferred to
+	// the entity translucent phase so they render AFTER opaque entities — C
+	// Ironwail draws R_DrawWater(true) after R_DrawEntitiesOnList(false). If we
+	// drew them now (before entities), opaque brushes/models would overwrite the
+	// already-blended water and appear in front of it. Stash them for the
+	// deferred pass (renderDeferredTranslucentWorldLiquidHAL) instead.
+	if IsGlobalPassEnabled(PassTranslucentLiquids) && len(translucentLiquidFaces) > 0 {
+		dc.renderer.deferredTranslucentLiquidFaces = append(dc.renderer.deferredTranslucentLiquidFaces[:0], translucentLiquidFaces...)
+		dc.renderer.deferredTranslucentLiquidAlpha = liquidAlpha
+		dc.renderer.deferredTranslucentLiquidLitWater = worldHasLitWater
+		dc.renderer.deferredTranslucentLiquidValid = true
+	} else {
+		dc.renderer.deferredTranslucentLiquidValid = false
 	}
 
 	// End render pass
@@ -455,31 +483,24 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("external sky world render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
 
-	// Finish encoding and get command buffer
+	// Flush this pass's uniform scratch region to the GPU buffer. Every draw
+	// recorded above references a distinct dynamic offset within this region, so
+	// one contiguous WriteBuffer covering [base, offset) makes all of those
+	// states visible to the GPU before the single frame submit executes them.
+	if dc.renderer.uniformOffset > worldPassUniformBase {
+		_ = queue.WriteBuffer(dc.renderer.resources.UniformBuffer, uint64(worldPassUniformBase), dc.renderer.uniformDataScratch[worldPassUniformBase:dc.renderer.uniformOffset])
+	}
+
+	// Finish encoding and submit. In frame-graph mode this stage's commands are
+	// already in the shared encoder and endFrameGraph submits them together with
+	// every other stage; standalone mode finishes and submits the private
+	// encoder. Either way the recorded draw work is identical.
 	if logExternalSkySubmit {
 		slog.Debug("external sky world encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Error("renderWorldInternal: Failed to finish command encoding", "error", err)
-		return
-	}
-	if logExternalSkySubmit {
-		slog.Debug("external sky world encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
-	}
-
-	// Submit to queue
-	slog.Debug("renderWorldInternal: submitting to queue")
-	if logExternalSkySubmit {
-		slog.Debug("external sky world queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
-	}
 	submitStart := time.Now()
-	_, err = queue.Submit(cmdBuffer)
+	dc.frameSubmit(queue, encoder, encoderOwned, "World Render Command Encoder")
 	submitMS = float64(time.Since(submitStart)) / float64(time.Millisecond)
-	if err != nil {
-		slog.Error("renderWorldInternal: Failed to submit render commands", "error", err)
-		return
-	}
 	if logExternalSkySubmit {
 		slog.Debug("external sky world queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName, "submit_ms", submitMS)
 		dc.renderer.resources.WorldSkyExternalWorldDrawLogged = true
@@ -564,7 +585,7 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor types.Vec3, fog
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "External World Sky Overlay Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "External World Sky Overlay Encoder")
 	if err != nil {
 		slog.Warn("external world sky overlay: failed to create encoder", "error", err)
 		return
@@ -611,15 +632,7 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor types.Vec3, fog
 		slog.Warn("external world sky overlay: render pass end error", "error", err)
 		return
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("external world sky overlay: failed to finish encoding", "error", err)
-		return
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("external world sky overlay: failed to submit", "error", err)
-		return
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "External World Sky Overlay Encoder")
 	slog.Debug("external world sky overlay rendered", "subsystem", externalSkyboxLogSubsystem, "name", name, "sky_faces", len(skyFaces), "indices", drawnIndices)
 }
 
@@ -761,7 +774,7 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "GoGPU Shared Depth Clear Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "GoGPU Shared Depth Clear Encoder")
 	if err != nil {
 		slog.Warn("clearGoGPUSharedDepthStencil: failed to create encoder", "error", err)
 		return
@@ -783,12 +796,5 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 	if err := renderPass.End(); err != nil {
 		slog.Warn("clearGoGPUSharedDepthStencil: render pass end error", "error", err)
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("clearGoGPUSharedDepthStencil: failed to finish encoding", "error", err)
-		return
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("clearGoGPUSharedDepthStencil: failed to submit clear pass", "error", err)
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "GoGPU Shared Depth Clear Encoder")
 }

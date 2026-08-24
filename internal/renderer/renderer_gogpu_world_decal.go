@@ -281,7 +281,7 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Decal Render Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Decal Render Encoder")
 	if err != nil {
 		slog.Warn("failed to create decal encoder", "error", err)
 		return
@@ -335,14 +335,7 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderDecalMarksHAL: render pass end error", "error", err)
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish decal encoding", "error", err)
-		return
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit decal commands", "error", err)
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Decal Render Encoder")
 }
 
 func prepareGoGPUDecalHALDraws(draws []decalDraw) []worldgogpu.PreparedDecalDraw {

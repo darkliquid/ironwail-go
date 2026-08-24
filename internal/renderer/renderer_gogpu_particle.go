@@ -17,6 +17,11 @@ const (
 	particleBatchCapacity     = 512
 )
 
+// particleVertexStride is the byte size of one particle vertex, used both to
+// size the scratch buffer and to convert byte offsets into Draw's firstVertex
+// argument (which is vertex-indexed, not byte-indexed).
+const particleVertexStride = uint64(unsafe.Sizeof(ParticleVertex{}))
+
 const particleVertexShaderWGSL = `
 struct ParticleInstance {
     @location(0) position: vec3<f32>,
@@ -223,10 +228,15 @@ func (r *Renderer) ensureParticleResourcesLocked(device *wgpu.Device) error {
 
 	scratchBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Particle Scratch Buffer",
-		Size:             uint64(particleBatchCapacity) * uint64(unsafe.Sizeof(ParticleVertex{})),
+		Size:             uint64(particleBatchCapacity) * particleVertexStride,
 		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
+	if err == nil {
+		// Track capacity so the draw pass can grow the buffer when a frame has
+		// more particles than the initial single-batch allocation.
+		r.particleScratchBufferSize = uint64(particleBatchCapacity) * particleVertexStride
+	}
 	if err != nil {
 		fragmentShader.Release()
 		vertexShader.Release()
@@ -404,7 +414,7 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Particle Render Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Particle Render Encoder")
 	if err != nil {
 		slog.Warn("failed to create particle encoder", "error", err)
 		return
@@ -431,31 +441,83 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
 
-	for len(drawVertices) > 0 {
-		batch := drawVertices
-		if len(batch) > particleBatchCapacity {
-			batch = drawVertices[:particleBatchCapacity]
+	// Batch the particle draw. Each batch re-uses the same scratch buffer, so
+	// we upload batch N's vertices right before drawing batch N. In frame-graph
+	// mode the whole frame submits once at the end, and gogpu flushes every
+	// queued WriteBuffer before the command buffer. To keep each batch's
+	// vertices distinct under that single-submit model, we accumulate ALL
+	// batches into one buffer up front and draw each batch at its own vertex
+	// offset, instead of overwriting the buffer per batch. The buffer is sized
+	// for particleBatchCapacity*stride per batch; we grow it as needed.
+	totalVertices := len(drawVertices)
+	if totalVertices > 0 {
+		// Ensure the scratch buffer can hold every batch's vertices at once.
+		needBytes := uint64(totalVertices) * particleVertexStride
+		r.mu.Lock()
+		if r.particleScratchBufferSize < needBytes {
+			// The old buffer may still be referenced by an in-flight command
+			// buffer from a prior frame (single-submit defers submission), so we
+			// must NOT Release() it immediately. Route it through the renderer's
+			// deferred-release queue, which holds it for 2 frames — long enough
+			// for any outstanding submit to finish.
+			if r.particleScratchBuffer != nil {
+				old := r.particleScratchBuffer
+				r.enqueueReleaseLocked(func() { old.Release() })
+				r.particleScratchBuffer = nil
+			}
+			buf, bErr := device.CreateBuffer(&wgpu.BufferDescriptor{
+				Label:            "Particle Scratch Buffer",
+				Size:             needBytes,
+				Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
+				MappedAtCreation: false,
+			})
+			if bErr != nil {
+				r.mu.Unlock()
+				slog.Warn("failed to grow particle scratch buffer", "error", bErr)
+				return
+			}
+			r.particleScratchBuffer = buf
+			r.particleScratchBufferSize = needBytes
+			scratchBuffer = buf
 		}
-		if err := queue.WriteBuffer(scratchBuffer, 0, particleVertexBytes(batch)); err != nil {
-			slog.Warn("failed to upload particle vertices", "error", err)
-			break
+		r.mu.Unlock()
+
+		// Upload every batch's vertices contiguously, recording the byte offset
+		// of each batch so the draw loop can reference them without rewriting.
+		batchByteOffsets := make([]uint64, 0, (totalVertices+particleBatchCapacity-1)/particleBatchCapacity)
+		writeOffset := uint64(0)
+		for remaining := drawVertices; len(remaining) > 0; {
+			batch := remaining
+			if len(batch) > particleBatchCapacity {
+				batch = remaining[:particleBatchCapacity]
+			}
+			batchBytes := particleVertexBytes(batch)
+			if err := queue.WriteBuffer(scratchBuffer, writeOffset, batchBytes); err != nil {
+				slog.Warn("failed to upload particle vertices", "error", err)
+				break
+			}
+			batchByteOffsets = append(batchByteOffsets, writeOffset)
+			writeOffset += uint64(len(batchBytes))
+			remaining = remaining[len(batch):]
 		}
-		renderPass.Draw(4, uint32(len(batch)), 0, 0)
-		drawVertices = drawVertices[len(batch):]
+
+		// Draw each batch from its own offset. Draw's firstVertex is in units of
+		// vertices, so convert the byte offset using the vertex stride.
+		for i := range batchByteOffsets {
+			firstVertex := uint32(batchByteOffsets[i] / particleVertexStride)
+			batchCount := particleBatchCapacity
+			if i == len(batchByteOffsets)-1 {
+				batchCount = totalVertices - i*particleBatchCapacity
+			}
+			renderPass.Draw(4, uint32(batchCount), firstVertex, 0)
+		}
 	}
 
 	if err := renderPass.End(); err != nil {
 		slog.Warn("failed to end particle render pass", "error", err)
 		return
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish particle encoder", "error", err)
-		return
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit particle commands", "error", err)
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Particle Render Encoder")
 }
 
 func particleDepthAttachmentForView(view *wgpu.TextureView) *wgpu.RenderPassDepthStencilAttachment {

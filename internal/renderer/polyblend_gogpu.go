@@ -246,7 +246,7 @@ func (dc *DrawContext) renderPolyBlendHAL(blend [4]float32) {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "PolyBlend Render Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "PolyBlend Render Encoder")
 	if err != nil {
 		slog.Warn("failed to create polyblend encoder", "error", err)
 		return
@@ -281,15 +281,7 @@ func (dc *DrawContext) renderPolyBlendHAL(blend [4]float32) {
 		slog.Warn("failed to end polyblend render pass", "error", err)
 		return
 	}
-
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish polyblend encoding", "error", err)
-		return
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit polyblend commands", "error", err)
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "PolyBlend Render Encoder")
 }
 
 func polyBlendUniformBytes(blend [4]float32) []byte {

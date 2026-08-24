@@ -134,7 +134,8 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		}
 		_ = buf.Unmap()
 		vertexScratchBuffer = buf
-		defer vertexScratchBuffer.Release()
+		// Released via frameReleaseBuffers below (deferred in frame-graph mode).
+		defer func() { dc.frameReleaseBuffers([]*wgpu.Buffer{vertexScratchBuffer}) }()
 	}
 	if len(scratch.indexData) > 0 {
 		iSize := uint64(len(scratch.indexData))
@@ -153,10 +154,10 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		}
 		_ = buf.Unmap()
 		indexScratchBuffer = buf
-		defer indexScratchBuffer.Release()
+		defer func() { dc.frameReleaseBuffers([]*wgpu.Buffer{indexScratchBuffer}) }()
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Entity Render Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Brush Entity Render Encoder")
 	if err != nil {
 		slog.Warn("failed to create brush entity encoder", "error", err)
 		return
@@ -302,17 +303,10 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderOpaqueBrushEntitiesHAL: render pass end error", "error", err)
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish brush entity encoding", "error", err)
-		return
-	}
 	if r.uniformOffset > passStartUniformOffset {
 		_ = queue.WriteBuffer(uniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
 	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit brush entity commands", "error", err)
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Brush Entity Render Encoder")
 }
 
 func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColor types.Vec3, fogDensity float32) {
@@ -378,7 +372,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	}
 	skyFogDensity := gogpuWorldSkyFogDensity(treeEntities, fogDensity)
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Sky Render Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Brush Sky Render Encoder")
 	if err != nil {
 		slog.Warn("failed to create brush sky encoder", "error", err)
 		return
@@ -509,35 +503,15 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderSkyBrushEntitiesHAL: render pass end error", "error", err)
 	}
-	if logExternalSkyDraw {
-		slog.Debug("external sky brush render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
-		slog.Debug("external sky brush encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
-	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish brush sky encoding", "error", err)
-		for _, buffer := range buffers {
-			buffer.Release()
-		}
-		return
-	}
-	if logExternalSkyDraw {
-		slog.Debug("external sky brush encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
-		slog.Debug("external sky brush queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
-	}
 	if r.uniformOffset > passStartUniformOffset {
 		_ = queue.WriteBuffer(uniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
 	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit brush sky commands", "error", err)
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Brush Sky Render Encoder")
 	if logExternalSkyDraw {
 		slog.Debug("external sky brush queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", r.resources.WorldSkyExternalName)
 		r.resources.WorldSkyExternalBrushDrawLogged = true
 	}
-	for _, buffer := range buffers {
-		buffer.Release()
-	}
+	dc.frameReleaseBuffers(buffers)
 }
 
 func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity, fogColor types.Vec3, fogDensity float32) {
@@ -670,7 +644,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		}
 		_ = buf.Unmap()
 		vertexScratchBuffer = buf
-		defer vertexScratchBuffer.Release()
+		defer func() { dc.frameReleaseBuffers([]*wgpu.Buffer{vertexScratchBuffer}) }()
 	}
 	if len(scratch.indexData) > 0 {
 		iSize := uint64(len(scratch.indexData))
@@ -689,10 +663,10 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		}
 		_ = buf.Unmap()
 		indexScratchBuffer = buf
-		defer indexScratchBuffer.Release()
+		defer func() { dc.frameReleaseBuffers([]*wgpu.Buffer{indexScratchBuffer}) }()
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Liquid Render Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Brush Liquid Render Encoder")
 	if err != nil {
 		slog.Warn("failed to create brush liquid encoder", "error", err)
 		return
@@ -780,17 +754,10 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderOpaqueLiquidBrushEntitiesHAL: render pass end error", "error", err)
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish brush liquid encoding", "error", err)
-		return
-	}
 	if r.uniformOffset > passStartUniformOffset {
 		_ = queue.WriteBuffer(uniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
 	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit brush liquid commands", "error", err)
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Brush Liquid Render Encoder")
 }
 
 // ---- merged from world_alias_gogpu_root.go ----

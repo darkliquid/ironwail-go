@@ -404,7 +404,7 @@ func (dc *DrawContext) clearCurrentHALRenderTarget(clearColor [4]float32) {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Scene Target Clear Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Scene Target Clear Encoder")
 	if err != nil {
 		return
 	}
@@ -421,14 +421,7 @@ func (dc *DrawContext) clearCurrentHALRenderTarget(clearColor [4]float32) {
 		return
 	}
 	_ = renderPass.End()
-
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		return
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("clearCurrentHALRenderTarget: failed to submit clear commands", "error", err, "subsystem", "renderer")
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Scene Target Clear Encoder")
 }
 
 func (dc *DrawContext) enableSceneRenderTarget() bool {
@@ -490,7 +483,7 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 		return false
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Scene Composite Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Scene Composite Encoder")
 	if err != nil {
 		return false
 	}
@@ -521,14 +514,7 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 	if err := renderPass.End(); err != nil {
 		return false
 	}
-
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		return false
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		return false
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Scene Composite Encoder")
 	return true
 }
 

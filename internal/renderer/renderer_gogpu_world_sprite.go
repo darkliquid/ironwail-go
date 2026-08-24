@@ -413,7 +413,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor type
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Sprite Render Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Sprite Render Encoder")
 	if err != nil {
 		slog.Warn("failed to create sprite encoder", "error", err)
 		return
@@ -539,14 +539,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor type
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderSpriteDrawsHAL: render pass end error", "error", err)
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish sprite encoding", "error", err)
-		return
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit sprite commands", "error", err)
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Sprite Render Encoder")
 }
 
 // ---- merged from world_decal_gogpu_root.go ----

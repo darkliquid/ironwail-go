@@ -160,6 +160,29 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		slog.Debug("RenderFrame: gogpu frame state (start)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
 	}
 
+	// Begin the frame graph: create the single shared command encoder that all
+	// 3D/post-process render stages record into this frame. If the graph cannot
+	// start (device or surface not ready) we fall back to the legacy per-stage
+	// submit path — frameEncoder/frameSubmit transparently degrade to private
+	// encoders, so every stage still works.
+	//
+	// IMPORTANT ordering note: the frame graph is EXECUTED (submitted) right
+	// before the 2D overlay phase below, NOT deferred to the end of RenderFrame.
+	// The 2D overlay (HUD, menu, console) is drawn by gogpu's own 2D renderer
+	// through the draw2DOverlay callback, which performs its own surface
+	// submission. gogpu's frame-state tracking (frameCleared/hasPendingClear)
+	// expects our 3D HAL content to already be on the surface when the overlay
+	// draws, so it can use LoadOpLoad to composite on top. Deferring the 3D
+	// submit to function end would invert that order and wipe the world.
+	if err := dc.beginFrameGraph(); err != nil {
+		slog.Debug("RenderFrame: frame graph unavailable, using per-stage submits", "error", err)
+	}
+	// Safety net: if any code path returns before the explicit endFrameGraph
+	// call below, this deferred call still flushes the recorded 3D work so the
+	// frame is not silently dropped. endFrameGraph is idempotent (it nils the
+	// graph first), so the normal explicit call wins and this becomes a no-op.
+	defer dc.endFrameGraph()
+
 	// Phase 1: Clear screen
 	// Skip clear when world rendering is active - the world render pass will handle clearing,
 	// and gogpu will use LoadOpLoad to preserve our world rendering when drawing the overlay.
@@ -204,6 +227,8 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawWorld && shouldRunHALOnlyFrame() {
 		slog.Warn("RenderFrame: HAL-only debug frame enabled; skipping entities/particles/2D overlay")
 		dc.logPrePresentState("hal-only")
+		// Submit the world-only frame before returning so the debug frame presents.
+		dc.endFrameGraph()
 		return
 	}
 
@@ -270,6 +295,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		dc.renderPolyBlendHAL(state.VBlend)
 		phaseEnd(&polyBlendMS)
 	}
+
+	// Submit the entire 3D scene (world + entities + post-process) in ONE
+	// queue.Submit before the 2D overlay draws. gogpu's overlay renderer submits
+	// separately and relies on this content already being present on the surface
+	// (LoadOpLoad) so the HUD/menu composites on top instead of clearing it.
+	dc.endFrameGraph()
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
 	if state.Draw2DOverlay && draw2DOverlay != nil && IsGlobalPassEnabled(Pass2DOverlay) {
@@ -665,13 +696,13 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	var pendingTransientBuffers []*wgpu.Buffer
 	flushPendingTranslucency := func() {
 		if len(pendingTranslucentRenders) == 0 {
-			destroyGoGPUTransientBuffers(pendingTransientBuffers)
+			dc.frameReleaseBuffers(pendingTransientBuffers)
 			pendingTransientBuffers = nil
 			return
 		}
 		sortGoGPUTranslucentBrushFaceRenders(effectiveGoGPUAlphaMode(GetAlphaMode()), pendingTranslucentRenders)
 		dc.renderGoGPUSortedTranslucentFaceRendersHAL(pendingTranslucentRenders, state.FogColor, state.FogDensity)
-		destroyGoGPUTransientBuffers(pendingTransientBuffers)
+		dc.frameReleaseBuffers(pendingTransientBuffers)
 		pendingTranslucentRenders = nil
 		pendingTransientBuffers = nil
 	}
@@ -727,7 +758,11 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		case gogpuEntityPhaseTranslucentWorldLiquid:
 			if IsGlobalPassEnabled(PassTranslucentLiquids) {
 				phaseStart := time.Now()
-				pendingTranslucentRenders = append(pendingTranslucentRenders, dc.collectGoGPUWorldTranslucentLiquidFaceRenders()...)
+				// Draw the world BSP's translucent liquid faces now — after all
+				// opaque entities — so water blends over submerged geometry
+				// instead of being overwritten by it (C: R_DrawWater(true) after
+				// R_DrawEntitiesOnList(false)). The world pass stashed these faces.
+				dc.renderDeferredTranslucentWorldLiquidHAL(state.FogColor, state.FogDensity)
 				translucentWorldMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		case gogpuEntityPhaseTranslucentLiquidBrush:

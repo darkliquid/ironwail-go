@@ -283,10 +283,6 @@ func gogpuLateTranslucentLightmapBindGroup(res gogpuLateTranslucentFaceResources
 	return lightmapBindGroup, 0
 }
 
-func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTranslucentBrushFaceRender {
-	return nil
-}
-
 func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []BrushEntity) ([]gogpuTranslucentBrushFaceRender, []*wgpu.Buffer) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return nil, nil
@@ -427,7 +423,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 		return
 	}
 	defer res.unlock()
-	encoder, err := res.device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "GoGPU Alpha-Test Brush Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(res.device, "GoGPU Alpha-Test Brush Encoder")
 	if err != nil {
 		slog.Warn("failed to create alpha-test brush encoder", "error", err)
 		return
@@ -500,17 +496,10 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderGoGPUAlphaTestBrushFaceRendersHAL: render pass end error", "error", err)
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish alpha-test brush encoding", "error", err)
-		return
-	}
 	if dc.renderer.uniformOffset > passStartUniformOffset {
 		_ = res.queue.WriteBuffer(res.uniformBuffer, uint64(passStartUniformOffset), dc.renderer.uniformDataScratch[passStartUniformOffset:dc.renderer.uniformOffset])
 	}
-	if _, err := res.queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit alpha-test brush commands", "error", err)
-	}
+	dc.frameSubmit(res.queue, encoder, encoderOwned, "GoGPU Alpha-Test Brush Encoder")
 }
 
 func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogpuTranslucentBrushFaceRender, fogColor types.Vec3, fogDensity float32) {
@@ -522,7 +511,7 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		return
 	}
 	defer res.unlock()
-	encoder, err := res.device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "GoGPU Late Translucent Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(res.device, "GoGPU Late Translucent Encoder")
 	if err != nil {
 		slog.Warn("failed to create late translucent encoder", "error", err)
 		return
@@ -621,17 +610,10 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderGoGPUSortedTranslucentFaceRendersHAL: render pass end error", "error", err)
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish late translucent encoding", "error", err)
-		return
-	}
 	if dc.renderer.uniformOffset > passStartUniformOffset {
 		_ = res.queue.WriteBuffer(res.uniformBuffer, uint64(passStartUniformOffset), dc.renderer.uniformDataScratch[passStartUniformOffset:dc.renderer.uniformOffset])
 	}
-	if _, err := res.queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit late translucent commands", "error", err)
-	}
+	dc.frameSubmit(res.queue, encoder, encoderOwned, "GoGPU Late Translucent Encoder")
 }
 
 // ---- merged from world_alias_shadow_gogpu_root.go ----
@@ -660,4 +642,146 @@ func sortGoGPUTranslucentBrushFaceRenders(mode AlphaMode, renders []gogpuTranslu
 	sort.SliceStable(renders, func(i, j int) bool {
 		return renders[i].face.distanceSq > renders[j].face.distanceSq
 	})
+}
+
+// renderDeferredTranslucentWorldLiquidHAL draws the world BSP's translucent
+// liquid faces (water, slime, lava) that the world pass stashed earlier this
+// frame.
+//
+// WHY THIS RUNS IN THE ENTITY PHASE, NOT THE WORLD PASS:
+// C Ironwail's R_RenderScene draws translucent water (R_DrawWater(true)) AFTER
+// opaque entities (R_DrawEntitiesOnList(false)). Translucent water does not
+// write depth; it alpha-blends over whatever is already in the framebuffer. If
+// water drew before opaque entities, those entities would later overwrite the
+// blended water pixels — making submerged brushes/models appear IN FRONT of the
+// water. Deferring the draw until after opaque entities lets the water tint the
+// submerged geometry correctly, matching Quake's look.
+//
+// The pass opens its own render pass on the frame's shared command encoder with
+// LoadOpLoad so it accumulates onto the already-rendered opaque scene, and uses
+// the shared depth buffer (read-only test, no write) so it is still occluded by
+// closer opaque geometry.
+func (dc *DrawContext) renderDeferredTranslucentWorldLiquidHAL(fogColor types.Vec3, fogDensity float32) {
+	if dc == nil || dc.renderer == nil {
+		return
+	}
+	r := dc.renderer
+	faces := r.deferredTranslucentLiquidFaces
+	if !r.deferredTranslucentLiquidValid || len(faces) == 0 {
+		return
+	}
+	if r.resources.WorldTranslucentTurbulentPipeline == nil || r.worldIndexBuffer == nil || r.worldVertexBuffer == nil {
+		return
+	}
+	device := r.getWGPUDevice()
+	queue := r.getWGPUQueue()
+	textureView := dc.currentWGPURenderTargetView()
+	if device == nil || queue == nil || textureView == nil {
+		return
+	}
+
+	r.mu.RLock()
+	depthView := r.resources.WorldDepthTextureView
+	uniformBindGroup := r.resources.UniformBindGroup
+	dynamicLightsBuffer := r.resources.WorldDynamicLightsBuffer
+	camera := r.cameraState
+	var activeDynamicLights []DynamicLight
+	if r.lightPool != nil {
+		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
+	}
+	r.mu.RUnlock()
+	if uniformBindGroup == nil || dynamicLightsBuffer == nil {
+		return
+	}
+
+	encoder, encoderOwned, err := dc.frameEncoder(device, "World Translucent Liquid Encoder")
+	if err != nil {
+		slog.Warn("failed to create world translucent liquid encoder", "error", err)
+		return
+	}
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+		Label: "World Translucent Liquid Pass",
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
+			View:    textureView,
+			LoadOp:  gputypes.LoadOpLoad,
+			StoreOp: gputypes.StoreOpStore,
+		}},
+		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+	})
+	if err != nil {
+		slog.Warn("renderDeferredTranslucentWorldLiquidHAL: Failed to begin render pass", "error", err)
+		return
+	}
+	width, height := r.Size()
+	if width > 0 && height > 0 {
+		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
+		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+	}
+	renderPass.SetPipeline(r.resources.WorldTranslucentTurbulentPipeline)
+	// The world vertex buffer must be bound explicitly: unlike the inline world
+	// pass (which binds it earlier), this deferred pass opens its own render pass
+	// and therefore starts with no vertex buffer bound.
+	renderPass.SetVertexBuffer(0, r.worldVertexBuffer, 0)
+	renderPass.SetIndexBuffer(r.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
+
+	passStartUniformOffset := r.uniformOffset
+	ptr, lightData := encodeGoGPUWorldDynamicLights(activeDynamicLights)
+	err = queue.WriteBuffer(dynamicLightsBuffer, 0, lightData)
+	dynamicLightsBytesPool.Put(ptr)
+	if err != nil {
+		slog.Warn("failed to upload world translucent dynamic lights", "error", err)
+		_ = renderPass.End()
+		return
+	}
+
+	vpMatrix := r.ViewProjectionMatrix()
+	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, camera)
+	liquidAlpha := r.deferredTranslucentLiquidAlpha
+	worldHasLitWater := r.deferredTranslucentLiquidLitWater
+	translucentAlpha := liquidAlpha.water
+
+	var materialBindState gogpuWorldMaterialBindState
+	materialBindState.invalidate()
+	for _, face := range faces {
+		textureBindGroup := r.resources.WhiteTextureBindGroup
+		if r.worldTextures != nil && r.worldTextures.bindGroup != nil {
+			textureBindGroup = r.worldTextures.bindGroup
+		}
+		lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, r.worldLightmapArray, r.resources.WhiteLightmapBindGroup, worldHasLitWater)
+		fullbrightBindGroup := r.resources.TransparentBindGroup
+		if fullbrightBindGroup == nil {
+			fullbrightBindGroup = r.resources.WhiteTextureBindGroup
+		}
+		if r.worldFullbrightTextures != nil && r.worldFullbrightTextures.bindGroup != nil {
+			fullbrightBindGroup = r.worldFullbrightTextures.bindGroup
+		}
+
+		// Each face gets its own dynamic uniform offset holding the translucent
+		// alpha, so the single frame submit sees the correct value per draw.
+		offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
+		if uData == nil {
+			continue
+		}
+		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), timeValue, translucentAlpha, litWater)
+		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
+
+		setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
+		if setTexture {
+			renderPass.SetBindGroup(1, textureBindGroup, nil)
+		}
+		if setLightmap {
+			renderPass.SetBindGroup(2, lightmapBindGroup, nil)
+		}
+		if setFullbright {
+			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
+		}
+		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+	}
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderDeferredTranslucentWorldLiquidHAL: render pass end error", "error", err)
+	}
+	if r.uniformOffset > passStartUniformOffset {
+		_ = queue.WriteBuffer(r.resources.UniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
+	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "World Translucent Liquid Encoder")
 }

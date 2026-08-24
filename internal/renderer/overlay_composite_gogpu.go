@@ -261,7 +261,7 @@ func (dc *DrawContext) renderOverlayTextureHAL(tex *gogpu.Texture) bool {
 		return false
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Overlay Composite Encoder"})
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Overlay Composite Encoder")
 	if err != nil {
 		return false
 	}
@@ -287,13 +287,6 @@ func (dc *DrawContext) renderOverlayTextureHAL(tex *gogpu.Texture) bool {
 	if err := renderPass.End(); err != nil {
 		return false
 	}
-
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		return false
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		return false
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Overlay Composite Encoder")
 	return true
 }

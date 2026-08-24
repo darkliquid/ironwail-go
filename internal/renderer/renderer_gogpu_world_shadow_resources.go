@@ -407,12 +407,3 @@ func putFloat32s(dst []byte, values []float32) {
 		binary.LittleEndian.PutUint32(dst[i*4:(i+1)*4], math.Float32bits(value))
 	}
 }
-
-// ---- merged from world_translucent_sort_gogpu_root.go ----
-func destroyGoGPUTransientBuffers(buffers []*wgpu.Buffer) {
-	for _, buffer := range buffers {
-		if buffer != nil {
-			buffer.Release()
-		}
-	}
-}

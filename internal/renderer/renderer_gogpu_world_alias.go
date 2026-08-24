@@ -742,8 +742,10 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		}
 	}
 
-	// Record a single render pass with all draws.
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Render Encoder"})
+	// Record the pass into the frame's command encoder. When the frame graph is
+	// live this is the shared encoder; otherwise we create a private one so the
+	// stage works standalone.
+	encoder, encoderOwned, err := dc.frameEncoder(device, "Alias Render Encoder")
 	if err != nil {
 		slog.Warn("failed to create alias encoder", "error", err)
 		return
@@ -782,14 +784,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderAliasDrawsHAL: render pass end error", "error", err)
 	}
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish alias encoding", "error", err)
-		return
-	}
-	if _, err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit alias commands", "error", err)
-	}
+	dc.frameSubmit(queue, encoder, encoderOwned, "Alias Render Encoder")
 }
 
 func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor types.Vec3, fogDensity float32) []byte {

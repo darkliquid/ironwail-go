@@ -45,6 +45,13 @@ type DrawContext struct {
 	aliasVertexOffsets   []uint64
 	aliasVertexCounts    []uint32
 	aliasUniformOffsets  []uint32
+
+	// frameGraph is the single-submit command orchestrator for the current
+	// frame. It is non-nil only between beginFrameGraph() and endFrameGraph()
+	// in RenderFrame. While active, every render stage records into the
+	// graph's shared command encoder instead of creating its own encoder and
+	// submitting, so the whole frame reaches the GPU in one queue.Submit.
+	frameGraph *FrameGraph
 }
 
 type gpuPreparedAliasDraw struct {
@@ -191,6 +198,18 @@ type worldRendererState struct {
 	worldVisibleFacesScratch      worldVisibilityScratch
 	worldSkyFacesScratch          []WorldFace
 	worldTranslucentLiquidScratch []WorldFace
+
+	// deferredTranslucentLiquidFaces holds the current frame's translucent
+	// world liquid faces between the world pass (which classifies them) and the
+	// entity translucent phase (which draws them). Translucent water MUST draw
+	// after opaque entities so it blends over submerged geometry (C Ironwail's
+	// R_RenderScene draws R_DrawWater(true) after R_DrawEntitiesOnList(false)).
+	// Drawing it inside the world pass — before entities — let opaque brushes
+	// overwrite already-blended water, making them appear in front of it.
+	deferredTranslucentLiquidFaces    []WorldFace
+	deferredTranslucentLiquidAlpha    worldLiquidAlphaSettings
+	deferredTranslucentLiquidLitWater bool
+	deferredTranslucentLiquidValid    bool
 	worldOpaqueDrawsScratch       []gogpuWorldFaceDraw
 	worldAlphaDrawsScratch        []gogpuWorldFaceDraw
 	worldLiquidDrawsScratch       []gogpuWorldFaceDraw
@@ -213,6 +232,11 @@ type worldRendererState struct {
 	uniformDataScratch            []byte
 	uniformOffset                 uint32
 	particleScratchBuffer         *wgpu.Buffer
+	// particleScratchBufferSize is the byte capacity of particleScratchBuffer.
+	// Tracked so the particle pass can grow the buffer when a frame contains
+	// more particles than the initial allocation, which is required now that
+	// all particle batches are uploaded into one buffer for a single submit.
+	particleScratchBufferSize     uint64
 	worldVertexBuffer             *wgpu.Buffer
 	worldIndexBuffer              *wgpu.Buffer
 	worldDynamicIndexBuffer       *wgpu.Buffer
