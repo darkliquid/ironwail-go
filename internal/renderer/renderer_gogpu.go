@@ -52,6 +52,12 @@ type DrawContext struct {
 	// graph's shared command encoder instead of creating its own encoder and
 	// submitting, so the whole frame reaches the GPU in one queue.Submit.
 	frameGraph *FrameGraph
+
+	// oitAccumulatedThisFrame reports whether any translucent geometry was
+	// accumulated into the OIT targets this frame. When true and GetAlphaMode()
+	// is OIT, the resolve pass runs before the scene composite. Reset at the
+	// start of each frame's entity phase.
+	oitAccumulatedThisFrame bool
 }
 
 type gpuPreparedAliasDraw struct {

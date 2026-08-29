@@ -101,6 +101,31 @@ type Resources struct {
 	SceneCompositeUniformBuffer   *wgpu.Buffer
 	SceneCompositeBindGroup       *wgpu.BindGroup
 
+	// OIT (order-independent transparency) resources. Weighted-blended OIT
+	// (McGuire) accumulates translucent fragments into an HDR accumulation
+	// target plus an R8 revealage target written simultaneously via multiple
+	// render targets (MRT), then a fullscreen resolve pass composites
+	// accum.rgb / accum.a over the scene using the revealage coverage.
+	OITAccumTexture      *wgpu.Texture
+	OITAccumTextureView  *wgpu.TextureView
+	OITRevealTexture     *wgpu.Texture
+	OITRevealTextureView *wgpu.TextureView
+	OITWidth             int
+	OITHeight            int
+
+	OITResolvePipeline        *wgpu.RenderPipeline
+	OITResolvePipelineLayout  *wgpu.PipelineLayout
+	OITResolveVertexShader    *wgpu.ShaderModule
+	OITResolveFragmentShader  *wgpu.ShaderModule
+	OITResolveBindGroupLayout *wgpu.BindGroupLayout
+	OITResolveBindGroup       *wgpu.BindGroup
+	OITResolveSampler         *wgpu.Sampler
+
+	// OIT accumulation pipeline renders translucent turbulent water into the
+	// accum (attachment 0) + reveal (attachment 1) targets in a single pass.
+	OITWorldTranslucentTurbulentPipeline *wgpu.RenderPipeline
+	OITAccumPipelineLayout               *wgpu.PipelineLayout
+
 	OverlayCompositePipeline        *wgpu.RenderPipeline
 	OverlayCompositePipelineLayout  *wgpu.PipelineLayout
 	OverlayCompositeVertexShader    *wgpu.ShaderModule

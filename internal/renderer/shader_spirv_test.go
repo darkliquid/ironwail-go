@@ -30,6 +30,8 @@ func TestWorldShaderSPIRVValidation(t *testing.T) {
 		"sky_external_frag":  worldSkyExternalFaceFragmentShaderWGSL,
 		"cluster_compute":    worldClusterComputeShaderWGSL,
 		"turbulent_fragment": worldTurbulentFragmentShaderWGSL,
+		"oit_resolve_frag":   oitResolveFragmentShaderWGSL,
+		"oit_water_frag":     oitTranslucentWaterFragmentShaderWGSL(),
 	}
 
 	tmpDir := t.TempDir()

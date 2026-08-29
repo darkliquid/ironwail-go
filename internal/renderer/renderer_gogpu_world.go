@@ -403,8 +403,13 @@ func gogpuWorldLightmapArrayBindGroupForFace(face WorldFace, lightmapArray *gpuW
 }
 
 func effectiveGoGPUAlphaMode(mode AlphaMode) AlphaMode {
-	if mode == AlphaModeOIT {
-		return AlphaModeSorted
-	}
 	return mode
+}
+
+// goGPUOITEnabled reports whether weighted-blended OIT can run on the current
+// backend. This is the McGuire MRT formulation (accum + reveal written in one
+// pass), which gogpu's native Vulkan backend now supports (wgpu v0.31.8+).
+// See docs/OIT_WATER_INVESTIGATION.md.
+func goGPUOITEnabled() bool {
+	return true
 }

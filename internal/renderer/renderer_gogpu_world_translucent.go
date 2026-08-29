@@ -738,7 +738,6 @@ func (dc *DrawContext) renderDeferredTranslucentWorldLiquidHAL(fogColor types.Ve
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, camera)
 	liquidAlpha := r.deferredTranslucentLiquidAlpha
 	worldHasLitWater := r.deferredTranslucentLiquidLitWater
-	translucentAlpha := liquidAlpha.water
 
 	var materialBindState gogpuWorldMaterialBindState
 	materialBindState.invalidate()
@@ -757,12 +756,14 @@ func (dc *DrawContext) renderDeferredTranslucentWorldLiquidHAL(fogColor types.Ve
 		}
 
 		// Each face gets its own dynamic uniform offset holding the translucent
-		// alpha, so the single frame submit sees the correct value per draw.
+		// alpha, so the single frame submit sees the correct value per draw. The
+		// alpha is per-liquid-type (water/lava/slime/tele), not the water alpha.
 		offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
 		if uData == nil {
 			continue
 		}
-		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), timeValue, translucentAlpha, litWater)
+		faceAlpha := worldFaceAlpha(face.Flags, liquidAlpha)
+		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), timeValue, faceAlpha, litWater)
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
 
 		setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)

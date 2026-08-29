@@ -151,6 +151,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	var entitiesMS float64
 	var viewModelMS float64
 	var sceneCompositeMS float64
+	var oitResolveMS float64
 	var polyBlendMS float64
 	var overlayMS float64
 
@@ -264,6 +265,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	// Phase 3: Draw entities, decals, and mode-placed particles.
+	// Reset the per-frame OIT accumulation flag; translucent phases set it when
+	// they accumulate into the OIT targets.
+	dc.oitAccumulatedThisFrame = false
 	if lateTranslucency || state.DrawEntities || len(state.DecalMarks) > 0 || (state.DrawParticles && state.Particles != nil) {
 		phaseBegin()
 		dc.renderEntities(state)
@@ -274,6 +278,27 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		phaseBegin()
 		dc.renderViewModelHAL(*state.ViewModel, state.FogColor, state.FogDensity)
 		phaseEnd(&viewModelMS)
+	}
+	// OIT resolve: composite the accumulated translucent result over the opaque
+	// scene before it is blitted to the swapchain. Runs only when OIT
+	// accumulated translucent geometry this frame.
+	//
+	// The resolve writes to the current render target (scene target or
+	// swapchain) as a color attachment, and the subsequent scene composite
+	// (or overlay) reads that same surface as a sampled texture. gogpu's
+	// native Vulkan backend does not reliably insert the attachment→sampled
+	// barrier within a single command buffer for this case, so we split the
+	// frame here: submit everything up to and including the resolve, then
+	// open a fresh command buffer segment for the composite/post-process.
+	// This costs one extra submit only on OIT frames.
+	if dc.oitAccumulatedThisFrame && goGPUOITEnabled() && os.Getenv("IRONWAIL_DEBUG_NO_OIT_RESOLVE") != "1" {
+		dc.endFrameGraph()
+		phaseBegin()
+		dc.resolveOITHAL()
+		phaseEnd(&oitResolveMS)
+		if err := dc.beginFrameGraph(); err != nil {
+			slog.Debug("RenderFrame: failed to begin post-OIT frame graph segment", "error", err)
+		}
 	}
 	if sceneTargetActive {
 		incrementSceneDraws()
@@ -759,10 +784,18 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			if IsGlobalPassEnabled(PassTranslucentLiquids) {
 				phaseStart := time.Now()
 				// Draw the world BSP's translucent liquid faces now — after all
-				// opaque entities — so water blends over submerged geometry
+				// opaque entities — so water composites over submerged geometry
 				// instead of being overwritten by it (C: R_DrawWater(true) after
 				// R_DrawEntitiesOnList(false)). The world pass stashed these faces.
-				dc.renderDeferredTranslucentWorldLiquidHAL(state.FogColor, state.FogDensity)
+				//
+				// When OIT is active (r_oit, the default), the water accumulates
+				// into the OIT HDR targets and the resolve pass composites it over
+				// the scene; otherwise it uses the classic alpha-blend path.
+				if goGPUOITEnabled() {
+					dc.oitAccumulatedThisFrame = dc.renderOITTranslucentWorldLiquidHAL(state.FogColor, state.FogDensity)
+				} else {
+					dc.renderDeferredTranslucentWorldLiquidHAL(state.FogColor, state.FogDensity)
+				}
 				translucentWorldMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		case gogpuEntityPhaseTranslucentLiquidBrush:
