@@ -203,12 +203,14 @@ func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 		r.mu.RLock()
 		callback := r.drawCallback
 		gamma := r.config.Gamma
+		contrast := r.config.Contrast
 		r.mu.RUnlock()
 
 		if callback != nil {
 			dc := &DrawContext{
 				ctx:      ctx,
 				gamma:    gamma,
+				contrast: contrast,
 				renderer: r,
 			}
 			// Guarded so a panic inside the draw path prints its true origin

@@ -185,6 +185,7 @@ func (g *Game) initGameHost() error {
 		g.applySVolume()
 	}
 	g.Host.CVar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
+	g.Host.CVar.Register("r_contrast", "1.0", cvar.FlagArchive, "Contrast boost (1.0-2.0)")
 	g.Host.CVar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
 	g.Host.CVar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
 	g.Host.CVar.Register(renderer.CvarRWaterAlpha, "1", cvar.FlagArchive, "Water alpha (0..1)")
@@ -832,6 +833,7 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 				"vid_vsync",
 				"host_maxfps",
 				"r_gamma",
+				"r_contrast",
 			}); err != nil {
 				return fmt.Errorf("failed to load startup video cvars: %w", err)
 			}

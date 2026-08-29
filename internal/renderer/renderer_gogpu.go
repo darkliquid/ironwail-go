@@ -21,6 +21,9 @@ type DrawContext struct {
 	// gamma is the current gamma correction value.
 	gamma float32
 
+	// contrast is the current contrast boost value.
+	contrast float32
+
 	// renderer is the parent Renderer instance.
 	renderer *Renderer
 

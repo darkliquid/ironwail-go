@@ -11,7 +11,7 @@ import (
 	"github.com/gogpu/wgpu"
 )
 
-const sceneCompositeUniformBufferSize = 16
+const sceneCompositeUniformBufferSize = 32
 
 const sceneCompositeVertexShaderWGSL = `
 struct VertexOutput {
@@ -45,6 +45,7 @@ fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
 const sceneCompositeFragmentShaderWGSL = `
 struct SceneCompositeUniforms {
     uvScaleWarpTime: vec4<f32>,
+    postProcess: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -77,7 +78,14 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         uv = remapped + warpV * sin(vec2<f32>(remapped.y / aspect, remapped.x) * (3.14159265 * 8.0) + warpTime);
     }
 
-    return textureSample(sceneTexture, sceneSampler, uv * uvScale);
+    var color = textureSample(sceneTexture, sceneSampler, uv * uvScale);
+
+    let contrast = uniforms.postProcess.x;
+    let gamma = uniforms.postProcess.y;
+    color.rgb *= contrast;
+    color.rgb = pow(color.rgb, vec3<f32>(gamma));
+
+    return color;
 }
 `
 
@@ -506,7 +514,7 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
-	if err := queue.WriteBuffer(uniformBuffer, 0, sceneCompositeUniformBytes(warpActive, warpTime)); err != nil {
+	if err := queue.WriteBuffer(uniformBuffer, 0, sceneCompositeUniformBytes(warpActive, warpTime, dc.contrast, dc.gamma)); err != nil {
 		_ = renderPass.End()
 		return false
 	}
@@ -518,15 +526,19 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 	return true
 }
 
-func sceneCompositeUniformBytes(warpActive bool, warpTime float32) []byte {
+func sceneCompositeUniformBytes(warpActive bool, warpTime float32, contrast, gamma float32) []byte {
 	buf := make([]byte, sceneCompositeUniformBufferSize)
 	warpAmp := float32(0)
 	if warpActive {
 		warpAmp = 1.0 / 256.0
 	}
-	values := [4]float32{1, 1, warpAmp, warpTime}
-	for i, v := range values {
+	uvScaleWarp := [4]float32{1, 1, warpAmp, warpTime}
+	for i, v := range uvScaleWarp {
 		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(v))
+	}
+	postProcess := [4]float32{contrast, gamma, 0, 0}
+	for i, v := range postProcess {
+		binary.LittleEndian.PutUint32(buf[16+i*4:], math.Float32bits(v))
 	}
 	return buf
 }

@@ -7,7 +7,7 @@ import (
 )
 
 func TestSceneCompositeUniformBytes(t *testing.T) {
-	got := sceneCompositeUniformBytes(true, 12.5)
+	got := sceneCompositeUniformBytes(true, 12.5, 1.2, 0.95)
 	if len(got) != sceneCompositeUniformBufferSize {
 		t.Fatalf("uniform byte len = %d, want %d", len(got), sceneCompositeUniformBufferSize)
 	}
@@ -25,7 +25,7 @@ func TestSceneCompositeUniformBytes(t *testing.T) {
 		t.Fatalf("warp time = %v, want 12.5", values[3])
 	}
 
-	got = sceneCompositeUniformBytes(false, 3)
+	got = sceneCompositeUniformBytes(false, 3, 1.0, 1.0)
 	values[2] = math.Float32frombits(binary.LittleEndian.Uint32(got[8:12]))
 	if values[2] != 0 {
 		t.Fatalf("warp amp without warp = %v, want 0", values[2])

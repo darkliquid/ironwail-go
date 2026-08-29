@@ -100,6 +100,7 @@ const (
 	CvarVidVsync       = "vid_vsync"       // Vertical sync: 0=off, 1=on (default: 1)
 	CvarHostMaxFPS     = "host_maxfps"     // Maximum frames per second (default: 250)
 	CvarRGamma         = "r_gamma"         // Gamma correction value (default: 1.0)
+	CvarRContrast      = "r_contrast"      // Contrast boost (default: 1.0, clamped [1.0, 2.0])
 	CvarRAlphaSort     = "r_alphasort"     // Alpha surface sorting (0=basic, 1=sorted)
 	CvarROIT           = "r_oit"           // Order-independent transparency mode (0=off, 1=on)
 	CvarRWaterAlpha    = "r_wateralpha"    // Water alpha (0..1, default 1.0)
@@ -165,6 +166,10 @@ type Config struct {
 	// Values >1.0 brighten the image, <1.0 darken it.
 	Gamma float32
 
+	// Contrast boosts color intensity before gamma correction.
+	// Clamped to [1.0, 2.0] to match C Ironwail.
+	Contrast float32
+
 	// Title is the window title displayed in the title bar.
 	Title string
 
@@ -186,6 +191,7 @@ func DefaultConfig() Config {
 		VSync:      true,
 		MaxFPS:     250,
 		Gamma:      1.0,
+		Contrast:   1.0,
 		Title:      "Ironwail-Go",
 	}
 }
@@ -215,6 +221,9 @@ func ConfigFromCvars() Config {
 	}
 	if cv := pkgCVars.Get(CvarRGamma); cv != nil {
 		cfg.Gamma = cv.Float32()
+	}
+	if cv := pkgCVars.Get(CvarRContrast); cv != nil {
+		cfg.Contrast = max(1.0, min(2.0, cv.Float32()))
 	}
 	if cv := pkgCVars.Get(CvarVidGPUPrefer); cv != nil {
 		switch cv.Int {
