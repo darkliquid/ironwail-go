@@ -201,6 +201,10 @@ fi
 QUAKE_BASEDIR="${QUAKE_DIR}" IRONWAIL_BIN="${IRONWAIL_BIN}" go run ./tools/parity_screenshots both
 """
 
+[tasks.parity-transparency]
+description = "Run cross-engine transparency parity test on test_transparency.bsp"
+run = "./tasks/parity-transparency.sh"
+
 [tasks.build-parity-generator]
 description = "Build the C-Go frame state reference generator utility"
 run = "go build -o bin/parity_generator ./tools/parity_generator"
