@@ -407,7 +407,14 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *surfacep
 		if texInfo != nil {
 			u := worldTexCoordDouble(position, texInfo.Vecs[0])
 			v := worldTexCoordDouble(position, texInfo.Vecs[1])
-			texCoord = [2]float32{float32(u) / textureWidth, float32(v) / textureHeight}
+			if texInfo.Flags&model.SurfDrawTurb != 0 {
+				// Match C Ironwail (r_brush.c:637-641): turbulent surfaces use 1/128.0 scale without offset
+				uTurb := float64(position.X)*float64(texInfo.Vecs[0][0]) + float64(position.Y)*float64(texInfo.Vecs[0][1]) + float64(position.Z)*float64(texInfo.Vecs[0][2])
+				vTurb := float64(position.X)*float64(texInfo.Vecs[1][0]) + float64(position.Y)*float64(texInfo.Vecs[1][1]) + float64(position.Z)*float64(texInfo.Vecs[1][2])
+				texCoord = [2]float32{float32(uTurb) / 128.0, float32(vTurb) / 128.0}
+			} else {
+				texCoord = [2]float32{float32(u) / textureWidth, float32(v) / textureHeight}
+			}
 			rawLightmapCoords = append(rawLightmapCoords, [2]float64{u, v})
 		}
 

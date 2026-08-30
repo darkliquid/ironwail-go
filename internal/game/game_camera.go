@@ -1,6 +1,8 @@
 package game
 
 import (
+	"os"
+
 	cameralib "github.com/darkliquid/ironwail-go/internal/game/camera"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
@@ -59,6 +61,14 @@ func (g *Game) runtimeFirstPersonBobOffset() float32 {
 }
 
 func (g *Game) runtimeViewState() (origin, angles types.Vec3) {
+	if os.Getenv("PARITY_RUN") == "1" {
+		pos, hasPos := parseParityAnglesEnv(os.Getenv("PARITY_POS"))
+		ang, hasAng := parseParityAnglesEnv(os.Getenv("PARITY_ANGLES"))
+		if hasPos && hasAng {
+			return pos, ang
+		}
+	}
+
 	origin = types.Vec3{X: 0, Y: 0, Z: 128}
 	angles = types.Vec3{X: 0, Y: 0, Z: 0}
 	foundPlayerStart := false

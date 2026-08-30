@@ -329,10 +329,13 @@ func CompositeSurfaceRGBA(rgba []byte, pageWidth int, surface world.WorldLightma
 	}
 }
 
-// DefaultStyleValues returns a lightstyle table where only style 0 is lit.
+// DefaultStyleValues returns a lightstyle table where all styles default to 1.0
+// (matching C Ironwail level load where all lightstyles are initially fully lit).
 func DefaultStyleValues() [256]float32 {
 	var values [256]float32
-	values[0] = 1
+	for i := range values {
+		values[i] = 1
+	}
 	return values
 }
 

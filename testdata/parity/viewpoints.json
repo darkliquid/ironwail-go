@@ -20,6 +20,24 @@
       "description": "id1 start map episode portal hub viewpoint"
     },
     {
+      "id": "id1-start-nightmare-pool",
+      "game": "id1",
+      "map": "start",
+      "pos": [1456, 1720, 120],
+      "angles": [45, 90, 0],
+      "tag": "diag-transparency",
+      "description": "id1 start map nightmare water pool looking down"
+    },
+    {
+      "id": "id1-start-slime-corridor",
+      "game": "id1",
+      "map": "start",
+      "pos": [800, 750, 0],
+      "angles": [30, 90, 0],
+      "tag": "diag-transparency",
+      "description": "id1 start map slime corridor with submerged pillars"
+    },
+    {
       "id": "id1-e1m1-light-corridor",
       "game": "id1",
       "map": "e1m1",
