@@ -260,10 +260,14 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 	// Field offsets are cached on server init to avoid per-frame string lookups.
 	if s.QCVM != nil {
 		if s.QCFieldAlpha >= 0 {
-			ent.Alpha = inet.ENTALPHA_ENCODE(s.QCVM.EFloat(entNum, s.QCFieldAlpha))
+			if a := s.QCVM.EFloat(entNum, s.QCFieldAlpha); a != 0 {
+				ent.Alpha = inet.ENTALPHA_ENCODE(a)
+			}
 		}
 		if s.QCFieldScale >= 0 {
-			ent.Scale = encodeScale(s.QCVM.EFloat(entNum, s.QCFieldScale))
+			if sc := s.QCVM.EFloat(entNum, s.QCFieldScale); sc != 0 {
+				ent.Scale = encodeScale(sc)
+			}
 		} else {
 			ent.Scale = 16 // ENTSCALE_DEFAULT
 		}

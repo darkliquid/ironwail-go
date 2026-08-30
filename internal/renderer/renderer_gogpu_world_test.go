@@ -1,12 +1,14 @@
 package renderer
 
 import (
+	"bytes"
 	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
 	"github.com/gogpu/wgpu"
@@ -887,3 +889,122 @@ func TestGoGPUWorldBatchCacheImmutability(t *testing.T) {
 		}
 	}
 }
+
+func TestWaterPVSLeafExpansion(t *testing.T) {
+	// Build a minimal BSP tree with 3 leaves:
+	// Leaf 0: Solid (unused)
+	// Leaf 1: Empty room containing ground and water surface (face 0: ground, face 1: water)
+	// Leaf 2: Underwater pool containing submerged floor (face 2: pool floor, face 1: water)
+	// Visibility: Leaf 1 PVS only sees Leaf 1 (simulating opaque vis where Leaf 2 is not in Leaf 1 PVS).
+	// With water PVS expansion, selecting visible faces from Leaf 1 must also include face 2 (pool floor).
+	tree := &bsp.Tree{
+		Version: bsp.BSPVersion,
+		Planes: []bsp.DPlane{
+			{Normal: types.Vec3{X: 0, Y: 0, Z: 1}, Dist: 0, Type: bsp.PlaneZ},
+		},
+		Leafs: []bsp.TreeLeaf{
+			{Contents: bsp.ContentsSolid},
+			{Contents: bsp.ContentsEmpty, VisOfs: 0},
+			{Contents: bsp.ContentsWater, VisOfs: 1},
+		},
+		Nodes: []bsp.TreeNode{
+			{PlaneNum: 0, Children: [2]bsp.TreeChild{
+				{IsLeaf: true, Index: 1},
+				{IsLeaf: true, Index: 2},
+			}},
+		},
+		Visibility: []byte{
+			0b00000001, // Leaf 1 sees only Leaf 1 (bit 0)
+			0b00000010, // Leaf 2 sees only Leaf 2 (bit 1)
+		},
+	}
+
+	allFaces := []WorldFace{
+		{FirstIndex: 0, NumIndices: 6, TextureIndex: 0, Flags: 0},                                         // 0: Ground (opaque)
+		{FirstIndex: 6, NumIndices: 6, TextureIndex: 1, Flags: model.SurfDrawTurb | model.SurfDrawWater}, // 1: Water surface (turbulent)
+		{FirstIndex: 12, NumIndices: 6, TextureIndex: 0, Flags: 0},                                        // 2: Submerged floor (opaque)
+	}
+
+	leafFaces := [][]int{
+		{},     // Leaf 0 (solid)
+		{0, 1}, // Leaf 1 (empty room): ground + water surface
+		{1, 2}, // Leaf 2 (underwater): water surface + submerged floor
+	}
+
+	// Camera is in Leaf 1 (Z = 50 > 0)
+	cameraPos := types.Vec3{X: 0, Y: 0, Z: 50}
+	visible := selectVisibleWorldFaces(tree, allFaces, leafFaces, cameraPos)
+
+	// Verify that all 3 faces are visible (ground, water surface, and submerged floor)
+	if len(visible) != 3 {
+		t.Fatalf("selectVisibleWorldFaces returned %d faces, want 3 (including submerged floor)", len(visible))
+	}
+}
+
+func TestStartBSPWaterAndSlimeParityDiagnosis(t *testing.T) {
+	quakeDir, err := testutil.LocateQuakeDir()
+	if err != nil || quakeDir == "" {
+		t.Skip("QUAKE_DIR not set")
+	}
+	vfs := fs.NewFileSystem()
+	err = vfs.Init(quakeDir, "id1")
+	if err != nil {
+		t.Skipf("vfs.Init failed: %v", err)
+	}
+	defer vfs.Close()
+
+	data, err := vfs.LoadFile("maps/start.bsp")
+	if err != nil {
+		t.Skipf("maps/start.bsp not found: %v", err)
+	}
+
+	tree, err := bsp.LoadTree(bytes.NewReader(data))
+	testutil.AssertNoError(t, err)
+
+	geom, err := BuildWorldGeometry(tree)
+	testutil.AssertNoError(t, err)
+
+	t.Logf("start.bsp has %d leafs, %d faces, %d marksurfaces", len(tree.Leafs), len(geom.Faces), len(tree.MarkSurfaces))
+
+	// Find water and slime leaves
+	var waterLeafs, slimeLeafs, emptyLeafs []int
+	for i := 1; i < len(tree.Leafs); i++ {
+		switch tree.Leafs[i].Contents {
+		case bsp.ContentsWater:
+			waterLeafs = append(waterLeafs, i)
+		case bsp.ContentsSlime:
+			slimeLeafs = append(slimeLeafs, i)
+		case bsp.ContentsEmpty:
+			emptyLeafs = append(emptyLeafs, i)
+		}
+	}
+	t.Logf("start.bsp leafs by content: %d water, %d slime, %d empty", len(waterLeafs), len(slimeLeafs), len(emptyLeafs))
+
+	for _, leafIdx := range waterLeafs {
+		leaf := &tree.Leafs[leafIdx]
+		leafPVS := tree.LeafPVS(leaf)
+		visEmpty := 0
+		for _, eIdx := range emptyLeafs {
+			if leafVisibleInMask(leafPVS, eIdx-1) {
+				visEmpty++
+			}
+		}
+		t.Logf("Water leaf %d (bounds %v..%v): sees %d/%d empty leaves, visOfs=%d",
+			leafIdx, leaf.BoundsMin, leaf.BoundsMax, visEmpty, len(emptyLeafs), leaf.VisOfs)
+	}
+
+	for _, leafIdx := range slimeLeafs {
+		leaf := &tree.Leafs[leafIdx]
+		leafPVS := tree.LeafPVS(leaf)
+		visEmpty := 0
+		for _, eIdx := range emptyLeafs {
+			if leafVisibleInMask(leafPVS, eIdx-1) {
+				visEmpty++
+			}
+		}
+		t.Logf("Slime leaf %d (bounds %v..%v): sees %d/%d empty leaves, visOfs=%d",
+			leafIdx, leaf.BoundsMin, leaf.BoundsMax, visEmpty, len(emptyLeafs), leaf.VisOfs)
+	}
+}
+
+

@@ -161,8 +161,54 @@ func (s *worldVisibilityScratch) selectVisibleWorldFaces(tree *bsp.Tree, allFace
 	stamp := s.nextStamp(len(allFaces))
 	visibleMarks := s.marks[:len(allFaces)]
 	visibleCount := 0
+
+	// Make a mutable copy of pvs to expand across water portals
+	pvsMut := make([]byte, len(pvs))
+	copy(pvsMut, pvs)
+
+	// Expand visible leaves through water portals: if a visible leaf contains a turbulent
+	// liquid face, any adjacent leaf sharing that turbulent surface (underwater leaves)
+	// is also marked visible so submerged world geometry (pillars, pool walls/floors) is drawn.
+	for pass := 0; pass < 4; pass++ {
+		expanded := false
+		for leafIndex := 1; leafIndex < len(tree.Leafs) && leafIndex < len(leafFaces); leafIndex++ {
+			if leafIndex != cameraLeafIndex && !leafVisibleInMask(pvsMut, leafIndex-1) {
+				continue
+			}
+			for _, faceIndex := range leafFaces[leafIndex] {
+				if faceIndex >= 0 && faceIndex < len(allFaces) && allFaces[faceIndex].Flags&model.SurfDrawTurb != 0 {
+					for otherLeafIdx := 1; otherLeafIdx < len(tree.Leafs) && otherLeafIdx < len(leafFaces); otherLeafIdx++ {
+						if otherLeafIdx == leafIndex || otherLeafIdx == cameraLeafIndex || leafVisibleInMask(pvsMut, otherLeafIdx-1) {
+							continue
+						}
+						for _, otherFaceIdx := range leafFaces[otherLeafIdx] {
+							if otherFaceIdx == faceIndex {
+								byteIdx := (otherLeafIdx - 1) >> 3
+								if byteIdx < len(pvsMut) {
+									pvsMut[byteIdx] |= 1 << uint((otherLeafIdx-1)&7)
+									expanded = true
+								}
+								otherPVS := tree.LeafPVS(&tree.Leafs[otherLeafIdx])
+								for b := 0; b < len(pvsMut) && b < len(otherPVS); b++ {
+									if (pvsMut[b] | otherPVS[b]) != pvsMut[b] {
+										pvsMut[b] |= otherPVS[b]
+										expanded = true
+									}
+								}
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+		if !expanded {
+			break
+		}
+	}
+
 	for leafIndex := 1; leafIndex < len(tree.Leafs) && leafIndex < len(leafFaces); leafIndex++ {
-		if leafIndex != cameraLeafIndex && !leafVisibleInMask(pvs, leafIndex-1) {
+		if leafIndex != cameraLeafIndex && !leafVisibleInMask(pvsMut, leafIndex-1) {
 			continue
 		}
 		for _, faceIndex := range leafFaces[leafIndex] {

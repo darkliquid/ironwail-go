@@ -61,27 +61,11 @@ if [ "${MAP_FOUND}" -eq 1 ]; then
         REF_USER_DIR="${HOME_DIR}/.ironwail/id1/screenshots"
         mkdir -p "${REF_USER_DIR}"
 
-        CFG_REF="${OUTPUT_DIR}/ref_capture.cfg"
-        cat <<EOF > "${CFG_REF}"
-vid_fullscreen 0
-vid_width ${WIDTH}
-vid_height ${HEIGHT}
-scr_viewsize 130
-r_drawviewmodel 0
-crosshair 0
-fov 90
-gamma 1
-cl_screenshotname screenshots/test_transparency_ref
-hideconsole
-host_framerate 0.0001
-setpos 0 0 0 0 0 0
-wait; wait; wait; wait;
-screenshot png
-wait
-quit
-EOF
-        "${IRONWAIL_C}" -basedir "${QUAKE_DIR}" -window -width "${WIDTH}" -height "${HEIGHT}" +map "${MAP_NAME}" +exec "${CFG_REF}" >/dev/null 2>&1 || true
-        rm -f "${CFG_REF}"
+        timeout 6s "${IRONWAIL_C}" -basedir "${QUAKE_DIR}" -window -width "${WIDTH}" -height "${HEIGHT}" \
+            +vid_fullscreen 0 +vid_width "${WIDTH}" +vid_height "${HEIGHT}" \
+            +scr_viewsize 130 +r_drawviewmodel 0 +crosshair 0 +fov 90 +gamma 1 \
+            +cl_screenshotname screenshots/test_transparency_ref \
+            +map "${MAP_NAME}" +wait +wait +wait +wait +screenshot png +wait +quit >/dev/null 2>&1 || true
 
         if [ -f "${REF_USER_DIR}/test_transparency_ref.png" ]; then
             mv "${REF_USER_DIR}/test_transparency_ref.png" "${REF_PNG}"
@@ -92,7 +76,7 @@ EOF
     fi
 
     echo "Capturing Go screenshot for ${MAP_NAME}..."
-    "${IRONWAIL_GO}" -basedir "${QUAKE_DIR}" -screenshot "${GO_PNG}" -width "${WIDTH}" -height "${HEIGHT}" -headless +map "${MAP_NAME}" >/dev/null 2>&1 || true
+    "${IRONWAIL_GO}" -basedir "${QUAKE_DIR}" -screenshot "${GO_PNG}" -width "${WIDTH}" -height "${HEIGHT}" -headless +map "${MAP_NAME}" +togglemenu >/dev/null 2>&1 || true
 
     if [ -f "${REF_PNG}" ] && [ -f "${GO_PNG}" ]; then
         echo "Comparing reference vs Go captures..."

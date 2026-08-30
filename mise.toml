@@ -225,6 +225,27 @@ run = "go build -o bin/parity_generator ./tools/parity_generator"
 description = "Build the BSP diagnostic inspection CLI tool"
 run = "go build -o bin/bspdiag ./cmd/bspdiag"
 
+[tasks.build-bspgen]
+description = "Build the standalone test BSP generator tool"
+run = "go build -o bin/bspgen ./cmd/bspgen"
+
+[tasks.generate-test-map]
+description = "Generate test_transparency.bsp in game data dirs"
+depends = ["build-bspgen"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p ./testdata ./quake-data/id1/maps
+./bin/bspgen -o ./testdata/test_transparency.bsp
+./bin/bspgen -o ./quake-data/id1/maps/test_transparency.bsp
+if [ -n "${QUAKE_DIR:-}" ] && [ -d "${QUAKE_DIR}/id1/maps" ]; then
+  ./bin/bspgen -o "${QUAKE_DIR}/id1/maps/test_transparency.bsp"
+elif [ -d "/home/darkliquid/Games/Heroic/Quake Enhanced/id1/maps" ]; then
+  ./bin/bspgen -o "/home/darkliquid/Games/Heroic/Quake Enhanced/id1/maps/test_transparency.bsp"
+fi
+"""
+
+
 [tasks.profile-maps]
 description = "Capture pprof CPU and heap profiles across qbj2 and qbj3 benchmark maps"
 depends = ["build"]

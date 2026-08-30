@@ -486,20 +486,14 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		if err != nil {
 			slog.Warn("Failed to create world lightmap sampler", "error", err)
 		} else {
-			// Create a black fallback lightmap for faces without lightmap
-			// data (lightofs = -1). The C Ironwail engine allocates a
-			// black lightmap block for these faces (GL_PackLitSurfaces
-			// assigns them to a reserved black block, and
-			// GL_FillSurfaceLightmap skips them, leaving the block black).
-			// The shader multiplies texture color by totalLight * 2.0,
-			// so black (0) gives 0 brightness, matching C behavior.
-			var blackErr error
-			// Black fallback lightmap: a plain 2D view. The lightmap bind
-			// group layout expects TextureViewDimension2D; the array variant
-			// (2DArray view) is rejected by strict-validating browsers.
-			blackTexture, blackLightmapView, blackErr = r.createWorldSolidTexture(device, queue, "World Black Lightmap", [4]byte{0, 0, 0, 255})
-			if blackErr != nil || blackLightmapView == nil {
-				slog.Warn("Failed to create black lightmap fallback texture", "error", blackErr)
+			// Create a 50% grey fallback lightmap for faces without lightmap
+			// data (lightofs = -1) or when lightmaps are absent.
+			// The C Ironwail engine uses greytexture (128, 128, 128, 255) (50% grey)
+			// so that totalLight * 2.0 = 1.0 (fullbright diffuse).
+			var greyErr error
+			blackTexture, blackLightmapView, greyErr = r.createWorldSolidTexture(device, queue, "World Grey Lightmap", [4]byte{128, 128, 128, 255})
+			if greyErr != nil || blackLightmapView == nil {
+				slog.Warn("Failed to create grey lightmap fallback texture", "error", greyErr)
 				fallbackView := worldLightmapFallbackView(transparentTextureView, whiteTextureView)
 				if fallbackView != nil {
 					whiteLightmapBindGroup, err = r.createWorldLightmapBindGroup(device, worldLightmapSampler, fallbackView)
