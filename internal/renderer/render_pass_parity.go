@@ -184,6 +184,22 @@ const (
 	gogpuOpaqueAliasStepEntities gogpuOpaqueAliasStep = iota
 )
 
+// isTranslucentEntityPhase reports whether the given entity phase contains translucent geometry.
+func isTranslucentEntityPhase(phase gogpuEntityPhase) bool {
+	switch phase {
+	case gogpuEntityPhaseTranslucentWorldLiquid,
+		gogpuEntityPhaseTranslucentLiquidBrush,
+		gogpuEntityPhaseTranslucentBrush,
+		gogpuEntityPhaseDecals,
+		gogpuEntityPhaseTranslucentAlias,
+		gogpuEntityPhaseSprites,
+		gogpuEntityPhaseTranslucentParticles:
+		return true
+	default:
+		return false
+	}
+}
+
 type gogpuEntityDrawPlan struct {
 	opaqueBrush      []BrushEntity
 	skyBrush         []BrushEntity

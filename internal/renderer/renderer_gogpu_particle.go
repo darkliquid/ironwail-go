@@ -44,6 +44,7 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>,
     @location(1) color: vec4<f32>,
     @location(2) fogPosition: vec3<f32>,
+    @location(3) clipPos: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -73,6 +74,7 @@ fn vs_main(instance: ParticleInstance, @builtin(vertex_index) vertexIndex: u32) 
     output.uv = corner * uniforms.uvScale;
     output.color = instance.color;
     output.fogPosition = instance.position - uniforms.cameraOrigin;
+    output.clipPos = clipPosition;
     return output;
 }
 `
@@ -83,6 +85,7 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>,
     @location(1) color: vec4<f32>,
     @location(2) fogPosition: vec3<f32>,
+    @location(3) clipPos: vec4<f32>,
 }
 
 struct ParticleUniforms {

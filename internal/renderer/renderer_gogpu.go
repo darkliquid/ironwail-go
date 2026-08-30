@@ -293,6 +293,7 @@ type aliasRendererState struct {
 	brushEntityScratchIndexBuffer        *wgpu.Buffer
 	brushEntityScratchIndexSize          uint64
 	aliasPipeline                        *wgpu.RenderPipeline
+	oitAliasPipeline                     *wgpu.RenderPipeline
 	aliasPipelineLayout                  *wgpu.PipelineLayout
 	aliasVertexShader                    *wgpu.ShaderModule
 	aliasFragmentShader                  *wgpu.ShaderModule
@@ -311,6 +312,7 @@ type spriteRendererState struct {
 	spritePipelineLayout         *wgpu.PipelineLayout
 	spritePipeline               *wgpu.RenderPipeline
 	spriteDepthOffsetPipeline    *wgpu.RenderPipeline
+	oitSpritePipeline            *wgpu.RenderPipeline
 	spriteVertexShader           *wgpu.ShaderModule
 	spriteFragmentShader         *wgpu.ShaderModule
 }
@@ -319,6 +321,7 @@ type spriteRendererState struct {
 type particleRendererState struct {
 	particleOpaquePipeline         *wgpu.RenderPipeline
 	particleTranslucentPipeline    *wgpu.RenderPipeline
+	oitParticlePipeline            *wgpu.RenderPipeline
 	particlePipelineLayout         *wgpu.PipelineLayout
 	particleVertexShader           *wgpu.ShaderModule
 	particleFragmentShader         *wgpu.ShaderModule
@@ -330,6 +333,7 @@ type particleRendererState struct {
 // decalRendererState groups the decal-model GPU pipeline state.
 type decalRendererState struct {
 	decalPipeline         *wgpu.RenderPipeline
+	oitDecalPipeline      *wgpu.RenderPipeline
 	decalPipelineLayout   *wgpu.PipelineLayout
 	decalVertexShader     *wgpu.ShaderModule
 	decalFragmentShader   *wgpu.ShaderModule

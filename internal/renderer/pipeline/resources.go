@@ -124,6 +124,7 @@ type Resources struct {
 	// OIT accumulation pipeline renders translucent turbulent water into the
 	// accum (attachment 0) + reveal (attachment 1) targets in a single pass.
 	OITWorldTranslucentTurbulentPipeline *wgpu.RenderPipeline
+	OITWorldTranslucentPipeline          *wgpu.RenderPipeline
 	OITAccumPipelineLayout               *wgpu.PipelineLayout
 
 	OverlayCompositePipeline        *wgpu.RenderPipeline

@@ -36,9 +36,10 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/renderer/pipeline"
-	"github.com/darkliquid/ironwail-go/pkg/types"
+	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
 )
@@ -99,6 +100,27 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
 
 
+func oitColorTargetStates() []gputypes.ColorTargetState {
+	return []gputypes.ColorTargetState{
+		{
+			Format: gputypes.TextureFormatRGBA16Float,
+			Blend: &gputypes.BlendState{
+				Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOne, Operation: gputypes.BlendOperationAdd},
+				Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOne, Operation: gputypes.BlendOperationAdd},
+			},
+			WriteMask: gputypes.ColorWriteMaskAll,
+		},
+		{
+			Format: gputypes.TextureFormatR8Unorm,
+			Blend: &gputypes.BlendState{
+				Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorZero, DstFactor: gputypes.BlendFactorOneMinusSrc, Operation: gputypes.BlendOperationAdd},
+				Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorZero, DstFactor: gputypes.BlendFactorOneMinusSrc, Operation: gputypes.BlendOperationAdd},
+			},
+			WriteMask: gputypes.ColorWriteMaskAll,
+		},
+	}
+}
+
 func oitAccumFragEpilogueWGSL() string {
 	return `
 
@@ -115,7 +137,7 @@ fn fs_main(input: VertexOutput) -> OITOut {
     // == clipPos.w here.
     let color = clamp(oitColor(input), vec4<f32>(0.0), vec4<f32>(1.0));
     let z = input.clipPos.w;
-    let weight = clamp(color.a * color.a * 0.03 / (1e-5 + z / 1e7), 1e-2, 3e3);
+    let weight = clamp(pow(color.a, 2.0) * 0.03 / (1e-5 + pow(z / 1e7, 1.0)), 1e-2, 3e3);
     let premul = color.a * weight;
     var o: OITOut;
     o.accum = vec4<f32>(color.rgb * premul, premul);
@@ -137,6 +159,52 @@ func oitTranslucentWaterFragmentShaderWGSL() string {
 	return body + oitAccumFragEpilogueWGSL()
 }
 
+// oitTranslucentWorldFragmentShaderWGSL wraps the world fragment shader for
+// non-turbulent translucent brush geometry and surfaces (glass, translucent bmodels).
+func oitTranslucentWorldFragmentShaderWGSL() string {
+	body := strings.Replace(worldFragmentShaderWGSL,
+		"@fragment\nfn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {",
+		"fn oitColor(input: VertexOutput) -> vec4<f32> {",
+		1)
+	return body + oitAccumFragEpilogueWGSL()
+}
+
+// oitAliasFragmentShaderWGSL wraps the alias model fragment shader for translucent models.
+func oitAliasFragmentShaderWGSL() string {
+	body := strings.Replace(worldgogpu.AliasFragmentShaderWGSL,
+		"@fragment\nfn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {",
+		"fn oitColor(input: VertexOutput) -> vec4<f32> {",
+		1)
+	return body + oitAccumFragEpilogueWGSL()
+}
+
+// oitParticleFragmentShaderWGSL wraps the particle fragment shader for translucent particles.
+func oitParticleFragmentShaderWGSL() string {
+	body := strings.Replace(particleFragmentShaderWGSL,
+		"@fragment\nfn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {",
+		"fn oitColor(input: VertexOutput) -> vec4<f32> {",
+		1)
+	return body + oitAccumFragEpilogueWGSL()
+}
+
+// oitSpriteFragmentShaderWGSL wraps the sprite fragment shader for translucent sprites.
+func oitSpriteFragmentShaderWGSL() string {
+	body := strings.Replace(worldgogpu.SpriteFragmentShaderWGSL,
+		"@fragment\nfn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {",
+		"fn oitColor(input: VertexOutput) -> vec4<f32> {",
+		1)
+	return body + oitAccumFragEpilogueWGSL()
+}
+
+// oitDecalFragmentShaderWGSL wraps the decal fragment shader for translucent decals.
+func oitDecalFragmentShaderWGSL() string {
+	body := strings.Replace(worldgogpu.DecalFragmentShaderWGSL,
+		"@fragment\nfn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {",
+		"fn oitColor(input: VertexOutput) -> vec4<f32> {",
+		1)
+	return body + oitAccumFragEpilogueWGSL()
+}
+
 // --- OIT resource lifecycle ------------------------------------------------
 
 func (r *Renderer) ensureOITResourcesLocked(device *wgpu.Device, width, height int) error {
@@ -151,6 +219,21 @@ func (r *Renderer) ensureOITResourcesLocked(device *wgpu.Device, width, height i
 	}
 	if err := r.ensureOITWorldPipelineLocked(device); err != nil {
 		return err
+	}
+	if err := r.ensureOITAliasPipelineLocked(device); err != nil {
+		return err
+	}
+	if err := r.ensureOITParticlePipelineLocked(device); err != nil {
+		return err
+	}
+	if err := r.ensureOITSpritePipelineLocked(device); err != nil {
+		return err
+	}
+	queue := r.getWGPUQueue()
+	if queue != nil {
+		if err := r.ensureOITDecalPipelineLocked(device, queue); err != nil {
+			return err
+		}
 	}
 	if r.resources.OITAccumTexture != nil && r.resources.OITRevealTexture != nil &&
 		r.resources.OITWidth == width && r.resources.OITHeight == height {
@@ -288,6 +371,26 @@ func (r *Renderer) destroyOITResourcesLocked() {
 		r.resources.OITWorldTranslucentTurbulentPipeline.Release()
 		r.resources.OITWorldTranslucentTurbulentPipeline = nil
 	}
+	if r.resources.OITWorldTranslucentPipeline != nil {
+		r.resources.OITWorldTranslucentPipeline.Release()
+		r.resources.OITWorldTranslucentPipeline = nil
+	}
+	if r.oitAliasPipeline != nil {
+		r.oitAliasPipeline.Release()
+		r.oitAliasPipeline = nil
+	}
+	if r.oitParticlePipeline != nil {
+		r.oitParticlePipeline.Release()
+		r.oitParticlePipeline = nil
+	}
+	if r.oitSpritePipeline != nil {
+		r.oitSpritePipeline.Release()
+		r.oitSpritePipeline = nil
+	}
+	if r.oitDecalPipeline != nil {
+		r.oitDecalPipeline.Release()
+		r.oitDecalPipeline = nil
+	}
 	if r.resources.OITAccumPipelineLayout != nil {
 		r.resources.OITAccumPipelineLayout.Release()
 		r.resources.OITAccumPipelineLayout = nil
@@ -397,230 +500,306 @@ func (r *Renderer) ensureOITResolveResourcesLocked(device *wgpu.Device) error {
 	return nil
 }
 
-// --- Accumulation pipeline --------------------------------------------------
+// --- Accumulation pipelines -------------------------------------------------
 
 func (r *Renderer) ensureOITWorldPipelineLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
-	if r.resources.OITWorldTranslucentTurbulentPipeline != nil {
+	if r.resources.OITWorldTranslucentTurbulentPipeline != nil && r.resources.OITWorldTranslucentPipeline != nil {
 		return nil
 	}
-	// The accumulation shader reuses the world pipeline layout (groups 0-3) and
-	// only changes the fragment entry point + MRT targets, so it binds exactly
-	// like the deferred translucent world pass.
 	layout := r.resources.WorldPipelineLayout
 	if layout == nil {
 		return fmt.Errorf("world pipeline layout not ready")
 	}
 
-	vertexShader, err := createWorldShaderModule(device, worldVertexShaderWGSL, "OIT Water Vertex Shader")
+	vertexShader, err := createWorldShaderModule(device, worldVertexShaderWGSL, "OIT World Vertex Shader")
 	if err != nil {
-		return fmt.Errorf("create OIT water vertex shader: %w", err)
+		return fmt.Errorf("create OIT world vertex shader: %w", err)
 	}
-	fragmentShader, err := createWorldShaderModule(device, oitTranslucentWaterFragmentShaderWGSL(), "OIT Water Fragment Shader")
-	if err != nil {
-		vertexShader.Release()
-		return fmt.Errorf("create OIT water fragment shader: %w", err)
-	}
+	defer vertexShader.Release()
 
-	oitPipeline, err := device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
-		Label:  "OIT World Translucent Turbulent Pipeline",
-		Layout: layout,
-		Vertex: wgpu.VertexState{
-			Module:     vertexShader,
-			EntryPoint: "vs_main",
-			Buffers:    []gputypes.VertexBufferLayout{pipeline.WorldVertexBufferLayout()},
-		},
-		Primitive: gputypes.PrimitiveState{
-			Topology:  gputypes.PrimitiveTopologyTriangleList,
-			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeFront,
-		},
-		DepthStencil: pipeline.NonDecalDepthStencilState(false),
-		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
-		Fragment: &wgpu.FragmentState{
-			Module:     fragmentShader,
-			EntryPoint: "fs_main",
-			Targets: []gputypes.ColorTargetState{
-				{
-					Format: gputypes.TextureFormatRGBA16Float,
-					Blend: &gputypes.BlendState{
-						Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOne, Operation: gputypes.BlendOperationAdd},
-						Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOne, Operation: gputypes.BlendOperationAdd},
-					},
-					WriteMask: gputypes.ColorWriteMaskAll,
-				},
-				{
-					Format: gputypes.TextureFormatR8Unorm,
-					Blend: &gputypes.BlendState{
-						Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorZero, DstFactor: gputypes.BlendFactorOneMinusSrc, Operation: gputypes.BlendOperationAdd},
-						Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorZero, DstFactor: gputypes.BlendFactorOneMinusSrc, Operation: gputypes.BlendOperationAdd},
-					},
-					WriteMask: gputypes.ColorWriteMaskAll,
-				},
+	if r.resources.OITWorldTranslucentTurbulentPipeline == nil {
+		fragmentShader, err := createWorldShaderModule(device, oitTranslucentWaterFragmentShaderWGSL(), "OIT Water Fragment Shader")
+		if err != nil {
+			return fmt.Errorf("create OIT water fragment shader: %w", err)
+		}
+		oitPipeline, err := device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
+			Label:  "OIT World Translucent Turbulent Pipeline",
+			Layout: layout,
+			Vertex: wgpu.VertexState{
+				Module:     vertexShader,
+				EntryPoint: "vs_main",
+				Buffers:    []gputypes.VertexBufferLayout{pipeline.WorldVertexBufferLayout()},
 			},
-		},
-	})
-	if err != nil {
+			Primitive: gputypes.PrimitiveState{
+				Topology:  gputypes.PrimitiveTopologyTriangleList,
+				FrontFace: gputypes.FrontFaceCCW,
+				CullMode:  gputypes.CullModeFront,
+			},
+			DepthStencil: pipeline.NonDecalDepthStencilState(false),
+			Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+			Fragment: &wgpu.FragmentState{
+				Module:     fragmentShader,
+				EntryPoint: "fs_main",
+				Targets:    oitColorTargetStates(),
+			},
+		})
 		fragmentShader.Release()
-		vertexShader.Release()
-		return fmt.Errorf("create OIT world translucent turbulent pipeline: %w", err)
+		if err != nil {
+			return fmt.Errorf("create OIT world translucent turbulent pipeline: %w", err)
+		}
+		r.resources.OITWorldTranslucentTurbulentPipeline = oitPipeline
 	}
-	vertexShader.Release()
-	fragmentShader.Release()
 
-	r.resources.OITWorldTranslucentTurbulentPipeline = oitPipeline
-	// The pipeline layout is shared with the world pipeline; retain a reference
-	// so destroyOITResourcesLocked does not free the world layout while it is in
-	// use. We do not own it — the world upload owns it — so hold without release.
+	if r.resources.OITWorldTranslucentPipeline == nil {
+		fragmentShader, err := createWorldShaderModule(device, oitTranslucentWorldFragmentShaderWGSL(), "OIT Translucent World Fragment Shader")
+		if err != nil {
+			return fmt.Errorf("create OIT translucent world fragment shader: %w", err)
+		}
+		oitPipeline, err := device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
+			Label:  "OIT World Translucent Pipeline",
+			Layout: layout,
+			Vertex: wgpu.VertexState{
+				Module:     vertexShader,
+				EntryPoint: "vs_main",
+				Buffers:    []gputypes.VertexBufferLayout{pipeline.WorldVertexBufferLayout()},
+			},
+			Primitive: gputypes.PrimitiveState{
+				Topology:  gputypes.PrimitiveTopologyTriangleList,
+				FrontFace: gputypes.FrontFaceCCW,
+				CullMode:  gputypes.CullModeFront,
+			},
+			DepthStencil: pipeline.NonDecalDepthStencilState(false),
+			Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+			Fragment: &wgpu.FragmentState{
+				Module:     fragmentShader,
+				EntryPoint: "fs_main",
+				Targets:    oitColorTargetStates(),
+			},
+		})
+		fragmentShader.Release()
+		if err != nil {
+			return fmt.Errorf("create OIT world translucent pipeline: %w", err)
+		}
+		r.resources.OITWorldTranslucentPipeline = oitPipeline
+	}
+
 	r.resources.OITAccumPipelineLayout = layout
 	return nil
 }
 
-// --- OIT passes --------------------------------------------------------------
-
-func (dc *DrawContext) renderOITTranslucentWorldLiquidHAL(fogColor types.Vec3, fogDensity float32) bool {
-	if dc == nil || dc.renderer == nil {
-		return false
+func (r *Renderer) ensureOITAliasPipelineLocked(device *wgpu.Device) error {
+	if device == nil {
+		return fmt.Errorf("nil device")
 	}
-	r := dc.renderer
-	faces := r.deferredTranslucentLiquidFaces
-	if !r.deferredTranslucentLiquidValid || len(faces) == 0 {
-		return false
+	if err := r.ensureAliasResourcesLocked(device); err != nil {
+		return err
 	}
-	if r.worldIndexBuffer == nil || r.worldVertexBuffer == nil {
-		return false
+	if r.oitAliasPipeline != nil {
+		return nil
 	}
-	device := r.getWGPUDevice()
-	queue := r.getWGPUQueue()
-	if device == nil || queue == nil {
-		return false
-	}
-	width, height := r.Size()
-	if width <= 0 || height <= 0 {
-		return false
-	}
-
-	r.mu.Lock()
-	if err := r.ensureOITResourcesLocked(device, width, height); err != nil {
-		r.mu.Unlock()
-		slog.Warn("failed to ensure OIT resources", "error", err)
-		return false
-	}
-	pipelineObj := r.resources.OITWorldTranslucentTurbulentPipeline
-	accumView := r.resources.OITAccumTextureView
-	revealView := r.resources.OITRevealTextureView
-	depthView := r.resources.WorldDepthTextureView
-	uniformBindGroup := r.resources.UniformBindGroup
-	dynamicLightsBuffer := r.resources.WorldDynamicLightsBuffer
-	camera := r.cameraState
-	var activeDynamicLights []DynamicLight
-	if r.lightPool != nil {
-		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
-	}
-	r.mu.Unlock()
-	if pipelineObj == nil || accumView == nil || revealView == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil {
-		return false
-	}
-
-	encoder, encoderOwned, err := dc.frameEncoder(device, "OIT World Translucent Liquid Encoder")
+	fragmentShader, err := createWorldShaderModule(device, oitAliasFragmentShaderWGSL(), "OIT Alias Fragment Shader")
 	if err != nil {
-		slog.Warn("failed to create OIT water encoder", "error", err)
-		return false
+		return fmt.Errorf("create OIT alias fragment shader: %w", err)
 	}
+	defer fragmentShader.Release()
 
-	// Accumulation pass: write accum (clear to black) + reveal (clear to 1)
-	// into the OIT MRT targets, depth-testing against the shared world depth.
-	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
-		Label: "OIT World Translucent Liquid Pass",
-		ColorAttachments: []wgpu.RenderPassColorAttachment{
-			{
-				View:       accumView,
-				LoadOp:     gputypes.LoadOpClear,
-				StoreOp:    gputypes.StoreOpStore,
-				ClearValue: gputypes.Color{R: 0, G: 0, B: 0, A: 0},
-			},
-			{
-				View:       revealView,
-				LoadOp:     gputypes.LoadOpClear,
-				StoreOp:    gputypes.StoreOpStore,
-				ClearValue: gputypes.Color{R: 1, G: 1, B: 1, A: 1},
-			},
+	pipelineObj, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
+		Label:  "OIT Alias Render Pipeline",
+		Layout: r.aliasPipelineLayout,
+		Vertex: wgpu.VertexState{
+			Module:     r.aliasVertexShader,
+			EntryPoint: "vs_main",
+			Buffers: []gputypes.VertexBufferLayout{{
+				ArrayStride: 48,
+				StepMode:    gputypes.VertexStepModeVertex,
+				Attributes: []gputypes.VertexAttribute{
+					{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+					{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
+					{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
+					{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
+				},
+			}},
 		},
-		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+		Primitive: gputypes.PrimitiveState{
+			Topology:  gputypes.PrimitiveTopologyTriangleList,
+			FrontFace: gputypes.FrontFaceCCW,
+			CullMode:  gputypes.CullModeNone,
+		},
+		DepthStencil: gogpuNonDecalDepthStencilState(false),
+		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Fragment: &wgpu.FragmentState{
+			Module:     fragmentShader,
+			EntryPoint: "fs_main",
+			Targets:    oitColorTargetStates(),
+		},
 	})
 	if err != nil {
-		slog.Warn("renderOITTranslucentWorldLiquidHAL: Failed to begin render pass", "error", err)
-		return false
+		return fmt.Errorf("create OIT alias pipeline: %w", err)
 	}
-	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
-	}
-	renderPass.SetPipeline(pipelineObj)
-	renderPass.SetVertexBuffer(0, r.worldVertexBuffer, 0)
-	renderPass.SetIndexBuffer(r.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
-
-	passStartUniformOffset := r.uniformOffset
-	ptr, lightData := encodeGoGPUWorldDynamicLights(activeDynamicLights)
-	err = queue.WriteBuffer(dynamicLightsBuffer, 0, lightData)
-	dynamicLightsBytesPool.Put(ptr)
-	if err != nil {
-		slog.Warn("failed to upload OIT water dynamic lights", "error", err)
-		_ = renderPass.End()
-		return false
-	}
-
-	vpMatrix := r.ViewProjectionMatrix()
-	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, camera)
-	worldHasLitWater := r.deferredTranslucentLiquidLitWater
-
-	var materialBindState gogpuWorldMaterialBindState
-	materialBindState.invalidate()
-	for _, face := range faces {
-		textureBindGroup := r.resources.WhiteTextureBindGroup
-		if r.worldTextures != nil && r.worldTextures.bindGroup != nil {
-			textureBindGroup = r.worldTextures.bindGroup
-		}
-		lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, r.worldLightmapArray, r.resources.WhiteLightmapBindGroup, worldHasLitWater)
-		fullbrightBindGroup := r.resources.TransparentBindGroup
-		if fullbrightBindGroup == nil {
-			fullbrightBindGroup = r.resources.WhiteTextureBindGroup
-		}
-		if r.worldFullbrightTextures != nil && r.worldFullbrightTextures.bindGroup != nil {
-			fullbrightBindGroup = r.worldFullbrightTextures.bindGroup
-		}
-
-		offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
-		if uData == nil {
-			continue
-		}
-		faceAlpha := worldFaceAlpha(face.Flags, r.deferredTranslucentLiquidAlpha)
-		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), timeValue, faceAlpha, litWater)
-		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
-
-		setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
-		if setTexture {
-			renderPass.SetBindGroup(1, textureBindGroup, nil)
-		}
-		if setLightmap {
-			renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-		}
-		if setFullbright {
-			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
-		}
-		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
-	}
-	if err := renderPass.End(); err != nil {
-		slog.Warn("renderOITTranslucentWorldLiquidHAL: render pass end error", "error", err)
-	}
-	if r.uniformOffset > passStartUniformOffset {
-		_ = queue.WriteBuffer(r.resources.UniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
-	}
-	dc.frameSubmit(queue, encoder, encoderOwned, "OIT World Translucent Liquid Encoder")
-	return true
+	r.oitAliasPipeline = pipelineObj
+	return nil
 }
+
+func (r *Renderer) ensureOITParticlePipelineLocked(device *wgpu.Device) error {
+	if device == nil {
+		return fmt.Errorf("nil device")
+	}
+	if err := r.ensureParticleResourcesLocked(device); err != nil {
+		return err
+	}
+	if r.oitParticlePipeline != nil {
+		return nil
+	}
+	fragmentShader, err := createWorldShaderModule(device, oitParticleFragmentShaderWGSL(), "OIT Particle Fragment Shader")
+	if err != nil {
+		return fmt.Errorf("create OIT particle fragment shader: %w", err)
+	}
+	defer fragmentShader.Release()
+
+	pipelineObj, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
+		Label:  "OIT Particle Pipeline",
+		Layout: r.particlePipelineLayout,
+		Vertex: wgpu.VertexState{
+			Module:     r.particleVertexShader,
+			EntryPoint: "vs_main",
+			Buffers: []gputypes.VertexBufferLayout{{
+				ArrayStride: uint64(unsafe.Sizeof(ParticleVertex{})),
+				StepMode:    gputypes.VertexStepModeInstance,
+				Attributes: []gputypes.VertexAttribute{
+					{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+					{Format: gputypes.VertexFormatUnorm8x4, Offset: 12, ShaderLocation: 1},
+				},
+			}},
+		},
+		Primitive: gputypes.PrimitiveState{
+			Topology:  gputypes.PrimitiveTopologyTriangleStrip,
+			FrontFace: gputypes.FrontFaceCCW,
+			CullMode:  gputypes.CullModeNone,
+		},
+		DepthStencil: gogpuNonDecalDepthStencilState(false),
+		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Fragment: &wgpu.FragmentState{
+			Module:     fragmentShader,
+			EntryPoint: "fs_main",
+			Targets:    oitColorTargetStates(),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create OIT particle pipeline: %w", err)
+	}
+	r.oitParticlePipeline = pipelineObj
+	return nil
+}
+
+func (r *Renderer) ensureOITSpritePipelineLocked(device *wgpu.Device) error {
+	if device == nil {
+		return fmt.Errorf("nil device")
+	}
+	if err := r.ensureSpriteResourcesLocked(device); err != nil {
+		return err
+	}
+	if r.oitSpritePipeline != nil {
+		return nil
+	}
+	fragmentShader, err := createWorldShaderModule(device, oitSpriteFragmentShaderWGSL(), "OIT Sprite Fragment Shader")
+	if err != nil {
+		return fmt.Errorf("create OIT sprite fragment shader: %w", err)
+	}
+	defer fragmentShader.Release()
+
+	pipelineObj, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
+		Label:  "OIT Sprite Render Pipeline",
+		Layout: r.spritePipelineLayout,
+		Vertex: wgpu.VertexState{
+			Module:     r.spriteVertexShader,
+			EntryPoint: "vs_main",
+			Buffers: []gputypes.VertexBufferLayout{{
+				ArrayStride: 48,
+				StepMode:    gputypes.VertexStepModeVertex,
+				Attributes: []gputypes.VertexAttribute{
+					{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+					{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
+					{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
+					{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
+				},
+			}},
+		},
+		Primitive: gputypes.PrimitiveState{
+			Topology:  gputypes.PrimitiveTopologyTriangleList,
+			FrontFace: gputypes.FrontFaceCCW,
+			CullMode:  gputypes.CullModeNone,
+		},
+		DepthStencil: gogpuNonDecalDepthStencilState(false),
+		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Fragment: &wgpu.FragmentState{
+			Module:     fragmentShader,
+			EntryPoint: "fs_main",
+			Targets:    oitColorTargetStates(),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create OIT sprite pipeline: %w", err)
+	}
+	r.oitSpritePipeline = pipelineObj
+	return nil
+}
+
+func (r *Renderer) ensureOITDecalPipelineLocked(device *wgpu.Device, queue *wgpu.Queue) error {
+	if device == nil || queue == nil {
+		return fmt.Errorf("nil device or queue")
+	}
+	if err := r.ensureDecalResourcesLocked(device, queue); err != nil {
+		return err
+	}
+	if r.oitDecalPipeline != nil {
+		return nil
+	}
+	fragmentShader, err := createWorldShaderModule(device, oitDecalFragmentShaderWGSL(), "OIT Decal Fragment Shader")
+	if err != nil {
+		return fmt.Errorf("create OIT decal fragment shader: %w", err)
+	}
+	defer fragmentShader.Release()
+
+	pipelineObj, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
+		Label:  "OIT Decal Render Pipeline",
+		Layout: r.decalPipelineLayout,
+		Vertex: wgpu.VertexState{
+			Module:     r.decalVertexShader,
+			EntryPoint: "vs_main",
+			Buffers: []gputypes.VertexBufferLayout{{
+				ArrayStride: 36,
+				StepMode:    gputypes.VertexStepModeVertex,
+				Attributes: []gputypes.VertexAttribute{
+					{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+					{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
+					{Format: gputypes.VertexFormatFloat32x4, Offset: 20, ShaderLocation: 2},
+				},
+			}},
+		},
+		Primitive: gputypes.PrimitiveState{
+			Topology:  gputypes.PrimitiveTopologyTriangleList,
+			FrontFace: gputypes.FrontFaceCCW,
+			CullMode:  gputypes.CullModeNone,
+		},
+		DepthStencil: decalDepthStencilState(),
+		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Fragment: &wgpu.FragmentState{
+			Module:     fragmentShader,
+			EntryPoint: "fs_main",
+			Targets:    oitColorTargetStates(),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create OIT decal pipeline: %w", err)
+	}
+	r.oitDecalPipeline = pipelineObj
+	return nil
+}
+
+// --- OIT passes --------------------------------------------------------------
 
 func (dc *DrawContext) resolveOITHAL() {
 	if dc == nil || dc.renderer == nil {

@@ -21,6 +21,7 @@ struct VertexOutput {
     @location(0) texCoord: vec2<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) worldPosition: vec3<f32>,
+    @location(3) clipPos: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -29,10 +30,12 @@ var<uniform> uniforms: AliasUniforms;
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    output.clipPosition = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
+    let clipPos = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
+    output.clipPosition = clipPos;
     output.texCoord = input.texCoord;
     output.normal = input.normal;
     output.worldPosition = input.position;
+    output.clipPos = clipPos;
     return output;
 }
 `
@@ -51,6 +54,7 @@ struct VertexOutput {
     @location(0) texCoord: vec2<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) worldPosition: vec3<f32>,
+    @location(3) clipPos: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -99,6 +103,7 @@ struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
     @location(1) worldPosition: vec3<f32>,
+    @location(2) clipPos: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -107,9 +112,11 @@ var<uniform> uniforms: SpriteUniforms;
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    output.clipPosition = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
+    let clipPos = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
+    output.clipPosition = clipPos;
     output.texCoord = input.texCoord;
     output.worldPosition = input.position;
+    output.clipPos = clipPos;
     return output;
 }
 `
@@ -127,6 +134,7 @@ struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
     @location(1) worldPosition: vec3<f32>,
+    @location(2) clipPos: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -171,6 +179,7 @@ struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
     @location(1) color: vec4<f32>,
+    @location(2) clipPos: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -179,9 +188,11 @@ var<uniform> uniforms: DecalUniforms;
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
-    output.clipPosition = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
+    let clipPos = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
+    output.clipPosition = clipPos;
     output.texCoord = input.texCoord;
     output.color = input.color;
+    output.clipPos = clipPos;
     return output;
 }
 `
@@ -191,6 +202,7 @@ struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
     @location(1) color: vec4<f32>,
+    @location(2) clipPos: vec4<f32>,
 }
 
 @group(1) @binding(0)

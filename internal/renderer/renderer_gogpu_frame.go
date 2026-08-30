@@ -809,13 +809,16 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		pendingTransientBuffers = nil
 	}
 	renderedExternalWorldSkyOverlay := false
+	oitEnabled := goGPUOITEnabled()
 	for _, phase := range plan.phases {
-		switch phase {
-		case gogpuEntityPhaseTranslucentWorldLiquid, gogpuEntityPhaseTranslucentLiquidBrush, gogpuEntityPhaseTranslucentBrush:
-		default:
-			flushStart := time.Now()
-			flushPendingTranslucency()
-			translucencyFlushMS += float64(time.Since(flushStart)) / float64(time.Millisecond)
+		if !oitEnabled {
+			switch phase {
+			case gogpuEntityPhaseTranslucentWorldLiquid, gogpuEntityPhaseTranslucentLiquidBrush, gogpuEntityPhaseTranslucentBrush:
+			default:
+				flushStart := time.Now()
+				flushPendingTranslucency()
+				translucencyFlushMS += float64(time.Since(flushStart)) / float64(time.Millisecond)
+			}
 		}
 		if state.DrawWorld && !renderedExternalWorldSkyOverlay && phase >= gogpuEntityPhaseSkyBrush {
 			dc.renderExternalWorldSkyOverlayHAL(state.FogColor, state.FogDensity)
@@ -858,21 +861,9 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 				opaqueLiquidBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		case gogpuEntityPhaseTranslucentWorldLiquid:
-			if IsGlobalPassEnabled(PassTranslucentLiquids) {
+			if !oitEnabled && IsGlobalPassEnabled(PassTranslucentLiquids) {
 				phaseStart := time.Now()
-				// Draw the world BSP's translucent liquid faces now — after all
-				// opaque entities — so water composites over submerged geometry
-				// instead of being overwritten by it (C: R_DrawWater(true) after
-				// R_DrawEntitiesOnList(false)). The world pass stashed these faces.
-				//
-				// When OIT is active (r_oit, the default), the water accumulates
-				// into the OIT HDR targets and the resolve pass composites it over
-				// the scene; otherwise it uses the classic alpha-blend path.
-				if goGPUOITEnabled() {
-					dc.oitAccumulatedThisFrame = dc.renderOITTranslucentWorldLiquidHAL(state.FogColor, state.FogDensity)
-				} else {
-					dc.renderDeferredTranslucentWorldLiquidHAL(state.FogColor, state.FogDensity)
-				}
+				dc.renderDeferredTranslucentWorldLiquidHAL(state.FogColor, state.FogDensity)
 				translucentWorldMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		case gogpuEntityPhaseTranslucentLiquidBrush:
@@ -895,25 +886,25 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 				pendingTransientBuffers = append(pendingTransientBuffers, buffers...)
 			}
 		case gogpuEntityPhaseDecals:
-			if IsGlobalPassEnabled(PassDecals) {
+			if !oitEnabled && IsGlobalPassEnabled(PassDecals) {
 				phaseStart := time.Now()
 				dc.renderDecalMarksHAL(state.DecalMarks)
 				decalsMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		case gogpuEntityPhaseTranslucentAlias:
-			if IsGlobalPassEnabled(PassAliasEntities) {
+			if !oitEnabled && IsGlobalPassEnabled(PassAliasEntities) {
 				phaseStart := time.Now()
 				dc.renderAliasEntitiesHAL(plan.translucentAlias, state.FogColor, state.FogDensity)
 				translucentAliasMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		case gogpuEntityPhaseSprites:
-			if IsGlobalPassEnabled(PassAliasEntities) {
+			if !oitEnabled && IsGlobalPassEnabled(PassAliasEntities) {
 				phaseStart := time.Now()
 				dc.renderSpriteEntitiesHAL(state.SpriteEntities, state.FogColor, state.FogDensity)
 				spritesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		case gogpuEntityPhaseTranslucentParticles:
-			if state.DrawParticles && state.Particles != nil && IsGlobalPassEnabled(PassParticles) {
+			if !oitEnabled && state.DrawParticles && state.Particles != nil && IsGlobalPassEnabled(PassParticles) {
 				phaseStart := time.Now()
 				dc.renderParticlesHAL(state, true)
 				translucentParticlesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
@@ -923,9 +914,18 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	if state.DrawWorld && !renderedExternalWorldSkyOverlay {
 		dc.renderExternalWorldSkyOverlayHAL(state.FogColor, state.FogDensity)
 	}
-	flushStart := time.Now()
-	flushPendingTranslucency()
-	translucencyFlushMS += float64(time.Since(flushStart)) / float64(time.Millisecond)
+	if oitEnabled {
+		phaseStart := time.Now()
+		dc.oitAccumulatedThisFrame = dc.renderOITTranslucentPassHAL(state, plan, pendingTranslucentRenders)
+		dc.frameReleaseBuffers(pendingTransientBuffers)
+		pendingTransientBuffers = nil
+		pendingTranslucentRenders = nil
+		translucentWorldMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+	} else {
+		flushStart := time.Now()
+		flushPendingTranslucency()
+		translucencyFlushMS += float64(time.Since(flushStart)) / float64(time.Millisecond)
+	}
 	if hostSpeeds {
 		slog.Debug("render_entities_speeds",
 			"opaque_brush_ms", opaqueBrushMS,
