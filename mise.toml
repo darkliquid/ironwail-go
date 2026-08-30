@@ -205,6 +205,18 @@ QUAKE_BASEDIR="${QUAKE_DIR}" IRONWAIL_BIN="${IRONWAIL_BIN}" go run ./tools/parit
 description = "Run cross-engine transparency parity test on test_transparency.bsp"
 run = "./tasks/parity-transparency.sh"
 
+[tasks.trace-vulkan]
+description = "Capture Vulkan GPU trace with gfxrecon or RenderDoc"
+run = "./tasks/gpu-trace/trace-vulkan.sh"
+
+[tasks.trace-opengl]
+description = "Capture OpenGL GPU trace from C Ironwail with apitrace or RenderDoc"
+run = "./tasks/gpu-trace/trace-opengl.sh"
+
+[tasks.trace-compare]
+description = "Compare Vulkan and OpenGL GPU traces and generate side-by-side markdown report"
+run = "python3 ./tasks/gpu-trace/trace-compare.py"
+
 [tasks.build-parity-generator]
 description = "Build the C-Go frame state reference generator utility"
 run = "go build -o bin/parity_generator ./tools/parity_generator"

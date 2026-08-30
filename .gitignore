@@ -31,6 +31,8 @@
 
 # Parity tooling files
 !/tasks/*.sh
+!/tasks/gpu-trace/
+!/tasks/gpu-trace/*
 tasks/perf_gate_reference.csv
 !/testdata/
 !/testdata/parity/
