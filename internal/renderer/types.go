@@ -128,6 +128,8 @@ const (
 	CvarRWaterwarp   = "r_waterwarp"
 	CvarRLitWater    = "r_litwater"        // Lit water: 1=lightmapped water surfaces, 0=unlit (default: 1)
 	CvarVidGPUPrefer = "vid_gpupreference" // GPU preference: 0=high-performance (discrete), 1=low-power (integrated), 2=auto
+	CvarRDumpPasses  = "r_dump_passes"     // Dump intermediate render pass attachments to PNG (1=active frame, 0=off)
+	CvarRPassIsolate = "r_pass_isolate"    // Isolate render pass on viewport (0=normal, 1=accum, 2=reveal, 3=depth, 4=opaque, 5=translucent)
 )
 
 // GPUPreference controls which adapter type is preferred when multiple GPUs

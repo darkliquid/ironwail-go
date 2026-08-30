@@ -26,7 +26,7 @@ func (r *Renderer) createWorldDepthTexture(device *wgpu.Device, width, height in
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
 		Format:        worldDepthTextureFormat,
-		Usage:         gputypes.TextureUsageRenderAttachment,
+		Usage:         gputypes.TextureUsageRenderAttachment | gputypes.TextureUsageCopySrc,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("create depth texture: %w", err)

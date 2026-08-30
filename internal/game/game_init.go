@@ -127,6 +127,13 @@ func (g *Game) registerRenderPassCvars(register func(name, defaultValue string, 
 			renderer.SetGlobalPassFlags(renderer.RenderPassFlags(c.Int))
 		}
 	}
+
+	_ = register(renderer.CvarRDumpPasses, "0", cvar.FlagNone, "Dump intermediate render pass attachments to PNG (1=active frame, 0=off)")
+
+	isolateCv := register(renderer.CvarRPassIsolate, "0", cvar.FlagNone, "Isolate render pass on viewport (0=normal, 1=accum, 2=reveal, 3=depth, 4=opaque, 5=translucent)")
+	isolateCv.Callback = func(c *cvar.CVar) {
+		renderer.SetPassIsolateMode(renderer.PassIsolateMode(c.Int))
+	}
 }
 
 func (g *Game) configureRegistrationMode(vfs interface{ FileExists(filename string) bool }, gameDir string) error {

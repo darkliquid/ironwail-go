@@ -710,6 +710,23 @@ func TestRenderPassCvars(t *testing.T) {
 		t.Errorf("expected overlay pass enabled by r_passes")
 	}
 
+	if cv := g.Host.CVar.Get(renderer.CvarRDumpPasses); cv == nil {
+		t.Errorf("expected r_dump_passes to be registered")
+	}
+
+	if cv := g.Host.CVar.Get(renderer.CvarRPassIsolate); cv == nil {
+		t.Errorf("expected r_pass_isolate to be registered")
+	} else {
+		g.Host.CVar.Set(renderer.CvarRPassIsolate, "2")
+		if renderer.GetPassIsolateMode() != renderer.PassIsolateReveal {
+			t.Errorf("expected pass isolate mode reveal, got %v", renderer.GetPassIsolateMode())
+		}
+		g.Host.CVar.Set(renderer.CvarRPassIsolate, "0")
+		if renderer.GetPassIsolateMode() != renderer.PassIsolateNormal {
+			t.Errorf("expected pass isolate mode normal, got %v", renderer.GetPassIsolateMode())
+		}
+	}
+
 	// Reset to all
 	renderer.SetGlobalPassFlags(renderer.PassAll)
 }

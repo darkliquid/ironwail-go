@@ -165,7 +165,7 @@ func (r *Renderer) ensureOITResourcesLocked(device *wgpu.Device, width, height i
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
 		Format:        gputypes.TextureFormatRGBA16Float,
-		Usage:         gputypes.TextureUsageRenderAttachment | gputypes.TextureUsageTextureBinding,
+		Usage:         gputypes.TextureUsageRenderAttachment | gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopySrc,
 	})
 	if err != nil {
 		return fmt.Errorf("create OIT accum texture: %w", err)
@@ -192,7 +192,7 @@ func (r *Renderer) ensureOITResourcesLocked(device *wgpu.Device, width, height i
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
 		Format:        gputypes.TextureFormatR8Unorm,
-		Usage:         gputypes.TextureUsageRenderAttachment | gputypes.TextureUsageTextureBinding,
+		Usage:         gputypes.TextureUsageRenderAttachment | gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopySrc,
 	})
 	if err != nil {
 		accumView.Release()

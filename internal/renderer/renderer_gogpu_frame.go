@@ -175,6 +175,24 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// expects our 3D HAL content to already be on the surface when the overlay
 	// draws, so it can use LoadOpLoad to composite on top. Deferring the 3D
 	// submit to function end would invert that order and wipe the world.
+	switch isolateMode := GetPassIsolateMode(); isolateMode {
+	case PassIsolateOpaque:
+		state.DrawParticles = false
+		state.ViewModel = nil
+		state.VBlend = [4]float32{0, 0, 0, 0}
+		draw2DOverlay = nil
+	case PassIsolateTranslucent:
+		state.DrawWorld = false
+		state.ViewModel = nil
+		state.VBlend = [4]float32{0, 0, 0, 0}
+		draw2DOverlay = nil
+	}
+
+	var dumper *CapturePassDumper
+	if ShouldDumpPasses() && dc.renderer != nil {
+		dumper = dc.renderer.BeginPassDump()
+	}
+
 	if err := dc.beginFrameGraph(); err != nil {
 		slog.Debug("RenderFrame: frame graph unavailable, using per-stage submits", "error", err)
 	}
@@ -187,7 +205,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// Phase 1: Clear screen
 	// Skip clear when world rendering is active - the world render pass will handle clearing,
 	// and gogpu will use LoadOpLoad to preserve our world rendering when drawing the overlay.
-	sceneTargetActive := dc.shouldUseSceneRenderTarget(state) && dc.enableSceneRenderTarget()
+	sceneTargetActive := (dc.shouldUseSceneRenderTarget(state) || dumper != nil) && dc.enableSceneRenderTarget()
 	dc.renderer.resetUniformBuffer()
 	phaseBegin()
 	if !state.DrawWorld && !sceneTargetActive {
@@ -274,11 +292,31 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		phaseEnd(&entitiesMS)
 	}
 
+	if dumper != nil {
+		dc.endFrameGraph()
+		dumper.CaptureOpaqueAndDepth()
+		if dc.oitAccumulatedThisFrame {
+			dumper.CaptureOITAccumAndReveal()
+		}
+		if err := dc.beginFrameGraph(); err != nil {
+			slog.Debug("RenderFrame: failed to begin frame graph segment after pass dump", "error", err)
+		}
+	}
+
 	if state.DrawEntities && state.ViewModel != nil && IsGlobalPassEnabled(PassViewModel) {
 		phaseBegin()
 		dc.renderViewModelHAL(*state.ViewModel, state.FogColor, state.FogDensity)
 		phaseEnd(&viewModelMS)
 	}
+
+	if dumper != nil {
+		dc.endFrameGraph()
+		dumper.CaptureViewModelScene()
+		if err := dc.beginFrameGraph(); err != nil {
+			slog.Debug("RenderFrame: failed to begin frame graph segment after viewmodel dump", "error", err)
+		}
+	}
+
 	// OIT resolve: composite the accumulated translucent result over the opaque
 	// scene before it is blitted to the swapchain. Runs only when OIT
 	// accumulated translucent geometry this frame.
@@ -296,6 +334,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		phaseBegin()
 		dc.resolveOITHAL()
 		phaseEnd(&oitResolveMS)
+		if dumper != nil {
+			dumper.CaptureResolvedScene()
+		}
 		if err := dc.beginFrameGraph(); err != nil {
 			slog.Debug("RenderFrame: failed to begin post-OIT frame graph segment", "error", err)
 		}
@@ -321,6 +362,10 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		phaseEnd(&polyBlendMS)
 	}
 
+	if dumper != nil {
+		dumper.CapturePostprocessed()
+	}
+
 	// Submit the entire 3D scene (world + entities + post-process) in ONE
 	// queue.Submit before the 2D overlay draws. gogpu's overlay renderer submits
 	// separately and relies on this content already being present on the surface
@@ -342,6 +387,10 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		draw2DOverlay(dc)
 		dc.flush2DOverlay()
 		phaseEnd(&overlayMS)
+	}
+
+	if dumper != nil {
+		dumper.CaptureFinalSwapchain()
 	}
 
 	dc.logPrePresentState("normal")
