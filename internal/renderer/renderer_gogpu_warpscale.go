@@ -394,6 +394,9 @@ func (dc *DrawContext) shouldUseSceneRenderTarget(state *RenderFrameState) bool 
 }
 
 func shouldUseSceneRenderTarget(state *RenderFrameState) bool {
+	if GetPassIsolateMode() != PassIsolateNormal {
+		return true
+	}
 	if state == nil {
 		return false
 	}

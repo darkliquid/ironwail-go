@@ -246,6 +246,14 @@ func (r *Renderer) destroyOITTargetsLocked() {
 		r.resources.OITRevealTexture.Release()
 		r.resources.OITRevealTexture = nil
 	}
+	if r.resources.PassIsolateAccumBindGroup != nil {
+		r.resources.PassIsolateAccumBindGroup.Release()
+		r.resources.PassIsolateAccumBindGroup = nil
+	}
+	if r.resources.PassIsolateRevealBindGroup != nil {
+		r.resources.PassIsolateRevealBindGroup.Release()
+		r.resources.PassIsolateRevealBindGroup = nil
+	}
 	r.resources.OITWidth = 0
 	r.resources.OITHeight = 0
 }

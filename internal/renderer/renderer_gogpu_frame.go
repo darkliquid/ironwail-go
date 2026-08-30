@@ -176,6 +176,10 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// draws, so it can use LoadOpLoad to composite on top. Deferring the 3D
 	// submit to function end would invert that order and wipe the world.
 	switch isolateMode := GetPassIsolateMode(); isolateMode {
+	case PassIsolateAccum, PassIsolateReveal, PassIsolateDepth:
+		state.ViewModel = nil
+		state.VBlend = [4]float32{0, 0, 0, 0}
+		draw2DOverlay = nil
 	case PassIsolateOpaque:
 		state.DrawParticles = false
 		state.ViewModel = nil
@@ -191,6 +195,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	var dumper *CapturePassDumper
 	if ShouldDumpPasses() && dc.renderer != nil {
 		dumper = dc.renderer.BeginPassDump()
+		if dumper != nil {
+			dumper.SetSurfaceView(dc.surfaceTextureView())
+		}
 	}
 
 	if err := dc.beginFrameGraph(); err != nil {
@@ -303,23 +310,8 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		}
 	}
 
-	if state.DrawEntities && state.ViewModel != nil && IsGlobalPassEnabled(PassViewModel) {
-		phaseBegin()
-		dc.renderViewModelHAL(*state.ViewModel, state.FogColor, state.FogDensity)
-		phaseEnd(&viewModelMS)
-	}
-
-	if dumper != nil {
-		dc.endFrameGraph()
-		dumper.CaptureViewModelScene()
-		if err := dc.beginFrameGraph(); err != nil {
-			slog.Debug("RenderFrame: failed to begin frame graph segment after viewmodel dump", "error", err)
-		}
-	}
-
 	// OIT resolve: composite the accumulated translucent result over the opaque
-	// scene before it is blitted to the swapchain. Runs only when OIT
-	// accumulated translucent geometry this frame.
+	// scene before view model and post-processing.
 	//
 	// The resolve writes to the current render target (scene target or
 	// swapchain) as a color attachment, and the subsequent scene composite
@@ -340,11 +332,47 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		if err := dc.beginFrameGraph(); err != nil {
 			slog.Debug("RenderFrame: failed to begin post-OIT frame graph segment", "error", err)
 		}
+	} else if dumper != nil {
+		// When OIT is off or no geometry was accumulated, capture the resolved
+		// scene state from the scene target (as the resolved scene state is
+		// identical to the scene target after classic alpha / opaque rendering).
+		dc.endFrameGraph()
+		dumper.CaptureResolvedScene()
+		if err := dc.beginFrameGraph(); err != nil {
+			slog.Debug("RenderFrame: failed to begin post-resolved frame graph segment", "error", err)
+		}
 	}
+
+	if state.DrawEntities && state.ViewModel != nil && IsGlobalPassEnabled(PassViewModel) {
+		phaseBegin()
+		dc.renderViewModelHAL(*state.ViewModel, state.FogColor, state.FogDensity)
+		phaseEnd(&viewModelMS)
+	}
+
+	if dumper != nil {
+		dc.endFrameGraph()
+		dumper.CaptureViewModelScene()
+		if err := dc.beginFrameGraph(); err != nil {
+			slog.Debug("RenderFrame: failed to begin frame graph segment after viewmodel dump", "error", err)
+		}
+	}
+
 	if sceneTargetActive {
 		incrementSceneDraws()
 		phaseBegin()
-		if dc.compositeSceneRenderTarget(state.WaterWarp, state.WaterWarpTime, state.ClearColor) {
+		isolateMode := GetPassIsolateMode()
+		var compositeSuccess bool
+		switch isolateMode {
+		case PassIsolateAccum:
+			compositeSuccess = dc.renderIsolateAccumHAL(state.ClearColor)
+		case PassIsolateReveal:
+			compositeSuccess = dc.renderIsolateRevealHAL(state.ClearColor)
+		case PassIsolateDepth:
+			compositeSuccess = dc.renderIsolateDepthHAL(state.ClearColor)
+		default:
+			compositeSuccess = dc.compositeSceneRenderTarget(state.WaterWarp, state.WaterWarpTime, state.ClearColor)
+		}
+		if compositeSuccess {
 			if dc.markGoGPUFrameContentForOverlay() {
 				slog.Debug("RenderFrame: marked gogpu frame as pre-populated (scene composite rendered)")
 			} else {
@@ -362,15 +390,15 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		phaseEnd(&polyBlendMS)
 	}
 
-	if dumper != nil {
-		dumper.CapturePostprocessed()
-	}
-
 	// Submit the entire 3D scene (world + entities + post-process) in ONE
 	// queue.Submit before the 2D overlay draws. gogpu's overlay renderer submits
 	// separately and relies on this content already being present on the surface
 	// (LoadOpLoad) so the HUD/menu composites on top instead of clearing it.
 	dc.endFrameGraph()
+
+	if dumper != nil {
+		dumper.CapturePostprocessed(dc.surfaceTextureView())
+	}
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
 	if state.Draw2DOverlay && draw2DOverlay != nil && IsGlobalPassEnabled(Pass2DOverlay) {
@@ -390,7 +418,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	if dumper != nil {
-		dumper.CaptureFinalSwapchain()
+		dumper.CaptureFinalSwapchain(dc.surfaceTextureView())
 	}
 
 	dc.logPrePresentState("normal")

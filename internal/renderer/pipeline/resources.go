@@ -133,6 +133,25 @@ type Resources struct {
 	OverlayCompositeBindGroupLayout *wgpu.BindGroupLayout
 	OverlayCompositeBindGroup       *wgpu.BindGroup
 	OverlayCompositeTextureView     *wgpu.TextureView
+
+	// Pass isolation resources for live attachment inspection (r_pass_isolate 1..3).
+	PassIsolateAccumPipeline        *wgpu.RenderPipeline
+	PassIsolateRevealPipeline       *wgpu.RenderPipeline
+	PassIsolateBlitPipeline         *wgpu.RenderPipeline
+	PassIsolatePipelineLayout       *wgpu.PipelineLayout
+	PassIsolateBindGroupLayout      *wgpu.BindGroupLayout
+	PassIsolateSampler              *wgpu.Sampler
+	PassIsolateVertexShader         *wgpu.ShaderModule
+	PassIsolateAccumFragmentShader  *wgpu.ShaderModule
+	PassIsolateRevealFragmentShader *wgpu.ShaderModule
+	PassIsolateBlitFragmentShader   *wgpu.ShaderModule
+	PassIsolateAccumBindGroup       *wgpu.BindGroup
+	PassIsolateRevealBindGroup      *wgpu.BindGroup
+	PassIsolateDepthTexture         *wgpu.Texture
+	PassIsolateDepthTextureView     *wgpu.TextureView
+	PassIsolateDepthBindGroup       *wgpu.BindGroup
+	PassIsolateDepthWidth           int
+	PassIsolateDepthHeight          int
 }
 
 // NewResources returns an empty wgpu resource container.

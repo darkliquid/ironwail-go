@@ -12,9 +12,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/gogpu/gputypes"
@@ -23,82 +20,9 @@ import (
 
 
 
-// PassIsolateMode defines which pass is isolated on the viewport.
-type PassIsolateMode int
-
-const (
-	PassIsolateNormal      PassIsolateMode = 0 // 0: Normal full rendering
-	PassIsolateAccum       PassIsolateMode = 1 // 1: Raw OIT accumulation buffer (accum RGB)
-	PassIsolateReveal      PassIsolateMode = 2 // 2: Raw OIT revealage buffer
-	PassIsolateDepth       PassIsolateMode = 3 // 3: Scene depth buffer
-	PassIsolateOpaque      PassIsolateMode = 4 // 4: Opaque geometry only (no translucency, UI)
-	PassIsolateTranslucent PassIsolateMode = 5 // 5: Translucent geometry only (over black background)
-)
-
 var (
-	globalPassIsolateMode atomic.Int32
-	passDumpPrefix        string
+	passDumpPrefix string
 )
-
-func (m PassIsolateMode) String() string {
-	switch m {
-	case PassIsolateNormal:
-		return "normal"
-	case PassIsolateAccum:
-		return "accum"
-	case PassIsolateReveal:
-		return "reveal"
-	case PassIsolateDepth:
-		return "depth"
-	case PassIsolateOpaque:
-		return "opaque"
-	case PassIsolateTranslucent:
-		return "translucent"
-	default:
-		return "unknown"
-	}
-}
-
-// ParsePassIsolateMode converts a string or numeric mode into a PassIsolateMode.
-func ParsePassIsolateMode(s string) (PassIsolateMode, error) {
-	s = strings.TrimSpace(strings.ToLower(s))
-	switch s {
-	case "0", "normal", "off":
-		return PassIsolateNormal, nil
-	case "1", "accum", "oit_accum":
-		return PassIsolateAccum, nil
-	case "2", "reveal", "oit_reveal":
-		return PassIsolateReveal, nil
-	case "3", "depth", "z":
-		return PassIsolateDepth, nil
-	case "4", "opaque", "world_opaque":
-		return PassIsolateOpaque, nil
-	case "5", "translucent", "trans", "water":
-		return PassIsolateTranslucent, nil
-	}
-	if v, err := strconv.Atoi(s); err == nil && v >= 0 && v <= 5 {
-		return PassIsolateMode(v), nil
-	}
-	return PassIsolateNormal, fmt.Errorf("unknown pass isolate mode: %q", s)
-}
-
-// GetPassIsolateMode returns the active pass isolation mode.
-func GetPassIsolateMode() PassIsolateMode {
-	if pkgCVars != nil {
-		if cv := pkgCVars.Get(CvarRPassIsolate); cv != nil {
-			return PassIsolateMode(cv.Int)
-		}
-	}
-	return PassIsolateMode(globalPassIsolateMode.Load())
-}
-
-// SetPassIsolateMode sets the active pass isolation mode.
-func SetPassIsolateMode(mode PassIsolateMode) {
-	globalPassIsolateMode.Store(int32(mode))
-	if pkgCVars != nil {
-		pkgCVars.Set(CvarRPassIsolate, strconv.Itoa(int(mode)))
-	}
-}
 
 // ShouldDumpPasses reports whether pass dumping is requested for the active frame.
 func ShouldDumpPasses() bool {
@@ -481,12 +405,20 @@ func (s *PassDumpSession) DumpStageDepth(filename string, data []byte, bytesPerR
 
 // CapturePassDumper records intermediate textures during frame execution.
 type CapturePassDumper struct {
-	session   *PassDumpSession
-	device    *wgpu.Device
-	queue     *wgpu.Queue
-	r         *Renderer
-	isBGRA    bool
-	completed bool
+	session     *PassDumpSession
+	device      *wgpu.Device
+	queue       *wgpu.Queue
+	r           *Renderer
+	surfaceView *wgpu.TextureView
+	isBGRA      bool
+	completed   bool
+}
+
+// SetSurfaceView sets the current swapchain/surface texture view for postprocess/swapchain capture.
+func (d *CapturePassDumper) SetSurfaceView(view *wgpu.TextureView) {
+	if d != nil {
+		d.surfaceView = view
+	}
 }
 
 // BeginPassDump initializes a pass dumper for the current frame if requested.
@@ -599,31 +531,61 @@ func (d *CapturePassDumper) CaptureViewModelScene() {
 	}
 }
 
-// CapturePostprocessed records "07_postprocessed.png".
-func (d *CapturePassDumper) CapturePostprocessed() {
+func (d *CapturePassDumper) readbackSurfaceOrWorldTexture(views ...*wgpu.TextureView) ([]byte, int, bool) {
 	if d == nil || d.r == nil {
-		return
+		return nil, 0, false
 	}
+	var view *wgpu.TextureView
+	if len(views) > 0 && views[0] != nil {
+		view = views[0]
+	} else if d.surfaceView != nil {
+		view = d.surfaceView
+	}
+
+	width := d.session.Width
+	height := d.session.Height
+
+	if view != nil && d.device != nil && d.queue != nil {
+		tex := view.Texture()
+		if tex != nil {
+			data, bpr, err := readbackTextureStaging(d.device, d.queue, tex, width, height, 4, gputypes.TextureAspectAll)
+			if err == nil && len(data) > 0 {
+				return data, bpr, true
+			}
+		}
+	}
+
+	// Fallback to WorldRenderTexture if swapchain view texture is unavailable
 	data, w, _, ok := d.r.ReadbackWorldTexture()
 	if ok && len(data) > 0 {
 		bytesPerRow := (w*4 + 255) &^ 255
-		_ = d.session.DumpStageRGBA8("07_postprocessed.png", data, bytesPerRow, d.isBGRA)
+		return data, bytesPerRow, true
+	}
+	return nil, 0, false
+}
+
+// CapturePostprocessed records "07_postprocessed.png".
+func (d *CapturePassDumper) CapturePostprocessed(views ...*wgpu.TextureView) {
+	if d == nil || d.r == nil {
+		return
+	}
+	if data, bpr, ok := d.readbackSurfaceOrWorldTexture(views...); ok {
+		_ = d.session.DumpStageRGBA8("07_postprocessed.png", data, bpr, d.isBGRA)
 	}
 }
 
 // CaptureFinalSwapchain records "08_final_swapchain.png" and completes the dump.
-func (d *CapturePassDumper) CaptureFinalSwapchain() {
+func (d *CapturePassDumper) CaptureFinalSwapchain(views ...*wgpu.TextureView) {
 	if d == nil || d.completed || d.r == nil {
 		return
 	}
 	d.completed = true
-	data, w, _, ok := d.r.ReadbackWorldTexture()
-	if ok && len(data) > 0 {
-		bytesPerRow := (w*4 + 255) &^ 255
-		_ = d.session.DumpStageRGBA8("08_final_swapchain.png", data, bytesPerRow, d.isBGRA)
+	if data, bpr, ok := d.readbackSurfaceOrWorldTexture(views...); ok {
+		_ = d.session.DumpStageRGBA8("08_final_swapchain.png", data, bpr, d.isBGRA)
 	}
 	slog.Info("Pass dump completed", "dir", d.session.DumpDir)
 	if pkgCVars != nil {
 		pkgCVars.Set(CvarRDumpPasses, "0")
 	}
 }
+

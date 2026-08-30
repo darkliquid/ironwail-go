@@ -344,3 +344,154 @@ func TestPassIsolateCVar(t *testing.T) {
 		}
 	})
 }
+
+func TestPassDumpSessionAllStages(t *testing.T) {
+	tempDir := t.TempDir()
+	width, height := 8, 8
+	session := &PassDumpSession{
+		DumpDir: filepath.Join(tempDir, "test_session"),
+		Width:   width,
+		Height:  height,
+	}
+
+	rgba8Data := make([]byte, width*height*4)
+	for i := range rgba8Data {
+		rgba8Data[i] = 128
+	}
+
+	depthBytes := make([]byte, width*height*4)
+	for i := 0; i < width*height; i++ {
+		bits := math.Float32bits(0.5)
+		depthBytes[i*4+0] = byte(bits)
+		depthBytes[i*4+1] = byte(bits >> 8)
+		depthBytes[i*4+2] = byte(bits >> 16)
+		depthBytes[i*4+3] = byte(bits >> 24)
+	}
+
+	halfData := make([]byte, width*height*8)
+	for i := 0; i < width*height; i++ {
+		// 1.0 in half float = 0x3C00
+		halfData[i*8+0] = 0x00
+		halfData[i*8+1] = 0x3C
+		halfData[i*8+2] = 0x00
+		halfData[i*8+3] = 0x3C
+		halfData[i*8+4] = 0x00
+		halfData[i*8+5] = 0x3C
+		halfData[i*8+6] = 0x00
+		halfData[i*8+7] = 0x3C
+	}
+
+	revealData := make([]byte, width*height)
+	for i := range revealData {
+		revealData[i] = 200
+	}
+
+	stages := []struct {
+		name string
+		dump func() error
+	}{
+		{"01_opaque_scene.png", func() error { return session.DumpStageRGBA8("01_opaque_scene.png", rgba8Data, 0, false) }},
+		{"02_scene_depth.png", func() error { return session.DumpStageDepth("02_scene_depth.png", depthBytes, 0, 4.0, 4096.0) }},
+		{"03_oit_accum_rgb.png", func() error { return session.DumpStageRGBA16Float("03_oit_accum_rgb.png", halfData, 0) }},
+		{"04_oit_reveal.png", func() error { return session.DumpStageReveal("04_oit_reveal.png", revealData, 0) }},
+		{"05_resolved_scene.png", func() error { return session.DumpStageRGBA8("05_resolved_scene.png", rgba8Data, 0, false) }},
+		{"06_viewmodel_scene.png", func() error { return session.DumpStageRGBA8("06_viewmodel_scene.png", rgba8Data, 0, false) }},
+		{"07_postprocessed.png", func() error { return session.DumpStageRGBA8("07_postprocessed.png", rgba8Data, 0, false) }},
+		{"08_final_swapchain.png", func() error { return session.DumpStageRGBA8("08_final_swapchain.png", rgba8Data, 0, false) }},
+	}
+
+	for _, s := range stages {
+		if err := s.dump(); err != nil {
+			t.Fatalf("failed to dump %s: %v", s.name, err)
+		}
+		path := filepath.Join(session.DumpDir, s.name)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			t.Errorf("expected dump file %s to exist at %s", s.name, path)
+		}
+	}
+}
+
+func TestPassIsolateAliasesAndSceneTarget(t *testing.T) {
+	aliasTests := []struct {
+		input string
+		want  PassIsolateMode
+	}{
+		{"0", PassIsolateNormal},
+		{"off", PassIsolateNormal},
+		{"normal", PassIsolateNormal},
+		{"1", PassIsolateAccum},
+		{"accum", PassIsolateAccum},
+		{"oit_accum", PassIsolateAccum},
+		{"2", PassIsolateReveal},
+		{"reveal", PassIsolateReveal},
+		{"oit_reveal", PassIsolateReveal},
+		{"3", PassIsolateDepth},
+		{"depth", PassIsolateDepth},
+		{"z", PassIsolateDepth},
+		{"4", PassIsolateOpaque},
+		{"opaque", PassIsolateOpaque},
+		{"world_opaque", PassIsolateOpaque},
+		{"5", PassIsolateTranslucent},
+		{"translucent", PassIsolateTranslucent},
+		{"trans", PassIsolateTranslucent},
+		{"water", PassIsolateTranslucent},
+	}
+
+	for _, tc := range aliasTests {
+		t.Run("alias_"+tc.input, func(t *testing.T) {
+			parsed, err := ParsePassIsolateMode(tc.input)
+			if err != nil {
+				t.Fatalf("ParsePassIsolateMode(%q) error = %v", tc.input, err)
+			}
+			if parsed != tc.want {
+				t.Errorf("ParsePassIsolateMode(%q) = %v, want %v", tc.input, parsed, tc.want)
+			}
+		})
+	}
+
+	// Verify shouldUseSceneRenderTarget activates when pass isolation mode is not normal
+	defer SetPassIsolateMode(PassIsolateNormal)
+
+	SetPassIsolateMode(PassIsolateAccum)
+	if !shouldUseSceneRenderTarget(nil) {
+		t.Errorf("expected shouldUseSceneRenderTarget to be true for PassIsolateAccum")
+	}
+
+	SetPassIsolateMode(PassIsolateReveal)
+	if !shouldUseSceneRenderTarget(nil) {
+		t.Errorf("expected shouldUseSceneRenderTarget to be true for PassIsolateReveal")
+	}
+
+	SetPassIsolateMode(PassIsolateDepth)
+	if !shouldUseSceneRenderTarget(nil) {
+		t.Errorf("expected shouldUseSceneRenderTarget to be true for PassIsolateDepth")
+	}
+
+	SetPassIsolateMode(PassIsolateNormal)
+	if shouldUseSceneRenderTarget(nil) {
+		t.Errorf("expected shouldUseSceneRenderTarget to be false for PassIsolateNormal with nil state")
+	}
+}
+
+func TestCapturePassDumperLifecycle(t *testing.T) {
+	d := &CapturePassDumper{
+		session: &PassDumpSession{
+			DumpDir: filepath.Join(t.TempDir(), "dumper_test"),
+			Width:   4,
+			Height:  4,
+		},
+	}
+
+	d.SetSurfaceView(nil)
+	if d.surfaceView != nil {
+		t.Errorf("expected nil surfaceView")
+	}
+
+	// Nil renderer safe
+	d.CaptureOpaqueAndDepth()
+	d.CaptureOITAccumAndReveal()
+	d.CaptureResolvedScene()
+	d.CaptureViewModelScene()
+	d.CapturePostprocessed()
+	d.CaptureFinalSwapchain()
+}

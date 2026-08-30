@@ -620,6 +620,7 @@ func (r *Renderer) Shutdown() {
 	r.destroyWorldRenderTargetLocked()
 	r.destroySceneCompositeResourcesLocked()
 	r.destroyOITResourcesLocked()
+	r.destroyPassIsolateResourcesLocked()
 	for i, tex := range r.charTextures {
 		if tex != nil {
 			tex.Destroy()
