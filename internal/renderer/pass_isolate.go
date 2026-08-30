@@ -82,7 +82,9 @@ func GetPassIsolateMode() PassIsolateMode {
 func SetPassIsolateMode(mode PassIsolateMode) {
 	globalPassIsolateMode.Store(int32(mode))
 	if pkgCVars != nil {
-		pkgCVars.Set(CvarRPassIsolate, strconv.Itoa(int(mode)))
+		if cv := pkgCVars.Get(CvarRPassIsolate); cv == nil || cv.Int != int(mode) {
+			pkgCVars.Set(CvarRPassIsolate, strconv.Itoa(int(mode)))
+		}
 	}
 }
 

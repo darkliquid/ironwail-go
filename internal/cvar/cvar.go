@@ -237,6 +237,11 @@ func (c *CVarSystem) Set(name, value string) {
 		return
 	}
 
+	if cv.String == value {
+		c.mu.Unlock()
+		return
+	}
+
 	if cv.Flags&FlagLatched != 0 {
 		cv.String = value
 		c.parseValue(cv, value)
