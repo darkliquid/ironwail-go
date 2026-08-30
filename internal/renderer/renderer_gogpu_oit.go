@@ -392,7 +392,9 @@ func (r *Renderer) destroyOITResourcesLocked() {
 		r.oitDecalPipeline = nil
 	}
 	if r.resources.OITAccumPipelineLayout != nil {
-		r.resources.OITAccumPipelineLayout.Release()
+		if r.resources.OITAccumPipelineLayout != r.resources.WorldPipelineLayout {
+			r.resources.OITAccumPipelineLayout.Release()
+		}
 		r.resources.OITAccumPipelineLayout = nil
 	}
 }

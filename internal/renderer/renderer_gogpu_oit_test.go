@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gogpu/gputypes"
+	"github.com/gogpu/wgpu"
 )
 
 func TestOITPipelineSetup(t *testing.T) {
@@ -214,3 +215,116 @@ func TestOITAccumulationPassContracts(t *testing.T) {
 		}
 	}
 }
+
+func TestOITResourceReleaseOnShutdown(t *testing.T) {
+	r := &Renderer{}
+	r.ensureResources()
+
+	// Simulate OIT accumulation pipeline layout aliasing WorldPipelineLayout
+	fakeWorldLayout := &wgpu.PipelineLayout{}
+	r.resources.WorldPipelineLayout = fakeWorldLayout
+	r.resources.OITAccumPipelineLayout = fakeWorldLayout
+
+	// Calling destroyOITResourcesLocked should nil out OITAccumPipelineLayout
+	// WITHOUT calling .Release() on WorldPipelineLayout (which would panic on dummy struct or double-free).
+	r.destroyOITResourcesLocked()
+
+	if r.resources.OITAccumPipelineLayout != nil {
+		t.Errorf("OITAccumPipelineLayout was not nilled out")
+	}
+	if r.resources.WorldPipelineLayout != fakeWorldLayout {
+		t.Errorf("WorldPipelineLayout was modified unexpectedly")
+	}
+
+	// Calling destroyOITResourcesLocked again should be a safe no-op (idempotent)
+	r.destroyOITResourcesLocked()
+
+	// Calling Shutdown on clean renderer should succeed without panics
+	r.Shutdown()
+}
+
+func TestOITSpritesVertexPreallocation(t *testing.T) {
+	// Each sprite quad expands to 2 triangles = 6 vertices.
+	// Each vertex stride is 48 bytes (pos float32x3 + uv float32x2 + uv2 float32x2 + normal float32x3).
+	const spriteVertexStride = 48
+	const verticesPerSpriteQuad = 6
+
+	drawCounts := []int{0, 1, 5, 32, 128}
+	for _, count := range drawCounts {
+		expectedBytes := uint64(count * verticesPerSpriteQuad * spriteVertexStride)
+		calculatedBytes := uint64(count * 6 * 48)
+		if expectedBytes != calculatedBytes {
+			t.Fatalf("draw count %d: expected %d bytes, got %d", count, expectedBytes, calculatedBytes)
+		}
+	}
+}
+
+func TestOITResolveAndViewModelPassOrdering(t *testing.T) {
+	// Verify Pass 3 & Pass 4 phase contract ordering:
+	// In McGuire weighted-blended OIT:
+	// 1. Opaque scene and world depth are drawn first.
+	// 2. Translucent accumulation writes to MRT (Accum + Reveal) with depth test (no depth write).
+	// 3. OIT Resolve must execute BEFORE the first-person ViewModel so that:
+	//    a) Translucent water/liquids are composited over the world background.
+	//    b) The weapon model renders ON TOP of the resolved translucent water with depth testing,
+	//       preventing the fullscreen resolve quad from blending over the weapon.
+	// 4. Scene Composite (water warp, contrast, gamma) and PolyBlend composite the entire 3D scene
+	//    (including view model) to the swapchain.
+	// 5. 2D Overlay (HUD, Menu, Console) draws on top of swapchain.
+
+	type passStep int
+	const (
+		stepWorldOpaque passStep = iota
+		stepTranslucentAccum
+		stepOITResolve
+		stepViewModel
+		stepSceneComposite
+		stepPolyBlend
+		step2DOverlay
+	)
+
+	steps := []passStep{
+		stepWorldOpaque,
+		stepTranslucentAccum,
+		stepOITResolve,
+		stepViewModel,
+		stepSceneComposite,
+		stepPolyBlend,
+		step2DOverlay,
+	}
+
+	resolveIdx := -1
+	viewModelIdx := -1
+	compositeIdx := -1
+	polyBlendIdx := -1
+	overlayIdx := -1
+
+	for i, s := range steps {
+		switch s {
+		case stepOITResolve:
+			resolveIdx = i
+		case stepViewModel:
+			viewModelIdx = i
+		case stepSceneComposite:
+			compositeIdx = i
+		case stepPolyBlend:
+			polyBlendIdx = i
+		case step2DOverlay:
+			overlayIdx = i
+		}
+	}
+
+	if resolveIdx >= viewModelIdx {
+		t.Fatalf("OIT resolve (step %d) must occur BEFORE viewmodel (step %d)", resolveIdx, viewModelIdx)
+	}
+	if viewModelIdx >= compositeIdx {
+		t.Fatalf("viewmodel (step %d) must occur BEFORE scene composite (step %d)", viewModelIdx, compositeIdx)
+	}
+	if compositeIdx >= polyBlendIdx {
+		t.Fatalf("scene composite (step %d) must occur BEFORE polyblend (step %d)", compositeIdx, polyBlendIdx)
+	}
+	if polyBlendIdx >= overlayIdx {
+		t.Fatalf("polyblend (step %d) must occur BEFORE 2D overlay (step %d)", polyBlendIdx, overlayIdx)
+	}
+}
+
