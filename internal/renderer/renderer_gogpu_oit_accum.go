@@ -387,7 +387,7 @@ func (dc *DrawContext) recordOITDecalMarks(renderPass *wgpu.RenderPassEncoder, q
 
 	device := r.getWGPUDevice()
 	r.mu.Lock()
-	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
+	if err := r.ensureDecalScratchBufferLocked(device, totalVertexBytes); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure decal scratch buffer", "error", err)
 		return
@@ -396,7 +396,7 @@ func (dc *DrawContext) recordOITDecalMarks(renderPass *wgpu.RenderPassEncoder, q
 	uniformBuffer := r.decalUniformBuffer
 	uniformBindGroup := r.decalUniformBindGroup
 	bindGroup := r.decalBindGroup
-	scratchBuffer := r.aliasScratchBuffer
+	scratchBuffer := r.decalScratchBuffer
 	r.mu.Unlock()
 
 	if pipelineObj == nil || uniformBuffer == nil || uniformBindGroup == nil || bindGroup == nil || scratchBuffer == nil {
@@ -440,11 +440,11 @@ func (dc *DrawContext) recordOITSprites(renderPass *wgpu.RenderPassEncoder, queu
 		return
 	}
 
-	totalVertexBytes := uint64(len(draws) * 4 * 48)
+	totalVertexBytes := uint64(len(draws) * 6 * 48)
 	r := dc.renderer
 	device := r.getWGPUDevice()
 	r.mu.Lock()
-	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
+	if err := r.ensureSpriteScratchBufferLocked(device, totalVertexBytes); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure sprite scratch buffer", "error", err)
 		return
@@ -452,7 +452,7 @@ func (dc *DrawContext) recordOITSprites(renderPass *wgpu.RenderPassEncoder, queu
 	pipelineObj := r.oitSpritePipeline
 	uniformBuffer := r.spriteUniformBuffer
 	uniformBindGroup := r.spriteUniformBindGroup
-	scratchBuffer := r.aliasScratchBuffer
+	scratchBuffer := r.spriteScratchBuffer
 	r.mu.Unlock()
 
 	if pipelineObj == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
@@ -469,7 +469,7 @@ func (dc *DrawContext) recordOITSprites(renderPass *wgpu.RenderPassEncoder, queu
 	cameraForward, cameraRight, cameraUp := spriteCameraBasis(cameraAngles)
 
 	bulkUniformData := make([]byte, uint64(len(draws))*worldUniformAlign)
-	bulkVertexData := make([]byte, 0, len(draws)*4*48)
+	bulkVertexData := make([]byte, 0, len(draws)*6*48)
 
 	uniformOffsets := make([]uint32, len(draws))
 	vertexCounts := make([]uint32, len(draws))

@@ -126,7 +126,7 @@ func EncodeDepthBytesToGrayImage(data []byte, width, height int, bytesPerRow int
 		return nil
 	}
 	if bytesPerRow <= 0 {
-		bytesPerRow = width * 4
+		bytesPerRow = (width*4 + 255) &^ 255
 	}
 	depths := make([]float32, width*height)
 	for y := 0; y < height; y++ {

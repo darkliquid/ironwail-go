@@ -150,6 +150,11 @@ func (r *Renderer) destroySpriteResourcesLocked() {
 		r.spriteFragmentShader.Release()
 		r.spriteFragmentShader = nil
 	}
+	if r.spriteScratchBuffer != nil {
+		r.spriteScratchBuffer.Release()
+		r.spriteScratchBuffer = nil
+		r.spriteScratchBufferSize = 0
+	}
 }
 
 func (r *Renderer) destroyDecalResourcesLocked() {
@@ -180,6 +185,11 @@ func (r *Renderer) destroyDecalResourcesLocked() {
 	if r.decalPipelineLayout != nil {
 		r.decalPipelineLayout.Release()
 		r.decalPipelineLayout = nil
+	}
+	if r.decalScratchBuffer != nil {
+		r.decalScratchBuffer.Release()
+		r.decalScratchBuffer = nil
+		r.decalScratchBufferSize = 0
 	}
 	if r.decalPipeline != nil {
 		r.decalPipeline.Release()
@@ -279,6 +289,66 @@ func (r *Renderer) ensureAliasScratchBufferLocked(device *wgpu.Device, size uint
 	}
 	r.aliasScratchBuffer = buffer
 	r.aliasScratchBufferSize = size
+	if oldBuffer != nil {
+		old := oldBuffer
+		r.enqueueReleaseLocked(func() { old.Release() })
+	}
+	return nil
+}
+
+func (r *Renderer) ensureSpriteScratchBufferLocked(device *wgpu.Device, size uint64) error {
+	if size == 0 {
+		size = 48 * 6
+	}
+	minSize := uint64(512 * 1024) // 512 KB
+	if size < minSize {
+		size = minSize
+	}
+	if r.spriteScratchBuffer != nil && r.spriteScratchBufferSize >= size {
+		return nil
+	}
+	oldBuffer := r.spriteScratchBuffer
+	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Sprite Scratch Buffer",
+		Size:             size,
+		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("create sprite scratch buffer: %w", err)
+	}
+	r.spriteScratchBuffer = buffer
+	r.spriteScratchBufferSize = size
+	if oldBuffer != nil {
+		old := oldBuffer
+		r.enqueueReleaseLocked(func() { old.Release() })
+	}
+	return nil
+}
+
+func (r *Renderer) ensureDecalScratchBufferLocked(device *wgpu.Device, size uint64) error {
+	if size == 0 {
+		size = 48 * 6
+	}
+	minSize := uint64(512 * 1024) // 512 KB
+	if size < minSize {
+		size = minSize
+	}
+	if r.decalScratchBuffer != nil && r.decalScratchBufferSize >= size {
+		return nil
+	}
+	oldBuffer := r.decalScratchBuffer
+	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Decal Scratch Buffer",
+		Size:             size,
+		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("create decal scratch buffer: %w", err)
+	}
+	r.decalScratchBuffer = buffer
+	r.decalScratchBufferSize = size
 	if oldBuffer != nil {
 		old := oldBuffer
 		r.enqueueReleaseLocked(func() { old.Release() })

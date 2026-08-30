@@ -315,6 +315,8 @@ type spriteRendererState struct {
 	oitSpritePipeline            *wgpu.RenderPipeline
 	spriteVertexShader           *wgpu.ShaderModule
 	spriteFragmentShader         *wgpu.ShaderModule
+	spriteScratchBuffer          *wgpu.Buffer
+	spriteScratchBufferSize      uint64
 }
 
 // particleRendererState groups the particle-model GPU pipeline state.
@@ -332,17 +334,19 @@ type particleRendererState struct {
 
 // decalRendererState groups the decal-model GPU pipeline state.
 type decalRendererState struct {
-	decalPipeline         *wgpu.RenderPipeline
-	oitDecalPipeline      *wgpu.RenderPipeline
-	decalPipelineLayout   *wgpu.PipelineLayout
-	decalVertexShader     *wgpu.ShaderModule
-	decalFragmentShader   *wgpu.ShaderModule
-	decalUniformBuffer    *wgpu.Buffer
-	decalUniformBindGroup *wgpu.BindGroup
-	decalUniformLayout    *wgpu.BindGroupLayout
-	decalAtlasTextureHAL  *wgpu.Texture
-	decalAtlasView        *wgpu.TextureView
-	decalBindGroup        *wgpu.BindGroup
+	decalPipeline          *wgpu.RenderPipeline
+	oitDecalPipeline       *wgpu.RenderPipeline
+	decalPipelineLayout    *wgpu.PipelineLayout
+	decalVertexShader      *wgpu.ShaderModule
+	decalFragmentShader    *wgpu.ShaderModule
+	decalUniformBuffer     *wgpu.Buffer
+	decalUniformBindGroup  *wgpu.BindGroup
+	decalUniformLayout     *wgpu.BindGroupLayout
+	decalAtlasTextureHAL   *wgpu.Texture
+	decalAtlasView         *wgpu.TextureView
+	decalBindGroup         *wgpu.BindGroup
+	decalScratchBuffer     *wgpu.Buffer
+	decalScratchBufferSize uint64
 }
 
 // polyBlendRendererState groups the screen-tint (polyblend) GPU pipeline state.
