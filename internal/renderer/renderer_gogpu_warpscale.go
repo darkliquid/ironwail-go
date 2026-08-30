@@ -82,10 +82,9 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
     let contrast = uniforms.postProcess.x;
     let gamma = uniforms.postProcess.y;
-    color.rgb *= contrast;
-    color.rgb = pow(color.rgb, vec3<f32>(gamma));
+    let corrected = pow(color.rgb * contrast, vec3<f32>(gamma));
 
-    return color;
+    return vec4<f32>(corrected, color.a);
 }
 `
 

@@ -411,5 +411,5 @@ func effectiveGoGPUAlphaMode(mode AlphaMode) AlphaMode {
 // pass), which gogpu's native Vulkan backend now supports (wgpu v0.31.8+).
 // See docs/OIT_WATER_INVESTIGATION.md.
 func goGPUOITEnabled() bool {
-	return true
+	return GetAlphaMode() == AlphaModeOIT
 }
