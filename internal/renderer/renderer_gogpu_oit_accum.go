@@ -26,6 +26,16 @@ func (dc *DrawContext) renderOITTranslucentPassHAL(state *RenderFrameState, plan
 	hasSprites := len(state.SpriteEntities) > 0 && IsGlobalPassEnabled(PassAliasEntities)
 	hasParticles := state.DrawParticles && state.Particles != nil && state.Particles.ActiveCount() > 0 && IsGlobalPassEnabled(PassParticles)
 
+	slog.Info("[oit_debug] renderOITTranslucentPassHAL",
+		"hasWorldLiquid", hasWorldLiquid,
+		"hasTranslucentWorldLiquidFaces", r.hasTranslucentWorldLiquidFacesGoGPU(),
+		"hasBrushTranslucent", hasBrushTranslucent,
+		"hasDecals", hasDecals,
+		"hasAliasTranslucent", hasAliasTranslucent,
+		"hasSprites", hasSprites,
+		"hasParticles", hasParticles,
+	)
+
 	if !hasWorldLiquid && !hasBrushTranslucent && !hasDecals && !hasAliasTranslucent && !hasSprites && !hasParticles {
 		return false
 	}
@@ -102,6 +112,21 @@ func (dc *DrawContext) renderOITTranslucentPassHAL(state *RenderFrameState, plan
 		}
 	}
 
+	if hasWorldLiquid && r.resources.OITWorldUniformBuffer != nil {
+		var uniformBytes [worldUniformBufferSize]byte
+		vpMatrix := r.ViewProjectionMatrix()
+		cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: state.FogDensity}, r.cameraState)
+		faceAlpha := r.deferredTranslucentLiquidAlpha.water
+		litWater := float32(0)
+		if r.deferredTranslucentLiquidLitWater {
+			litWater = 1
+		}
+		fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, worldFogUniformDensity(state.FogDensity), timeValue, faceAlpha, litWater)
+		if err := queue.WriteBuffer(r.resources.OITWorldUniformBuffer, 0, uniformBytes[:]); err != nil {
+			slog.Warn("failed to write OIT liquid uniforms", "error", err)
+		}
+	}
+
 	if hasWorldLiquid {
 		dc.recordOITWorldTranslucentLiquid(renderPass, queue, state.FogColor, state.FogDensity)
 	}
@@ -126,7 +151,10 @@ func (dc *DrawContext) renderOITTranslucentPassHAL(state *RenderFrameState, plan
 	}
 
 	if r.uniformOffset > passStartUniformOffset {
-		_ = queue.WriteBuffer(r.resources.UniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
+		err := queue.WriteBuffer(r.resources.UniformBuffer, uint64(passStartUniformOffset), r.uniformDataScratch[passStartUniformOffset:r.uniformOffset])
+		if err != nil {
+			slog.Warn("failed to write OIT uniforms", "error", err)
+		}
 	}
 
 	dc.frameSubmit(queue, encoder, encoderOwned, "OIT Translucent Accumulation Encoder")
@@ -148,8 +176,12 @@ func (dc *DrawContext) recordOITWorldTranslucentLiquid(renderPass *wgpu.RenderPa
 	renderPass.SetVertexBuffer(0, r.worldVertexBuffer, 0)
 	renderPass.SetIndexBuffer(r.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
 
-	vpMatrix := r.ViewProjectionMatrix()
-	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, r.cameraState)
+	uniformBG := r.resources.OITWorldUniformBindGroup
+	if uniformBG == nil {
+		uniformBG = r.resources.UniformBindGroup
+	}
+	renderPass.SetBindGroup(0, uniformBG, nil)
+
 	worldHasLitWater := r.deferredTranslucentLiquidLitWater
 
 	var materialBindState gogpuWorldMaterialBindState
@@ -159,7 +191,7 @@ func (dc *DrawContext) recordOITWorldTranslucentLiquid(renderPass *wgpu.RenderPa
 		if r.worldTextures != nil && r.worldTextures.bindGroup != nil {
 			textureBindGroup = r.worldTextures.bindGroup
 		}
-		lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, r.worldLightmapArray, r.resources.WhiteLightmapBindGroup, worldHasLitWater)
+		lightmapBindGroup, _ := gogpuWorldLightmapArrayBindGroupForFace(face, r.worldLightmapArray, r.resources.WhiteLightmapBindGroup, worldHasLitWater)
 		fullbrightBindGroup := r.resources.TransparentBindGroup
 		if fullbrightBindGroup == nil {
 			fullbrightBindGroup = r.resources.WhiteTextureBindGroup
@@ -167,14 +199,6 @@ func (dc *DrawContext) recordOITWorldTranslucentLiquid(renderPass *wgpu.RenderPa
 		if r.worldFullbrightTextures != nil && r.worldFullbrightTextures.bindGroup != nil {
 			fullbrightBindGroup = r.worldFullbrightTextures.bindGroup
 		}
-
-		offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
-		if uData == nil {
-			continue
-		}
-		faceAlpha := worldFaceAlpha(face.Flags, r.deferredTranslucentLiquidAlpha)
-		fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), timeValue, faceAlpha, litWater)
-		renderPass.SetBindGroup(0, r.resources.UniformBindGroup, []uint32{offset})
 
 		setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
 		if setTexture {

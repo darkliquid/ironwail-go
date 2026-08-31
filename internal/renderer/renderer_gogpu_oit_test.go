@@ -79,8 +79,8 @@ func TestOITShaderEpilogue(t *testing.T) {
 	if !strings.Contains(epilogue, "@location(0) accum: vec4<f32>") {
 		t.Errorf("epilogue missing @location(0) accum: vec4<f32>, got:\n%s", epilogue)
 	}
-	if !strings.Contains(epilogue, "@location(1) reveal: f32") {
-		t.Errorf("epilogue missing @location(1) reveal: f32, got:\n%s", epilogue)
+	if !strings.Contains(epilogue, "@location(1) reveal: vec4<f32>") && !strings.Contains(epilogue, "@location(1) reveal: f32") {
+		t.Errorf("epilogue missing @location(1) reveal, got:\n%s", epilogue)
 	}
 
 	// Check McGuire weight formula matching C Ironwail:
@@ -100,7 +100,7 @@ func TestOITShaderEpilogue(t *testing.T) {
 	}
 
 	// Check revealage output (color.a)
-	if !strings.Contains(epilogue, "o.reveal = color.a") {
+	if !strings.Contains(epilogue, "o.reveal = vec4<f32>(color.a") && !strings.Contains(epilogue, "o.reveal = color.a") {
 		t.Errorf("epilogue missing revealage assignment, got:\n%s", epilogue)
 	}
 

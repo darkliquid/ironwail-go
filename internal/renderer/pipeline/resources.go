@@ -126,6 +126,8 @@ type Resources struct {
 	OITWorldTranslucentTurbulentPipeline *wgpu.RenderPipeline
 	OITWorldTranslucentPipeline          *wgpu.RenderPipeline
 	OITAccumPipelineLayout               *wgpu.PipelineLayout
+	OITWorldUniformBuffer                *wgpu.Buffer
+	OITWorldUniformBindGroup             *wgpu.BindGroup
 
 	OverlayCompositePipeline        *wgpu.RenderPipeline
 	OverlayCompositePipelineLayout  *wgpu.PipelineLayout

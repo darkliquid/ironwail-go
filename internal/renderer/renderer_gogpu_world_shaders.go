@@ -10,16 +10,10 @@ import (
 const worldUniformsWGSL = `
 struct Uniforms {
     viewProjection: mat4x4<f32>,
-    cameraOrigin: vec3<f32>,
-    fogDensity: f32,
-    fogColor: vec3<f32>,
-    time: f32,
-    alpha: f32,
-    litWater: f32,
-    skyWindPhase: f32,
-    _padding0: f32,
-    skyWindDir: vec3<f32>,
-    skyWindEnabled: f32,
+    cameraOriginFogDensity: vec4<f32>,
+    fogColorTime: vec4<f32>,
+    params: vec4<f32>,
+    skyWindDirEnabled: vec4<f32>,
 }
 `
 
@@ -221,10 +215,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let dynamicLight = accumulateDynamicLights(input.worldPos, %s, input.clipPos);
     totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
     let lit = %s;
-    let fogPosition = input.worldPos - uniforms.cameraOrigin;
-    let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	let fogged = mix(uniforms.fogColor, lit, fog);
-	return vec4<f32>(fogged, uniforms.alpha);
+    let fogPosition = input.worldPos - uniforms.cameraOriginFogDensity.xyz;
+    let fog = clamp(exp2(-uniforms.cameraOriginFogDensity.w * dot(fogPosition, fogPosition)), 0.0, 1.0);
+	let fogged = mix(uniforms.fogColorTime.xyz, lit, fog);
+	return vec4<f32>(fogged, uniforms.params.x);
 }
 `, worldUniformsWGSL, gogpuWorldDynamicLightBufferMax, alphaDiscard, planeNormalExpr, lightExpr)
 }
@@ -444,9 +438,9 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     let clipPos = uniforms.viewProjection * worldPos;
     output.clipPosition = vec4<f32>(clipPos.xy, clipPos.w, clipPos.w);
     output.dir = vec3<f32>(
-        input.position.x - uniforms.cameraOrigin.x,
-        input.position.y - uniforms.cameraOrigin.y,
-        (input.position.z - uniforms.cameraOrigin.z) * 3.0,
+        input.position.x - uniforms.cameraOriginFogDensity.x,
+        input.position.y - uniforms.cameraOriginFogDensity.y,
+        (input.position.z - uniforms.cameraOriginFogDensity.z) * 3.0,
     );
     return output;
 }
@@ -477,9 +471,9 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     let clipPos = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
     output.clipPosition = vec4<f32>(clipPos.xy, clipPos.w, clipPos.w);
     output.dir = vec3<f32>(
-        input.position.x - uniforms.cameraOrigin.x,
-        input.position.y - uniforms.cameraOrigin.y,
-        (input.position.z - uniforms.cameraOrigin.z) * 3.0,
+        input.position.x - uniforms.cameraOriginFogDensity.x,
+        input.position.y - uniforms.cameraOriginFogDensity.y,
+        (input.position.z - uniforms.cameraOriginFogDensity.z) * 3.0,
     );
     return output;
 }
@@ -573,7 +567,7 @@ fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>) -> ve
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let mat = materials[input.materialID];
-    let uv = fract(input.texCoord * 2.0 + 0.125 * sin(input.texCoord.yx * (3.14159265 * 2.0) + vec2<f32>(uniforms.time, uniforms.time)));
+    let uv = fract(input.texCoord * 2.0 + 0.125 * sin(input.texCoord.yx * (3.14159265 * 2.0) + vec2<f32>(uniforms.fogColorTime.w, uniforms.fogColorTime.w)));
     let atlasUV = uv * mat.atlasBounds.zw + mat.atlasBounds.xy;
     let sampled = textureSampleLevel(worldTexture, worldSampler, vec2<f32>(atlasUV.x, atlasUV.y + mat.layer), 0.0);
 
@@ -582,7 +576,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     // no fullbright). Lit water (litWater=1) uses the world shader in
     // WORLDSHADER_WATER mode (lightmap + dynamic lights + fullbright).
     var lit = sampled.rgb;
-    if (uniforms.litWater > 0.5) {
+    if (uniforms.params.y > 0.5) {
         var totalLight = textureSample(worldLightmap, worldLightmapSampler, vec2<f32>(input.lightmapCoord.x, input.lightmapCoord.y + input.lightmapLayer)).rgb;
         let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)));
         totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
@@ -590,15 +584,15 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         let fullbrightColor = fullbright.rgb * fullbright.a;
         lit = mix(sampled.rgb, sampled.rgb * totalLight * 2.0, sampled.a) + fullbrightColor;
     }
-    let fogPosition = input.worldPos - uniforms.cameraOrigin;
-    let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-    let fogged = mix(uniforms.fogColor, lit, fog);
+    let fogPosition = input.worldPos - uniforms.cameraOriginFogDensity.xyz;
+    let fog = clamp(exp2(-uniforms.cameraOriginFogDensity.w * dot(fogPosition, fogPosition)), 0.0, 1.0);
+    let fogged = mix(uniforms.fogColorTime.xyz, lit, fog);
     // Match C Ironwail alpha behavior:
     // Lit water (gl_shaders.h:725): result.a = in_alpha (replaces texture alpha)
     // Unlit water (gl_shaders.h:810): result.a *= in_alpha (multiplies texture alpha)
-    var finalAlpha = sampled.a * uniforms.alpha;
-    if (uniforms.litWater > 0.5) {
-        finalAlpha = uniforms.alpha;
+    var finalAlpha = sampled.a * uniforms.params.x;
+    if (uniforms.params.y > 0.5) {
+        finalAlpha = uniforms.params.x;
     }
     return vec4<f32>(fogged, finalAlpha);
 }
@@ -631,10 +625,10 @@ var skyAlphaTexture: texture_2d<f32>;
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let dir = normalize(input.dir);
     let uv = dir.xy * (189.0 / 64.0);
-    var result = textureSample(skySolidTexture, skySolidSampler, uv + vec2<f32>(uniforms.time / 16.0, uniforms.time / 16.0));
-    let layer = textureSample(skyAlphaTexture, skyAlphaSampler, uv + vec2<f32>(uniforms.time / 8.0, uniforms.time / 8.0));
+    var result = textureSample(skySolidTexture, skySolidSampler, uv + vec2<f32>(uniforms.fogColorTime.w / 16.0, uniforms.fogColorTime.w / 16.0));
+    let layer = textureSample(skyAlphaTexture, skyAlphaSampler, uv + vec2<f32>(uniforms.fogColorTime.w / 8.0, uniforms.fogColorTime.w / 8.0));
     result = vec4<f32>(mix(result.rgb, layer.rgb, vec3<f32>(layer.a)), 1.0);
-    result = vec4<f32>(mix(result.rgb, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), 1.0);
+    result = vec4<f32>(mix(result.rgb, uniforms.fogColorTime.xyz, vec3<f32>(uniforms.cameraOriginFogDensity.w)), 1.0);
     return result;
 }
 `
@@ -721,18 +715,18 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     // classic scrolling skies, so undo that stretch for external cubemap faces.
     let dir = normalize(vec3<f32>(-input.dir.y, input.dir.z / 3.0, input.dir.x) + vec3<f32>(0.0, 0.000001, 0.0));
     var result = sampleExternalSky(dir);
-    if (uniforms.skyWindEnabled > 0.5) {
-        let t1 = uniforms.skyWindPhase;
+    if (uniforms.skyWindDirEnabled.w > 0.5) {
+        let t1 = uniforms.params.z;
         let t2 = fract(t1) - 0.5;
         let blend = abs(t1 * 2.0);
-        var layer1 = sampleExternalSky(dir + t1 * uniforms.skyWindDir);
-        var layer2 = sampleExternalSky(dir + t2 * uniforms.skyWindDir);
+        var layer1 = sampleExternalSky(dir + t1 * uniforms.skyWindDirEnabled.xyz);
+        var layer2 = sampleExternalSky(dir + t2 * uniforms.skyWindDirEnabled.xyz);
         layer1 = vec4<f32>(layer1.rgb * layer1.a * (1.0 - blend), layer1.a * (1.0 - blend));
         layer2 = vec4<f32>(layer2.rgb * layer2.a * blend, layer2.a * blend);
         let combined = layer1 + layer2;
         result = vec4<f32>(result.rgb * (1.0 - combined.a) + combined.rgb, 1.0);
     }
-    result = vec4<f32>(mix(result.rgb, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), result.a);
+    result = vec4<f32>(mix(result.rgb, uniforms.fogColorTime.xyz, vec3<f32>(uniforms.cameraOriginFogDensity.w)), result.a);
     return result;
 }
 `

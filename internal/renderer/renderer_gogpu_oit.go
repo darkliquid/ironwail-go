@@ -126,7 +126,7 @@ func oitAccumFragEpilogueWGSL() string {
 
 struct OITOut {
     @location(0) accum: vec4<f32>,
-    @location(1) reveal: f32,
+    @location(1) reveal: vec4<f32>,
 }
 
 @fragment
@@ -141,7 +141,7 @@ fn fs_main(input: VertexOutput) -> OITOut {
     let premul = color.a * weight;
     var o: OITOut;
     o.accum = vec4<f32>(color.rgb * premul, premul);
-    o.reveal = color.a;
+    o.reveal = vec4<f32>(color.a, color.a, color.a, color.a);
     return o;
 }
 `
@@ -507,6 +507,24 @@ func (r *Renderer) ensureOITResolveResourcesLocked(device *wgpu.Device) error {
 func (r *Renderer) ensureOITWorldPipelineLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
+	}
+	if r.resources.OITWorldUniformBuffer == nil {
+		buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+			Label: "OIT World Uniform Buffer",
+			Size:  worldUniformBufferSize,
+			Usage: gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+		})
+		if err != nil {
+			return fmt.Errorf("create OIT world uniform buffer: %w", err)
+		}
+		r.resources.OITWorldUniformBuffer = buf
+	}
+	if r.resources.OITWorldUniformBindGroup == nil && r.resources.UniformBindGroupLayout != nil && r.resources.OITWorldUniformBuffer != nil {
+		bg, err := r.createWorldUniformBindGroup(device, r.resources.UniformBindGroupLayout, r.resources.OITWorldUniformBuffer, r.resources.WorldMaterialsBuffer)
+		if err != nil {
+			return fmt.Errorf("create OIT world uniform bind group: %w", err)
+		}
+		r.resources.OITWorldUniformBindGroup = bg
 	}
 	if r.resources.OITWorldTranslucentTurbulentPipeline != nil && r.resources.OITWorldTranslucentPipeline != nil {
 		return nil

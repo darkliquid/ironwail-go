@@ -187,6 +187,9 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 
 		if state.screenshotMode && !state.screenshotCaptured {
 			if os.Getenv("PARITY_RUN") != "1" || (paritySetupDone && paritySettleCountdown == 0) {
+				if os.Getenv("DUMP_SCREENSHOT_PASSES") == "1" && g.Host != nil && g.Host.CVar != nil {
+					g.Host.CVar.Set("r_dump_passes", "1")
+				}
 				defer g.captureRuntimeRendererScreenshot(state)
 			}
 		}

@@ -376,11 +376,13 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		dc.renderer.storeGoGPUWorldBatchCacheEntry(cameraLeafIndex, liquidAlpha, visibleFaceCount, skyFaces, translucentLiquidFaces, batchedIndices, opaqueBatches, alphaTestBatches, opaqueLiquidBatches)
 	}
 	if rDebugWaterEnabled() {
-		slog.Debug("[rwater] face classification",
+		slog.Info("[rwater] face classification",
 			"visible_faces", visibleFaceCount,
 			"translucent_liquid_faces", len(translucentLiquidFaces),
 			"opaque_liquid_batches", len(opaqueLiquidBatches),
+			"opaque_batches", len(opaqueBatches),
 			"cache_hit", cacheHit,
+			"liquidAlpha", liquidAlpha,
 		)
 	}
 	var opaqueBatchBuffer *wgpu.Buffer

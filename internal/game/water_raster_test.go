@@ -55,7 +55,7 @@ func TestQBJ2WaterTranslucencyRaster(t *testing.T) {
 		_ = os.Remove(pngPath)
 
 		cfgPath := filepath.Join(outDir, "raster_test.cfg")
-		cfgContent := fmt.Sprintf("r_wateralpha %s\nr_debug_water 1\nscr_viewsize 130\nr_drawviewmodel 0\ncrosshair 0\ntogglemenu\n", waterAlpha)
+		cfgContent := fmt.Sprintf("fov 90\nr_wateralpha %s\nr_debug_water 1\nscr_viewsize 130\nr_drawviewmodel 0\ncrosshair 0\ntogglemenu\n", waterAlpha)
 		if err := os.WriteFile(cfgPath, []byte(cfgContent), 0o644); err != nil {
 			t.Fatalf("Failed to write test config: %v", err)
 		}
@@ -81,6 +81,7 @@ func TestQBJ2WaterTranslucencyRaster(t *testing.T) {
 		)
 
 		out, err := runCmd.CombinedOutput()
+		t.Logf("Engine output for %s (%s):\n%s", outName, waterAlpha, string(out))
 		if _, statErr := os.Stat(pngPath); os.IsNotExist(statErr) {
 			t.Fatalf("ironwailgo failed to export screenshot to %s (err: %v)\nOutput: %s", pngPath, err, string(out))
 		}

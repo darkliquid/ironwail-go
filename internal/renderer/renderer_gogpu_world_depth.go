@@ -299,6 +299,12 @@ func (r *Renderer) ClearWorld() {
 		if r.resources.WorldUniformBindGroupFrame1 != nil {
 			r.resources.WorldUniformBindGroupFrame1.Release()
 		}
+		if r.resources.OITWorldUniformBuffer != nil {
+			r.resources.OITWorldUniformBuffer.Release()
+		}
+		if r.resources.OITWorldUniformBindGroup != nil {
+			r.resources.OITWorldUniformBindGroup.Release()
+		}
 		for _, buf := range r.externalBrushMaterialsBuffers {
 			if buf != nil {
 				buf.Release()
@@ -385,6 +391,8 @@ func (r *Renderer) ClearWorld() {
 		r.resources.WorldUniformBindGroupFrame1 = nil
 		r.worldBaseMaterials = nil
 		r.resources.WorldDynamicLightsBuffer = nil
+		r.resources.OITWorldUniformBuffer = nil
+		r.resources.OITWorldUniformBindGroup = nil
 		r.resources.UniformBindGroup = nil
 		r.resources.WorldDynamicLightsBindGroup = nil
 		r.resources.UniformBindGroupLayout = nil
