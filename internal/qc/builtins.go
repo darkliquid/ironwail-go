@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/internal/loc"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
@@ -235,11 +236,11 @@ func breakBuiltin(vm *VM) {
 }
 
 func errorBuiltin(vm *VM) {
-	console.Printf("QC error: %s", vm.GString(OFSParm0))
+	console.Printf("QC error: %s", varString(vm, 0))
 }
 
 func objerrorBuiltin(vm *VM) {
-	msg := vm.GString(OFSParm0)
+	msg := varString(vm, 0)
 	entNum := int(vm.GInt(OFSSelf))
 	console.Printf("QC objerror (entity %d): %s", entNum, msg)
 
@@ -337,7 +338,7 @@ func writeAngleBuiltin(vm *VM) {
 
 func writeStringBuiltin(vm *VM) {
 	if vm.ServerHooks.WriteString != nil {
-		vm.ServerHooks.WriteString(vm, int(vm.GFloat(OFSParm0)), localizedTextMessage(vm.GString(OFSParm1)))
+		vm.ServerHooks.WriteString(vm, int(vm.GFloat(OFSParm0)), loc.GetString(localizedTextMessage(vm.GString(OFSParm1))))
 	}
 }
 
@@ -407,9 +408,38 @@ func stuffcmd(vm *VM) {
 	}
 }
 
+func varString(vm *VM, first int) string {
+	argc := vm.ArgC
+	if argc <= 0 {
+		argc = first + 1
+	}
+	if first >= argc {
+		return ""
+	}
+
+	raw := vm.GString(OFSParm0 + first*3)
+	format := loc.GetString(localizedTextMessage(raw))
+	if loc.HasPlaceholders(format) {
+		offset := first + 1
+		return loc.Format(format, func(idx int) string {
+			argIndex := offset + idx
+			if argIndex < 0 || argIndex >= argc {
+				return ""
+			}
+			return loc.GetString(localizedTextMessage(vm.GString(OFSParm0 + argIndex*3)))
+		})
+	}
+
+	var b strings.Builder
+	for i := first; i < argc; i++ {
+		b.WriteString(loc.GetString(localizedTextMessage(vm.GString(OFSParm0 + i*3))))
+	}
+	return b.String()
+}
+
 // bprint prints a broadcast message.
 func bprint(vm *VM) {
-	msg := localizedTextMessage(vm.GString(OFSParm0))
+	msg := varString(vm, 0)
 	if vm.ServerHooks.BroadcastPrint != nil {
 		vm.ServerHooks.BroadcastPrint(vm, msg)
 		return
@@ -420,7 +450,7 @@ func bprint(vm *VM) {
 // sprint prints a message intended for one client.
 func sprint(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
-	msg := localizedTextMessage(vm.GString(OFSParm1))
+	msg := varString(vm, 1)
 	if vm.ServerHooks.ClientPrint != nil {
 		vm.ServerHooks.ClientPrint(vm, entNum, msg)
 		return
@@ -430,7 +460,7 @@ func sprint(vm *VM) {
 
 // dprint prints a developer/debug message.
 func dprint(vm *VM) {
-	msg := localizedTextMessage(vm.GString(OFSParm0))
+	msg := varString(vm, 0)
 	if vm.ServerHooks.DebugPrint != nil {
 		vm.ServerHooks.DebugPrint(vm, msg)
 		return

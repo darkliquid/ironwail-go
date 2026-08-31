@@ -5,6 +5,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/common"
 	"github.com/darkliquid/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/internal/loc"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
@@ -369,7 +370,10 @@ func (p *Parser) parseServerInfo(msg *common.SizeBuf) error {
 	}
 	p.Client.GameType = int(gametype)
 
-	p.Client.LevelName = trimNUL(msg.ReadString())
+	console.ClearLastCenterPrint()
+	p.Client.LevelName = loc.GetString(trimNUL(msg.ReadString()))
+	console.Printf("\n%s\n\n\x02%s\n", console.QuakeBar(40), p.Client.LevelName)
+	console.Printf("Using protocol %d\n", p.Client.Protocol)
 
 	models, err := p.readPrecacheList(msg)
 	if err != nil {

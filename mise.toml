@@ -36,7 +36,7 @@ if [ -z "${QUAKE_DIR:-}" ]; then
   exit 1
 fi
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} ./ironwailgo -basedir "${QUAKE_DIR}" 2>&1 | tee smoke-menu.log || true
+timeout ${TIMEOUT} ./ironwailgo -basedir "${QUAKE_DIR}" -loglvl INFO 2>&1 | tee smoke-menu.log || true
 grep "FS mounted" smoke-menu.log
 grep "QC loaded" smoke-menu.log
 grep "menu active" smoke-menu.log
@@ -51,7 +51,7 @@ if [ -z "${QUAKE_DIR:-}" ]; then
   exit 1
 fi
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} ./ironwailgo -basedir "${QUAKE_DIR}" -headless 2>&1 | tee smoke-headless.log || true
+timeout ${TIMEOUT} ./ironwailgo -basedir "${QUAKE_DIR}" -headless -loglvl INFO 2>&1 | tee smoke-headless.log || true
 grep "FS mounted" smoke-headless.log
 grep "QC loaded" smoke-headless.log
 grep "menu active" smoke-headless.log
@@ -66,13 +66,12 @@ if [ -z "${QUAKE_DIR:-}" ]; then
   exit 1
 fi
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} ./ironwailgo -basedir "${QUAKE_DIR}" +map start 2>&1 | tee smoke-map-start.log || true
+timeout ${TIMEOUT} ./ironwailgo -basedir "${QUAKE_DIR}" -loglvl INFO +map start 2>&1 | tee smoke-map-start.log || true
 grep "FS mounted" smoke-map-start.log
 grep "QC loaded" smoke-map-start.log
 grep "menu active" smoke-map-start.log
-grep "map spawn started" smoke-map-start.log
-grep "map spawn finished" smoke-map-start.log
-grep "client active" smoke-map-start.log
+grep "server spawned map start" smoke-map-start.log
+grep "Client state changed to Active" smoke-map-start.log
 """
 
 [tasks.smoke-all]

@@ -219,11 +219,11 @@ type mockCallbacks struct {
 	clientCalled bool
 }
 
-func (m *mockCallbacks) Events()                                            {}
-func (m *mockCallbacks) ProcessConsoleCommands()                            {}
-func (m *mockCallbacks) ProcessServer()                                     { m.serverCalled = true }
-func (m *mockCallbacks) ProcessClient()                                     { m.clientCalled = true }
-func (m *mockCallbacks) UpdateScreen()                                      {}
+func (m *mockCallbacks) Events()                                           {}
+func (m *mockCallbacks) ProcessConsoleCommands()                           {}
+func (m *mockCallbacks) ProcessServer()                                    { m.serverCalled = true }
+func (m *mockCallbacks) ProcessClient()                                    { m.clientCalled = true }
+func (m *mockCallbacks) UpdateScreen()                                     {}
 func (m *mockCallbacks) UpdateAudio(origin, forward, right, up types.Vec3) {}
 
 // TestHostInit verifies that the host initializes correctly with mock subsystems.

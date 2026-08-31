@@ -55,7 +55,7 @@ func main() {
 	widthFlag := flag.Int("width", startupVidWidth, "Initial window width")
 	heightFlag := flag.Int("height", startupVidHeight, "Initial window height")
 	windowFlag := flag.Bool("window", false, "Run in windowed mode")
-	logLevel := flag.String("loglvl", "INFO", "logging level spec (DEBUG or INFO,renderer=WARN,input=DEBUG)")
+	logLevel := flag.String("loglvl", "", "logging level spec (DEBUG or INFO,renderer=WARN,input=DEBUG; disabled by default)")
 	pprofAddr := flag.String("pprof", "", "pprof listener address (e.g., localhost:6060)")
 	if err := flag.CommandLine.Parse(startupOpts.Args); err != nil {
 		log.Fatal(err)

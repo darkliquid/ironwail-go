@@ -6,11 +6,13 @@ package server
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/loc"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
@@ -223,6 +225,27 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	}
 	if len(centerConsole) != 0 {
 		t.Fatalf("escaped centerprint unexpectedly echoed to server console: %q", centerConsole)
+	}
+
+	clientBefore = s.Static.Clients[0].Message.Len()
+	locSample := `map_skill_normal = "This hall selects NORMAL skill"`
+	l := loc.New()
+	_ = l.Load(strings.NewReader(locSample))
+	oldLoc := loc.Default()
+	loc.SetDefault(l)
+	t.Cleanup(func() {
+		loc.SetDefault(oldLoc)
+	})
+
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
+	vm.SetGString(qc.OFSParm1, "$map_skill_normal")
+	vm.Builtins[73](vm)
+	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCCenterPrint) {
+		t.Fatalf("localized centerprint opcode = %d, want %d", got, inet.SVCCenterPrint)
+	}
+	msg = s.Static.Clients[0].Message.Data[clientBefore+1 : s.Static.Clients[0].Message.Len()-1]
+	if got := string(msg); got != "This hall selects NORMAL skill" {
+		t.Fatalf("localized centerprint message = %q, want %q", got, "This hall selects NORMAL skill")
 	}
 
 	clientBefore = s.Static.Clients[0].Message.Len()

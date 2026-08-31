@@ -285,11 +285,11 @@ func NewServer() *Server {
 			return nil
 		}
 		ent := s.EdictNum(entNum)
-		if ent == nil {
-			return nil
-		}
-		for _, client := range s.Static.Clients {
-			if client != nil && client.Edict == ent {
+		for i, client := range s.Static.Clients {
+			if client == nil {
+				continue
+			}
+			if (ent != nil && client.Edict == ent) || entNum == i+1 {
 				return client
 			}
 		}

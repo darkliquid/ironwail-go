@@ -76,7 +76,6 @@ const (
 	MoveMissile    = srvtypes.MoveMissile
 )
 
-
 // ServerState constants
 const (
 	ServerStateLoading = srvtypes.ServerStateLoading
@@ -101,8 +100,8 @@ const (
 func VecAdd(a, b qtypes.Vec3) qtypes.Vec3           { return srvtypes.VecAdd(a, b) }
 func VecSub(a, b qtypes.Vec3) qtypes.Vec3           { return srvtypes.VecSub(a, b) }
 func VecScale(v qtypes.Vec3, s float32) qtypes.Vec3 { return srvtypes.VecScale(v, s) }
-func VecLen(v qtypes.Vec3) float32                 { return srvtypes.VecLen(v) }
-func VecNormalize(v *qtypes.Vec3) float32          { return srvtypes.VecNormalize(v) }
-func VecDot(a, b qtypes.Vec3) float32              { return srvtypes.VecDot(a, b) }
+func VecLen(v qtypes.Vec3) float32                  { return srvtypes.VecLen(v) }
+func VecNormalize(v *qtypes.Vec3) float32           { return srvtypes.VecNormalize(v) }
+func VecDot(a, b qtypes.Vec3) float32               { return srvtypes.VecDot(a, b) }
 func VecCopy(src qtypes.Vec3, dst *qtypes.Vec3)     { srvtypes.VecCopy(src, dst) }
 func VecCross(a, b qtypes.Vec3) qtypes.Vec3         { return srvtypes.VecCross(a, b) }

@@ -18,8 +18,6 @@ import (
 	"github.com/gogpu/wgpu"
 )
 
-
-
 var (
 	passDumpPrefix string
 )
@@ -588,4 +586,3 @@ func (d *CapturePassDumper) CaptureFinalSwapchain(views ...*wgpu.TextureView) {
 		pkgCVars.Set(CvarRDumpPasses, "0")
 	}
 }
-

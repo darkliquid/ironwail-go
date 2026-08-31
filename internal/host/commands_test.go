@@ -249,9 +249,9 @@ type stopAllTrackingAudio struct {
 	currentMusic string
 }
 
-func (a *stopAllTrackingAudio) Init() error                                           { return nil }
+func (a *stopAllTrackingAudio) Init() error                                            { return nil }
 func (a *stopAllTrackingAudio) Update(origin, velocity, forward, right, up types.Vec3) {}
-func (a *stopAllTrackingAudio) Shutdown()                                             {}
+func (a *stopAllTrackingAudio) Shutdown()                                              {}
 func (a *stopAllTrackingAudio) SoundInfo() string                                      { return "" }
 func (a *stopAllTrackingAudio) SoundList() string                                      { return "" }
 func (a *stopAllTrackingAudio) PlayLocalSound(name string, loader func() ([]byte, error), vol float32) error {

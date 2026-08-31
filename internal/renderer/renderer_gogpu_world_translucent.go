@@ -786,5 +786,3 @@ func (dc *DrawContext) renderDeferredTranslucentWorldLiquidHAL(fogColor types.Ve
 	}
 	dc.frameSubmit(queue, encoder, encoderOwned, "World Translucent Liquid Encoder")
 }
-
-

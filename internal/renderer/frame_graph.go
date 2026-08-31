@@ -21,13 +21,13 @@
 // # What this file provides
 //
 //   - FrameGraph: owns ONE CommandEncoder for the whole frame. Stages borrow
-//      it to record their render/compute passes, then Finish+Submit happen a
-//      single time at the end of RenderFrame.
+//     it to record their render/compute passes, then Finish+Submit happen a
+//     single time at the end of RenderFrame.
 //   - Pass: the interface every render stage implements. A Pass is pure
-//      "record commands" logic; it never touches the queue and never submits.
-//      Because a Pass only reads renderer state and writes into the shared
-//      encoder, it can be run in isolation (build a graph with just that pass)
-//      or reordered/extended without touching any submission code.
+//     "record commands" logic; it never touches the queue and never submits.
+//     Because a Pass only reads renderer state and writes into the shared
+//     encoder, it can be run in isolation (build a graph with just that pass)
+//     or reordered/extended without touching any submission code.
 //
 // # Buffer-upload timing (important subtlety)
 //

@@ -135,12 +135,12 @@ func generateTransparencyBSP() ([]byte, error) {
 		{Point: types.Vec3{X: -200, Y: -40, Z: -128}},  // 15
 
 		// Q2 Slime Surface (40..200, -200..-40, -64):
-		{Point: types.Vec3{X: 40, Y: -200, Z: -64}}, // 16
+		{Point: types.Vec3{X: 40, Y: -200, Z: -64}},  // 16
 		{Point: types.Vec3{X: 200, Y: -200, Z: -64}}, // 17
 		{Point: types.Vec3{X: 200, Y: -40, Z: -64}},  // 18
 		{Point: types.Vec3{X: 40, Y: -40, Z: -64}},   // 19
 		// Q2 Slime Pit Floor (40..200, -200..-40, -128):
-		{Point: types.Vec3{X: 40, Y: -200, Z: -128}}, // 20
+		{Point: types.Vec3{X: 40, Y: -200, Z: -128}},  // 20
 		{Point: types.Vec3{X: 200, Y: -200, Z: -128}}, // 21
 		{Point: types.Vec3{X: 200, Y: -40, Z: -128}},  // 22
 		{Point: types.Vec3{X: 40, Y: -40, Z: -128}},   // 23

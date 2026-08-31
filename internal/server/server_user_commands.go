@@ -8,6 +8,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/darkliquid/ironwail-go/internal/console"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	srvcmds "github.com/darkliquid/ironwail-go/internal/server/commands"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
@@ -532,6 +533,7 @@ func (s *Server) DropClient(client *Client, crash bool) {
 	}
 
 	if clientName != "" && !crash {
+		console.Printf("Client %s removed\n", clientName)
 		slog.Info("client dropped", "name", clientName, "color", clientColor)
 	}
 }

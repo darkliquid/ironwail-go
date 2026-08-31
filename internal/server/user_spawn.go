@@ -5,6 +5,7 @@ package server
 import (
 	"fmt"
 
+	"github.com/darkliquid/ironwail-go/internal/console"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	srvnet "github.com/darkliquid/ironwail-go/internal/server/net"
@@ -133,7 +134,7 @@ func (s *Server) initClientSpawnFallback(client *Client) error {
 	ent.SetAbsMin(s, entOrigin.Add(entMins))
 	ent.SetAbsMax(s, entOrigin.Add(entMaxs))
 
-	if client.Name == "" {
+	if client.Name == "" || client.Name == "unconnected" {
 		client.Name = "player"
 	}
 	if s.QCVM != nil {
@@ -162,6 +163,11 @@ func (s *Server) runClientSpawnQC(client *Client) error {
 	if err := s.runClientQCFunction(client, "ClientConnect", true); err != nil {
 		return err
 	}
+	name := client.Name
+	if name == "" || name == "unconnected" {
+		name = "player"
+	}
+	console.Printf("%s entered the game\n", name)
 	SvdbgMultiplayerLogf("connect ent=%d name=%q", s.NumForEdict(client.Edict), client.Name)
 	if s.QCVM.FindFunction("PutClientInServer") < 0 {
 		return nil

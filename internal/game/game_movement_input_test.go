@@ -86,9 +86,9 @@ func TestMovementCommandsReleaseOnKeyUp(t *testing.T) {
 	}
 
 	cases := []struct {
-		name       string
-		key        int
-		button     func(*client.Client) *client.KButton
+		name   string
+		key    int
+		button func(*client.Client) *client.KButton
 	}{
 		{name: "forward", key: int('w'), button: func(c *client.Client) *client.KButton { return &c.InputForward }},
 		{name: "back", key: int('s'), button: func(c *client.Client) *client.KButton { return &c.InputBack }},
@@ -325,7 +325,6 @@ func TestStaleHeldKeysClearedOnMenuOpen(t *testing.T) {
 	}
 }
 
-
 // TestMenuMouseClickAdvancesExactlyOnePage guards the double-dispatch
 // regression: a single physical mouse click must advance the menu exactly one
 // page. When the gogpu input backend double-delivered a click (once via the
@@ -394,9 +393,6 @@ func TestSinglePlayerMenuNewGameRequiresSecondClick(t *testing.T) {
 	}
 }
 
-
-
-
 // TestInGameMovementRepeatedPressRelease exercises the FULL in-game chain:
 // key event -> input System -> runtime frame -> client AccumulateCmd/BaseMove
 // -> PendingCmd.Forward. It guards the regression where in-game movement only
@@ -442,19 +438,19 @@ func TestInGameMovementRepeatedPressRelease(t *testing.T) {
 // letting the runtime frame path run without a real window.
 type noopInputBackend struct{}
 
-func (b *noopInputBackend) Init() error                      { return nil }
-func (b *noopInputBackend) Shutdown()                        {}
-func (b *noopInputBackend) PollEvents() bool                 { return true }
-func (b *noopInputBackend) MouseDelta() (int32, int32)       { return 0, 0 }
+func (b *noopInputBackend) Init() error                         { return nil }
+func (b *noopInputBackend) Shutdown()                           {}
+func (b *noopInputBackend) PollEvents() bool                    { return true }
+func (b *noopInputBackend) MouseDelta() (int32, int32)          { return 0, 0 }
 func (b *noopInputBackend) MousePosition() (int32, int32, bool) { return 0, 0, false }
-func (b *noopInputBackend) ModifierState() input.ModifierState { return input.ModifierState{} }
-func (b *noopInputBackend) SetTextMode(input.TextMode)       {}
-func (b *noopInputBackend) SetCursorMode(input.CursorMode)   {}
-func (b *noopInputBackend) ShowKeyboard(bool)                {}
+func (b *noopInputBackend) ModifierState() input.ModifierState  { return input.ModifierState{} }
+func (b *noopInputBackend) SetTextMode(input.TextMode)          {}
+func (b *noopInputBackend) SetCursorMode(input.CursorMode)      {}
+func (b *noopInputBackend) ShowKeyboard(bool)                   {}
 func (b *noopInputBackend) GamepadState(int) input.GamepadState { return input.GamepadState{} }
-func (b *noopInputBackend) IsGamepadConnected(int) bool      { return false }
-func (b *noopInputBackend) SetMouseGrab(bool)                {}
-func (b *noopInputBackend) SetWindow(any)                    {}
+func (b *noopInputBackend) IsGamepadConnected(int) bool         { return false }
+func (b *noopInputBackend) SetMouseGrab(bool)                   {}
+func (b *noopInputBackend) SetWindow(any)                       {}
 
 // TestApplyStartupGameplayInputModeNoopWhenAlreadyActive guards the in-game
 // regression where ApplyStartupGameplayInputMode was invoked every frame and

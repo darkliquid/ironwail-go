@@ -101,6 +101,12 @@ func (c loggingConfig) allows(subsystem string, level slog.Level) bool {
 }
 
 func installLogging(spec string) error {
+	trimmed := strings.TrimSpace(spec)
+	if trimmed == "" || strings.EqualFold(trimmed, "OFF") || strings.EqualFold(trimmed, "NONE") || strings.EqualFold(trimmed, "DISABLED") {
+		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+		return nil
+	}
+
 	cfg, err := parseLoggingConfig(spec)
 	if err != nil {
 		return err

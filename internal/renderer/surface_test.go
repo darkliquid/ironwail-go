@@ -377,4 +377,3 @@ func TestRendererPruneAliasStatesDropsRetiredWorldEntities(t *testing.T) {
 		t.Fatal("expected viewmodel alias state to remain untouched")
 	}
 }
-

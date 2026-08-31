@@ -186,3 +186,51 @@ func TestGlobalReturnsSingleton(t *testing.T) {
 		t.Fatal("console.Global() returned different instances")
 	}
 }
+
+func TestQuakeBarGlyphsAndTerminalText(t *testing.T) {
+	if err := InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	Resize(DefaultLineWidth)
+	bar := QuakeBar(10)
+	// Quake font indices: \35 (29), \36 (30), \37 (31)
+	if bar[0] != 29 {
+		t.Fatalf("bar[0] = %d (%q), want 29 (Quake left cap)", bar[0], bar[0])
+	}
+	for i := 1; i < 9; i++ {
+		if bar[i] != 30 {
+			t.Fatalf("bar[%d] = %d (%q), want 30 (Quake middle segment)", i, bar[i], bar[i])
+		}
+	}
+	if bar[9] != 31 {
+		t.Fatalf("bar[9] = %d (%q), want 31 (Quake right cap)", bar[9], bar[9])
+	}
+
+	term := TerminalText(bar)
+	if got, want := term, "----------\n"; got != want {
+		t.Fatalf("TerminalText(QuakeBar(10)) = %q, want %q", got, want)
+	}
+}
+
+func TestLogCenterPrintOutputFormat(t *testing.T) {
+	if err := InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	Resize(DefaultLineWidth)
+	cv := GlobalCVar()
+	cv.Register("con_logcenterprint", "1", cvar.FlagArchive, "centerprint logging mode")
+	Clear()
+
+	var printed strings.Builder
+	SetPrintCallback(func(msg string) {
+		printed.WriteString(TerminalText(msg))
+	})
+	defer SetPrintCallback(nil)
+
+	LogCenterPrint(0, "This hall selects NORMAL skill\n")
+
+	want := "----------------------------------------\n     This hall selects NORMAL skill\n----------------------------------------\n"
+	if got := printed.String(); got != want {
+		t.Fatalf("LogCenterPrint output:\ngot:\n%q\nwant:\n%q", got, want)
+	}
+}

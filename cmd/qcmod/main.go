@@ -157,7 +157,7 @@ replace directive pointing at pkg/qgo/quake), like pkg/qgo/quakego does.
 
 func runTest(args []string, stdout, stderr io.Writer) int {
 	if len(args) < 1 {
-	_, _ = fmt.Fprintln(stderr, "qcmod test: missing <moddir>")
+		_, _ = fmt.Fprintln(stderr, "qcmod test: missing <moddir>")
 		return 2
 	}
 	dir := args[0]

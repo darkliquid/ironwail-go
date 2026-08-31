@@ -627,6 +627,8 @@ func (c *Console) Printf(format string, args ...any) {
 
 	if c.printCallback != nil {
 		c.printCallback(msg)
+	} else {
+		fmt.Print(TerminalText(msg))
 	}
 
 	c.debugLogWrite(msg)
@@ -687,6 +689,7 @@ func (c *Console) SafePrintf(format string, args ...any) {
 // terminal/stdout logging, clear that color bit so the underlying ASCII text is
 // visible instead of invalid UTF-8 bytes.
 func TerminalText(msg string) string {
+	msg = strings.TrimPrefix(msg, "[skipnotify]")
 	if msg == "" {
 		return ""
 	}
@@ -701,6 +704,8 @@ func TerminalText(msg string) string {
 			out = append(out, ch)
 		case ch >= 32 && ch < 127:
 			out = append(out, ch)
+		case ch == 29 || ch == 30 || ch == 31:
+			out = append(out, '-')
 		case ch == 0:
 			// Quake strings are normally NUL-terminated on the wire; do not
 			// leak the terminator into terminal logs if one slips through.
@@ -717,12 +722,19 @@ func TerminalText(msg string) string {
 // where centred text is desired.
 func (c *Console) CenterPrintf(width int, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
-	lines := strings.Split(msg, "\n")
+	if c.lineWidth > 0 && width > c.lineWidth {
+		width = c.lineWidth
+	}
 
-	for _, line := range lines {
-		if len(line) == 0 {
-			c.Printf("\n")
-			continue
+	for len(msg) > 0 {
+		var line string
+		newlineIdx := strings.IndexByte(msg, '\n')
+		if newlineIdx >= 0 {
+			line = msg[:newlineIdx]
+			msg = msg[newlineIdx+1:]
+		} else {
+			line = msg
+			msg = ""
 		}
 
 		lineWidth := utf8.RuneCountInString(line)
@@ -736,10 +748,10 @@ func (c *Console) CenterPrintf(width int, format string, args ...any) {
 }
 
 // QuakeBar builds a decorative horizontal rule using Quake's special line-
-// drawing characters (0x35 = left cap, 0x36 = middle segment, 0x37 = right
-// cap). These are glyph indices into Quake's bitmap font (conchars.lmp).
-// The bar is capped at 40 characters and terminated with a newline.
-func QuakeBar(length int) string {
+// drawing characters (29 = \35 left cap, 30 = \36 middle segment, 31 = \37 right
+// cap in conchars.lmp). The bar is capped at 40 characters and terminated with a
+// newline unless length >= lineWidth.
+func (c *Console) QuakeBar(length int) string {
 	if length > 40 {
 		length = 40
 	}
@@ -747,46 +759,68 @@ func QuakeBar(length int) string {
 		length = 2
 	}
 
-	if lw := LineWidth(); lw > 0 && length > lw {
-		length = lw
+	if c != nil && c.lineWidth > 0 && length > c.lineWidth {
+		length = c.lineWidth
 	}
-	appendNewline := true
-	if lw := LineWidth(); lw > 0 && length == lw {
-		appendNewline = false
-	}
+	appendNewline := c == nil || c.lineWidth <= 0 || length < c.lineWidth
 
 	size := length
 	if appendNewline {
 		size++
 	}
 	result := make([]byte, size)
-	result[0] = '\x35'
+	result[0] = 29
 	for i := 1; i < length-1; i++ {
-		result[i] = '\x36'
+		result[i] = 30
 	}
-	result[length-1] = '\x37'
+	result[length-1] = 31
 	if appendNewline {
 		result[length] = '\n'
 	}
 	return string(result)
 }
 
+// QuakeBar builds a decorative horizontal rule using the process-wide console.
+func QuakeBar(length int) string {
+	return globalConsole.QuakeBar(length)
+}
+
 func (c *Console) LogCenterPrint(gameType int, str string) {
-	mode := c.CVar.IntValue("con_logcenterprint")
-	if mode <= 0 {
-		return
-	}
-	if mode != 2 && gameType != 0 {
-		return
-	}
 	if str == "" || str == c.lastCenterPrint {
 		return
 	}
+
+	mode := 1
+	if c.CVar != nil {
+		mode = c.CVar.IntValue("con_logcenterprint")
+	}
+
+	if gameType == 1 && mode != 2 {
+		return
+	}
+
 	c.lastCenterPrint = str
-	c.Printf("%s", QuakeBar(c.lineWidth))
-	c.CenterPrintf(c.lineWidth, "%s\n", str)
-	c.Printf("%s", QuakeBar(c.lineWidth))
-	c.ClearNotify()
+
+	if mode != 0 {
+		trailingNewline := strings.HasSuffix(str, "\n")
+		c.Printf("%s", c.QuakeBar(40))
+		if trailingNewline {
+			c.CenterPrintf(40, "%s", str)
+		} else {
+			c.CenterPrintf(40, "%s\n", str)
+		}
+		c.Printf("%s", c.QuakeBar(40))
+		c.ClearNotify()
+	}
+}
+
+// ClearLastCenterPrint resets the cached last centerprint string so that
+// subsequent identical messages (such as after changing maps) are logged.
+// Matches C con_lastcenterstring[0] = 0 in cl_parse.c.
+func (c *Console) ClearLastCenterPrint() {
+	if c != nil {
+		c.lastCenterPrint = ""
+	}
 }
 
 // SetPrintCallback registers an optional function that is called with a copy
@@ -934,6 +968,10 @@ func CenterPrintf(width int, format string, args ...any) {
 
 func LogCenterPrint(gameType int, str string) {
 	globalConsole.LogCenterPrint(gameType, str)
+}
+
+func ClearLastCenterPrint() {
+	globalConsole.ClearLastCenterPrint()
 }
 
 func Clear() {

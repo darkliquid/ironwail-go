@@ -219,13 +219,13 @@ type worldRendererState struct {
 	deferredTranslucentLiquidAlpha    worldLiquidAlphaSettings
 	deferredTranslucentLiquidLitWater bool
 	deferredTranslucentLiquidValid    bool
-	worldOpaqueDrawsScratch       []gogpuWorldFaceDraw
-	worldAlphaDrawsScratch        []gogpuWorldFaceDraw
-	worldLiquidDrawsScratch       []gogpuWorldFaceDraw
-	worldBatchedIndexScratch      []uint32
-	worldOpaqueBatchScratch       []gogpuWorldFaceBatch
-	worldAlphaBatchScratch        []gogpuWorldFaceBatch
-	worldLiquidBatchScratch       []gogpuWorldFaceBatch
+	worldOpaqueDrawsScratch           []gogpuWorldFaceDraw
+	worldAlphaDrawsScratch            []gogpuWorldFaceDraw
+	worldLiquidDrawsScratch           []gogpuWorldFaceDraw
+	worldBatchedIndexScratch          []uint32
+	worldOpaqueBatchScratch           []gogpuWorldFaceBatch
+	worldAlphaBatchScratch            []gogpuWorldFaceBatch
+	worldLiquidBatchScratch           []gogpuWorldFaceBatch
 
 	// Persistent WASM readback staging buffer to avoid per-frame GPU allocations.
 	wasmReadbackBuf  *wgpu.Buffer
@@ -245,13 +245,13 @@ type worldRendererState struct {
 	// Tracked so the particle pass can grow the buffer when a frame contains
 	// more particles than the initial allocation, which is required now that
 	// all particle batches are uploaded into one buffer for a single submit.
-	particleScratchBufferSize     uint64
-	worldVertexBuffer             *wgpu.Buffer
-	worldIndexBuffer              *wgpu.Buffer
-	worldDynamicIndexBuffer       *wgpu.Buffer
-	worldDynamicIndexBufferSize   uint64
-	worldDynamicIndexBufferLeaf   int
-	worldIndexCount               uint32
+	particleScratchBufferSize   uint64
+	worldVertexBuffer           *wgpu.Buffer
+	worldIndexBuffer            *wgpu.Buffer
+	worldDynamicIndexBuffer     *wgpu.Buffer
+	worldDynamicIndexBufferSize uint64
+	worldDynamicIndexBufferLeaf int
+	worldIndexCount             uint32
 	// resources owns the renderer's wgpu object graph (plan 16+2a); the
 	// fields below are the ones whose types live in renderer-root and cannot
 	// move into pipeline.Resources without an import cycle.

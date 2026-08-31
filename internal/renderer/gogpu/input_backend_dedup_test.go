@@ -39,6 +39,7 @@ func TestPollEventsDoesNotDoubleDeliverKeyEdges(t *testing.T) {
 		t.Fatalf("callback-active PollEvents delivered %d raw edge events, want 0 (no double delivery)", len(events))
 	}
 }
+
 // TestMousePressMarksCallbackActive guards the menu regression where a mouse
 // click was the first input: the mouse EventSource callbacks did NOT mark the
 // callback path active, so the raw polling path delivered the same click a

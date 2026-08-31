@@ -167,4 +167,3 @@ func (dc *DrawContext) renderWorldOpaquePasses(
 	}
 	return drawnIndices, alphaTestDrawnIndices, liquidDrawnIndices, nil
 }
-

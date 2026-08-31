@@ -2,10 +2,12 @@ package qc
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/loc"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
@@ -649,5 +651,75 @@ func TestDPrintFallbackRequiresDeveloperCvar(t *testing.T) {
 	dprint(vm)
 	if len(printed) != 1 || printed[0] != "debug line\n" {
 		t.Fatalf("dprint emitted %q with developer enabled, want one debug line", printed)
+	}
+}
+
+func TestPrintBuiltinsLocalizationAndPlaceholders(t *testing.T) {
+	sample := `map_skill_normal = "This hall selects NORMAL skill"
+qc_secret = "Found {} of {} secrets"
+`
+	l := loc.New()
+	if err := l.Load(strings.NewReader(sample)); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	oldLoc := loc.Default()
+	loc.SetDefault(l)
+	defer loc.SetDefault(oldLoc)
+
+	vm := newBuiltinsTestVM(2)
+	var lastCenterPrint string
+	var lastBroadcastPrint string
+	var lastClientPrint string
+	var lastWriteString string
+
+	vm.ServerHooks = ServerBuiltinHooks{
+		CenterPrint: func(vm *VM, entNum int, msg string) {
+			lastCenterPrint = msg
+		},
+		BroadcastPrint: func(vm *VM, msg string) {
+			lastBroadcastPrint = msg
+		},
+		ClientPrint: func(vm *VM, entNum int, msg string) {
+			lastClientPrint = msg
+		},
+		WriteString: func(vm *VM, dest int, value string) {
+			lastWriteString = value
+		},
+	}
+
+	// 1. Centerprint localization
+	vm.ArgC = 2
+	vm.SetGInt(OFSParm0, 1)
+	vm.SetGString(OFSParm1, "$map_skill_normal")
+	centerprint(vm)
+	if got, want := lastCenterPrint, "This hall selects NORMAL skill"; got != want {
+		t.Fatalf("centerprint localized = %q, want %q", got, want)
+	}
+
+	// 2. BroadcastPrint placeholder formatting
+	vm.ArgC = 3
+	vm.SetGString(OFSParm0, "$qc_secret")
+	vm.SetGString(OFSParm1, "3")
+	vm.SetGString(OFSParm2, "10")
+	bprint(vm)
+	if got, want := lastBroadcastPrint, "Found 3 of 10 secrets"; got != want {
+		t.Fatalf("bprint formatted = %q, want %q", got, want)
+	}
+
+	// 3. ClientPrint localization
+	vm.ArgC = 2
+	vm.SetGInt(OFSParm0, 1)
+	vm.SetGString(OFSParm1, "$map_skill_normal")
+	sprint(vm)
+	if got, want := lastClientPrint, "This hall selects NORMAL skill"; got != want {
+		t.Fatalf("sprint localized = %q, want %q", got, want)
+	}
+
+	// 4. WriteString localization
+	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGString(OFSParm1, "$map_skill_normal")
+	writeStringBuiltin(vm)
+	if got, want := lastWriteString, "This hall selects NORMAL skill"; got != want {
+		t.Fatalf("writeString localized = %q, want %q", got, want)
 	}
 }

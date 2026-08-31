@@ -920,9 +920,9 @@ func TestWaterPVSLeafExpansion(t *testing.T) {
 	}
 
 	allFaces := []WorldFace{
-		{FirstIndex: 0, NumIndices: 6, TextureIndex: 0, Flags: 0},                                         // 0: Ground (opaque)
+		{FirstIndex: 0, NumIndices: 6, TextureIndex: 0, Flags: 0},                                        // 0: Ground (opaque)
 		{FirstIndex: 6, NumIndices: 6, TextureIndex: 1, Flags: model.SurfDrawTurb | model.SurfDrawWater}, // 1: Water surface (turbulent)
-		{FirstIndex: 12, NumIndices: 6, TextureIndex: 0, Flags: 0},                                        // 2: Submerged floor (opaque)
+		{FirstIndex: 12, NumIndices: 6, TextureIndex: 0, Flags: 0},                                       // 2: Submerged floor (opaque)
 	}
 
 	leafFaces := [][]int{
@@ -1006,5 +1006,3 @@ func TestStartBSPWaterAndSlimeParityDiagnosis(t *testing.T) {
 			leafIdx, leaf.BoundsMin, leaf.BoundsMax, visEmpty, len(emptyLeafs), leaf.VisOfs)
 	}
 }
-
-

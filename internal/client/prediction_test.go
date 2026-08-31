@@ -76,7 +76,7 @@ func TestPredictPlayersForwardMovement(t *testing.T) {
 	// Apply forward movement command
 	c.PendingCmd = UserCmd{
 		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0}, // Facing forward (along +X)
-		Forward:    200,                         // Forward speed
+		Forward:    200,                          // Forward speed
 	}
 
 	initialOrigin := c.PredictedOrigin
@@ -307,7 +307,7 @@ func TestPredictPlayersStrafeMovement(t *testing.T) {
 	// Apply strafe movement command
 	c.PendingCmd = UserCmd{
 		ViewAngles: types.Vec3{X: 0, Y: 0, Z: 0}, // Facing forward
-		Side:       350,                         // Strafe right
+		Side:       350,                          // Strafe right
 	}
 
 	initialOrigin := c.PredictedOrigin

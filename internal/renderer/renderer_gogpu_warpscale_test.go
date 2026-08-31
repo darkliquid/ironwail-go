@@ -193,4 +193,3 @@ func TestPostProcessingUniformEncoding(t *testing.T) {
 		t.Errorf("no-warp warpAmp = %v, want 0.0", gotNoWarpAmp)
 	}
 }
-

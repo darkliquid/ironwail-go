@@ -184,7 +184,7 @@ var (
 		{X: -0.587785, Y: -0.425325, Z: -0.688191},
 		{X: -0.688191, Y: -0.587785, Z: -0.425325},
 	}
-entityParticleAngularVelocities [len(entityParticleNormals)]types.Vec3
+	entityParticleAngularVelocities [len(entityParticleNormals)]types.Vec3
 	entityParticleAngularVelOnce    sync.Once
 )
 

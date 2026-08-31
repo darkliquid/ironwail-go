@@ -11,6 +11,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/loc"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
@@ -140,7 +141,7 @@ func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state 
 	}
 
 	if state.LevelName != "" {
-		cp.drawTextBlock(rc, state.LevelName, 320, 36, 0, 1)
+		cp.drawTextBlock(rc, loc.GetString(state.LevelName), 320, 36, 0, 1)
 	}
 
 	// Values start at X=160, matching C Ironwail's Sbar_IntermissionNumber

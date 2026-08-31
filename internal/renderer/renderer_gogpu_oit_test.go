@@ -327,4 +327,3 @@ func TestOITResolveAndViewModelPassOrdering(t *testing.T) {
 		t.Fatalf("polyblend (step %d) must occur BEFORE 2D overlay (step %d)", polyBlendIdx, overlayIdx)
 	}
 }
-

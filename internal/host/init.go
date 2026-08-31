@@ -20,6 +20,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/loc"
 	"github.com/darkliquid/ironwail-go/internal/server"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
@@ -59,7 +60,10 @@ func (h *Host) registerHostCVars() {
 	cv.Register("sv_autoload", "2", cvar.FlagArchive, "Autoload the last save on restart")
 	cv.Register("sv_gameplayfix_random", "1", cvar.FlagArchive, "Use deterministic random() formula that avoids exact 0 and 1")
 	cv.Register("sv_gameplayfix_elevators", "2", cvar.FlagArchive, "Nudge entities on elevators to prevent crushing (0=off, 1=clients, 2=all)")
-	cv.Register("sv_aim", "0.93", cvar.FlagNone, "Auto-aim cosine threshold")
+	langCVar := cv.Register("language", "auto", cvar.FlagArchive, "Language selection for localization (e.g. english, french, etc. or auto)")
+	langCVar.Callback = func(c *cvar.CVar) {
+		loc.Init(h.baseDir, c.String)
+	}
 	audio.RegisterCVars(cv)
 	server.RegisterDebugTelemetryCVars(cv)
 	server.RegisterSvdbgCVars(cv)
@@ -475,6 +479,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 			return fmt.Errorf("failed to init filesystem: %w", err)
 		}
 	}
+	loc.Init(h.baseDir, h.CVar.StringValue("language"))
 
 	if subs.Commands != nil {
 		subs.Commands.Init()

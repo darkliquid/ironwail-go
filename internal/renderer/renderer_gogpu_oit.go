@@ -98,8 +98,6 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 }
 `
 
-
-
 func oitColorTargetStates() []gputypes.ColorTargetState {
 	return []gputypes.ColorTargetState{
 		{
