@@ -108,6 +108,7 @@ const (
 	CvarRSlimeAlpha    = "r_slimealpha"    // Slime alpha (0 uses water alpha)
 	CvarRTeleAlpha     = "r_telealpha"     // Teleport alpha (0 uses water alpha, default 0)
 	CvarRDebugWater    = "r_debug_water"   // Water render debug telemetry (0=off, 1=on)
+	CvarRDebugOIT      = "r_debug_oit"     // OIT render debug telemetry (0=off, 1=on)
 	CvarRParticles     = "r_particles"     // Particle blend mode (1=alpha, 2=opaque)
 	CvarRDynamic       = "r_dynamic"       // Dynamic lights (0=off, 1=on)
 	CvarRFastSky       = "r_fastsky"       // Fast sky mode (flat sky color, no scrolling layers)

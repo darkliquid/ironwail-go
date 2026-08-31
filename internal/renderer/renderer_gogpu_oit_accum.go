@@ -26,15 +26,17 @@ func (dc *DrawContext) renderOITTranslucentPassHAL(state *RenderFrameState, plan
 	hasSprites := len(state.SpriteEntities) > 0 && IsGlobalPassEnabled(PassAliasEntities)
 	hasParticles := state.DrawParticles && state.Particles != nil && state.Particles.ActiveCount() > 0 && IsGlobalPassEnabled(PassParticles)
 
-	slog.Info("[oit_debug] renderOITTranslucentPassHAL",
-		"hasWorldLiquid", hasWorldLiquid,
-		"hasTranslucentWorldLiquidFaces", r.hasTranslucentWorldLiquidFacesGoGPU(),
-		"hasBrushTranslucent", hasBrushTranslucent,
-		"hasDecals", hasDecals,
-		"hasAliasTranslucent", hasAliasTranslucent,
-		"hasSprites", hasSprites,
-		"hasParticles", hasParticles,
-	)
+	if rDebugOITEnabled() {
+		slog.Debug("[oit_debug] renderOITTranslucentPassHAL",
+			"hasWorldLiquid", hasWorldLiquid,
+			"hasTranslucentWorldLiquidFaces", r.hasTranslucentWorldLiquidFacesGoGPU(),
+			"hasBrushTranslucent", hasBrushTranslucent,
+			"hasDecals", hasDecals,
+			"hasAliasTranslucent", hasAliasTranslucent,
+			"hasSprites", hasSprites,
+			"hasParticles", hasParticles,
+		)
+	}
 
 	if !hasWorldLiquid && !hasBrushTranslucent && !hasDecals && !hasAliasTranslucent && !hasSprites && !hasParticles {
 		return false
