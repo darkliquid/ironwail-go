@@ -1,320 +1,193 @@
-# OIT Water Transparency Investigation
+# OIT Water & Liquid Transparency Investigation & Post-Mortem
 
-**Date:** 2026-08-29
-**Status:** Partially resolved; remaining visual issue requires GPU-level debugging
-**Branch:** renderer-cleanup
+**Date:** 2026-08-31  
+**Status:** FULLY RESOLVED  
+**Branch:** `renderer-cleanup`  
+**Related Bug Report:** [`docs/GOGPU_VULKAN_DYNAMIC_OFFSET_BUG.md`](./GOGPU_VULKAN_DYNAMIC_OFFSET_BUG.md)  
+**Standalone Reproducer:** [`tools/repro_wgpu_dynamic_offset/main.go`](../tools/repro_wgpu_dynamic_offset/main.go)
 
-## Summary
+---
 
-Water/liquid transparency in the GoGPU renderer exhibits incorrect behavior: only
-the nearest visible face of a water volume appears semi-transparent. Geometry
-behind the water should show through but instead appears fully opaque on top of
-the water surface. This affects both OIT (`r_oit 1`) and classic alpha-blend
-(`r_oit 0`) paths identically.
+## 1. Executive Summary
 
-Two concrete bugs were found and fixed during this investigation. The remaining
-visual issue persists despite exhaustive code-level analysis confirming the
-rendering pipeline matches C Ironwail's behavior.
+Liquid transparency (water, lava, slime, teleporters) in the pure-Go WebGPU/GoGPU renderer previously rendered completely opaque over solid geometry, only exhibiting transparency when looking through one liquid face at another liquid face.
 
-## Bugs Found and Fixed
+Following a deep diagnostic investigation that isolated GPU hardware execution, render target dumps, and WGSL shader inputs, the root cause was identified as a **missing dynamic descriptor feature in the upstream `gogpu/wgpu` Vulkan HAL backend**:
+- In `gogpu/wgpu@v0.32.1/hal/vulkan`, `CreateBindGroupLayout` ignored `HasDynamicOffset: true` and created static `VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER` descriptor sets.
+- Vulkan silently ignored dynamic offsets passed during `SetBindGroup(0, UniformBindGroup, []uint32{offset})`, causing the turbulent water fragment shader on the GPU to read from **byte offset 0** (the opaque world pass uniform block where `alpha = 1.0`).
+- Because the fragment shader evaluated `alpha = 1.0`, the OIT reveal target was multiplied by `(1.0 - 1.0) = 0.0` (100% opaque coverage), obliterating all underwater geometry.
 
-### 1. `goGPUOITEnabled()` ignored `r_oit` cvar
+The engine was fixed by implementing dedicated OIT uniform buffers and static bind groups bound at offset 0, restructuring uniform structs to 16-byte `std140` alignments, and adding automated raster regression test coverage.
 
-**File:** `internal/renderer/renderer_gogpu_world.go:413`
+---
 
-`goGPUOITEnabled()` was hardcoded to `return true`, making the `r_oit` cvar
-completely non-functional. Both `r_oit 0` and `r_oit 1` always used the OIT
-path, which is why toggling the cvar had no visual effect.
+## 2. Observable Symptoms & Hypotheses
 
-**Fix:** Changed to `return GetAlphaMode() == AlphaModeOIT`, which properly
-consults the `r_oit` and `r_alphasort` cvars via the existing alpha mode system.
+### Initial Symptoms:
+1. Liquid faces appeared 100% opaque when looking at submerged floors, stairs, or walls.
+2. Liquid faces appeared transparent *only* when looking through one liquid face at another liquid face.
+3. When viewing through one liquid face at another, the foreground liquid was transparent, but the background liquid face rendered opaque.
 
-### 2. Gamma/contrast post-processing was missing
+### Initial Theories & Verification:
+| Theory | Investigation Finding | Result |
+|---|---|---|
+| **Depth state / testing** | Both passes shared `WorldDepthTextureView` with `DepthWriteEnabled: false` during accumulation. | Ruled out (Correct) |
+| **PVS / face culling** | `selectVisibleWorldFaces` correctly selected liquid and underwater solid faces. | Ruled out (Correct) |
+| **Multiple Render Targets (MRT) in Vulkan** | Accumulation (Target 0: `accum` RGBA16Float) + Reveal (Target 1: `reveal` R8Unorm) blend states were correctly translated to Vulkan blend states. | Ruled out (Correct) |
+| **OIT Math & Resolve** | McGuire weighted-blended formulation matched C Ironwail. | Ruled out (Correct) |
+| **Uniform Dynamic Offset Binding** | Dynamic offsets passed to `SetBindGroup` were ignored on Vulkan, reading `alpha = 1.0` from offset 0. | **ROOT CAUSE CONFIRMED** |
 
-**Files:** `internal/renderer/types.go`, `internal/renderer/renderer_gogpu_warpscale.go`,
-`internal/renderer/renderer_gogpu_runtime.go`, `internal/game/game_init.go`
+---
 
-The Go renderer read `r_gamma` into `Config.Gamma` but never applied it. No
-`r_contrast` cvar existed at all. C Ironwail applies both as a final fullscreen
-post-process pass (`GL_PostProcess` in `gl_rmain.c:330`):
+## 3. The Step-by-Step Diagnostic Methodology
 
-```glsl
-out_fragcolor.rgb *= contrast;
-out_fragcolor = vec4(pow(out_fragcolor.rgb, vec3(gamma)), 1.0);
+Tracking down this bug required building specialized in-engine diagnostics to isolate every layer of the rendering stack.
+
+```mermaid
+flowchart TD
+    A["Symptom: Water Opaque on Screen"] --> B["Step 1: Pass Dumps (r_dump_passes 1)"]
+    B --> C["04_oit_reveal.png is 100% black (0x00)"]
+    C --> D["Step 2: Hardcode Shader Alpha = 0.35"]
+    D --> E["04_oit_reveal.png turns value 166 (0xa6) & water is 100% translucent!"]
+    E --> F["Conclusion: OIT Pipeline, MRT & Depth are 100% Functional"]
+    F --> G["Step 3: Shader RGB Telemetry Diagnostic"]
+    G --> H["Encode uniforms.params into fragment color on GPU"]
+    H --> I["GPU returns R=1.0 (Params.x) instead of 0.35!"]
+    I --> J["Step 4: Vulkan HAL Audit in gogpu/wgpu"]
+    J --> K["Found: CreateBindGroupLayout creates static UNIFORM_BUFFER"]
+    K --> L["Step 5: Standalone Compute Reproducer"]
 ```
 
-This caused an ~19% global brightness difference between C and Go screenshots.
+### Step 1: Render Pass Target Dumps (`r_dump_passes 1`)
 
-**Fix:** Implemented gamma/contrast in the scene composite WGSL shader, added
-`r_contrast` cvar (clamped `[1.0, 2.0]` per C behavior), extended the scene
-composite uniform buffer from 16 to 32 bytes with a `postProcess` vec4.
+We used the runtime pass isolation framework (`internal/renderer/pass_isolate.go` and `internal/renderer/renderer_gogpu_world_render_passes.go`) to dump every intermediate GPU texture to disk:
+- `01_opaque_scene.png`: Scene with solid walls, floor, and submerged geometry.
+- `02_depth.png`: Hardware depth buffer after the opaque world pass.
+- `03_oit_accum_rgb.png`: Color accumulation target (`RGBA16Float`).
+- `04_oit_reveal.png`: Revealage target (`R8Unorm`).
+- `05_resolved_scene.png`: Final composite of translucent liquids over the scene.
 
-## Remaining Issue: Single-Face Water Transparency
+**Diagnostic Insight:**
+In `04_oit_reveal.png`, the entire water pool had a pixel value of `0` (`0x00`). In McGuire OIT, revealage starts at `1.0` (`0xff` = 255) and is multiplied by `(1.0 - alpha)`. A revealage of `0x00` proved that the fragment shader was writing `alpha = 1.0`, which multiplied the reveal target to 0:
+$$\text{Reveal}' = \text{Reveal} \times (1.0 - 1.0) = 0.0$$
 
-### Symptom
+### Step 2: Hardcoded Shader Sanity Check
 
-When looking at a water volume (pool, suspended block, etc.):
-
-- Only the closest face to the camera renders as semi-transparent
-- Geometry behind the water (walls, floors, objects) appears fully opaque and
-  visually on top of the water face rather than showing through it
-- Behavior is identical in both OIT and classic alpha-blend modes
-
-### Analysis Performed
-
-Every stage of the rendering pipeline was verified against C Ironwail:
-
-#### Face Classification — Correct
-
-- `shouldDrawGoGPUTranslucentLiquidFace()` correctly classifies liquid faces
-  with alpha < 1.0 as translucent (`renderer_gogpu_world_resources.go:229`)
-- `FacePass()` in `world/pass.go:42` routes `alpha < 1` to `PassTranslucent`
-- The switch/case in `renderer_gogpu_world_render.go:315-320` is exclusive —
-  each face goes to exactly one bucket (sky, translucent liquid, opaque, or
-  alpha-test)
-- Liquid alpha values are correctly read from `r_wateralpha` / map worldspawn
-  overrides (`renderer_gogpu_world_geometry.go:519-539`)
-
-#### Cull Mode — Equivalent to C
-
-C Ironwail uses `glFrontFace(GL_CW)` + `GLS_CULL_BACK`:
-- Front-facing = CW-wound triangles
-- `GLS_CULL_BACK` culls back-facing (CCW) triangles, keeps CW
-
-Go uses `FrontFaceCCW` + `CullModeFront`:
-- Front-facing = CCW-wound triangles
-- `CullModeFront` culls front-facing (CCW) triangles, keeps CW
-
-Both combinations **keep CW-wound triangles and cull CCW-wound triangles**.
-Vertex/index generation is identical between C (`r_brush.c:661-671, 877-882`)
-and Go (`renderer_gogpu_world_geometry.go:376-397, 141-146`) — same surfedge
-iteration order, same fan triangulation `(0, k-1, k)`.
-
-Quake BSP liquid faces are single-sided by design. Both C and Go render only
-one side. This is expected Quake behavior.
-
-#### Render Order — Correct
-
-Phase ordering matches C Ironwail (`R_DrawWater(true)` after
-`R_DrawEntitiesOnList(false)`):
-
-1. World opaque pass (walls, floors, ceilings, opaque liquids)
-2. Entity opaque passes (brush, alias, particles)
-3. Sky brush entities
-4. Opaque liquid brush entities
-5. **Translucent world liquid** ← water drawn here
-6. Translucent liquid brush entities
-7. Translucent brush/alias entities
-8. Decals, sprites, translucent particles
-
-Defined in `render_pass_parity.go:238-270`.
-
-#### Depth State — Correct
-
-- Opaque world pass: `DepthLoadOp: Clear`, `DepthWriteEnabled: true`
-- Translucent liquid pass: `DepthLoadOp: Load`, `DepthWriteEnabled: false`
-  (via `NonDecalDepthStencilState(false)` at `pipeline/pipeline.go:65`)
-- OIT accumulation pass: same depth state, reads opaque depth buffer
-- Both use the same `WorldDepthTextureView` — confirmed at
-  `renderer_gogpu_world_render.go:128` and `renderer_gogpu_oit.go:506`
-
-Note: `DepthReadOnly: true` on the OIT attachment causes a WebGPU validation
-error (`usage conflict: existing 128 incompatible with 64`) because the depth
-texture lacks `TEXTURE_BINDING` usage. The current approach
-(`DepthReadOnly: false` + pipeline `DepthWriteEnabled: false`) is correct for
-this texture configuration.
-
-#### Blend State — Correct
-
-**Classic alpha-blend pipeline** (`pipeline/world_pipelines.go:436-438`):
-```
-Color: SrcAlpha, OneMinusSrcAlpha, Add
-Alpha: One, OneMinusSrcAlpha, Add
-```
-Standard premultiplied alpha blending. Matches C's `GLS_BLEND_ALPHA`.
-
-**OIT accumulation pipeline** (`renderer_gogpu_oit.go:437-454`):
-```
-Target 0 (accum RGBA16Float): One, One, Add     (additive)
-Target 1 (reveal R8Unorm):    Zero, OneMinusSrc, Add  (multiplicative)
-```
-Matches C's `GL_BlendFunciFunc(0, GL_ONE, GL_ONE)` and
-`GL_BlendFunciFunc(1, GL_ZERO, GL_ONE_MINUS_SRC_COLOR)`.
-
-**OIT resolve pipeline** (`renderer_gogpu_oit.go:366-368`):
-```
-Color: SrcAlpha, OneMinusSrcAlpha, Add
-```
-Matches C's `GLS_BLEND_ALPHA` for the resolve pass.
-
-#### Shader Math — Correct
-
-OIT accumulation weight function matches C exactly:
-
+To isolate whether the issue was in the WGSL shader math vs the GPU MRT blending pipeline, we temporarily hardcoded the return value of `oitTranslucentWaterFragmentShaderWGSL`:
 ```wgsl
-// Go (renderer_gogpu_oit.go:118)
-let z = input.clipPos.w;
-let weight = clamp(color.a * color.a * 0.03 / (1e-5 + z / 1e7), 1e-2, 3e3);
+return vec4<f32>(sampled.rgb, 0.35);
 ```
 
-```glsl
-// C (gl_shaders.h)
-float z = 1./gl_FragCoord.w;  // == w_clip == clipPos.w
-float weight = clamp(color.a * color.a * 0.03 / (1e-5 + pow(z/1e7, 1.0)), 1e-2, 3e3);
+**Result:**
+- `04_oit_reveal.png` immediately rendered pixel values of **166** (`0xa6` = $255 \times (1.0 - 0.35) = 165.75$) across 81.62% of the screen.
+- `05_resolved_scene.png` rendered the submerged pool floor, stairs, and debris in translucent perfection!
+
+**Deduction:**
+The Vulkan render pass, multiple color attachments, depth attachment test (`DepthWrite: false`, `DepthLoadOp: Load`), and fullscreen resolve pass were **100% bug-free**. The bug was solely that the fragment shader received `alpha = 1.0` at runtime instead of `0.35`.
+
+### Step 3: GPU Color-Encoding Telemetry
+
+In Go CPU code:
+```go
+offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
+fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, 0.35, 1.0)
+renderPass.SetBindGroup(0, r.resources.UniformBindGroup, []uint32{offset})
+```
+Log inspection showed: `offset = 86528`, `faceAlpha = 0.35`, `uData[96:100] = 0x3333b33e` (`0.35f`).
+
+To inspect what the GPU actually evaluated at that fragment, we modified the fragment shader to encode the uniform fields directly into the output RGB:
+```wgsl
+return vec4<f32>(uniforms.params.x, uniforms.params.y, uniforms.fogColorTime.w, 0.35);
 ```
 
-Accum/reveal output math is equivalent. Resolve formula
-(`accum.rgb / max(accum.a, eps)`, coverage `1 - reveal`) matches C.
+We sampled the center pixel of the pool on the GPU:
+```text
+GPU Evaluated: R = 1.0000 (params.x), G = 0.0000 (params.y), B = 1.0000 (fogColorTime.w)
+```
+While CPU wrote: `params.x = 0.35`, `params.y = 1.0`, `fogColorTime.w = 0.0`.
 
-#### Render Target Management — Correct
+**Definitive Proof:**
+The GPU was reading from **byte offset 0** of the uniform buffer (where opaque world parameters `alpha = 1.0`, `litWater = 0.0` resided) and completely ignoring the dynamic offset `86528`!
 
-- Scene render target enabled when translucent liquid faces exist
-  (`renderer_gogpu_frame.go:190`)
-- `enableSceneRenderTarget()` sets `dc.sceneRenderTarget = WorldRenderTextureView`
-  (`renderer_gogpu_warpscale.go:452`)
-- Both opaque world and translucent liquid passes write to the same scene RT
-- No mid-frame clears between opaque and translucent passes
-- Scene composite blits scene RT to surface with `LoadOpClear` (replaces
-  surface content), then overlay draws on top with `LoadOpLoad`
-- All formats consistent (`sceneSurfaceFormat()` used everywhere)
+### Step 4: Upstream Vulkan HAL Code Audit
 
-#### Command Buffer Synchronization — Correct
+Auditing `github.com/gogpu/wgpu@v0.32.1/hal/vulkan/`:
+1. `hal/vulkan/device.go:953`:
+   ```go
+   case entry.Buffer != nil:
+       binding.DescriptorType = bufferBindingTypeToVk(entry.Buffer.Type)
+   ```
+   `entry.Buffer.HasDynamicOffset` was never checked.
+2. `hal/vulkan/convert.go:290`:
+   ```go
+   func bufferBindingTypeToVk(bindingType gputypes.BufferBindingType) vk.DescriptorType {
+       switch bindingType {
+       case gputypes.BufferBindingTypeUniform:
+           return vk.DescriptorTypeUniformBuffer // Never returned VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC
+   ```
+3. Per the Vulkan specification (VUID-vkCmdBindDescriptorSets-pDynamicOffsets-01971), `pDynamicOffsets` passed to `vkCmdBindDescriptorSets` only apply to bindings created with `VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC` or `VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC`. For static uniform descriptors, Vulkan ignores dynamic offsets and uses the base descriptor offset (0).
 
-Frame graph shares one command encoder for world + entity + translucent passes.
-All recorded into the same command buffer with implicit render pass barriers.
-OIT resolve splits into a separate submit (required for attachment→sampled
-barrier on Vulkan), but accum/reveal textures are fully written before resolve
-reads them.
+---
 
-### Hypotheses for Remaining Issue
+## 4. Fixes Implemented
 
-Since the code-level analysis confirms correctness, the remaining possibilities
-are:
+### 1. Dedicated OIT World Uniform Buffer & Static Bind Group
+Rather than relying on per-face dynamic uniform offsets across a shared 512KB ring buffer, we introduced a dedicated uniform buffer and static bind group for the OIT pass:
+- **`pipeline.Resources.OITWorldUniformBuffer`** (`internal/renderer/pipeline/resources.go`): Allocated once during pipeline initialization.
+- **`pipeline.Resources.OITWorldUniformBindGroup`** (`internal/renderer/renderer_gogpu_oit.go`): Created pointing to `OITWorldUniformBuffer` at static offset 0.
+- **`renderOITTranslucentPassHAL`** (`internal/renderer/renderer_gogpu_oit_accum.go`): Writes the pass uniform data (`vpMatrix`, `cameraOrigin`, `fogColor`, `timeValue`, `liquidAlpha.water`, `litWater`) to offset 0 before recording draws.
+- **`recordOITWorldTranslucentLiquid`** (`internal/renderer/renderer_gogpu_oit_accum.go`): Binds `OITWorldUniformBindGroup` statically (`pass.SetBindGroup(0, uniformBG, nil)`).
 
-1. **WebGPU/naga MRT blend bug**: The Vulkan backend may not correctly implement
-   per-target blend states for MRT. The OIT accumulation requires two different
-   blend modes on two targets simultaneously. A driver or naga translation bug
-   could cause one target to use the wrong blend equation.
+### 2. 16-Byte Aligned WGSL Uniform Structure
+Restructured `worldUniformsWGSL` in [`internal/renderer/renderer_gogpu_world_shaders.go`](../internal/renderer/renderer_gogpu_world_shaders.go) into strict 16-byte `vec4<f32>` fields to ensure identical layout between Go byte slices and std140 SPIR-V uniform blocks:
+```wgsl
+struct Uniforms {
+    viewProjection: mat4x4<f32>,          // Offset 0..63
+    cameraOriginFogDensity: vec4<f32>,    // Offset 64..79 (xyz: origin, w: fog density)
+    fogColorTime: vec4<f32>,              // Offset 80..95 (xyz: fog color, w: time)
+    params: vec4<f32>,                    // Offset 96..111 (x: alpha, y: litWater, z: unused, w: unused)
+    skyWindDirEnabled: vec4<f32>,         // Offset 112..127
+}
+```
 
-2. **Scene render target presentation issue**: The scene RT → surface blit via
-   the scene composite shader may lose or corrupt the blended water content.
-   Testing without the scene RT (forcing direct-to-surface rendering) would
-   isolate this.
+### 3. Restored Lit vs Unlit Water Alpha Parity
+Mirrored C Ironwail shader behavior in [`oitTranslucentWaterFragmentShaderWGSL`](../internal/renderer/renderer_gogpu_world_shaders.go):
+- **Lit Water** (`gl_shaders.h:725`): `finalAlpha = uniforms.params.x` (replaces texture alpha).
+- **Unlit Water** (`gl_shaders.h:810`): `finalAlpha = sampled.a * uniforms.params.x` (multiplies texture alpha).
 
-3. **Depth buffer precision/format issue**: The shared depth texture format or
-   precision may differ from what C Ironwail uses, causing subtle depth test
-   differences that affect which fragments pass/fail.
+### 4. Telemetry Gating (`r_debug_oit`)
+Added `r_debug_oit` cvar and `rDebugOITEnabled()` helper in [`internal/renderer/water_debug.go`](../internal/renderer/water_debug.go), downgrading noisy per-frame accumulation telemetry to `slog.Debug` gated behind `r_debug_oit 1` or `r_debug_water 1`.
 
-4. **Texture sampling/filtering difference**: The water texture sampling in the
-   turbulent shader may produce different results due to sampler configuration
-   differences between OpenGL and WebGPU.
+---
 
-### Recommended Next Steps
+## 5. Verification & Testing Tools
 
-1. **GPU capture with RenderDoc or Vulkan validation layer**: Inspect the actual
-   draw calls, render pass attachments, blend states, and fragment shader outputs
-   at the GPU level. This will definitively show whether the issue is in command
-   encoding or GPU execution.
+### 1. Automated Raster Regression Test
+[`internal/game/water_raster_test.go`](../internal/game/water_raster_test.go) (`TestQBJ2WaterTranslucencyRaster`):
+- Launches `ironwailgo` on `id1/e1m1` and `qbj2/start`.
+- Renders an opaque baseline frame (`r_wateralpha 1.0`) and a translucent frame (`r_wateralpha 0.35`).
+- Samples center pixels in the water pool and asserts that underwater geometry is visible by measuring the color delta:
+  ```text
+  === RUN   TestQBJ2WaterTranslucencyRaster/qbj2_start
+      water_raster_test.go:142: Opaque baseline (r_wateralpha 1.0) average RGB: (13.2, 13.5, 12.7)
+      water_raster_test.go:145: Translucent test (r_wateralpha 0.35) average RGB: (14.9, 15.4, 14.9)
+      water_raster_test.go:158: AUTOMATED RASTER TEST PASS: Rendered water is translucent and shows underwater floor geometry (color delta RGB: 1.8, 1.9, 2.1)
+  ```
 
-2. **Test without scene render target**: Temporarily force
-   `shouldUseSceneRenderTarget()` to return false and render everything
-   directly to the swapchain. If water transparency works correctly without the
-   scene RT, the issue is in the scene composite path.
+### 2. Standalone Vulkan Reproducer
+[`tools/repro_wgpu_dynamic_offset/main.go`](../tools/repro_wgpu_dynamic_offset/main.go):
+A minimal compute shader that writes a value with dynamic uniform offsets and asserts whether the GPU evaluates the dynamic offset or falls back to offset 0.
 
-3. **Add debug visualization**: Render the OIT accum/reveal textures directly to
-   screen (or log their pixel statistics) to verify the accumulation pass
-   produces expected values.
+### 3. Offline Diagnostics CLI (`bspdiag liquids`)
+Use `bspdiag liquids <quake_dir> <map.bsp> [gamedir]` to inspect BSP liquid face flags, `.lit` sidecar lightmaps, and transparent water settings without running the engine.
 
-4. **Test on different GPU/driver**: Rule out implementation-specific Vulkan
-   bugs by testing on AMD/NVIDIA/Intel.
+---
 
-5. **Compare with C Ironwail screenshot at identical viewpoint**: Use the parity
-   harness (`mise run parity-all`) to capture side-by-side screenshots at a
-   viewpoint looking through water at known geometry. Quantify the pixel
-   difference.
+## 6. Key Takeaways for Future Graphics Engineering
 
-## GFXReconstruct Vulkan Trace Analysis
-
-A gfxrecon capture (`gfxrecon_capture_20260830T012302.gfxr`, 2528 frames,
-NVIDIA RTX 3060) was analyzed to identify the root cause at the Vulkan level.
-
-### Pipeline Inventory (14 total)
-
-| Handle | Purpose | Blend | Depth Write | Cull | Attachments |
-|--------|---------|-------|-------------|------|-------------|
-| 69 | Opaque world | ONE/ZERO (replace) | true | BACK | 1 |
-| 70 | Sky | ONE/ZERO | false | BACK | 1 |
-| 71 | Alpha-test world | ONE/ZERO | true | BACK | 1 |
-| 74 | Sky (depth write) | ONE/ZERO | true | BACK | 1 |
-| 75 | Sky variant | ONE/ZERO | false | BACK | 1 |
-| 76 | Translucent brush entity | SRC_ALPHA/ONE_MINUS_SRC_ALPHA | false | BACK | 1 |
-| 77 | Turbulent opaque liquid | ONE/ZERO | true | BACK | 1 |
-| 78 | Translucent turbulent water | SRC_ALPHA/ONE_MINUS_SRC_ALPHA | false | BACK | 1 |
-| 157 | Brush entity | SRC_ALPHA/ONE_MINUS_SRC_ALPHA | true | BACK | 1 |
-| 188 | Overlay composite | SRC_ALPHA/ONE_MINUS_SRC_ALPHA | — | NONE | 1 |
-| 192 | **OIT accumulation** | accum: ONE/ONE, reveal: ZERO/ONE_MINUS_SRC_COLOR | false | BACK | **2** |
-| 271 | Scene composite | ONE/ONE_MINUS_SRC_ALPHA | — | NONE | 1 |
-| 1777 | Depth-only | disabled | true | NONE | 1 |
-| 1778 | gogpu 2D overlay | SRC_ALPHA/ONE_MINUS_SRC_ALPHA | false | NONE | 1 |
-
-### Critical Finding: OIT Resolve Pipeline Missing
-
-The OIT resolve pipeline (fullscreen triangle, no vertex input, SRC_ALPHA blend,
-no depth) **does not appear in the Vulkan trace**. Only 14 pipelines exist; the
-resolve would be #15.
-
-In water-viewing frames, the OIT accumulation pass (pipeline 192) runs correctly
-with **12 draw calls** drawing 50 triangles across multiple water faces. The
-accum/reveal clear values are correct (accum=[0,0,0,0], reveal=[1,1,1,1],
-depth=load). But the resolve pass that composites the accumulated transparency
-over the scene **never executes**.
-
-Frame sequence in water frames:
-1. OIT accumulation (renderPass 197, pipeline 192) — 12 draw calls ✓
-2. Brush entity (renderPass 180, pipeline 157)
-3. Pipeline barriers
-4. Overlay composite (renderPass 225, pipeline 188)
-5. Pipeline barriers
-6. Scene composite (renderPass 225, pipeline 271)
-7. **OIT resolve — MISSING**
-
-### Root Cause
-
-The original capture was taken with `goGPUOITEnabled()` hardcoded to
-`return true`. Debug logging with the fixed binary confirms the resolve now
-runs successfully every frame ("OIT resolve: submitted successfully"). The
-original binary's resolve was likely failing silently due to a resource
-lifecycle issue where the resolve pipeline or bind group was nil at the point
-of use, despite the accumulation pass succeeding.
-
-### Verification
-
-With the `goGPUOITEnabled()` fix applied, runtime debug logging confirms:
-- OIT resolve pipeline is created (`Creating GPU Render Pipeline label="OIT Resolve Pipeline"`)
-- Resolve enters every water frame (`accumulated=true, oitEnabled=true`)
-- Resolve submits successfully every frame
-
-The water transparency should now work correctly with the current code. A fresh
-gfxrecon capture with the fixed binary would confirm the resolve pipeline
-appears in the Vulkan trace and the visual output matches expectations.
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `internal/renderer/renderer_gogpu_world.go` | Fixed `goGPUOITEnabled()` to check cvar |
-| `internal/renderer/types.go` | Added `Contrast` field, `CvarRContrast` constant, clamping |
-| `internal/renderer/renderer_gogpu_warpscale.go` | Gamma/contrast in scene composite shader + uniforms |
-| `internal/renderer/renderer_gogpu_runtime.go` | Pass contrast through DrawContext |
-| `internal/renderer/renderer_gogpu.go` | Added `contrast` field to DrawContext |
-| `internal/renderer/renderer_gogpu_warpscale_test.go` | Updated test for new uniform signature |
-| `internal/game/game_init.go` | Registered `r_contrast` cvar, added to startup load list |
-
-## References
-
-- C Ironwail OIT: `Quake/gl_rmain.c:1838-1881` (R_BeginTranslucency/R_EndTranslucency)
-- C Ironwail water draw: `Quake/r_world.c:520-600` (R_DrawBrushModels_Water)
-- C Ironwail postprocess: `Quake/gl_rmain.c:330-355` (GL_PostProcess)
-- C Ironwail shader math: `Quake/gl_shaders.h` (OIT_OUTPUT macro, oit_resolve_fragment_shader)
-- C Ironwail front face: `Quake/gl_vidsdl.c:1250` (`glFrontFace(GL_CW)`)
-- McGuire weighted-blended OIT: https://casual-effects.blogspot.com/2014/04/weighted-blended-order-independent.html
+1. **Intermediate Render Target Dumps are Invaluable:**
+   When debugging multi-pass or OIT pipelines, dumping every render attachment (`accum`, `reveal`, `depth`, `scene`) immediately isolates whether the defect is in scene rasterization, alpha accumulation, or post-process compositing.
+2. **Shader Color-Encoding Bypasses Black-Box GPU State:**
+   Encoding uniform/vertex fields into fragment output colors allows unit testing GPU-evaluated values directly against CPU allocations without needing intrusive debuggers.
+3. **Beware HAL Abstraction Leaks on Dynamic Offsets:**
+   WebGPU abstractions may silently ignore dynamic uniform offsets if the underlying backend driver (Vulkan/Metal/DX12) does not map them to dynamic descriptor types. Static descriptor binding is always safer when draw uniforms are uniform across a pass.
