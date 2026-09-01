@@ -760,8 +760,8 @@ func (g *Game) cmdQCDebugStart(args []string) {
 		return
 	}
 	addr := "127.0.0.1:2345"
-	if len(args) > 1 && strings.TrimSpace(args[1]) != "" {
-		arg := strings.TrimSpace(args[1])
+	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
+		arg := strings.TrimSpace(args[0])
 		if !strings.Contains(arg, ":") {
 			addr = "127.0.0.1:" + arg
 		} else {
