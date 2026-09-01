@@ -140,6 +140,13 @@ func (s *Session) SetInitialized(v bool) {
 	s.initialized = v
 }
 
+// SetOnStopped sets the callback invoked when execution stops at a breakpoint or pause.
+func (s *Session) SetOnStopped(fn func(reason string, threadID int)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.OnStopped = fn
+}
+
 // Variables returns the variable manager associated with this session.
 func (s *Session) Variables() *VariableManager {
 	return s.vars

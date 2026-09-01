@@ -83,7 +83,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 
 	session := s.session
-	session.OnStopped = func(reason string, threadID int) {
+	session.SetOnStopped(func(reason string, threadID int) {
 		body, _ := json.Marshal(StoppedEventBody{
 			Reason:            reason,
 			ThreadID:          threadID,
@@ -95,7 +95,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			Body:    body,
 		}
 		_ = writeSafe(event)
-	}
+	})
+	defer session.SetOnStopped(nil)
 
 	for {
 		payload, err := ReadMessage(conn)

@@ -29,11 +29,11 @@ func TestSessionBreakAndStep(t *testing.T) {
 
 	var stoppedReason string
 	var stopMu sync.Mutex
-	session.OnStopped = func(reason string, threadID int) {
+	session.SetOnStopped(func(reason string, threadID int) {
 		stopMu.Lock()
 		stoppedReason = reason
 		stopMu.Unlock()
-	}
+	})
 
 	hook := session.BreakHook()
 
@@ -135,11 +135,11 @@ func TestSessionSteppingModes(t *testing.T) {
 
 	var stoppedReasons []string
 	var stopMu sync.Mutex
-	session.OnStopped = func(reason string, threadID int) {
+	session.SetOnStopped(func(reason string, threadID int) {
 		stopMu.Lock()
 		stoppedReasons = append(stoppedReasons, reason)
 		stopMu.Unlock()
-	}
+	})
 
 	hook := session.BreakHook()
 	vm.XFunction = &vm.Functions[0]
@@ -252,11 +252,11 @@ func TestSessionPauseAndDisconnect(t *testing.T) {
 
 	var lastReason string
 	var mu sync.Mutex
-	session.OnStopped = func(reason string, threadID int) {
+	session.SetOnStopped(func(reason string, threadID int) {
 		mu.Lock()
 		lastReason = reason
 		mu.Unlock()
-	}
+	})
 
 	hook := session.BreakHook()
 	vm.XFunction = &vm.Functions[0]
@@ -462,3 +462,41 @@ func TestBarrierModeAndArmEarlyResume(t *testing.T) {
 		t.Fatal("Wait() blocked even though Resume() was called after Arm()")
 	}
 }
+
+func TestSessionSetOnStopped(t *testing.T) {
+	session := NewSession(nil)
+
+	// Initially nil
+	session.mu.Lock()
+	if session.OnStopped != nil {
+		t.Fatal("Expected OnStopped to be nil initially")
+	}
+	session.mu.Unlock()
+
+	called := false
+	cb := func(reason string, threadID int) {
+		called = true
+	}
+
+	session.SetOnStopped(cb)
+	session.mu.Lock()
+	fn := session.OnStopped
+	session.mu.Unlock()
+
+	if fn == nil {
+		t.Fatal("Expected OnStopped callback to be set")
+	}
+	fn("test", 1)
+	if !called {
+		t.Fatal("Expected callback to have been executed")
+	}
+
+	// Reset to nil
+	session.SetOnStopped(nil)
+	session.mu.Lock()
+	if session.OnStopped != nil {
+		t.Fatal("Expected OnStopped to be nil after reset")
+	}
+	session.mu.Unlock()
+}
+
