@@ -9,21 +9,25 @@ import (
 )
 
 type startupOptions struct {
-	BaseDir    string
-	GameDir    string
-	Dedicated  bool
-	Listen     bool
-	MaxClients int
-	Port       int
-	Args       []string
+	BaseDir     string
+	GameDir     string
+	Dedicated   bool
+	Listen      bool
+	MaxClients  int
+	Port        int
+	QCDebug     bool
+	QCDebugPort int
+	QCDebugWait bool
+	Args        []string
 }
 
 func parseStartupOptions(rawArgs []string) (startupOptions, error) {
 	opts := startupOptions{
-		BaseDir:    ".",
-		GameDir:    "id1",
-		MaxClients: 1,
-		Port:       26000,
+		BaseDir:     ".",
+		GameDir:     "id1",
+		MaxClients:  1,
+		Port:        26000,
+		QCDebugPort: 2345,
 	}
 
 	parseOptionalCount := func(args []string, idx int, defaultValue int) (value int, consumed bool) {
@@ -93,6 +97,19 @@ func parseStartupOptions(rawArgs []string) (startupOptions, error) {
 				opts.MaxClients = count
 				i++
 			}
+		case strings.EqualFold(arg, "-qcdbg"):
+			opts.QCDebug = true
+			if i+1 < len(rawArgs) {
+				next := rawArgs[i+1]
+				if !strings.HasPrefix(next, "-") && !strings.HasPrefix(next, "+") {
+					if port, err := strconv.Atoi(next); err == nil && port > 0 {
+						opts.QCDebugPort = port
+						i++
+					}
+				}
+			}
+		case strings.EqualFold(arg, "-qcdbg-wait"):
+			opts.QCDebugWait = true
 		default:
 			opts.Args = append(opts.Args, arg)
 		}

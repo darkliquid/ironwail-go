@@ -64,6 +64,7 @@ var (
 	debugTelemetryQCTraceCVar     *cvar.CVar
 	debugTelemetryQCVerbosityCVar *cvar.CVar
 	debugTriggerCVar              *cvar.CVar
+	qcDebugPortCVar               *cvar.CVar
 	debugTelemetryEmit            = func(line string) {
 		fmt.Fprintln(os.Stderr, line)
 	}
@@ -79,6 +80,7 @@ const (
 	debugTelemetryQCTraceCVarName     = srvdebug.DebugTelemetryQCTraceCVarName
 	debugTelemetryQCVerbosityCVarName = srvdebug.DebugTelemetryQCVerbosityCVarName
 	debugTriggerCVarName              = srvdebug.DebugTriggerCVarName
+	qcDebugPortCVarName               = srvdebug.QCDebugPortCVarName
 )
 
 // RegisterDebugTelemetryCVars registers the server-side debug telemetry control
@@ -93,6 +95,15 @@ func RegisterDebugTelemetryCVars(cv *cvar.CVarSystem) {
 	debugTelemetryQCTraceCVar = cv.Register(debugTelemetryQCTraceCVarName, "0", cvar.FlagNone, "Enable QuakeC debug trace output")
 	debugTelemetryQCVerbosityCVar = cv.Register(debugTelemetryQCVerbosityCVarName, "1", cvar.FlagNone, "QuakeC trace verbosity ceiling")
 	debugTriggerCVar = cv.Register(debugTriggerCVarName, "0", cvar.FlagNone, "Print trigger/entity activation info to console")
+	qcDebugPortCVar = cv.Register(qcDebugPortCVarName, "0", cvar.FlagArchive, "DAP remote debugging TCP port (0 to disable)")
+}
+
+// QCDebugPort returns the configured DAP debug TCP port, or 0 if disabled.
+func QCDebugPort() int {
+	if qcDebugPortCVar != nil {
+		return qcDebugPortCVar.Int
+	}
+	return 0
 }
 
 // debugEntityFilter is aliased to srvdebug.EntityFilter for backward compat.

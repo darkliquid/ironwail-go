@@ -56,13 +56,18 @@ func TestParseStartupOptions(t *testing.T) {
 		wantPort    int
 		wantDed     bool
 		wantListen  bool
+		wantQCDbg   bool
+		wantQCWait  bool
+		wantQCDPort int
 		wantArgs    []string
 		wantErr     string
 	}{
-		{name: "defaults", args: []string{"+map", "start"}, wantBaseDir: ".", wantGameDir: "id1", wantMax: 1, wantPort: 26000, wantArgs: []string{"+map", "start"}},
-		{name: "dedicated default count", args: []string{"-dedicated", "+map", "start"}, wantBaseDir: ".", wantGameDir: "id1", wantMax: 8, wantPort: 26000, wantDed: true, wantArgs: []string{"+map", "start"}},
-		{name: "listen explicit count and port", args: []string{"+map", "start", "-listen", "4", "-port", "27001"}, wantBaseDir: ".", wantGameDir: "id1", wantMax: 4, wantPort: 27001, wantListen: true, wantArgs: []string{"+map", "start"}},
-		{name: "basedir and game anywhere", args: []string{"+map", "e1m1", "-game", "hipnotic", "-basedir", "/tmp/quake"}, wantBaseDir: "/tmp/quake", wantGameDir: "hipnotic", wantMax: 1, wantPort: 26000, wantArgs: []string{"+map", "e1m1"}},
+		{name: "defaults", args: []string{"+map", "start"}, wantBaseDir: ".", wantGameDir: "id1", wantMax: 1, wantPort: 26000, wantQCDPort: 2345, wantArgs: []string{"+map", "start"}},
+		{name: "dedicated default count", args: []string{"-dedicated", "+map", "start"}, wantBaseDir: ".", wantGameDir: "id1", wantMax: 8, wantPort: 26000, wantQCDPort: 2345, wantDed: true, wantArgs: []string{"+map", "start"}},
+		{name: "listen explicit count and port", args: []string{"+map", "start", "-listen", "4", "-port", "27001"}, wantBaseDir: ".", wantGameDir: "id1", wantMax: 4, wantPort: 27001, wantQCDPort: 2345, wantListen: true, wantArgs: []string{"+map", "start"}},
+		{name: "basedir and game anywhere", args: []string{"+map", "e1m1", "-game", "hipnotic", "-basedir", "/tmp/quake"}, wantBaseDir: "/tmp/quake", wantGameDir: "hipnotic", wantMax: 1, wantPort: 26000, wantQCDPort: 2345, wantArgs: []string{"+map", "e1m1"}},
+		{name: "qcdbg flag default port", args: []string{"-qcdbg", "+map", "start"}, wantBaseDir: ".", wantGameDir: "id1", wantMax: 1, wantPort: 26000, wantQCDbg: true, wantQCDPort: 2345, wantArgs: []string{"+map", "start"}},
+		{name: "qcdbg flag custom port and wait", args: []string{"-qcdbg", "3344", "-qcdbg-wait", "+map", "start"}, wantBaseDir: ".", wantGameDir: "id1", wantMax: 1, wantPort: 26000, wantQCDbg: true, wantQCWait: true, wantQCDPort: 3344, wantArgs: []string{"+map", "start"}},
 		{name: "dedicated and listen conflict", args: []string{"-dedicated", "-listen"}, wantErr: "mutually exclusive"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -76,8 +81,8 @@ func TestParseStartupOptions(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parseStartupOptions(%v) failed: %v", tc.args, err)
 			}
-			if got.BaseDir != tc.wantBaseDir || got.GameDir != tc.wantGameDir || got.MaxClients != tc.wantMax || got.Port != tc.wantPort || got.Dedicated != tc.wantDed || got.Listen != tc.wantListen || !reflect.DeepEqual(got.Args, tc.wantArgs) {
-				t.Fatalf("parseStartupOptions(%v) = %+v, want base=%q game=%q max=%d port=%d dedicated=%v listen=%v args=%v", tc.args, got, tc.wantBaseDir, tc.wantGameDir, tc.wantMax, tc.wantPort, tc.wantDed, tc.wantListen, tc.wantArgs)
+			if got.BaseDir != tc.wantBaseDir || got.GameDir != tc.wantGameDir || got.MaxClients != tc.wantMax || got.Port != tc.wantPort || got.Dedicated != tc.wantDed || got.Listen != tc.wantListen || got.QCDebug != tc.wantQCDbg || got.QCDebugWait != tc.wantQCWait || got.QCDebugPort != tc.wantQCDPort || !reflect.DeepEqual(got.Args, tc.wantArgs) {
+				t.Fatalf("parseStartupOptions(%v) = %+v, want base=%q game=%q max=%d port=%d dedicated=%v listen=%v qcdbg=%v qcdbg_wait=%v qcdbg_port=%d args=%v", tc.args, got, tc.wantBaseDir, tc.wantGameDir, tc.wantMax, tc.wantPort, tc.wantDed, tc.wantListen, tc.wantQCDbg, tc.wantQCWait, tc.wantQCDPort, tc.wantArgs)
 			}
 		})
 	}

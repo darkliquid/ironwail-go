@@ -16,6 +16,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/menu"
+	"github.com/darkliquid/ironwail-go/internal/server"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
@@ -50,6 +51,9 @@ func (g *Game) registerGameplayBindCommands() {
 	g.Host.Cmd.AddCommand("perf_warmup", g.cmdPerfWarmup, "Enter per-frame allocation/profile warmup phase")
 	g.Host.Cmd.AddCommand("perf_capture", g.cmdPerfCapture, "Start steady-state per-frame measurement capture")
 	g.Host.Cmd.AddCommand("perf_reset", g.cmdPerfReset, "Reset any active warmup/measurement session")
+	g.Host.Cmd.AddCommand("qc_debug_start", g.cmdQCDebugStart, "Start the QC DAP debug server (qc_debug_start [port])")
+	g.Host.Cmd.AddCommand("qc_debug_stop", g.cmdQCDebugStop, "Stop the active QC DAP debug server")
+	g.Host.Cmd.AddCommand("qc_debug_status", g.cmdQCDebugStatus, "Show status of the QC DAP debug server")
 	g.Host.Cmd.AddCommand("vid_restart", func(args []string) {
 		if err := g.restartVideo(); err != nil {
 			console.Printf("vid_restart failed: %v\n", err)
@@ -749,3 +753,37 @@ func (g *Game) cmdMessagemode2(_ []string) {
 	g.chatTeam = true
 	g.Input.SetKeyDest(input.KeyMessage)
 }
+
+func (g *Game) cmdQCDebugStart(args []string) {
+	if g.Server == nil {
+		console.Printf("No active server\n")
+		return
+	}
+	addr := "127.0.0.1:2345"
+	if len(args) > 1 && strings.TrimSpace(args[1]) != "" {
+		arg := strings.TrimSpace(args[1])
+		if !strings.Contains(arg, ":") {
+			addr = "127.0.0.1:" + arg
+		} else {
+			addr = arg
+		}
+	} else if portCV := g.Host.CVar.Get("qc_debug_port"); portCV != nil && portCV.Int > 0 {
+		addr = fmt.Sprintf("127.0.0.1:%d", portCV.Int)
+	}
+	srv, err := g.Server.StartDAPServer(addr)
+	if err != nil {
+		console.Printf("Failed to start QC debug server: %v\n", err)
+		return
+	}
+	console.Printf("QC debug server listening on %s\n", srv.Addr().String())
+}
+
+func (g *Game) cmdQCDebugStop(_ []string) {
+	server.StopDAPServer()
+	console.Printf("QC debug server stopped\n")
+}
+
+func (g *Game) cmdQCDebugStatus(_ []string) {
+	console.Printf("%s\n", server.DAPServerStatus())
+}
+

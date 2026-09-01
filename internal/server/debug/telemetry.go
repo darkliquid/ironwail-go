@@ -22,6 +22,7 @@ const (
 	DebugTelemetryQCTraceCVarName     = "sv_debug_qc_trace"
 	DebugTelemetryQCVerbosityCVarName = "sv_debug_qc_trace_verbosity"
 	DebugTriggerCVarName              = "sv_debug_trigger"
+	QCDebugPortCVarName               = "qc_debug_port"
 )
 
 // Svdbg cvar names.

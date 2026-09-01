@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/game"
@@ -135,6 +136,23 @@ func main() {
 	slog.Info("QC loaded")
 	if !dedicated {
 		slog.Info("menu active")
+	}
+
+	if startupOpts.QCDebug || startupOpts.QCDebugWait {
+		addr := fmt.Sprintf("127.0.0.1:%d", startupOpts.QCDebugPort)
+		srv, err := g.Server.StartDAPServer(addr)
+		if err != nil {
+			slog.Warn("Failed to start QC DAP debug server", "addr", addr, "err", err)
+		} else {
+			slog.Info("QC DAP debug server listening", "addr", srv.Addr().String())
+			if startupOpts.QCDebugWait {
+				slog.Info("Waiting for DAP client connection and configuration before spawn...")
+				for !srv.Session().Initialized() {
+					time.Sleep(10 * time.Millisecond)
+				}
+				slog.Info("DAP client connected, proceeding with startup")
+			}
+		}
 	}
 
 	// C Ironwail executes +map from command-line via stuffcmds inside quake.rc.
