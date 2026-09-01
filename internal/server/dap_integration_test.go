@@ -88,6 +88,37 @@ func TestServerDAPTargetInspection(t *testing.T) {
 		t.Fatalf("GetEdictVector(0, Origin) = %v, want [1, 2, 3]", got)
 	}
 
+	// Out-of-bounds checks
+	if got := s.GetEdictFloat(-1, qc.EntFieldHealth); got != 0 {
+		t.Fatalf("GetEdictFloat(-1) = %v, want 0", got)
+	}
+	if got := s.GetEdictFloat(10, qc.EntFieldHealth); got != 0 {
+		t.Fatalf("GetEdictFloat(10) = %v, want 0", got)
+	}
+	if got := s.GetEdictString(-1, qc.EntFieldClassName); got != "" {
+		t.Fatalf("GetEdictString(-1) = %q, want empty", got)
+	}
+	if got := s.GetEdictString(10, qc.EntFieldClassName); got != "" {
+		t.Fatalf("GetEdictString(10) = %q, want empty", got)
+	}
+	if got := s.GetEdictVector(-1, qc.EntFieldOrigin); got != [3]float32{} {
+		t.Fatalf("GetEdictVector(-1) = %v, want zero vector", got)
+	}
+	if got := s.GetEdictVector(10, qc.EntFieldOrigin); got != [3]float32{} {
+		t.Fatalf("GetEdictVector(10) = %v, want zero vector", got)
+	}
+
+	var nilServer *Server
+	if got := nilServer.GetEdictFloat(0, 0); got != 0 {
+		t.Fatalf("nilServer.GetEdictFloat = %v, want 0", got)
+	}
+	if got := nilServer.GetEdictString(0, 0); got != "" {
+		t.Fatalf("nilServer.GetEdictString = %q, want empty", got)
+	}
+	if got := nilServer.GetEdictVector(0, 0); got != [3]float32{} {
+		t.Fatalf("nilServer.GetEdictVector = %v, want zero vector", got)
+	}
+
 	StopDAPServer()
 	if DAPServerStatus() != "DAP debug server is inactive" {
 		t.Fatalf("DAPServerStatus() = %q after stop, want inactive", DAPServerStatus())

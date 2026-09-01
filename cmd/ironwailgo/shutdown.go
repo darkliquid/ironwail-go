@@ -2,6 +2,8 @@ package main
 
 import (
 	"log/slog"
+
+	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
 func pollRuntimeInputEvents() {
@@ -20,6 +22,8 @@ func shutdownEngine() {
 	if g.Host == nil {
 		return
 	}
+
+	server.StopDAPServer()
 
 	if path, active, err := g.StopCPUProfile(); active {
 		if err != nil {

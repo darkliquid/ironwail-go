@@ -767,8 +767,10 @@ func (g *Game) cmdQCDebugStart(args []string) {
 		} else {
 			addr = arg
 		}
-	} else if portCV := g.Host.CVar.Get("qc_debug_port"); portCV != nil && portCV.Int > 0 {
-		addr = fmt.Sprintf("127.0.0.1:%d", portCV.Int)
+	} else if g.Host != nil && g.Host.CVar != nil {
+		if portCV := g.Host.CVar.Get("qc_debug_port"); portCV != nil && portCV.Int > 0 {
+			addr = fmt.Sprintf("127.0.0.1:%d", portCV.Int)
+		}
 	}
 	srv, err := g.Server.StartDAPServer(addr)
 	if err != nil {

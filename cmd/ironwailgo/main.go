@@ -138,7 +138,7 @@ func main() {
 		slog.Info("menu active")
 	}
 
-	if startupOpts.QCDebug || startupOpts.QCDebugWait {
+	if (startupOpts.QCDebug || startupOpts.QCDebugWait) && g.Server != nil {
 		addr := fmt.Sprintf("127.0.0.1:%d", startupOpts.QCDebugPort)
 		srv, err := g.Server.StartDAPServer(addr)
 		if err != nil {
