@@ -72,6 +72,7 @@ func TestSessionBreakpointsManagement(t *testing.T) {
 	vm := qc.NewVM()
 	vm.Functions = []qc.DFunction{
 		{Name: vm.AllocString("known_func"), FirstStatement: 10},
+		{Name: vm.AllocString("builtin_func"), FirstStatement: -1},
 	}
 	vm.Statements = make([]qc.DStatement, 50)
 
@@ -80,32 +81,44 @@ func TestSessionBreakpointsManagement(t *testing.T) {
 
 	// Known function breakpoint -> verified
 	bp1 := session.SetFunctionBreakpoint("known_func")
-	if !bp1.Verified || bp1.Line != 10 {
-		t.Fatalf("Expected verified function breakpoint at line 10, got %+v", bp1)
+	if !bp1.Verified || bp1.Line != 10 || bp1.ID != 1 {
+		t.Fatalf("Expected verified function breakpoint at line 10 with ID 1, got %+v", bp1)
 	}
 
 	// Unknown function breakpoint -> not verified
 	bp2 := session.SetFunctionBreakpoint("unknown_func")
-	if bp2.Verified {
-		t.Fatalf("Expected unverified function breakpoint, got %+v", bp2)
+	if bp2.Verified || bp2.ID != 2 {
+		t.Fatalf("Expected unverified function breakpoint with ID 2, got %+v", bp2)
+	}
+
+	// Builtin function (FirstStatement < 0) -> not verified
+	bpBuiltin := session.SetFunctionBreakpoint("builtin_func")
+	if bpBuiltin.Verified || bpBuiltin.ID != 3 {
+		t.Fatalf("Expected unverified builtin function breakpoint with ID 3, got %+v", bpBuiltin)
 	}
 
 	// Valid statement breakpoint -> verified
 	bp3 := session.SetBreakpoint(25)
-	if !bp3.Verified || bp3.Line != 25 {
-		t.Fatalf("Expected verified statement breakpoint at line 25, got %+v", bp3)
+	if !bp3.Verified || bp3.Line != 25 || bp3.ID != 4 {
+		t.Fatalf("Expected verified statement breakpoint at line 25 with ID 4, got %+v", bp3)
 	}
 
 	// Invalid statement breakpoint -> not verified
 	bp4 := session.SetBreakpoint(999)
-	if bp4.Verified {
-		t.Fatalf("Expected unverified statement breakpoint for out of bounds line, got %+v", bp4)
+	if bp4.Verified || bp4.ID != 5 {
+		t.Fatalf("Expected unverified statement breakpoint for out of bounds line with ID 5, got %+v", bp4)
 	}
 
 	// Clear breakpoints
 	session.ClearBreakpoints()
 	if len(session.funcBreaks) != 0 || len(session.stmtBreaks) != 0 {
 		t.Fatalf("Expected all breakpoints cleared, got func=%d stmt=%d", len(session.funcBreaks), len(session.stmtBreaks))
+	}
+
+	// Monotonic ID counter persists across clear
+	bp5 := session.SetBreakpoint(5)
+	if bp5.ID != 6 {
+		t.Fatalf("Expected monotonic breakpoint ID 6 after clear, got %d", bp5.ID)
 	}
 }
 
@@ -385,5 +398,67 @@ func TestSessionNextSeqAndVariables(t *testing.T) {
 	session.SetInitialized(true)
 	if !session.Initialized() {
 		t.Fatal("Expected Initialized() to be true after SetInitialized(true)")
+	}
+}
+
+func TestSessionStackTraceClamping(t *testing.T) {
+	vm := qc.NewVM()
+	vm.Functions = []qc.DFunction{
+		{Name: vm.AllocString("main"), FirstStatement: 0},
+	}
+	target := &mockTarget{vm: vm}
+	session := NewSession(target)
+
+	// vm.Depth is excessively large compared to stack length (1024)
+	vm.Depth = len(vm.Stack) + 50
+	for i := range vm.Stack {
+		vm.Stack[i] = qc.PRStack{
+			S:         i,
+			FuncIndex: 0,
+		}
+	}
+
+	frames := session.StackTrace()
+	// Should not panic, and number of frames should be 1 (top) + len(vm.Stack) = 1025
+	if len(frames) != 1+len(vm.Stack) {
+		t.Fatalf("Expected %d frames, got %d", 1+len(vm.Stack), len(frames))
+	}
+}
+
+func TestBarrierModeAndArmEarlyResume(t *testing.T) {
+	b := NewBarrier()
+
+	mode, dep := b.Mode()
+	if mode != modeContinue || dep != 0 {
+		t.Fatalf("Expected (modeContinue, 0), got (%v, %d)", mode, dep)
+	}
+
+	b.Arm()
+	if !b.IsPaused() {
+		t.Fatal("Expected barrier to be paused after Arm()")
+	}
+
+	// Immediate Resume before Wait should clear pause and set mode
+	b.Resume(modeStepOver, 3)
+	mode, dep = b.Mode()
+	if mode != modeStepOver || dep != 3 {
+		t.Fatalf("Expected (modeStepOver, 3), got (%v, %d)", mode, dep)
+	}
+	if b.IsPaused() {
+		t.Fatal("Expected barrier to not be paused after Resume()")
+	}
+
+	// Wait should not block since pause was already cleared
+	done := make(chan struct{})
+	go func() {
+		b.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Wait() blocked even though Resume() was called after Arm()")
 	}
 }

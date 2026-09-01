@@ -16,6 +16,7 @@ type Session struct {
 	stmtBreaks  map[int]bool
 	vars        *VariableManager
 	seq         int
+	nextBPID    int
 	OnStopped   func(reason string, threadID int)
 	initialized bool
 }
@@ -48,13 +49,15 @@ func (s *Session) SetFunctionBreakpoint(name string) Breakpoint {
 	verified := false
 	line := 0
 	if s.target != nil && s.target.VM() != nil {
-		fnIdx := s.target.VM().FindFunction(name)
-		if fnIdx >= 0 && fnIdx < len(s.target.VM().Functions) {
+		vm := s.target.VM()
+		fnIdx := vm.FindFunction(name)
+		if fnIdx >= 0 && fnIdx < len(vm.Functions) && vm.Functions[fnIdx].FirstStatement >= 0 {
 			verified = true
-			line = int(s.target.VM().Functions[fnIdx].FirstStatement)
+			line = int(vm.Functions[fnIdx].FirstStatement)
 		}
 	}
-	return Breakpoint{ID: len(s.funcBreaks), Verified: verified, Line: line}
+	s.nextBPID++
+	return Breakpoint{ID: s.nextBPID, Verified: verified, Line: line}
 }
 
 // SetBreakpoint registers a statement index breakpoint.
@@ -67,7 +70,8 @@ func (s *Session) SetBreakpoint(stmtIdx int) Breakpoint {
 	if s.target != nil && s.target.VM() != nil {
 		verified = stmtIdx >= 0 && stmtIdx < len(s.target.VM().Statements)
 	}
-	return Breakpoint{ID: len(s.stmtBreaks) + len(s.funcBreaks), Verified: verified, Line: stmtIdx}
+	s.nextBPID++
+	return Breakpoint{ID: s.nextBPID, Verified: verified, Line: stmtIdx}
 }
 
 // ClearBreakpoints removes all breakpoints.
@@ -162,7 +166,8 @@ func (s *Session) StackTrace() []StackFrame {
 	})
 
 	// Remaining stack frames
-	for i := vm.Depth - 1; i >= 0; i-- {
+	start := min(vm.Depth-1, len(vm.Stack)-1)
+	for i := start; i >= 0; i-- {
 		stk := vm.Stack[i]
 		fnName := fmt.Sprintf("fn_%d", stk.FuncIndex)
 		if stk.Func != nil {
@@ -183,9 +188,9 @@ func (s *Session) StackTrace() []StackFrame {
 // BreakHook returns a QCVM statement hook callback wired to this session.
 func (s *Session) BreakHook() func(vm *qc.VM, stmtIdx int) bool {
 	return func(vm *qc.VM, stmtIdx int) bool {
+		mode, targetDep := s.barrier.Mode()
+
 		s.mu.Lock()
-		mode := s.barrier.mode
-		targetDep := s.barrier.targetDep
 		funcBreaks := s.funcBreaks
 		stmtBreaks := s.stmtBreaks
 		onStopped := s.OnStopped
@@ -208,6 +213,7 @@ func (s *Session) BreakHook() func(vm *qc.VM, stmtIdx int) bool {
 		}
 
 		if stopReason != "" {
+			s.barrier.Arm()
 			if onStopped != nil {
 				onStopped(stopReason, 1)
 			}

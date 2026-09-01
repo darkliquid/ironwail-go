@@ -32,6 +32,20 @@ func NewBarrier() *Barrier {
 	return b
 }
 
+// Mode returns the current step mode and target depth thread-safely.
+func (b *Barrier) Mode() (stepMode, int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.mode, b.targetDep
+}
+
+// Arm prepares the barrier for waiting by marking it paused.
+func (b *Barrier) Arm() {
+	b.mu.Lock()
+	b.paused = true
+	b.mu.Unlock()
+}
+
 // Resume unblocks the execution thread.
 func (b *Barrier) Resume(mode stepMode, targetDep int) {
 	b.mu.Lock()
@@ -45,7 +59,6 @@ func (b *Barrier) Resume(mode stepMode, targetDep int) {
 // Wait blocks until Resume is called.
 func (b *Barrier) Wait() {
 	b.mu.Lock()
-	b.paused = true
 	for b.paused {
 		b.cond.Wait()
 	}
