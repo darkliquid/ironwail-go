@@ -12,6 +12,7 @@
 //	                         QC bytecode function with globals set (plan 25
 //	                         Phase B).
 //	qcmod sim <moddir>    — interactive headless REPL (WIP; see plan 25.6).
+//	qcmod dap [addr]      — start standalone DAP debug server.
 //	qcmod docs            — print this guide.
 //
 // In-Go mode runs mod functions natively (via quake/engine's Backend wired by
@@ -47,6 +48,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runVM(args[1:], stdout, stderr)
 	case "sim":
 		return runREPL(os.Stdin, stdout)
+	case "dap":
+		return runDAP(args[1:], stdout, stderr)
 	case "docs", "help", "-h", "--help":
 		printUsage(stdout)
 		return 0
@@ -118,6 +121,7 @@ Commands:
   qcmod vm <fn> [self [other [time]]]
                         boot compiled progs + fire a QC bytecode function
   qcmod sim <moddir>    interactive headless REPL (WIP)
+  qcmod dap [addr]      start standalone DAP debug server
   qcmod docs            print this guide
 
 In-Go mode: mod tests import "quake", "quake/engine", and "quake/sim";
