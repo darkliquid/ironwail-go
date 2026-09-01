@@ -2,6 +2,7 @@ package dap
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
@@ -33,12 +34,26 @@ func (vm *VariableManager) GetScopes(frameID int) []Scope {
 	}
 }
 
+func formatEdictField(target Target, entNum int, name string, ofs int) (val string, varType string) {
+	if strings.Contains(name, "origin") || strings.Contains(name, "velocity") || strings.Contains(name, "angles") {
+		vec := target.GetEdictVector(entNum, ofs)
+		return fmt.Sprintf("[%v, %v, %v]", vec[0], vec[1], vec[2]), "vector"
+	}
+	if name == "classname" || name == "model" || name == "target" || name == "targetname" {
+		str := target.GetEdictString(entNum, ofs)
+		return fmt.Sprintf("%q", str), "string"
+	}
+	fl := target.GetEdictFloat(entNum, ofs)
+	return fmt.Sprintf("%v", fl), "float"
+}
+
 // GetVariables returns child variables for a given reference ID.
 func (vm *VariableManager) GetVariables(ref int) []Variable {
-	if vm.target == nil {
+	if vm == nil || vm.target == nil {
 		return nil
 	}
 	qcvm := vm.target.VM()
+	edictCount := vm.target.EdictCount()
 
 	if ref >= scopeLocalsBase && ref < scopeGlobalsBase {
 		// Locals
@@ -46,17 +61,25 @@ func (vm *VariableManager) GetVariables(ref int) []Variable {
 		if qcvm != nil {
 			if len(qcvm.Globals) > qc.OFSSelf {
 				selfEnt := int(qcvm.GInt(qc.OFSSelf))
+				var className string
+				if selfEnt >= 0 && selfEnt < edictCount {
+					className = vm.target.GetEdictClassName(selfEnt)
+				}
 				vars = append(vars, Variable{
 					Name:  "self",
-					Value: fmt.Sprintf("edict %d (%s)", selfEnt, vm.target.GetEdictClassName(selfEnt)),
+					Value: fmt.Sprintf("edict %d (%s)", selfEnt, className),
 					Type:  "entity",
 				})
 			}
 			if len(qcvm.Globals) > qc.OFSOther {
 				otherEnt := int(qcvm.GInt(qc.OFSOther))
+				var className string
+				if otherEnt >= 0 && otherEnt < edictCount {
+					className = vm.target.GetEdictClassName(otherEnt)
+				}
 				vars = append(vars, Variable{
 					Name:  "other",
-					Value: fmt.Sprintf("edict %d (%s)", otherEnt, vm.target.GetEdictClassName(otherEnt)),
+					Value: fmt.Sprintf("edict %d (%s)", otherEnt, className),
 					Type:  "entity",
 				})
 			}
@@ -70,9 +93,9 @@ func (vm *VariableManager) GetVariables(ref int) []Variable {
 							Type:  "float",
 						})
 					}
-					size := int(qcvm.XFunction.ParmSize[i])
-					if size <= 0 {
-						size = 1
+					size := 1
+					if i < len(qcvm.XFunction.ParmSize) && qcvm.XFunction.ParmSize[i] > 0 {
+						size = int(qcvm.XFunction.ParmSize[i])
 					}
 					parmOfs += size
 				}
@@ -104,8 +127,7 @@ func (vm *VariableManager) GetVariables(ref int) []Variable {
 	if ref >= scopeEdictsBase && ref < edictFieldsBase {
 		// Edicts summary list
 		var vars []Variable
-		count := vm.target.EdictCount()
-		for i := 0; i < count; i++ {
+		for i := 0; i < edictCount; i++ {
 			cname := vm.target.GetEdictClassName(i)
 			if cname == "" && i > 0 {
 				continue // Skip unused / free edicts
@@ -123,29 +145,24 @@ func (vm *VariableManager) GetVariables(ref int) []Variable {
 	if ref >= edictFieldsBase {
 		// Edict fields
 		entNum := ref - edictFieldsBase
+		if entNum < 0 || entNum >= edictCount {
+			return nil
+		}
 		var vars []Variable
 		fields := vm.target.FieldNames()
-		for name, ofs := range fields {
-			if strings.Contains(name, "origin") || strings.Contains(name, "velocity") || strings.Contains(name, "angles") {
-				vec := vm.target.GetEdictVector(entNum, ofs)
+		if len(fields) > 0 {
+			names := make([]string, 0, len(fields))
+			for name := range fields {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+			for _, name := range names {
+				ofs := fields[name]
+				val, varType := formatEdictField(vm.target, entNum, name, ofs)
 				vars = append(vars, Variable{
 					Name:  name,
-					Value: fmt.Sprintf("[%v, %v, %v]", vec[0], vec[1], vec[2]),
-					Type:  "vector",
-				})
-			} else if name == "classname" || name == "model" || name == "target" || name == "targetname" {
-				str := vm.target.GetEdictString(entNum, ofs)
-				vars = append(vars, Variable{
-					Name:  name,
-					Value: fmt.Sprintf("%q", str),
-					Type:  "string",
-				})
-			} else {
-				fl := vm.target.GetEdictFloat(entNum, ofs)
-				vars = append(vars, Variable{
-					Name:  name,
-					Value: fmt.Sprintf("%v", fl),
-					Type:  "float",
+					Value: val,
+					Type:  varType,
 				})
 			}
 		}
@@ -158,13 +175,14 @@ func (vm *VariableManager) GetVariables(ref int) []Variable {
 // Evaluate evaluates an expression string against target state.
 func (vm *VariableManager) Evaluate(expr string) (string, error) {
 	expr = strings.TrimSpace(expr)
-	if vm.target == nil {
+	if vm == nil || vm.target == nil {
 		return "", fmt.Errorf("no active target")
 	}
 	qcvm := vm.target.VM()
 	if qcvm == nil {
 		return "", fmt.Errorf("no active VM")
 	}
+	edictCount := vm.target.EdictCount()
 
 	switch expr {
 	case "time":
@@ -175,13 +193,21 @@ func (vm *VariableManager) Evaluate(expr string) (string, error) {
 	case "self":
 		if len(qcvm.Globals) > qc.OFSSelf {
 			selfEnt := int(qcvm.GInt(qc.OFSSelf))
-			return fmt.Sprintf("edict %d (%s)", selfEnt, vm.target.GetEdictClassName(selfEnt)), nil
+			var className string
+			if selfEnt >= 0 && selfEnt < edictCount {
+				className = vm.target.GetEdictClassName(selfEnt)
+			}
+			return fmt.Sprintf("edict %d (%s)", selfEnt, className), nil
 		}
 		return "edict 0 ()", nil
 	case "other":
 		if len(qcvm.Globals) > qc.OFSOther {
 			otherEnt := int(qcvm.GInt(qc.OFSOther))
-			return fmt.Sprintf("edict %d (%s)", otherEnt, vm.target.GetEdictClassName(otherEnt)), nil
+			var className string
+			if otherEnt >= 0 && otherEnt < edictCount {
+				className = vm.target.GetEdictClassName(otherEnt)
+			}
+			return fmt.Sprintf("edict %d (%s)", otherEnt, className), nil
 		}
 		return "edict 0 ()", nil
 	}
@@ -190,8 +216,13 @@ func (vm *VariableManager) Evaluate(expr string) (string, error) {
 		field := strings.TrimPrefix(expr, "self.")
 		if len(qcvm.Globals) > qc.OFSSelf {
 			entNum := int(qcvm.GInt(qc.OFSSelf))
-			if ofs, ok := vm.target.FieldNames()[field]; ok {
-				return fmt.Sprintf("%v", vm.target.GetEdictFloat(entNum, ofs)), nil
+			if entNum < 0 || entNum >= edictCount {
+				return "", fmt.Errorf("invalid self entity %d", entNum)
+			}
+			fields := vm.target.FieldNames()
+			if ofs, ok := fields[field]; ok {
+				val, _ := formatEdictField(vm.target, entNum, field, ofs)
+				return val, nil
 			}
 		}
 	}
