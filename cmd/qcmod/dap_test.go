@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"net"
+	"os"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,22 +14,45 @@ import (
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (n int, err error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 func TestQCModDAPCommand(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	// Run in background with dynamic port
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen on dynamic port: %v", err)
+	}
+	addr := ln.Addr().String()
+	_ = ln.Close()
+
+	// Run in background with dynamic free port
 	stopCh := make(chan struct{})
 	go func() {
-		runDAPServer("127.0.0.1:23499", stdout, stderr, stopCh)
+		runDAPServer(addr, stdout, stderr, stopCh)
 	}()
 	defer close(stopCh)
 
 	var conn net.Conn
-	var err error
 	for i := 0; i < 100; i++ {
-		time.Sleep(50 * time.Millisecond)
-		conn, err = net.Dial("tcp", "127.0.0.1:23499")
+		time.Sleep(20 * time.Millisecond)
+		conn, err = net.Dial("tcp", addr)
 		if err == nil {
 			break
 		}
@@ -34,7 +60,7 @@ func TestQCModDAPCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed connecting to qcmod dap: %v (stderr: %s)", err, stderr.String())
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if err := dap.WriteMessage(conn, dap.Request{
 		Message: dap.Message{Seq: 1, Type: "request"},
@@ -92,6 +118,26 @@ func TestQCModTarget(t *testing.T) {
 		t.Fatalf("GetEdictVector = %v, want [10, 20, 30]", got)
 	}
 
+	// Bounds checks
+	if got := dTarget.GetEdictFloat(-1, qc.EntFieldHealth); got != 0 {
+		t.Fatalf("GetEdictFloat(-1) = %v, want 0", got)
+	}
+	if got := dTarget.GetEdictFloat(9999, qc.EntFieldHealth); got != 0 {
+		t.Fatalf("GetEdictFloat(9999) = %v, want 0", got)
+	}
+	if got := dTarget.GetEdictString(-1, qc.EntFieldClassName); got != "" {
+		t.Fatalf("GetEdictString(-1) = %q, want empty", got)
+	}
+	if got := dTarget.GetEdictString(9999, qc.EntFieldClassName); got != "" {
+		t.Fatalf("GetEdictString(9999) = %q, want empty", got)
+	}
+	if got := dTarget.GetEdictVector(-1, qc.EntFieldOrigin); got != [3]float32{} {
+		t.Fatalf("GetEdictVector(-1) = %v, want zero vector", got)
+	}
+	if got := dTarget.GetEdictVector(9999, qc.EntFieldOrigin); got != [3]float32{} {
+		t.Fatalf("GetEdictVector(9999) = %v, want zero vector", got)
+	}
+
 	// Nil safety checks
 	nilTarget := &qcmodTarget{}
 	if nilTarget.VM() != nil {
@@ -123,5 +169,44 @@ func TestQCModDAPServerListenError(t *testing.T) {
 	}
 	if !bytes.Contains(stderr.Bytes(), []byte("qcmod dap:")) {
 		t.Fatalf("expected error message in stderr, got: %s", stderr.String())
+	}
+}
+
+func TestQCModDAPRunDispatch(t *testing.T) {
+	stdout := &syncBuffer{}
+	stderr := &syncBuffer{}
+
+	doneCh := make(chan int, 1)
+	go func() {
+		doneCh <- run([]string{"dap", "127.0.0.1:0"}, stdout, stderr)
+	}()
+
+	// Wait until server starts and prints listening line
+	for i := 0; i < 100; i++ {
+		if strings.Contains(stdout.String(), "listening on") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !strings.Contains(stdout.String(), "listening on") {
+		t.Fatalf("DAP server did not start in time (stderr: %s)", stderr.String())
+	}
+
+	// Trigger shutdown via SIGINT / Interrupt
+	p, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		t.Fatalf("failed to find current process: %v", err)
+	}
+	if err := p.Signal(os.Interrupt); err != nil {
+		t.Fatalf("failed to signal process: %v", err)
+	}
+
+	select {
+	case code := <-doneCh:
+		if code != 0 {
+			t.Fatalf("run DAP returned exit code %d, want 0", code)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for run DAP to stop")
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -26,29 +27,26 @@ func (t *qcmodTarget) EdictCount() int {
 	if t.world == nil || t.world.vm == nil {
 		return 0
 	}
-	if t.world.vm.NumEdicts > 0 {
-		return t.world.vm.NumEdicts
-	}
-	return 1
+	return t.world.vm.NumEdicts
 }
 
 func (t *qcmodTarget) GetEdictFloat(entNum, offset int) float32 {
-	if t.world == nil || t.world.vm == nil {
+	if t.world == nil || t.world.vm == nil || entNum < 0 || entNum >= t.world.vm.NumEdicts {
 		return 0
 	}
 	return t.world.vm.EFloat(entNum, offset)
 }
 
 func (t *qcmodTarget) GetEdictString(entNum, offset int) string {
-	if t.world == nil || t.world.vm == nil {
+	if t.world == nil || t.world.vm == nil || entNum < 0 || entNum >= t.world.vm.NumEdicts {
 		return ""
 	}
-	sidx := t.world.vm.EInt(entNum, offset)
+	sidx := t.world.vm.EString(entNum, offset)
 	return t.world.vm.String(sidx)
 }
 
 func (t *qcmodTarget) GetEdictVector(entNum, offset int) [3]float32 {
-	if t.world == nil || t.world.vm == nil {
+	if t.world == nil || t.world.vm == nil || entNum < 0 || entNum >= t.world.vm.NumEdicts {
 		return [3]float32{}
 	}
 	v := t.world.vm.EVector(entNum, offset)
@@ -75,15 +73,10 @@ func runDAP(args []string, stdout, stderr io.Writer) int {
 		addr = args[0]
 	}
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	stopCh := make(chan struct{})
-	go func() {
-		<-sigCh
-		close(stopCh)
-	}()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	return runDAPServer(addr, stdout, stderr, stopCh)
+	return runDAPServer(addr, stdout, stderr, ctx.Done())
 }
 
 func runDAPServer(addr string, stdout, stderr io.Writer, stopCh <-chan struct{}) int {
@@ -99,7 +92,7 @@ func runDAPServer(addr string, stdout, stderr io.Writer, stopCh <-chan struct{})
 		_, _ = fmt.Fprintf(stderr, "qcmod dap: %v\n", err)
 		return 1
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	_, _ = fmt.Fprintf(stdout, "qcmod DAP server listening on %s (press Ctrl+C to stop)\n", srv.Addr().String())
 
