@@ -467,30 +467,79 @@ func TestDAPEndToEndStepInStepOutAndNestedCalls(t *testing.T) {
 		t.Fatalf("Dial failed: %v", err)
 	}
 	defer func() { _ = conn.Close() }()
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("SetDeadline failed: %v", err)
+	}
 
 	// Initialize Handshake
-	_ = WriteMessage(conn, Request{Message: Message{Seq: 1, Type: "request"}, Command: "initialize"})
-	initPayload, _ := ReadMessage(conn)
+	if err := WriteMessage(conn, Request{Message: Message{Seq: 1, Type: "request"}, Command: "initialize"}); err != nil {
+		t.Fatalf("WriteMessage initialize failed: %v", err)
+	}
+	initPayload, err := ReadMessage(conn)
+	if err != nil {
+		t.Fatalf("ReadMessage initialize response failed: %v", err)
+	}
 	var initResp Response
-	_ = DecodeMessage(initPayload, &initResp)
-	initEvtPayload, _ := ReadMessage(conn) // initialized event
+	if err := DecodeMessage(initPayload, &initResp); err != nil {
+		t.Fatalf("DecodeMessage initialize response failed: %v", err)
+	}
+	if !initResp.Success {
+		t.Fatalf("Initialize response reported failure: %+v", initResp)
+	}
+
+	initEvtPayload, err := ReadMessage(conn) // initialized event
+	if err != nil {
+		t.Fatalf("ReadMessage initialized event failed: %v", err)
+	}
 	var initEvt Event
-	_ = DecodeMessage(initEvtPayload, &initEvt)
+	if err := DecodeMessage(initEvtPayload, &initEvt); err != nil {
+		t.Fatalf("DecodeMessage initialized event failed: %v", err)
+	}
+	if initEvt.Event != "initialized" {
+		t.Fatalf("Expected initialized event, got: %+v", initEvt)
+	}
 
 	// Set Breakpoint on caller_fn
-	args, _ := json.Marshal(map[string]any{
+	args, err := json.Marshal(map[string]any{
 		"breakpoints": []FunctionBreakpoint{{Name: "caller_fn"}},
 	})
-	_ = WriteMessage(conn, Request{
+	if err != nil {
+		t.Fatalf("json.Marshal breakpoints args failed: %v", err)
+	}
+	if err := WriteMessage(conn, Request{
 		Message:   Message{Seq: 2, Type: "request"},
 		Command:   "setFunctionBreakpoints",
 		Arguments: args,
-	})
-	_, _ = ReadMessage(conn)
+	}); err != nil {
+		t.Fatalf("WriteMessage setFunctionBreakpoints failed: %v", err)
+	}
+	bpPayload, err := ReadMessage(conn)
+	if err != nil {
+		t.Fatalf("ReadMessage setFunctionBreakpoints response failed: %v", err)
+	}
+	var bpResp Response
+	if err := DecodeMessage(bpPayload, &bpResp); err != nil {
+		t.Fatalf("DecodeMessage setFunctionBreakpoints response failed: %v", err)
+	}
+	if !bpResp.Success {
+		t.Fatalf("SetFunctionBreakpoints failed: %+v", bpResp)
+	}
 
 	// ConfigurationDone
-	_ = WriteMessage(conn, Request{Message: Message{Seq: 3, Type: "request"}, Command: "configurationDone"})
-	_, _ = ReadMessage(conn)
+	if err := WriteMessage(conn, Request{Message: Message{Seq: 3, Type: "request"}, Command: "configurationDone"}); err != nil {
+		t.Fatalf("WriteMessage configurationDone failed: %v", err)
+	}
+	configPayload, err := ReadMessage(conn)
+	if err != nil {
+		t.Fatalf("ReadMessage configurationDone response failed: %v", err)
+	}
+	var configResp Response
+	if err := DecodeMessage(configPayload, &configResp); err != nil {
+		t.Fatalf("DecodeMessage configurationDone response failed: %v", err)
+	}
+	if !configResp.Success {
+		t.Fatalf("ConfigurationDone failed: %+v", configResp)
+	}
 
 	// Execute caller_fn in background
 	doneCh := make(chan error, 1)
@@ -499,42 +548,87 @@ func TestDAPEndToEndStepInStepOutAndNestedCalls(t *testing.T) {
 	}()
 
 	// 1. Expect stopped event at caller_fn entry
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("SetDeadline failed: %v", err)
+	}
 	stopPayload, err := ReadMessage(conn)
 	if err != nil {
 		t.Fatalf("Failed reading initial stop: %v", err)
 	}
 	var stopEvt Event
-	_ = DecodeMessage(stopPayload, &stopEvt)
+	if err := DecodeMessage(stopPayload, &stopEvt); err != nil {
+		t.Fatalf("DecodeMessage initial stop event failed: %v", err)
+	}
 	if stopEvt.Event != "stopped" {
 		t.Fatalf("Expected stopped event, got: %+v", stopEvt)
 	}
+	var stopBody StoppedEventBody
+	if err := json.Unmarshal(stopEvt.Body, &stopBody); err != nil {
+		t.Fatalf("json.Unmarshal initial stop body failed: %v", err)
+	}
+	if stopBody.Reason != "breakpoint" {
+		t.Fatalf("Expected breakpoint reason, got: %+v", stopBody)
+	}
 
 	// 2. StepIn (step into callee_fn)
-	_ = WriteMessage(conn, Request{Message: Message{Seq: 4, Type: "request"}, Command: "stepIn"})
-	_, _ = ReadMessage(conn)
+	if err := WriteMessage(conn, Request{Message: Message{Seq: 4, Type: "request"}, Command: "stepIn"}); err != nil {
+		t.Fatalf("WriteMessage stepIn failed: %v", err)
+	}
+	stepInRespPayload, err := ReadMessage(conn)
+	if err != nil {
+		t.Fatalf("ReadMessage stepIn response failed: %v", err)
+	}
+	var stepInResp Response
+	if err := DecodeMessage(stepInRespPayload, &stepInResp); err != nil {
+		t.Fatalf("DecodeMessage stepIn response failed: %v", err)
+	}
+	if !stepInResp.Success {
+		t.Fatalf("StepIn response reported failure: %+v", stepInResp)
+	}
 
 	// Expect stopped event inside callee_fn
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("SetDeadline failed: %v", err)
+	}
 	stepInPayload, err := ReadMessage(conn)
 	if err != nil {
 		t.Fatalf("Failed reading stepIn stop: %v", err)
 	}
-	_ = DecodeMessage(stepInPayload, &stopEvt)
-	var stopBody StoppedEventBody
-	_ = json.Unmarshal(stopEvt.Body, &stopBody)
+	if err := DecodeMessage(stepInPayload, &stopEvt); err != nil {
+		t.Fatalf("DecodeMessage stepIn stop event failed: %v", err)
+	}
+	if stopEvt.Event != "stopped" {
+		t.Fatalf("Expected stopped event after stepIn, got: %+v", stopEvt)
+	}
+	if err := json.Unmarshal(stopEvt.Body, &stopBody); err != nil {
+		t.Fatalf("json.Unmarshal stepIn stop body failed: %v", err)
+	}
 	if stopBody.Reason != "step" {
 		t.Fatalf("Expected step reason, got: %+v", stopBody)
 	}
 
 	// Verify StackTrace has callee_fn on top and caller_fn beneath
-	_ = WriteMessage(conn, Request{Message: Message{Seq: 5, Type: "request"}, Command: "stackTrace"})
-	stPayload, _ := ReadMessage(conn)
+	if err := WriteMessage(conn, Request{Message: Message{Seq: 5, Type: "request"}, Command: "stackTrace"}); err != nil {
+		t.Fatalf("WriteMessage stackTrace failed: %v", err)
+	}
+	stPayload, err := ReadMessage(conn)
+	if err != nil {
+		t.Fatalf("ReadMessage stackTrace response failed: %v", err)
+	}
 	var stackResp Response
-	_ = DecodeMessage(stPayload, &stackResp)
+	if err := DecodeMessage(stPayload, &stackResp); err != nil {
+		t.Fatalf("DecodeMessage stackTrace response failed: %v", err)
+	}
+	if !stackResp.Success {
+		t.Fatalf("StackTrace response reported failure: %+v", stackResp)
+	}
 	var stackBody struct {
 		StackFrames []StackFrame `json:"stackFrames"`
 		TotalFrames int          `json:"totalFrames"`
 	}
-	_ = json.Unmarshal(stackResp.Body, &stackBody)
+	if err := json.Unmarshal(stackResp.Body, &stackBody); err != nil {
+		t.Fatalf("json.Unmarshal stackTrace body failed: %v", err)
+	}
 	if len(stackBody.StackFrames) < 2 {
 		t.Fatalf("Expected at least 2 stack frames, got %d: %+v", len(stackBody.StackFrames), stackBody)
 	}
@@ -543,32 +637,78 @@ func TestDAPEndToEndStepInStepOutAndNestedCalls(t *testing.T) {
 	}
 
 	// 3. StepOut (step out of callee_fn back to caller_fn)
-	_ = WriteMessage(conn, Request{Message: Message{Seq: 6, Type: "request"}, Command: "stepOut"})
-	_, _ = ReadMessage(conn)
+	if err := WriteMessage(conn, Request{Message: Message{Seq: 6, Type: "request"}, Command: "stepOut"}); err != nil {
+		t.Fatalf("WriteMessage stepOut failed: %v", err)
+	}
+	stepOutRespPayload, err := ReadMessage(conn)
+	if err != nil {
+		t.Fatalf("ReadMessage stepOut response failed: %v", err)
+	}
+	var stepOutResp Response
+	if err := DecodeMessage(stepOutRespPayload, &stepOutResp); err != nil {
+		t.Fatalf("DecodeMessage stepOut response failed: %v", err)
+	}
+	if !stepOutResp.Success {
+		t.Fatalf("StepOut response reported failure: %+v", stepOutResp)
+	}
 
 	// Expect stopped event back in caller_fn
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("SetDeadline failed: %v", err)
+	}
 	stepOutPayload, err := ReadMessage(conn)
 	if err != nil {
 		t.Fatalf("Failed reading stepOut stop: %v", err)
 	}
-	_ = DecodeMessage(stepOutPayload, &stopEvt)
-	_ = json.Unmarshal(stopEvt.Body, &stopBody)
+	if err := DecodeMessage(stepOutPayload, &stopEvt); err != nil {
+		t.Fatalf("DecodeMessage stepOut stop event failed: %v", err)
+	}
+	if stopEvt.Event != "stopped" {
+		t.Fatalf("Expected stopped event after stepOut, got: %+v", stopEvt)
+	}
+	if err := json.Unmarshal(stopEvt.Body, &stopBody); err != nil {
+		t.Fatalf("json.Unmarshal stepOut stop body failed: %v", err)
+	}
 	if stopBody.Reason != "step" {
 		t.Fatalf("Expected step reason after stepOut, got: %+v", stopBody)
 	}
 
 	// Verify StackTrace top frame is caller_fn
-	_ = WriteMessage(conn, Request{Message: Message{Seq: 7, Type: "request"}, Command: "stackTrace"})
-	stOutPayload, _ := ReadMessage(conn)
-	_ = DecodeMessage(stOutPayload, &stackResp)
-	_ = json.Unmarshal(stackResp.Body, &stackBody)
+	if err := WriteMessage(conn, Request{Message: Message{Seq: 7, Type: "request"}, Command: "stackTrace"}); err != nil {
+		t.Fatalf("WriteMessage stackTrace failed: %v", err)
+	}
+	stOutPayload, err := ReadMessage(conn)
+	if err != nil {
+		t.Fatalf("ReadMessage stackTrace response failed: %v", err)
+	}
+	if err := DecodeMessage(stOutPayload, &stackResp); err != nil {
+		t.Fatalf("DecodeMessage stackTrace response failed: %v", err)
+	}
+	if !stackResp.Success {
+		t.Fatalf("StackTrace response reported failure: %+v", stackResp)
+	}
+	if err := json.Unmarshal(stackResp.Body, &stackBody); err != nil {
+		t.Fatalf("json.Unmarshal stackTrace body failed: %v", err)
+	}
 	if len(stackBody.StackFrames) == 0 || stackBody.StackFrames[0].Name != "caller_fn" {
 		t.Fatalf("Expected caller_fn top stack frame after stepOut, got: %+v", stackBody)
 	}
 
 	// 4. Continue to completion
-	_ = WriteMessage(conn, Request{Message: Message{Seq: 8, Type: "request"}, Command: "continue"})
-	_, _ = ReadMessage(conn)
+	if err := WriteMessage(conn, Request{Message: Message{Seq: 8, Type: "request"}, Command: "continue"}); err != nil {
+		t.Fatalf("WriteMessage continue failed: %v", err)
+	}
+	contPayload, err := ReadMessage(conn)
+	if err != nil {
+		t.Fatalf("ReadMessage continue response failed: %v", err)
+	}
+	var contResp Response
+	if err := DecodeMessage(contPayload, &contResp); err != nil {
+		t.Fatalf("DecodeMessage continue response failed: %v", err)
+	}
+	if !contResp.Success {
+		t.Fatalf("Continue response reported failure: %+v", contResp)
+	}
 
 	select {
 	case err := <-doneCh:
