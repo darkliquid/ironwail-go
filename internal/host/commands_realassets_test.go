@@ -191,6 +191,8 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	h.CVar.SetInt("skill", 3)
 
 	h.CmdSave("roundtrip", subs)
+	h.WaitForSaveThread()
+	h.drainMainThreadQueue()
 
 	if _, err := os.Stat(filepath.Join(h.UserDir(), "saves", "roundtrip.sav")); err != nil {
 		t.Fatalf("saved file missing: %v", err)
@@ -476,6 +478,8 @@ func TestCmdSaveArgsSkipNotifySuppressesSaveMessage(t *testing.T) {
 	console.Clear()
 
 	h.CmdSaveArgs([]string{"autosave/start", "0"}, subs)
+	h.WaitForSaveThread()
+	h.drainMainThreadQueue()
 
 	if _, err := os.Stat(filepath.Join(h.UserDir(), "saves", "autosave", "start.sav")); err != nil {
 		t.Fatalf("saved file missing: %v", err)
@@ -524,6 +528,8 @@ func TestCmdSaveNestedPathPrintsRelativeSaveName(t *testing.T) {
 	console.Clear()
 
 	h.CmdSave("autosave/start", subs)
+	h.WaitForSaveThread()
+	h.drainMainThreadQueue()
 
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Saving game to autosave/start.sav...") {
 		t.Fatalf("console output = %q, want nested relative save name", got)
@@ -578,6 +584,8 @@ func TestCmdSaveBlockedPathPrintsCouldNotOpen(t *testing.T) {
 	console.Clear()
 
 	h.CmdSave("slot1", subs)
+	h.WaitForSaveThread()
+	h.drainMainThreadQueue()
 
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: couldn't open.") {
 		t.Fatalf("console output = %q, want couldn't-open error", got)
@@ -631,6 +639,8 @@ func TestCmdRestartAutoloadsLastSaveForDeadPlayer(t *testing.T) {
 	player.SetOrigin(srv, qtypes.Vec3{X: 320, Y: 144, Z: 40})
 
 	h.CmdSave("autoload_restart", subs)
+	h.WaitForSaveThread()
+	h.drainMainThreadQueue()
 
 	player.SetHealth(srv, 0)
 	player.SetOrigin(srv, qtypes.Vec3{X: 0, Y: 0, Z: 0})
@@ -692,6 +702,8 @@ func TestCmdChangelevelSameMapAutoloadsLastSaveWhenConfigured(t *testing.T) {
 	player.SetOrigin(srv, qtypes.Vec3{X: 320, Y: 144, Z: 40})
 
 	h.CmdSave("autoload_changelevel", subs)
+	h.WaitForSaveThread()
+	h.drainMainThreadQueue()
 
 	player.SetHealth(srv, 12)
 	player.SetOrigin(srv, qtypes.Vec3{X: 0, Y: 0, Z: 0})
@@ -771,6 +783,7 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 	h := NewHost()
 	fileSys := fs.NewFileSystem()
 	srv := server.NewServer()
+	srv.Cmd = h.Cmd
 	subs := &Subsystems{
 		Files:   fileSys,
 		Console: &mockConsole{},

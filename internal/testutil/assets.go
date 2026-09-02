@@ -27,13 +27,17 @@ func LocateQuakeDir() (string, error) {
 	// Common relative paths to check for id1 directory
 	paths := []string{
 		".",
-		"testdata",
 		"quake-data",
+		"testdata",
 		"..",
-		"../testdata",
 		"../quake-data",
+		"../testdata",
 		"../..",
+		"../../quake-data",
+		"../../testdata",
 		"../../..",
+		"../../../quake-data",
+		"../../../testdata",
 	}
 
 	for _, p := range paths {

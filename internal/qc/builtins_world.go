@@ -200,8 +200,6 @@ func changeyaw(vm *VM) {
 }
 
 // centerprint prints a centered message, currently falling back to console output.
-
-// centerprint prints a centered message, currently falling back to console output.
 func centerprint(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
 	msg := varString(vm, 1)

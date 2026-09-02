@@ -71,7 +71,42 @@ func (vm *VM) LoadProgs(r io.ReadSeeker) error {
 	vm.EntityFields = int(header.EntityFields)
 	vm.EdictSize = int(header.EntityFields)*4 + 28
 
+	vm.remapExtensionBuiltins()
+
 	return nil
+}
+
+// extensionBuiltinAliases maps the names of engine-extension "stub" functions
+// to the builtin number that implements them. The 2021 Quake rerelease
+// progs.dat declares these as empty functions (FirstStatement=0, ParmStart=0,
+// Locals=0) and relies on the engine to bind them at load time. This mirrors C
+// Ironwail's PR_InitBuiltins (pr_edict.c), which rebinds "progs functions with
+// id 0" by name against its builtin definition table.
+var extensionBuiltinAliases = map[string]int32{
+	"ex_centerprint":    73, // centerprint
+	"ex_bprint":         23, // bprint
+	"ex_sprint":         24, // sprint
+	"ex_finaleFinished": 79, // finaleFinished
+	"ex_finalefinished": 79, // finaleFinished (rerelease update 3 lowercase alias)
+	"ex_localsound":     80, // localsound
+}
+
+// remapExtensionBuiltins converts empty extension-stub functions into builtin
+// dispatches by pointing their FirstStatement at the implementing builtin
+// (negative index). Only functions that are pure stubs (FirstStatement,
+// ParmStart, and Locals all zero) and whose name is a known alias are modified;
+// real bytecode functions and already-bound builtins are left untouched. It runs
+// on every LoadProgs because reloading progs replaces the Functions table.
+func (vm *VM) remapExtensionBuiltins() {
+	for i := range vm.Functions {
+		f := &vm.Functions[i]
+		if f.FirstStatement != 0 || f.ParmStart != 0 || f.Locals != 0 {
+			continue
+		}
+		if num, ok := extensionBuiltinAliases[vm.String(f.Name)]; ok {
+			f.FirstStatement = -num
+		}
+	}
 }
 
 func (vm *VM) FindFunction(name string) int {

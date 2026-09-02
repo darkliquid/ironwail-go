@@ -788,4 +788,3 @@ func (g *Game) cmdQCDebugStop(_ []string) {
 func (g *Game) cmdQCDebugStatus(_ []string) {
 	console.Printf("%s\n", server.DAPServerStatus())
 }
-
