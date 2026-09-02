@@ -85,6 +85,10 @@ func (r *Renderer) destroyAliasResourcesLocked() {
 		r.aliasPipeline.Release()
 		r.aliasPipeline = nil
 	}
+	if r.oitAliasPipeline != nil {
+		r.oitAliasPipeline.Release()
+		r.oitAliasPipeline = nil
+	}
 	if r.aliasPipelineLayout != nil {
 		r.aliasPipelineLayout.Release()
 		r.aliasPipelineLayout = nil
@@ -142,6 +146,14 @@ func (r *Renderer) destroySpriteResourcesLocked() {
 		r.spriteDepthOffsetPipeline.Release()
 		r.spriteDepthOffsetPipeline = nil
 	}
+	if r.oitSpritePipeline != nil {
+		r.oitSpritePipeline.Release()
+		r.oitSpritePipeline = nil
+	}
+	if r.spritePipelineLayout != nil {
+		r.spritePipelineLayout.Release()
+		r.spritePipelineLayout = nil
+	}
 	if r.spriteVertexShader != nil {
 		r.spriteVertexShader.Release()
 		r.spriteVertexShader = nil
@@ -182,18 +194,17 @@ func (r *Renderer) destroyDecalResourcesLocked() {
 		r.decalUniformLayout.Release()
 		r.decalUniformLayout = nil
 	}
-	if r.decalPipelineLayout != nil {
-		r.decalPipelineLayout.Release()
-		r.decalPipelineLayout = nil
-	}
-	if r.decalScratchBuffer != nil {
-		r.decalScratchBuffer.Release()
-		r.decalScratchBuffer = nil
-		r.decalScratchBufferSize = 0
-	}
 	if r.decalPipeline != nil {
 		r.decalPipeline.Release()
 		r.decalPipeline = nil
+	}
+	if r.oitDecalPipeline != nil {
+		r.oitDecalPipeline.Release()
+		r.oitDecalPipeline = nil
+	}
+	if r.decalPipelineLayout != nil {
+		r.decalPipelineLayout.Release()
+		r.decalPipelineLayout = nil
 	}
 	if r.decalVertexShader != nil {
 		r.decalVertexShader.Release()
@@ -202,6 +213,11 @@ func (r *Renderer) destroyDecalResourcesLocked() {
 	if r.decalFragmentShader != nil {
 		r.decalFragmentShader.Release()
 		r.decalFragmentShader = nil
+	}
+	if r.decalScratchBuffer != nil {
+		r.decalScratchBuffer.Release()
+		r.decalScratchBuffer = nil
+		r.decalScratchBufferSize = 0
 	}
 }
 

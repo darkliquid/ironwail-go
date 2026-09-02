@@ -173,15 +173,20 @@ func (dc *DrawContext) recordOITWorldTranslucentLiquid(renderPass *wgpu.RenderPa
 	if pipelineObj == nil {
 		return
 	}
-
-	renderPass.SetPipeline(pipelineObj)
-	renderPass.SetVertexBuffer(0, r.worldVertexBuffer, 0)
-	renderPass.SetIndexBuffer(r.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
+	if r.resources.WhiteTextureBindGroup == nil || r.resources.WhiteLightmapBindGroup == nil {
+		return
+	}
 
 	uniformBG := r.resources.OITWorldUniformBindGroup
 	if uniformBG == nil {
 		uniformBG = r.resources.UniformBindGroup
 	}
+	if uniformBG == nil {
+		return
+	}
+	renderPass.SetPipeline(pipelineObj)
+	renderPass.SetVertexBuffer(0, r.worldVertexBuffer, 0)
+	renderPass.SetIndexBuffer(r.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
 	renderPass.SetBindGroup(0, uniformBG, nil)
 
 	worldHasLitWater := r.deferredTranslucentLiquidLitWater
@@ -200,6 +205,10 @@ func (dc *DrawContext) recordOITWorldTranslucentLiquid(renderPass *wgpu.RenderPa
 		}
 		if r.worldFullbrightTextures != nil && r.worldFullbrightTextures.bindGroup != nil {
 			fullbrightBindGroup = r.worldFullbrightTextures.bindGroup
+		}
+
+		if textureBindGroup == nil || lightmapBindGroup == nil || fullbrightBindGroup == nil {
+			continue
 		}
 
 		setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
@@ -245,6 +254,9 @@ func (dc *DrawContext) recordOITTranslucentBrushFaces(renderPass *wgpu.RenderPas
 	if res.transparentBindGroup == nil {
 		res.transparentBindGroup = res.whiteTextureBindGroup
 	}
+	if res.uniformBindGroup == nil || res.whiteTextureBindGroup == nil || res.whiteLightmapBindGroup == nil || res.transparentBindGroup == nil {
+		return
+	}
 
 	var currentPipeline *wgpu.RenderPipeline
 	var materialBindState gogpuWorldMaterialBindState
@@ -252,6 +264,9 @@ func (dc *DrawContext) recordOITTranslucentBrushFaces(renderPass *wgpu.RenderPas
 		pipeline := oitTransPipeline
 		if draw.liquid {
 			pipeline = oitTurbPipeline
+		}
+		if pipeline == nil {
+			continue
 		}
 		if pipeline != currentPipeline {
 			renderPass.SetPipeline(pipeline)
@@ -272,12 +287,18 @@ func (dc *DrawContext) recordOITTranslucentBrushFaces(renderPass *wgpu.RenderPas
 		} else if draw.uniformBindGroup != nil {
 			activeUniformBindGroup = draw.uniformBindGroup
 		}
+		if activeUniformBindGroup == nil || draw.bufferPair[0] == nil || draw.bufferPair[1] == nil {
+			continue
+		}
 
 		renderPass.SetBindGroup(0, activeUniformBindGroup, []uint32{offset})
 		renderPass.SetVertexBuffer(0, draw.bufferPair[0], draw.vertexOffset)
 		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, draw.indexOffset)
 
 		textureBindGroup, fullbrightBindGroup := gogpuLateTranslucentTextureBindGroups(res, draw, timeSeconds)
+		if textureBindGroup == nil || lightmapBindGroup == nil || fullbrightBindGroup == nil {
+			continue
+		}
 		setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
 		if setTexture {
 			renderPass.SetBindGroup(1, textureBindGroup, nil)

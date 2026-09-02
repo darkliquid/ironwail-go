@@ -327,3 +327,76 @@ func TestOITResolveAndViewModelPassOrdering(t *testing.T) {
 		t.Fatalf("polyblend (step %d) must occur BEFORE 2D overlay (step %d)", polyBlendIdx, overlayIdx)
 	}
 }
+
+func TestOITWorldResourceCleanupOnMapChange(t *testing.T) {
+	r := &Renderer{}
+	r.ensureResources()
+
+	fakeLayout := &wgpu.PipelineLayout{}
+
+	r.resources.WorldPipelineLayout = fakeLayout
+	r.resources.OITAccumPipelineLayout = fakeLayout
+
+	// Simulate map change destroying world resources
+	r.destroyOITWorldResourcesLocked()
+
+	if r.resources.OITAccumPipelineLayout != nil {
+		t.Errorf("OITAccumPipelineLayout was not cleared by destroyOITWorldResourcesLocked")
+	}
+	if r.resources.OITWorldTranslucentTurbulentPipeline != nil {
+		t.Errorf("OITWorldTranslucentTurbulentPipeline was not cleared by destroyOITWorldResourcesLocked")
+	}
+	if r.resources.OITWorldTranslucentPipeline != nil {
+		t.Errorf("OITWorldTranslucentPipeline was not cleared by destroyOITWorldResourcesLocked")
+	}
+	if r.resources.OITWorldUniformBuffer != nil {
+		t.Errorf("OITWorldUniformBuffer was not cleared by destroyOITWorldResourcesLocked")
+	}
+	if r.resources.OITWorldUniformBindGroup != nil {
+		t.Errorf("OITWorldUniformBindGroup was not cleared by destroyOITWorldResourcesLocked")
+	}
+}
+
+func TestOITWorldPipelineLayoutInvalidation(t *testing.T) {
+	r := &Renderer{}
+	r.ensureResources()
+
+	newLayout := &wgpu.PipelineLayout{}
+
+	r.resources.WorldPipelineLayout = newLayout
+	r.resources.OITAccumPipelineLayout = nil
+
+	err := r.ensureOITWorldPipelineLocked(nil)
+	if err == nil {
+		t.Error("expected error for nil device, got nil")
+	}
+}
+
+func TestOITSubsystemResourceCleanup(t *testing.T) {
+	r := &Renderer{}
+	r.ensureResources()
+
+	r.destroyAliasResourcesLocked()
+	if r.oitAliasPipeline != nil {
+		t.Errorf("oitAliasPipeline was not cleared by destroyAliasResourcesLocked")
+	}
+
+	r.destroyParticleResourcesLocked()
+	if r.oitParticlePipeline != nil {
+		t.Errorf("oitParticlePipeline was not cleared by destroyParticleResourcesLocked")
+	}
+
+	r.destroySpriteResourcesLocked()
+	if r.oitSpritePipeline != nil {
+		t.Errorf("oitSpritePipeline was not cleared by destroySpriteResourcesLocked")
+	}
+	if r.spritePipelineLayout != nil {
+		t.Errorf("spritePipelineLayout was not cleared by destroySpriteResourcesLocked")
+	}
+
+	r.destroyDecalResourcesLocked()
+	if r.oitDecalPipeline != nil {
+		t.Errorf("oitDecalPipeline was not cleared by destroyDecalResourcesLocked")
+	}
+}
+

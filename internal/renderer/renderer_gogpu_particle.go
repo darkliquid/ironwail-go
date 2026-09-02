@@ -135,6 +135,10 @@ func (r *Renderer) destroyParticleResourcesLocked() {
 		r.particleTranslucentPipeline.Release()
 		r.particleTranslucentPipeline = nil
 	}
+	if r.oitParticlePipeline != nil {
+		r.oitParticlePipeline.Release()
+		r.oitParticlePipeline = nil
+	}
 	if r.particlePipelineLayout != nil {
 		r.particlePipelineLayout.Release()
 		r.particlePipelineLayout = nil

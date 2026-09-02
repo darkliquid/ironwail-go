@@ -339,6 +339,31 @@ func (r *Renderer) destroyOITTargetsLocked() {
 	r.resources.OITHeight = 0
 }
 
+func (r *Renderer) destroyOITWorldResourcesLocked() {
+	if r.resources.OITWorldUniformBuffer != nil {
+		r.resources.OITWorldUniformBuffer.Release()
+		r.resources.OITWorldUniformBuffer = nil
+	}
+	if r.resources.OITWorldUniformBindGroup != nil {
+		r.resources.OITWorldUniformBindGroup.Release()
+		r.resources.OITWorldUniformBindGroup = nil
+	}
+	if r.resources.OITWorldTranslucentTurbulentPipeline != nil {
+		r.resources.OITWorldTranslucentTurbulentPipeline.Release()
+		r.resources.OITWorldTranslucentTurbulentPipeline = nil
+	}
+	if r.resources.OITWorldTranslucentPipeline != nil {
+		r.resources.OITWorldTranslucentPipeline.Release()
+		r.resources.OITWorldTranslucentPipeline = nil
+	}
+	if r.resources.OITAccumPipelineLayout != nil {
+		if r.resources.OITAccumPipelineLayout != r.resources.WorldPipelineLayout {
+			r.resources.OITAccumPipelineLayout.Release()
+		}
+		r.resources.OITAccumPipelineLayout = nil
+	}
+}
+
 func (r *Renderer) destroyOITResourcesLocked() {
 	r.destroyOITTargetsLocked()
 	if r.resources.OITResolveSampler != nil {
@@ -365,14 +390,7 @@ func (r *Renderer) destroyOITResourcesLocked() {
 		r.resources.OITResolveFragmentShader.Release()
 		r.resources.OITResolveFragmentShader = nil
 	}
-	if r.resources.OITWorldTranslucentTurbulentPipeline != nil {
-		r.resources.OITWorldTranslucentTurbulentPipeline.Release()
-		r.resources.OITWorldTranslucentTurbulentPipeline = nil
-	}
-	if r.resources.OITWorldTranslucentPipeline != nil {
-		r.resources.OITWorldTranslucentPipeline.Release()
-		r.resources.OITWorldTranslucentPipeline = nil
-	}
+	r.destroyOITWorldResourcesLocked()
 	if r.oitAliasPipeline != nil {
 		r.oitAliasPipeline.Release()
 		r.oitAliasPipeline = nil
@@ -388,12 +406,6 @@ func (r *Renderer) destroyOITResourcesLocked() {
 	if r.oitDecalPipeline != nil {
 		r.oitDecalPipeline.Release()
 		r.oitDecalPipeline = nil
-	}
-	if r.resources.OITAccumPipelineLayout != nil {
-		if r.resources.OITAccumPipelineLayout != r.resources.WorldPipelineLayout {
-			r.resources.OITAccumPipelineLayout.Release()
-		}
-		r.resources.OITAccumPipelineLayout = nil
 	}
 }
 
@@ -523,6 +535,20 @@ func (r *Renderer) ensureOITWorldPipelineLocked(device *wgpu.Device) error {
 			return fmt.Errorf("create OIT world uniform bind group: %w", err)
 		}
 		r.resources.OITWorldUniformBindGroup = bg
+	}
+	if r.resources.OITAccumPipelineLayout != r.resources.WorldPipelineLayout {
+		if r.resources.OITWorldTranslucentTurbulentPipeline != nil {
+			r.resources.OITWorldTranslucentTurbulentPipeline.Release()
+			r.resources.OITWorldTranslucentTurbulentPipeline = nil
+		}
+		if r.resources.OITWorldTranslucentPipeline != nil {
+			r.resources.OITWorldTranslucentPipeline.Release()
+			r.resources.OITWorldTranslucentPipeline = nil
+		}
+		if r.resources.OITAccumPipelineLayout != nil {
+			r.resources.OITAccumPipelineLayout.Release()
+			r.resources.OITAccumPipelineLayout = nil
+		}
 	}
 	if r.resources.OITWorldTranslucentTurbulentPipeline != nil && r.resources.OITWorldTranslucentPipeline != nil {
 		return nil
