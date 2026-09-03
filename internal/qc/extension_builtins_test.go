@@ -3,10 +3,10 @@ package qc
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/fs"
-	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
 
 // buildStubVM returns a VM whose string table holds the given function names
@@ -114,26 +114,46 @@ func TestExtensionStubDispatchesToBuiltin(t *testing.T) {
 	}
 }
 
-// loadRereleaseProgs reads the actual progs.dat shipped in id1/pak0.pak (the
-// 2021 rerelease build that declares ex_centerprint as an engine-extension
-// stub). Reading the pack directly bypasses the FileSystem's loose-file
-// override order so the test exercises the exact bytes the real binary runs.
+// loadRereleaseProgs reads the progs.dat shipped in the 2021 rerelease's
+// id1/pak0.pak, which declares ex_centerprint as an engine-extension stub. The
+// rerelease pak is located via QUAKE_PAK0_PATH or the repo's ./quake-data
+// symlink; the test skips when only the classic (testdata) pak0 is available,
+// since that progs.dat uses a real centerprint builtin and has no stub.
 func loadRereleaseProgs(t *testing.T) []byte {
 	t.Helper()
-	pak0 := testutil.SkipIfNoPak0(t)
-	pakBytes, err := os.ReadFile(pak0)
-	if err != nil {
-		t.Fatalf("read pak0: %v", err)
+	candidates := []string{}
+	if env := os.Getenv("QUAKE_PAK0_PATH"); env != "" {
+		candidates = append(candidates, env)
 	}
-	pack, err := fs.LoadPackFromBytes(pak0, pakBytes)
-	if err != nil {
-		t.Fatalf("LoadPackFromBytes: %v", err)
+	// Walk up from the test's package dir to the repo root's quake-data symlink.
+	for dir, _ := os.Getwd(); ; {
+		candidates = append(candidates, filepath.Join(dir, "quake-data", "id1", "pak0.pak"))
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
-	data, err := fs.NewPakFS(pack).ReadFile("progs.dat")
-	if err != nil {
-		t.Fatalf("ReadFile progs.dat: %v", err)
+	for _, pak0 := range candidates {
+		pakBytes, err := os.ReadFile(pak0)
+		if err != nil {
+			continue
+		}
+		pack, err := fs.LoadPackFromBytes(pak0, pakBytes)
+		if err != nil {
+			continue
+		}
+		data, err := fs.NewPakFS(pack).ReadFile("progs.dat")
+		if err != nil {
+			continue
+		}
+		// Only the rerelease progs.dat declares ex_centerprint as a stub.
+		if bytes.Contains(data, []byte("ex_centerprint")) {
+			return data
+		}
 	}
-	return data
+	t.Skip("rerelease progs.dat (with ex_centerprint) not found; set QUAKE_PAK0_PATH")
+	return nil
 }
 
 // TestRereleaseProgsCenterprintRemapped loads the real rerelease progs.dat from
@@ -156,6 +176,7 @@ func TestRereleaseProgsCenterprintRemapped(t *testing.T) {
 			break
 		}
 	}
+	t.Logf("progs.dat bytes=%d functions=%d ex_centerprint idx=%d", len(data), len(vm.Functions), idx)
 	if idx < 0 {
 		t.Skip("progs.dat has no ex_centerprint stub (not rerelease data)")
 	}
