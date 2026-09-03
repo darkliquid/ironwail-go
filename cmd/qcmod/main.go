@@ -53,6 +53,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runREPL(os.Stdin, stdout)
 	case "disasm":
 		return runDisasm(args[1:], stdout, stderr)
+	case "qc2go":
+		return runQC2Go(args[1:], stdout, stderr)
 	case "dap":
 		return runDAP(args[1:], stdout, stderr)
 	case "docs", "help", "-h", "--help":
