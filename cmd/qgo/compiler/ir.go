@@ -1,6 +1,10 @@
 package compiler
 
-import "github.com/darkliquid/ironwail-go/internal/qc"
+import (
+	"go/token"
+
+	"github.com/darkliquid/ironwail-go/internal/qc"
+)
 
 // VReg is a virtual register identifier used during IR construction.
 // Virtual registers are mapped to global offsets during code generation.
@@ -15,6 +19,7 @@ const VRegInvalid VReg = 0xFFFFFFFF
 const vregBase VReg = 0x1000
 
 // IRInst represents a single IR instruction.
+// IRInst represents a single IR instruction.
 type IRInst struct {
 	Op          qc.Opcode // QCVM opcode
 	A, B, C     VReg      // Operands (virtual registers)
@@ -24,6 +29,11 @@ type IRInst struct {
 	ImmStr      string    // Immediate string value (for const strings)
 	Label       string    // Branch target label (for GOTO/IF/IFNOT)
 	ArgCount    int       // For CALL instructions: number of arguments
+
+	// Pos is the QuakeGo source position this instruction was lowered from.
+	// Zero for synthetic instructions (labels, sentinels) and for callers that
+	// do not thread positions; the statement-level stamping pass fills gaps.
+	Pos token.Position
 }
 
 // IRParam describes a function parameter.

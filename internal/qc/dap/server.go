@@ -194,6 +194,28 @@ func (s *Server) dispatchRequest(write func(msg any) error, req Request) {
 			})
 		}
 
+	case "setBreakpoints":
+		var args struct {
+			Source Source `json:"source"`
+			Lines  []int  `json:"lines"`
+			Bps    []struct {
+				Line int `json:"line"`
+			} `json:"breakpoints"`
+		}
+		_ = json.Unmarshal(req.Arguments, &args)
+		lines := args.Lines
+		if len(lines) == 0 {
+			// Some clients send full breakpoint objects instead of bare lines.
+			for _, b := range args.Bps {
+				lines = append(lines, b.Line)
+			}
+		}
+		// Source breakpoints replace all previous source breakpoints but keep
+		// function breakpoints, matching DAP semantics.
+		session.ClearSourceBreakpoints()
+		bps := session.SetSourceBreakpoints(args.Source.Path, lines)
+		resp.Body, _ = json.Marshal(map[string]any{"breakpoints": bps})
+
 	case "setFunctionBreakpoints":
 		var args struct {
 			Breakpoints []FunctionBreakpoint `json:"breakpoints"`

@@ -28,6 +28,7 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 
 	output := fs.String("o", "progs.dat", "output file path")
 	verbose := fs.Bool("v", false, "verbose output")
+	sourcemap := fs.Bool("sourcemap", true, "write a side-car source map (<output>.map)")
 	if err := fs.Parse(args); err != nil {
 		_, _ = fmt.Fprintf(stderr, "qgo: %v\n", err)
 		return 1
@@ -41,7 +42,7 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 	c := compiler.New()
 	c.Verbose = *verbose
 
-	data, err := c.Compile(dir)
+	data, sm, err := c.CompileWithSourceMap(dir)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "qgo: %v\n", err)
 		return 1
@@ -50,6 +51,27 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 	if err := os.WriteFile(*output, data, 0644); err != nil {
 		_, _ = fmt.Fprintf(stderr, "qgo: write %s: %v\n", *output, err)
 		return 1
+	}
+
+	if *sourcemap && sm != nil {
+		mapPath := *output + ".map"
+		f, err := os.Create(mapPath)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "qgo: create %s: %v\n", mapPath, err)
+			return 1
+		}
+		if err := sm.Write(f); err != nil {
+			_ = f.Close()
+			_, _ = fmt.Fprintf(stderr, "qgo: write %s: %v\n", mapPath, err)
+			return 1
+		}
+		if err := f.Close(); err != nil {
+			_, _ = fmt.Fprintf(stderr, "qgo: close %s: %v\n", mapPath, err)
+			return 1
+		}
+		if *verbose {
+			_, _ = fmt.Fprintf(stdout, "wrote %s (%d mappings)\n", mapPath, len(sm.Mappings))
+		}
 	}
 
 	if *verbose {

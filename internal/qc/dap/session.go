@@ -8,12 +8,14 @@ import (
 )
 
 // Session tracks breakpoints, execution state, and variable inspection for a DAP client.
+// Session tracks breakpoints, execution state, and variable inspection for a DAP client.
 type Session struct {
 	target      Target
 	barrier     *Barrier
 	mu          sync.Mutex
 	funcBreaks  map[string]bool
 	stmtBreaks  map[int]bool
+	sourceMap   *qc.SourceMap
 	vars        *VariableManager
 	seq         int
 	nextBPID    int
@@ -80,6 +82,81 @@ func (s *Session) ClearBreakpoints() {
 	defer s.mu.Unlock()
 	s.funcBreaks = make(map[string]bool)
 	s.stmtBreaks = make(map[int]bool)
+}
+
+// ClearSourceBreakpoints removes statement breakpoints set via source lines
+// (setBreakpoints). Function breakpoints are left intact, matching DAP
+// semantics where each breakpoint kind is managed by its own request.
+func (s *Session) ClearSourceBreakpoints() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stmtBreaks = make(map[int]bool)
+}
+
+// SetSourceMap attaches the compiled side-car source map so line breakpoints
+// and stack frames can be mapped between progs statements and QuakeGo source.
+// Safe to call again (e.g. after a progs reload); pass nil to detach.
+func (s *Session) SetSourceMap(sm *qc.SourceMap) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sourceMap = sm
+}
+
+// SourceMap returns the attached source map, or nil.
+func (s *Session) SourceMap() *qc.SourceMap {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.sourceMap
+}
+
+// SetSourceBreakpoints resolves DAP source line breakpoints (a QuakeGo file
+// plus 1-based lines) into progs statement breakpoints via the source map.
+// Lines with no mapped statements produce an unverified breakpoint rather
+// than an error, matching DAP client expectations.
+func (s *Session) SetSourceBreakpoints(file string, lines []int) []Breakpoint {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sm := s.sourceMap
+	var resolved [][]int // statements per requested line, parallel to out
+	for _, line := range lines {
+		var stmts []int
+		if sm != nil {
+			stmts = sm.StatementsForLine(qc.SourceFileKey(file), line)
+		}
+		resolved = append(resolved, stmts)
+	}
+
+	out := make([]Breakpoint, 0, len(lines))
+	for i, stmts := range resolved {
+		verified := len(stmts) > 0
+		line := lines[i]
+		if verified {
+			// Arm every statement on the line; report the first as the
+			// canonical breakpoint position.
+			for _, stmt := range stmts {
+				s.stmtBreaks[stmt] = true
+			}
+			line = stmts[0]
+		}
+		s.nextBPID++
+		bp := Breakpoint{
+			ID:       s.nextBPID,
+			Verified: verified,
+			Line:     line,
+		}
+		if !verified {
+			bp.Message = "no executable code on this line"
+		}
+		if sm != nil {
+			path := sm.ResolveSource(sm.SourceIndexForFile(file))
+			if path != "" {
+				bp.Source = &Source{Name: qc.SourceFileKey(file), Path: path}
+			}
+		}
+		out = append(out, bp)
+	}
+	return out
 }
 
 // Continue resumes normal execution until next breakpoint.
@@ -152,12 +229,37 @@ func (s *Session) Variables() *VariableManager {
 	return s.vars
 }
 
-// StackTrace constructs the current call stack.
+// StackTrace constructs the current call stack. With a source map attached,
+// each frame reports the QuakeGo source file/line its statement was lowered
+// from and the raw statement index as the fallback line; without one, frames
+// report raw statement indices (bytecode-level debugging).
 func (s *Session) StackTrace() []StackFrame {
 	if s.target == nil || s.target.VM() == nil {
 		return nil
 	}
 	vm := s.target.VM()
+	s.mu.Lock()
+	sm := s.sourceMap
+	s.mu.Unlock()
+
+	frame := func(id int, name string, stmt int) StackFrame {
+		f := StackFrame{
+			ID:     id,
+			Name:   name,
+			Line:   stmt,
+			Column: 1,
+		}
+		if m := sm.Lookup(stmt); m != nil && m.Source >= 0 {
+			f.Line = m.Line
+			f.Column = max(m.Col, 1)
+			f.Source = &Source{
+				Name: sm.SourceRelName(m.Source),
+				Path: sm.ResolveSource(m.Source),
+			}
+		}
+		return f
+	}
+
 	var frames []StackFrame
 
 	// Top frame
@@ -165,12 +267,7 @@ func (s *Session) StackTrace() []StackFrame {
 	if vm.XFunction != nil {
 		topName = vm.String(vm.XFunction.Name)
 	}
-	frames = append(frames, StackFrame{
-		ID:     0,
-		Name:   topName,
-		Line:   vm.XStatement,
-		Column: 1,
-	})
+	frames = append(frames, frame(0, topName, vm.XStatement))
 
 	// Remaining stack frames
 	start := min(vm.Depth-1, len(vm.Stack)-1)
@@ -182,12 +279,7 @@ func (s *Session) StackTrace() []StackFrame {
 		} else if int(stk.FuncIndex) < len(vm.Functions) && stk.FuncIndex >= 0 {
 			fnName = vm.String(vm.Functions[stk.FuncIndex].Name)
 		}
-		frames = append(frames, StackFrame{
-			ID:     len(frames),
-			Name:   fnName,
-			Line:   stk.S,
-			Column: 1,
-		})
+		frames = append(frames, frame(len(frames), fnName, stk.S))
 	}
 	return frames
 }

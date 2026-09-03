@@ -93,8 +93,34 @@ func (s *Server) StartDAPServer(addr string) (*dap.Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Attach the side-car source map (written next to progs.dat by qgo) when
+	// present, so source line breakpoints and stack frames resolve to QuakeGo
+	// source. Rerelease pak data has no map; that just means bytecode-level
+	// debugging.
+	if sm := s.loadSourceMap(); sm != nil {
+		srv.Session().SetSourceMap(sm)
+	}
 	dapServer = srv
 	return srv, nil
+}
+
+// loadSourceMap reads the progs.dat.map side-car through the Quake virtual
+// filesystem, returning nil when absent (classic data, or a plain progs
+// compiled without source-map generation).
+func (s *Server) loadSourceMap() *qc.SourceMap {
+	if s.FileSystem == nil {
+		return nil
+	}
+	f, size, err := s.FileSystem.OpenFile("progs.dat.map")
+	if err != nil || size == 0 {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	sm, err := qc.LoadSourceMap(f)
+	if err != nil {
+		return nil
+	}
+	return sm
 }
 
 // StopDAPServer stops any active DAP listener.

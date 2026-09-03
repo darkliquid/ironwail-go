@@ -499,4 +499,3 @@ func TestSessionSetOnStopped(t *testing.T) {
 	}
 	session.mu.Unlock()
 }
-

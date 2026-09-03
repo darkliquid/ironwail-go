@@ -42,6 +42,7 @@ type Event struct {
 type Capabilities struct {
 	SupportsConfigurationDoneRequest bool `json:"supportsConfigurationDoneRequest"`
 	SupportsFunctionBreakpoints      bool `json:"supportsFunctionBreakpoints"`
+	SupportsBreakpointsRequest       bool `json:"supportsBreakpointsRequest"`
 	SupportsEvaluateForHovers        bool `json:"supportsEvaluateForHovers"`
 	SupportsStepBack                 bool `json:"supportsStepBack"`
 }

@@ -304,8 +304,8 @@ func TestDAPServerStoppedEventOnBreakpoint(t *testing.T) {
 
 	// Set function breakpoint on main
 	_ = WriteMessage(conn, Request{
-		Message: Message{Seq: 2, Type: "request"},
-		Command: "setFunctionBreakpoints",
+		Message:   Message{Seq: 2, Type: "request"},
+		Command:   "setFunctionBreakpoints",
 		Arguments: json.RawMessage(`{"breakpoints":[{"name":"main"}]}`),
 	})
 	_, _ = ReadMessage(conn)
@@ -419,4 +419,3 @@ func TestDAPServerErrorsAndEdgeCases(t *testing.T) {
 		t.Fatalf("Second Close() failed: %v", err)
 	}
 }
-

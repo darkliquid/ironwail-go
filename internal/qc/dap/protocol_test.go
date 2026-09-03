@@ -335,4 +335,3 @@ func TestOtherDAPTypesJSON(t *testing.T) {
 		t.Fatalf("Breakpoint mismatch: got %+v, want %+v", bp2, bp)
 	}
 }
-

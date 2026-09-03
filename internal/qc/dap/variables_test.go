@@ -12,7 +12,7 @@ type mockTarget struct {
 	vm *qc.VM
 }
 
-func (m *mockTarget) VM() *qc.VM { return m.vm }
+func (m *mockTarget) VM() *qc.VM      { return m.vm }
 func (m *mockTarget) EdictCount() int { return 2 }
 func (m *mockTarget) GetEdictFloat(entNum, offset int) float32 {
 	if entNum < 0 || entNum >= m.EdictCount() {

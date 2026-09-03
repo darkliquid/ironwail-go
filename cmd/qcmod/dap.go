@@ -94,6 +94,17 @@ func runDAPServer(addr string, stdout, stderr io.Writer, stopCh <-chan struct{})
 	}
 	defer func() { _ = srv.Close() }()
 
+	// Attach the side-car source map from the last compile (qgo writes
+	// it next to the progs) so source line breakpoints and stack frames
+	// resolve to QuakeGo source. Absent map = bytecode-level debugging.
+	// Attach the side-car source map from the last compile (qgo writes
+	// it next to the progs) so source line breakpoints and stack frames
+	// resolve to QuakeGo source. Absent map = bytecode-level debugging.
+	if sm := loadProgsSourceMap(progsTempPath()); sm != nil {
+		srv.Session().SetSourceMap(sm)
+		_, _ = fmt.Fprintf(stdout, "qcmod DAP: loaded source map (%d mappings)\n", len(sm.Mappings))
+	}
+
 	_, _ = fmt.Fprintf(stdout, "qcmod DAP server listening on %s (press Ctrl+C to stop)\n", srv.Addr().String())
 
 	<-stopCh

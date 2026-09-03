@@ -22,6 +22,12 @@ type CodeGen struct {
 	localOfs     uint16         // Start of function locals
 	localSize    uint16         // Number of local slots used
 	labelTargets map[int]string // statement index -> label name for branch patching
+
+	// stmtSrc[i] is the QuakeGo source position that produced statements[i].
+	// Zero positions mark synthetic statements (sentinels, prologues) that
+	// have no original source. Parallel to statements; carried through to
+	// EmitInput for the side-car source map.
+	stmtSrc []token.Position
 }
 
 // NewCodeGen creates a new code generator.
@@ -36,6 +42,7 @@ func NewCodeGen(globals *GlobalAllocator, strings *StringTable) *CodeGen {
 func (cg *CodeGen) Generate(prog *IRProgram) (*EmitInput, error) {
 	// Sentinel statement 0 (error trap)
 	cg.statements = append(cg.statements, qc.DStatement{Op: uint16(qc.OPDone)})
+	cg.stmtSrc = append(cg.stmtSrc, token.Position{})
 
 	// Sentinel function 0 (empty)
 	cg.functions = append(cg.functions, qc.DFunction{})
@@ -119,6 +126,7 @@ func (cg *CodeGen) Generate(prog *IRProgram) (*EmitInput, error) {
 
 	return &EmitInput{
 		Statements: cg.statements,
+		SourcePos:  cg.stmtSrc,
 		GlobalDefs: cg.globalDefs,
 		FieldDefs:  cg.fieldDefs,
 		Functions:  cg.functions,
@@ -250,44 +258,52 @@ func (cg *CodeGen) emitInst(inst *IRInst) {
 	switch op {
 	case qc.OPGoto:
 		idx := len(cg.statements)
-		cg.statements = append(cg.statements, qc.DStatement{Op: uint16(op)})
+		cg.appendStmt(qc.DStatement{Op: uint16(op)}, inst.Pos)
 		cg.labelTargets[idx] = inst.Label
 		return
 
 	case qc.OPIF, qc.OPIFNot:
 		idx := len(cg.statements)
-		cg.statements = append(cg.statements, qc.DStatement{
+		cg.appendStmt(qc.DStatement{
 			Op: uint16(op),
 			A:  cg.resolveVReg(inst.A),
-		})
+		}, inst.Pos)
 		cg.labelTargets[idx] = inst.Label
 		return
 
 	case qc.OPCall0, qc.OPCall1, qc.OPCall2, qc.OPCall3,
 		qc.OPCall4, qc.OPCall5, qc.OPCall6, qc.OPCall7, qc.OPCall8:
-		cg.statements = append(cg.statements, qc.DStatement{
+		cg.appendStmt(qc.DStatement{
 			Op: uint16(qc.OPCall0 + qc.Opcode(inst.ArgCount)),
 			A:  cg.resolveVReg(inst.A),
-		})
+		}, inst.Pos)
 		return
 
 	case qc.OPReturn, qc.OPDone:
-		cg.statements = append(cg.statements, qc.DStatement{
+		cg.appendStmt(qc.DStatement{
 			Op: uint16(op),
 			A:  cg.resolveVReg(inst.A),
 			B:  cg.resolveVReg(inst.B),
 			C:  cg.resolveVReg(inst.C),
-		})
+		}, inst.Pos)
 		return
 	}
 
 	// Default 3-address instruction
-	cg.statements = append(cg.statements, qc.DStatement{
+	cg.appendStmt(qc.DStatement{
 		Op: uint16(op),
 		A:  cg.resolveVReg(inst.A),
 		B:  cg.resolveVReg(inst.B),
 		C:  cg.resolveVReg(inst.C),
-	})
+	}, inst.Pos)
+}
+
+// appendStmt appends a statement and its originating source position, keeping
+// the statements/stmtSrc slices parallel for source-map generation. A zero
+// position marks a statement with no QuakeGo source (sentinels, prologues).
+func (cg *CodeGen) appendStmt(stmt qc.DStatement, pos token.Position) {
+	cg.statements = append(cg.statements, stmt)
+	cg.stmtSrc = append(cg.stmtSrc, pos)
 }
 
 func (cg *CodeGen) resolveVReg(v VReg) uint16 {

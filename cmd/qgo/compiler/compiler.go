@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/packages"
+
+	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 // Compiler orchestrates the full Go → progs.dat compilation pipeline.
@@ -32,16 +34,24 @@ func New() *Compiler {
 
 // Compile compiles a Go package directory into a progs.dat binary.
 func (c *Compiler) Compile(dir string) ([]byte, error) {
+	data, _, err := c.CompileWithSourceMap(dir)
+	return data, err
+}
+
+// CompileWithSourceMap compiles dir to progs.dat bytes and returns the
+// side-car source map mapping statement indices to QuakeGo source positions.
+// The progs.dat binary itself is unchanged by source-map generation.
+func (c *Compiler) CompileWithSourceMap(dir string) ([]byte, *qc.SourceMap, error) {
 	loaded, err := loadTargetPackages(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Lower AST → IR
 	lowerer := NewLowerer()
 	irProg, err := lowerer.LowerPackages(loaded.pkgs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	optimizeIRProgram(irProg)
 
@@ -52,11 +62,22 @@ func (c *Compiler) Compile(dir string) ([]byte, error) {
 
 	emitInput, err := codegen.Generate(irProg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Emit binary
-	return Emit(emitInput)
+	data, err := Emit(emitInput)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Sources are recorded relative to the (absolute) compile directory so the
+	// side-car map stays portable between machines, like a JS source map.
+	root := dir
+	if abs, err := filepath.Abs(dir); err == nil {
+		root = abs
+	}
+	return data, BuildSourceMap(emitInput, "progs.dat", root), nil
 }
 
 // SourceOrder returns deterministic function ordering for the target package using the

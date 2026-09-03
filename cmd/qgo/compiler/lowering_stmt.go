@@ -8,6 +8,23 @@ import (
 )
 
 func (l *Lowerer) lowerStmt(fn *IRFunc, stmt ast.Stmt) {
+	// Statement-level source stamping: every instruction appended while
+	// lowering this statement (including nested blocks) inherits the
+	// statement's position unless something more precise already stamped it.
+	// Nested lowerStmt calls stamp their own, more precise positions first;
+	// the backfill below only touches instructions left at zero (typically
+	// expression lowering that has no position of its own).
+	base := len(fn.Body)
+	pos := l.pos(stmt)
+
+	defer func() {
+		for i := base; i < len(fn.Body); i++ {
+			if fn.Body[i].Pos.Line == 0 {
+				fn.Body[i].Pos = pos
+			}
+		}
+	}()
+
 	switch s := stmt.(type) {
 	case *ast.ReturnStmt:
 		l.lowerReturn(fn, s)
@@ -34,7 +51,7 @@ func (l *Lowerer) lowerStmt(fn *IRFunc, stmt ast.Stmt) {
 			l.lowerStmt(fn, inner)
 		}
 	default:
-		l.errors.Addf(l.pos(stmt), "unsupported statement type: %T", stmt)
+		l.errors.Addf(pos, "unsupported statement type: %T", stmt)
 	}
 }
 

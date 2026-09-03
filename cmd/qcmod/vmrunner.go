@@ -104,10 +104,27 @@ func (w *vmWorld) fireByName(name string, self, other int, time float32) error {
 // This is the qcmod equivalent of testutil.CompileProgsDataFromSource (which
 // assumes a test working dir); qcmod runs from anywhere, so it resolves the
 // root itself.
-func compileProgs() ([]byte, error) {
+// progsTempPath is the fixed location compileProgsToTemp writes to, so
+// callers can locate side-car artifacts without recompiling.
+func progsTempPath() string {
+	return filepath.Join(os.TempDir(), "ironwail-go-qcmod-progs.dat")
+}
+
+// compileProgsPath compiles the QuakeGo sources and returns the progs.dat
+// path, so callers can find side-car artifacts (the .map source map) written
+// next to it by qgo.
+func compileProgsPath() (string, error) {
+	_, path, err := compileProgsToTemp()
+	return path, err
+}
+
+// compileProgsToTemp compiles pkg/qgo/quakego with cmd/qgo into a temporary
+// progs.dat, returning its bytes and path. qgo also writes a side-car source
+// map at <path>.map when source-map generation is enabled (the default).
+func compileProgsToTemp() ([]byte, string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	// Walk up to the repo root (where go.mod + pkg/qgo/quakego live).
 	root := cwd
@@ -117,19 +134,49 @@ func compileProgs() ([]byte, error) {
 		}
 		parent := filepath.Dir(root)
 		if parent == root {
-			return nil, fmt.Errorf("repo root not found above %s (need pkg/qgo/quakego)", cwd)
+			return nil, "", fmt.Errorf("repo root not found above %s (need pkg/qgo/quakego)", cwd)
 		}
 		root = parent
 	}
 	progsSrc := filepath.Join(root, "pkg", "qgo", "quakego")
-	out := filepath.Join(os.TempDir(), "ironwail-go-qcmod-progs.dat")
+	out := progsTempPath()
 	cmd := exec.Command("go", "run", filepath.Join(root, "cmd", "qgo"), "-o", out, ".")
 	cmd.Dir = progsSrc
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("qgo compile: %w: %s", err, stderr.String())
+		return nil, "", fmt.Errorf("qgo compile: %w: %s", err, stderr.String())
 	}
-	return os.ReadFile(out)
+	data, err := os.ReadFile(out)
+	if err != nil {
+		return nil, "", err
+	}
+	return data, out, nil
+}
+
+// loadProgsSourceMap reads the side-car source map for a progs.dat path.
+// Returns nil (not an error) when no map was generated.
+func loadProgsSourceMap(progsPath string) *qc.SourceMap {
+	if progsPath == "" {
+		return nil
+	}
+	f, err := os.Open(progsPath + ".map")
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	sm, err := qc.LoadSourceMap(f)
+	if err != nil {
+		return nil
+	}
+	return sm
+}
+
+func compileProgs() ([]byte, error) {
+	data, _, err := compileProgsToTemp()
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }

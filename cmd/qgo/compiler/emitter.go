@@ -3,6 +3,7 @@ package compiler
 import (
 	"bytes"
 	"encoding/binary"
+	"go/token"
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
@@ -10,6 +11,12 @@ import (
 // EmitInput collects all data needed to produce a progs.dat binary.
 type EmitInput struct {
 	Statements []qc.DStatement
+
+	// SourcePos[i] is the QuakeGo source position that produced
+	// Statements[i]. It is a side-car input for source-map generation and is
+	// never serialized into the progs.dat binary itself.
+	SourcePos []token.Position
+
 	GlobalDefs []qc.DDef
 	FieldDefs  []qc.DDef
 	Functions  []qc.DFunction
