@@ -137,20 +137,25 @@ func (g *Game) registerRenderPassCvars(register func(name, defaultValue string, 
 }
 
 func (g *Game) configureRegistrationMode(vfs interface{ FileExists(filename string) bool }, gameDir string) error {
-	registered := g.Host.CVar.Register("registered", "0", cvar.FlagNone, "Game data registration state (0=shareware, 1=registered)")
+	cfg := g.Config.Resolve()
+	registered := g.Host.CVar.Register(cfg.RegistrationCVarName, cfg.DefaultRegisteredInt(), cvar.FlagNone, "Game data registration state (0=shareware, 1=registered)")
 
 	if vfs != nil && vfs.FileExists("gfx/pop.lmp") {
 		g.Host.CVar.Set(registered.Name, "1")
-		console.Printf("Playing registered version.\n")
+		if cfg.RegisteredMessage != "" {
+			console.Printf("%s", cfg.RegisteredMessage)
+		}
 		return nil
 	}
 
 	g.Host.CVar.Set(registered.Name, "0")
-	console.Printf("Playing shareware version.\n")
+	if cfg.SharewareMessage != "" {
+		console.Printf("%s", cfg.SharewareMessage)
+	}
 
 	modDir := strings.ToLower(strings.TrimSpace(gameDir))
-	if modDir != "" && modDir != g.Config.BaseGameDirLower() {
-		return fmt.Errorf("you must have the registered version to use modified games")
+	if modDir != "" && modDir != cfg.BaseGameDirLower() && cfg.RequireRegistered {
+		return fmt.Errorf("%s", cfg.ModRequiresRegistered)
 	}
 
 	return nil

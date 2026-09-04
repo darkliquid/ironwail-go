@@ -10,6 +10,7 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/gameconfig"
 	"github.com/darkliquid/ironwail-go/internal/host"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/menu"
@@ -30,6 +31,7 @@ func (fs registrationModeTestFS) FileExists(filename string) bool {
 
 func TestConfigureRegistrationModeRegisteredWhenPopPresent(t *testing.T) {
 	g := New()
+	g.Config = gameconfig.Default()
 	if g.Host.CVar.Get("registered") == nil {
 		g.Host.CVar.Register("registered", "0", cvar.FlagNone, "")
 	}
@@ -45,6 +47,7 @@ func TestConfigureRegistrationModeRegisteredWhenPopPresent(t *testing.T) {
 
 func TestConfigureRegistrationModeSharewareForID1(t *testing.T) {
 	g := New()
+	g.Config = gameconfig.Default()
 	if g.Host.CVar.Get("registered") == nil {
 		g.Host.CVar.Register("registered", "1", cvar.FlagNone, "")
 	}
@@ -60,6 +63,7 @@ func TestConfigureRegistrationModeSharewareForID1(t *testing.T) {
 
 func TestConfigureRegistrationModeRejectsModsWithoutRegisteredData(t *testing.T) {
 	g := New()
+	g.Config = gameconfig.Default()
 	if g.Host.CVar.Get("registered") == nil {
 		g.Host.CVar.Register("registered", "1", cvar.FlagNone, "")
 	}
