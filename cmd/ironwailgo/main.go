@@ -58,6 +58,17 @@ func main() {
 	windowFlag := flag.Bool("window", false, "Run in windowed mode")
 	logLevel := flag.String("loglvl", "", "logging level spec (DEBUG or INFO,renderer=WARN,input=DEBUG; disabled by default)")
 	pprofAddr := flag.String("pprof", "", "pprof listener address (e.g., localhost:6060)")
+	// The stdlib flag parser stops at the first non-flag argument, which would
+	// silently drop any -flag placed after a +cvar command. Reorder so all
+	// registered flags parse regardless of interleaving.
+	startupOpts.Args = reorderFlagsFirst(startupOpts.Args, func(name string) (bool, bool) {
+		f := flag.CommandLine.Lookup(name)
+		if f == nil {
+			return false, false
+		}
+		bf, ok := f.Value.(interface{ IsBoolFlag() bool })
+		return true, ok && bf.IsBoolFlag()
+	})
 	if err := flag.CommandLine.Parse(startupOpts.Args); err != nil {
 		log.Fatal(err)
 	}

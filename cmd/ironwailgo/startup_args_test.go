@@ -87,3 +87,53 @@ func TestParseStartupOptions(t *testing.T) {
 		})
 	}
 }
+
+func testFlagLookup(name string) (bool, bool) {
+	switch name {
+	case "headless", "window", "dedicated":
+		return true, true
+	case "screenshot", "width", "height", "loglvl", "basedir":
+		return true, false
+	default:
+		return false, false
+	}
+}
+
+func TestReorderFlagsFirst(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{"empty", nil, nil},
+		{"only plus args", []string{"+r_crt", "1"}, []string{"+r_crt", "1"}},
+		{"flag before plus", []string{"-screenshot", "x.png", "+r_crt", "1"}, []string{"-screenshot", "x.png", "+r_crt", "1"}},
+		{"plus before flag", []string{"+r_crt", "1", "-screenshot", "x.png"}, []string{"-screenshot", "x.png", "+r_crt", "1"}},
+		{"interleaved mix", []string{"+r_bloom", "1", "-loglvl", "info", "+r_ssao", "1", "-width", "640"},
+			[]string{"-loglvl", "info", "-width", "640", "+r_bloom", "1", "+r_ssao", "1"}},
+		{"bool flag keeps plus arg", []string{"+r_crt", "1", "-window", "+r_ssao", "1"},
+			[]string{"-window", "+r_crt", "1", "+r_ssao", "1"}},
+		{"value flag consumes plus-looking value", []string{"-screenshot", "+weird.png", "+r_crt", "1"},
+			[]string{"-screenshot", "+weird.png", "+r_crt", "1"}},
+		{"equals form", []string{"-width=640", "+r_crt", "1"}, []string{"-width=640", "+r_crt", "1"}},
+		{"double dash terminator", []string{"-width", "640", "--", "+r_crt", "1"},
+			[]string{"-width", "640", "--", "+r_crt", "1"}},
+		{"unknown flag preserved", []string{"+r_crt", "1", "-notaflag"}, []string{"-notaflag", "+r_crt", "1"}},
+		{"positional order preserved", []string{"start", "+r_crt", "1", "-window"}, []string{"-window", "start", "+r_crt", "1"}},
+		{"lone dash is positional", []string{"-", "-window"}, []string{"-window", "-"}},
+		{"double-dash names", []string{"--width", "640", "+r_crt", "1"}, []string{"--width", "640", "+r_crt", "1"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := reorderFlagsFirst(tc.args, testFlagLookup)
+			if len(got) != len(tc.want) {
+				t.Fatalf("reorderFlagsFirst(%v) = %v (len %d), want %v (len %d)", tc.args, got, len(got), tc.want, len(tc.want))
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Fatalf("reorderFlagsFirst(%v)[%d] = %q, want %q (full: %v)", tc.args, i, got[i], tc.want[i], got)
+				}
+			}
+		})
+	}
+}

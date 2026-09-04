@@ -118,3 +118,44 @@ func parseStartupOptions(rawArgs []string) (startupOptions, error) {
 
 	return opts, nil
 }
+
+// reorderFlagsFirst rebuilds an argument list with all registered -flags
+// moved ahead of positional/+command arguments, so the stdlib flag package
+// (which stops parsing at the first non-flag) sees every flag regardless of
+// how the user interleaved +cvar commands or bare arguments. The relative
+// order within each group is preserved.
+//
+// lookup reports whether a flag name is known and whether it is boolean
+// (boolean flags never consume the following argument as a value, matching
+// stdlib flag semantics). Unknown -args are kept with the flags so the
+// parser still reports them instead of silently dropping them.
+//
+// "--" terminates flag parsing as usual: everything after it is positional.
+func reorderFlagsFirst(args []string, lookup func(name string) (known, isBool bool)) []string {
+	flagArgs := make([]string, 0, len(args))
+	other := make([]string, 0, len(args))
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			flagArgs = append(flagArgs, arg)
+			other = append(other, args[i+1:]...)
+			break
+		}
+		if len(arg) < 2 || arg[0] != '-' {
+			other = append(other, arg)
+			continue
+		}
+		name := strings.TrimLeft(arg, "-")
+		if eq := strings.IndexByte(name, '='); eq >= 0 {
+			name = name[:eq]
+		}
+		known, isBool := lookup(name)
+		flagArgs = append(flagArgs, arg)
+		if known && !isBool && !strings.Contains(arg, "=") && i+1 < len(args) {
+			i++
+			flagArgs = append(flagArgs, args[i])
+		}
+	}
+	return append(flagArgs, other...)
+}
