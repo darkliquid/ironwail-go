@@ -331,7 +331,7 @@ func (h *gameCSQCHandler) Init() error {
 		return nil
 	}
 	engineVersion := float32(10000*VersionMajor + 100*VersionMinor + VersionPatch)
-	return h.game.CSQC.CallInit("Ironwail", engineVersion)
+	return h.game.CSQC.CallInit(h.game.Config.CSQCInitName, engineVersion)
 }
 
 func (h *gameCSQCHandler) Shutdown() error {

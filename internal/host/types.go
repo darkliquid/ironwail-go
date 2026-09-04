@@ -68,6 +68,7 @@ type Host struct {
 	args        []string
 	baseDir     string
 	baseGameDir string
+	gameName    string
 	dedicated   bool
 	gameDir     string
 	userDir     string

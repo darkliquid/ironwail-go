@@ -323,6 +323,7 @@ func (c *localLoopbackClient) LocalSignon() int {
 type InitParams struct {
 	BaseDir      string
 	BaseGameDir  string // base game directory name (stock: "id1")
+	GameName     string
 	Dedicated    bool
 	GameDir      string
 	UserDir      string
@@ -436,6 +437,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	h.dedicated = params.Dedicated
 	h.gameDir = params.GameDir
 	h.baseGameDir = params.BaseGameDir
+	h.gameName = params.GameName
 	if h.baseGameDir == "" {
 		h.baseGameDir = "id1"
 	}

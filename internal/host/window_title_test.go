@@ -17,13 +17,13 @@ func (s *stubWindowSetter) SetWindowTitle(t string) {
 }
 
 func TestComputeWindowTitleDefaults(t *testing.T) {
-	if got := computeWindowTitle("", "", 1); got != DefaultWindowTitle {
+	if got := NewHost().computeWindowTitle("", "", 1); got != DefaultWindowTitle {
 		t.Fatalf("no level should yield default: %q", got)
 	}
-	if got := computeWindowTitle("", "e1m1", 1); !strings.Contains(got, "e1m1") {
+	if got := NewHost().computeWindowTitle("", "e1m1", 1); !strings.Contains(got, "e1m1") {
 		t.Fatalf("map-only title missing map: %q", got)
 	}
-	got := computeWindowTitle("The Slipgate Complex", "e1m1", 3)
+	got := NewHost().computeWindowTitle("The Slipgate Complex", "e1m1", 3)
 	if !strings.Contains(got, "The Slipgate Complex") || !strings.Contains(got, "e1m1") || !strings.Contains(got, "skill 3") {
 		t.Fatalf("missing fields: %q", got)
 	}

@@ -171,6 +171,7 @@ func (g *Game) initGameHost() error {
 		return fmt.Errorf("initialize console: %w", err)
 	}
 	console.SetGlobalCVar(g.Host.CVar)
+	console.Global().Title = g.Config.GameName
 	console.SetPrintCallback(func(msg string) {
 		fmt.Print(console.TerminalText(msg))
 	})
@@ -629,7 +630,7 @@ func (g *Game) loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error
 		g.CSQC.SyncGlobals(frameState)
 
 		engineVersion := float32(10000*VersionMajor + 100*VersionMinor + VersionPatch)
-		if err := g.CSQC.CallInit("Ironwail", engineVersion); err != nil {
+		if err := g.CSQC.CallInit(g.Config.CSQCInitName, engineVersion); err != nil {
 			g.CSQC.Unload()
 			slog.Warn("failed to initialize csqc", "error", err)
 		}
@@ -898,6 +899,8 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 
 	if err := g.Host.Init(&host.InitParams{
 		BaseDir:      basedir,
+		BaseGameDir:  g.Config.BaseGameDir,
+		GameName:     g.Config.GameName,
 		GameDir:      gamedir,
 		UserDir:      "",
 		Args:         append([]string(nil), args...),

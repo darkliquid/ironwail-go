@@ -37,20 +37,20 @@ type windowTitleState struct {
 // map name and skill. Mirrors the minimal shape of UpdateWindowTitle
 // from host.c (map + skill + engine name); kill/secret stats will
 // be plumbed in once the per-client summary struct is available.
-func computeWindowTitle(levelName, mapName string, skill int) string {
+func (h *Host) computeWindowTitle(levelName, mapName string, skill int) string {
 	mapName = strings.TrimSpace(mapName)
 	levelName = strings.TrimSpace(levelName)
 	if mapName == "" && levelName == "" {
-		return DefaultWindowTitle
+		return h.gameWindowTitle()
 	}
 	name := levelName
 	if name == "" {
 		name = mapName
 	}
 	if mapName != "" && !strings.EqualFold(name, mapName) {
-		return fmt.Sprintf("%s (%s)  |  skill %d  -  %s", name, mapName, skill, DefaultWindowTitle)
+		return fmt.Sprintf("%s (%s)  |  skill %d  -  %s", name, mapName, skill, h.gameWindowTitle())
 	}
-	return fmt.Sprintf("%s  |  skill %d  -  %s", name, skill, DefaultWindowTitle)
+	return fmt.Sprintf("%s  |  skill %d  -  %s", name, skill, h.gameWindowTitle())
 }
 
 // updateWindowTitle is called once per Host.Frame. It rate-limits to
@@ -79,7 +79,7 @@ func (h *Host) updateWindowTitle(subs *Subsystems, dt float64) {
 		}
 	}
 
-	title := computeWindowTitle(levelName, mapName, skill)
+	title := h.computeWindowTitle(levelName, mapName, skill)
 	if title == h.title.lastTtl && mapName == h.title.lastMap && skill == h.title.lastSkil {
 		return
 	}
@@ -94,4 +94,13 @@ func (h *Host) updateWindowTitle(subs *Subsystems, dt float64) {
 			setter.SetWindowTitle(title)
 		}
 	}
+}
+
+// gameWindowTitle returns the configured game name for window titles,
+// defaulting to "Ironwail-Go" when not set via Config.
+func (h *Host) gameWindowTitle() string {
+	if h.gameName != "" {
+		return h.gameName
+	}
+	return "Ironwail-Go"
 }
