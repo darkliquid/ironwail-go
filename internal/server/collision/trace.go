@@ -60,16 +60,11 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 qtyp
 		return recursiveHullCheck(hull, node.Children[1], p1f, p2f, p1, p2, trace)
 	}
 
-	var frac, frac2 float32
+	var frac float32
 	if t1 < 0 {
 		frac = (t1 + DistEpsilon) / (t1 - t2)
-		frac2 = (t1 - DistEpsilon) / (t1 - t2)
-	} else if t1 > 0 {
-		frac = (t1 - DistEpsilon) / (t1 - t2)
-		frac2 = (t1 + DistEpsilon) / (t1 - t2)
 	} else {
-		frac = 0
-		frac2 = 0
+		frac = (t1 - DistEpsilon) / (t1 - t2)
 	}
 	if frac < 0 {
 		frac = 0
@@ -77,17 +72,9 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 qtyp
 	if frac > 1 {
 		frac = 1
 	}
-	if frac2 < 0 {
-		frac2 = 0
-	}
-	if frac2 > 1 {
-		frac2 = 1
-	}
 
 	midf := p1f + (p2f-p1f)*frac
 	mid := p1.Add(p2.Sub(p1).Scale(frac))
-	midf2 := p1f + (p2f-p1f)*frac2
-	mid2 := p1.Add(p2.Sub(p1).Scale(frac2))
 
 	side := 0
 	if t1 < 0 {
@@ -98,8 +85,22 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 qtyp
 		return false
 	}
 
+	var frac2 float32
+	if t1 < 0 {
+		frac2 = (t1 - DistEpsilon) / (t1 - t2)
+	} else {
+		frac2 = (t1 + DistEpsilon) / (t1 - t2)
+	}
+	if frac2 < 0 {
+		frac2 = 0
+	}
+	if frac2 > 1 {
+		frac2 = 1
+	}
+	mid2 := p1.Add(p2.Sub(p1).Scale(frac2))
+
 	if hullPointContents(hull, node.Children[side^1], mid2) != bsp.ContentsSolid {
-		return recursiveHullCheck(hull, node.Children[side^1], midf2, p2f, mid2, p2, trace)
+		return recursiveHullCheck(hull, node.Children[side^1], midf, p2f, mid, p2, trace)
 	}
 
 	if trace.AllSolid {

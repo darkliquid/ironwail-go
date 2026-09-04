@@ -574,28 +574,12 @@ func TestDAPEndToEndStepInStepOutAndNestedCalls(t *testing.T) {
 	if err := WriteMessage(conn, Request{Message: Message{Seq: 4, Type: "request"}, Command: "stepIn"}); err != nil {
 		t.Fatalf("WriteMessage stepIn failed: %v", err)
 	}
-	stepInRespPayload, err := ReadMessage(conn)
+	stepInResp, stopEvt, err := readResponseAndEvent(conn)
 	if err != nil {
-		t.Fatalf("ReadMessage stepIn response failed: %v", err)
-	}
-	var stepInResp Response
-	if err := DecodeMessage(stepInRespPayload, &stepInResp); err != nil {
-		t.Fatalf("DecodeMessage stepIn response failed: %v", err)
+		t.Fatalf("readResponseAndEvent stepIn failed: %v", err)
 	}
 	if !stepInResp.Success {
 		t.Fatalf("StepIn response reported failure: %+v", stepInResp)
-	}
-
-	// Expect stopped event inside callee_fn
-	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		t.Fatalf("SetDeadline failed: %v", err)
-	}
-	stepInPayload, err := ReadMessage(conn)
-	if err != nil {
-		t.Fatalf("Failed reading stepIn stop: %v", err)
-	}
-	if err := DecodeMessage(stepInPayload, &stopEvt); err != nil {
-		t.Fatalf("DecodeMessage stepIn stop event failed: %v", err)
 	}
 	if stopEvt.Event != "stopped" {
 		t.Fatalf("Expected stopped event after stepIn, got: %+v", stopEvt)
@@ -640,28 +624,12 @@ func TestDAPEndToEndStepInStepOutAndNestedCalls(t *testing.T) {
 	if err := WriteMessage(conn, Request{Message: Message{Seq: 6, Type: "request"}, Command: "stepOut"}); err != nil {
 		t.Fatalf("WriteMessage stepOut failed: %v", err)
 	}
-	stepOutRespPayload, err := ReadMessage(conn)
+	stepOutResp, stopEvt, err := readResponseAndEvent(conn)
 	if err != nil {
-		t.Fatalf("ReadMessage stepOut response failed: %v", err)
-	}
-	var stepOutResp Response
-	if err := DecodeMessage(stepOutRespPayload, &stepOutResp); err != nil {
-		t.Fatalf("DecodeMessage stepOut response failed: %v", err)
+		t.Fatalf("readResponseAndEvent stepOut failed: %v", err)
 	}
 	if !stepOutResp.Success {
 		t.Fatalf("StepOut response reported failure: %+v", stepOutResp)
-	}
-
-	// Expect stopped event back in caller_fn
-	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		t.Fatalf("SetDeadline failed: %v", err)
-	}
-	stepOutPayload, err := ReadMessage(conn)
-	if err != nil {
-		t.Fatalf("Failed reading stepOut stop: %v", err)
-	}
-	if err := DecodeMessage(stepOutPayload, &stopEvt); err != nil {
-		t.Fatalf("DecodeMessage stepOut stop event failed: %v", err)
 	}
 	if stopEvt.Event != "stopped" {
 		t.Fatalf("Expected stopped event after stepOut, got: %+v", stopEvt)
@@ -718,4 +686,30 @@ func TestDAPEndToEndStepInStepOutAndNestedCalls(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("ExecuteFunction timed out")
 	}
+}
+
+func readResponseAndEvent(conn net.Conn) (Response, Event, error) {
+	var resp Response
+	var event Event
+	for i := 0; i < 2; i++ {
+		payload, err := ReadMessage(conn)
+		if err != nil {
+			return resp, event, err
+		}
+		var base Message
+		if err := json.Unmarshal(payload, &base); err != nil {
+			return resp, event, err
+		}
+		switch base.Type {
+		case "response":
+			if err := DecodeMessage(payload, &resp); err != nil {
+				return resp, event, err
+			}
+		case "event":
+			if err := DecodeMessage(payload, &event); err != nil {
+				return resp, event, err
+			}
+		}
+	}
+	return resp, event, nil
 }

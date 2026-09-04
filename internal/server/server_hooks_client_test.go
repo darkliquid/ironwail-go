@@ -366,10 +366,10 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 		t.Fatalf("aim vector = %v, want mostly +Y", aim)
 	}
 
-	s.CVar.Set("sv_aim", "0.99")
+	s.CVar.Set("sv_aim", "1")
 	s.CVar.Set("teamplay", "0")
 	t.Cleanup(func() {
-		s.CVar.Set("sv_aim", "0.93")
+		s.CVar.Set("sv_aim", "1")
 		s.CVar.Set("teamplay", "0")
 	})
 	target.SetOrigin(s, qtypes.Vec3{X: 40, Y: 100, Z: 64})

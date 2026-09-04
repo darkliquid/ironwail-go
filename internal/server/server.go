@@ -508,9 +508,11 @@ func NewServer() *Server {
 				return bestDir
 			}
 
-			bestDist := float32(0.93)
+			bestDist := float32(1.0)
 			if s.CVar != nil {
-				bestDist = float32(s.CVar.FloatValue("sv_aim"))
+				if cv := s.CVar.Get("sv_aim"); cv != nil {
+					bestDist = float32(cv.Float)
+				}
 			}
 			var bestEnt *Edict
 			for i := 1; i < s.NumEdicts && i < vm.NumEdicts; i++ {
