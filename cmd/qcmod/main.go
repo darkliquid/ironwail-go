@@ -12,6 +12,7 @@
 //	                         QC bytecode function with globals set (plan 25
 //	                         Phase B).
 //	qcmod sim <moddir>    — interactive headless REPL (WIP; see plan 25.6).
+//	qcmod init [dir]     — scaffold a new standalone mod from a template
 //	qcmod disasm [progs]  — disassemble progs.dat bytecode (default: compile
 //	                         pkg/qgo/quakego); -func <name> filters to one
 //	                         function, -o <path> writes to a file.
@@ -55,6 +56,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runDisasm(args[1:], stdout, stderr)
 	case "qc2go":
 		return runQC2Go(args[1:], stdout, stderr)
+	case "init":
+		return runInit(args[1:], stdout, stderr)
 	case "dap":
 		return runDAP(args[1:], stdout, stderr)
 	case "docs", "help", "-h", "--help":
