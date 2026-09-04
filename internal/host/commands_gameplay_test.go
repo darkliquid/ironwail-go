@@ -39,9 +39,10 @@ func TestSaveFileSearchPaths(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			h := &Host{
-				baseDir: "/quake",
-				gameDir: tc.gameDir,
-				userDir: "/home/user/.ironwail",
+				baseDir:     "/quake",
+				gameDir:     tc.gameDir,
+				userDir:     "/home/user/.ironwail",
+				baseGameDir: "id1",
 			}
 
 			// Mock saving logic requires some fields but saveFileSearchPaths is pureish
