@@ -1,0 +1,28 @@
+# {{.GameName}}
+
+A full total conversion built on the Ironwail-Go engine
+(github.com/darkliquid/ironwail-go/sdk). Every Quake identity (game name,
+base data directory, menu labels, CSQC name) is overridden in
+`gameconfig.go`.
+
+## Commands
+
+```sh
+go mod tidy        # resolve quake + engine module replaces
+go test ./...      # run the sim tests
+make build         # build the game binary
+make run           # build + run (from the parent dir, where ./<modname> is
+                   # found; game data is loaded from ./<modname>)
+```
+
+## Shipping data (pak)
+
+Mount game data into `<modname>/` (next to this directory) and bundle it
+with `qcmod pak pack <modname> pak0.pak` — the engine loads `pak0.pak`
+from the base game directory. World textures can be generated from images
+with `qcmod wad -type miptex`.
+
+## Gameplay
+
+Port the gameplay surface: the canonical QuakeGo reference implementation
+is `pkg/qgo/quakego` in the engine repo — copy it here and adapt it.

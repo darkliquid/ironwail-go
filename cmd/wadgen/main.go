@@ -1,6 +1,12 @@
-// Command wadgen generates a minimal Quake WAD file containing placeholder
-// QPic lumps and a grayscale palette, useful for tests and tooling that need
-// a valid WAD without shipping game assets.
+// Command wadgen generates Quake WAD files.
+//
+// With only an output path it emits the historical placeholder WAD (dummy
+// QPic lumps + grayscale palette), useful for tests and tooling that need a
+// valid WAD without shipping game assets.
+//
+// With image arguments it converts PNG/TGA images into QPic/MipTex lumps
+// (the same conversion as `qcmod wad`). This legacy entry point is
+// superseded by qcmod wad — prefer that command for new work.
 package main
 
 import (
@@ -8,6 +14,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/darkliquid/ironwail-go/internal/draw"
+	"github.com/darkliquid/ironwail-go/internal/image"
 )
 
 // WAD Header
@@ -30,12 +41,143 @@ type wadDirEntry struct {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: wadgen <output.wad>")
+		fmt.Println("Usage: wadgen <output.wad> [image.png|image.tga ...] [-type qpic|miptex] [-palette palette.lmp]")
+		os.Exit(2)
+	}
+
+	outPath := os.Args[1]
+	images, lumpType, palettePath, err := parseArgs(os.Args[2:])
+	if err != nil {
+		log.Fatalf("wadgen: %v", err)
+	}
+
+	if len(images) == 0 {
+		writePlaceholderWad(outPath)
 		return
 	}
-	outPath := os.Args[1]
 
-	// Create palette (768 bytes) - grayscale
+	fmt.Fprintf(os.Stderr, "wadgen: note: image conversion is superseded by `qcmod wad`\n")
+	if err := writeImageWad(outPath, images, lumpType, palettePath); err != nil {
+		log.Fatalf("wadgen: %v", err)
+	}
+}
+
+// parseArgs scans interleaved flags and positional image paths.
+func parseArgs(args []string) (images []string, lumpType, palettePath string, err error) {
+	lumpType = "auto"
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "-type" || strings.HasPrefix(a, "-type="):
+			v := strings.TrimPrefix(a, "-type=")
+			if a == "-type" {
+				if i+1 >= len(args) {
+					return nil, "", "", fmt.Errorf("-type requires a value")
+				}
+				i++
+				v = args[i]
+			}
+			switch v {
+			case "auto", "qpic", "miptex":
+				lumpType = v
+			default:
+				return nil, "", "", fmt.Errorf("unknown -type %q (auto|qpic|miptex)", v)
+			}
+		case a == "-palette" || a == "-pal" || strings.HasPrefix(a, "-palette="):
+			v := strings.TrimPrefix(a, "-palette=")
+			if a == "-palette" || a == "-pal" {
+				if i+1 >= len(args) {
+					return nil, "", "", fmt.Errorf("%s requires a value", a)
+				}
+				i++
+				v = args[i]
+			}
+			palettePath = v
+		case strings.HasPrefix(a, "-"):
+			return nil, "", "", fmt.Errorf("unknown flag %q", a)
+		default:
+			images = append(images, a)
+		}
+	}
+	return images, lumpType, palettePath, nil
+}
+
+// writeImageWad converts each image into a lump and writes the WAD.
+func writeImageWad(outPath string, images []string, lumpType, palettePath string) error {
+	pal, err := wadPalette(palettePath)
+	if err != nil {
+		return err
+	}
+
+	lumps := make([]image.WadLump, 0, len(images))
+	for _, path := range images {
+		img, err := image.DecodeQuakeImage(path)
+		if err != nil {
+			return err
+		}
+		rgba, w, h := image.RGBAFromImage(img)
+		kind := lumpType
+		if kind == "auto" {
+			if w%16 == 0 && h%16 == 0 {
+				kind = "miptex"
+			} else {
+				kind = "qpic"
+			}
+		}
+		name := image.CleanupName(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
+		switch kind {
+		case "qpic":
+			data, err := image.WriteQPicLump(rgba, w, h, pal)
+			if err != nil {
+				return fmt.Errorf("%s: %w", path, err)
+			}
+			lumps = append(lumps, image.WadLump{Name: name, Type: image.TypQPic, Data: data})
+		case "miptex":
+			data, err := image.WriteMipTexLump(name, rgba, w, h, pal)
+			if err != nil {
+				return fmt.Errorf("%s: %w", path, err)
+			}
+			lumps = append(lumps, image.WadLump{Name: name, Type: image.TypMipTex, Data: data})
+		}
+	}
+
+	f, err := os.Create(outPath)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", outPath, err)
+	}
+	defer func() { _ = f.Close() }()
+	if err := image.WriteWad(f, lumps); err != nil {
+		return err
+	}
+	fmt.Printf("Wrote %d lump(s) -> %s\n", len(lumps), outPath)
+	return nil
+}
+
+// wadPalette resolves the encoding palette: an explicit palette.lmp path
+// wins, otherwise the built-in Quake palette.
+func wadPalette(palettePath string) (image.Palette, error) {
+	if palettePath == "" {
+		pal, err := image.LoadPaletteLmp(draw.DefaultQuakePalette())
+		if err != nil {
+			return image.Palette{}, err
+		}
+		return pal, nil
+	}
+	data, err := os.ReadFile(palettePath)
+	if err != nil {
+		return image.Palette{}, fmt.Errorf("read palette %s: %w", palettePath, err)
+	}
+	pal, err := image.LoadPaletteLmp(data)
+	if err != nil {
+		return image.Palette{}, fmt.Errorf("palette %s: %w", palettePath, err)
+	}
+	return pal, nil
+}
+
+// writePlaceholderWad preserves the original wadgen behaviour: a minimal
+// WAD with a grayscale palette and dummy QPic lumps, for tests and tooling
+// that need a valid WAD without game assets.
+func writePlaceholderWad(outPath string) {
 	palette := make([]byte, 768)
 	for i := 0; i < 256; i++ {
 		palette[i*3+0] = byte(i) // R
@@ -43,7 +185,6 @@ func main() {
 		palette[i*3+2] = byte(i) // B
 	}
 
-	// Create dummy QPic (width, height, then pixels)
 	createQPic := func(width, height uint32, color byte) []byte {
 		data := make([]byte, 8+width*height)
 		binary.LittleEndian.PutUint32(data[0:4], width)
@@ -61,7 +202,6 @@ func main() {
 		"gfx/m_surfs.lmp":  createQPic(24, 20, 200),   // Light gray cursor
 	}
 
-	// Write WAD file
 	f, err := os.Create(outPath)
 	if err != nil {
 		log.Fatalf("create %s: %v", outPath, err)

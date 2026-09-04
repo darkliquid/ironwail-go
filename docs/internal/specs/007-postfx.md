@@ -152,10 +152,12 @@ func (r *Registry) Register(name string, pass PostFXPass, position string)
 func (r *Registry) Unregister(name string)
 ```
 
-The `uxr` bead's `qcmod init` template exposes this through the SDK:
+The `uxr` bead landed the mod SDK surface (`sdk` package) and the
+`qcmod init` template (kinds: generic/sp/dm/tc); the post-FX registry will
+be exposed through that same SDK:
 
 ```go
-// future: in mod's main.go (after engine.Run)
+// future: in mod's main.go (after sdk.Run) — see docs/MOD_AUTHORING.md
 hooks.PostFX.Register("my-warp", myWarpPass{}, "post-crt")
 ```
 

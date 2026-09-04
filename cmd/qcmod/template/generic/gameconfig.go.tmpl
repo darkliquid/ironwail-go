@@ -1,0 +1,14 @@
+package main
+
+import "github.com/darkliquid/ironwail-go/sdk"
+
+// newGameConfig returns the game's identity and feature configuration.
+// Unset fields resolve to stock Quake defaults via Config.Resolve().
+func newGameConfig() sdk.Config {
+	return sdk.Config{
+		GameName:          "{{.GameName}}",
+		BaseGameDir:       "{{.BaseDir}}",
+		RequireRegistered: false,
+		DefaultRegistered: true,
+	}
+}

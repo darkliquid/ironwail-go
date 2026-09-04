@@ -1,0 +1,18 @@
+BIN={{.Module}}
+
+# The mod is its own module; ignore any enclosing go.work workspace.
+export GOWORK=off
+
+build:
+	go build -o $(BIN) .
+
+# The engine resolves game data as ./<modname> relative to the working
+# directory, so run from the parent of the mod directory (see README.md).
+run: build
+	cd .. && ./$(notdir $(CURDIR))/$(BIN)
+
+test:
+	go test ./...
+
+clean:
+	rm -f $(BIN)

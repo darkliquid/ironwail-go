@@ -1,0 +1,29 @@
+# {{.GameName}}
+
+A standalone single-player game built on the Ironwail-Go engine
+(github.com/darkliquid/ironwail-go/sdk).
+
+## Layout
+
+- `gameconfig.go` — the game's identity (`sdk.Config`): name, base data
+  directory, registration gate. Edit it first.
+- `progs/` — QuakeGo gameplay sources (compiled to `progs.dat` by
+  `cmd/qgo`; also build as plain Go for sim tests).
+- `game_test.go` — simulation tests run by `qcmod test` / `go test` using
+  the `quake/sim` headless world (no engine boot needed).
+
+## Commands
+
+```sh
+go mod tidy        # resolve quake + engine module replaces
+go test ./...      # run the sim tests
+make build         # build the game binary
+make run           # build + run (from the parent dir, where ./<modname> is
+                   # found; game data is loaded from ./<modname>)
+```
+
+## Adding game data
+
+Drop the game's `progs.dat`, `maps/`, `gfx/`, and other Quake data into a
+`<modname>/` directory next to this one (or inside it as `./<modname>` from
+the parent). The engine mounts `<modname>` as its base game directory.

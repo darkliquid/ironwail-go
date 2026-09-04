@@ -110,14 +110,6 @@ func progsTempPath() string {
 	return filepath.Join(os.TempDir(), "ironwail-go-qcmod-progs.dat")
 }
 
-// compileProgsPath compiles the QuakeGo sources and returns the progs.dat
-// path, so callers can find side-car artifacts (the .map source map) written
-// next to it by qgo.
-func compileProgsPath() (string, error) {
-	_, path, err := compileProgsToTemp()
-	return path, err
-}
-
 // compileProgsToTemp compiles pkg/qgo/quakego with cmd/qgo into a temporary
 // progs.dat, returning its bytes and path. qgo also writes a side-car source
 // map at <path>.map when source-map generation is enabled (the default).

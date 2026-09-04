@@ -1,0 +1,21 @@
+package main
+
+import "github.com/darkliquid/ironwail-go/sdk"
+
+// newGameConfig returns the game's identity and feature configuration.
+// A total conversion overrides every Quake-specific identity: name, base
+// data directory, menu labels, and the CSQC engine name. Packet protocol
+// identity (ProtocolMagic/ProtocolVer/ProtocolNums) defaults to stock
+// Quake-compatible values unless a full custom protocol is desired.
+func newGameConfig() sdk.Config {
+	return sdk.Config{
+		GameName:          "{{.GameName}}",
+		BaseGameDir:       "{{.BaseDir}}",
+		RequireRegistered: false,
+		DefaultRegistered: true,
+
+		ModDirMenuLabel: "{{.GameName}} DIRECTORY",
+		NetOptionLabel:  "{{.GameName}} NET",
+		CSQCInitName:    "{{.GameName}}",
+	}
+}

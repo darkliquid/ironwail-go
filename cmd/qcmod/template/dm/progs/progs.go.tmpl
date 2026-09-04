@@ -1,0 +1,17 @@
+package {{.Pkg}}
+
+// QuakeGo gameplay sources live here (compiled to progs.dat by cmd/qgo; also
+// plain Go for qcmod test / sim runs). Deathmatch starter stubs follow the
+// item respawn patterns in pkg/qgo/quakego.
+
+// RespawnItemThink re-thinks an item after it is taken. The item sets
+// self.nextthink = time + respawn delay when picked up; this function
+// re-enables it (solid, visible, touchable).
+func RespawnItemThink() {
+	// TODO: clear the taken flag and restore self.solid / self.frame.
+}
+
+// ItemTouch is the shared pickup handler for items in DM.
+func ItemTouch() {
+	// TODO: give the touching player the item and schedule respawn.
+}

@@ -1,0 +1,34 @@
+package main
+
+import (
+	"testing"
+
+	"quake"
+	"quake/sim"
+)
+
+// TestExample is a minimal simulation test: spawn an entity in the headless
+// sim world and assert it exists.
+func TestExample(t *testing.T) {
+	w := sim.New()
+	e := w.Spawn("info_player_start")
+	if e == nil {
+		t.Fatal("expected entity")
+	}
+	_ = quake.Entity{} // placeholder
+}
+
+// TestSinglePlayerDefaults protects the SP identity contract: mods must not
+// gate on the registered cvar and must default to registered mode.
+func TestSinglePlayerDefaults(t *testing.T) {
+	c := newGameConfig()
+	if c.RequireRegistered {
+		t.Error("RequireRegistered must be false for a standalone SP game")
+	}
+	if !c.DefaultRegistered {
+		t.Error("DefaultRegistered must be true for a standalone SP game")
+	}
+	if c.BaseGameDir == "" {
+		t.Error("BaseGameDir must be set")
+	}
+}

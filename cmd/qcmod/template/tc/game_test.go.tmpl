@@ -1,0 +1,37 @@
+package main
+
+import (
+	"testing"
+
+	"quake"
+	"quake/sim"
+)
+
+// TestExample is a minimal simulation test: spawn an entity in the headless
+// sim world and assert it exists.
+func TestExample(t *testing.T) {
+	w := sim.New()
+	e := w.Spawn("info_player_start")
+	if e == nil {
+		t.Fatal("expected entity")
+	}
+	_ = quake.Entity{} // placeholder
+}
+
+// TestTotalConversionIdentity protects the TC contract: the game must not
+// depend on the Quake registered gate and must carry its own identity.
+func TestTotalConversionIdentity(t *testing.T) {
+	c := newGameConfig()
+	if c.RequireRegistered {
+		t.Error("RequireRegistered must be false for a total conversion")
+	}
+	if !c.DefaultRegistered {
+		t.Error("DefaultRegistered must be true for a total conversion")
+	}
+	if c.GameName == "" || c.GameName == "Ironwail-Go" {
+		t.Errorf("GameName must identify the conversion, got %q", c.GameName)
+	}
+	if c.ModDirMenuLabel == "" || c.NetOptionLabel == "" {
+		t.Error("TC menu labels must be customised")
+	}
+}

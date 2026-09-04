@@ -1,0 +1,20 @@
+# {{.GameName}}
+
+A standalone single-player game built on the Ironwail-Go engine
+(github.com/darkliquid/ironwail-go/sdk).
+
+## Commands
+
+```sh
+go mod tidy        # resolve quake + engine module replaces
+go test ./...      # run the sim tests (qcmod test also works)
+make build         # build the game binary
+make run           # build + run (from the parent dir, where ./<modname> is
+                   # found; game data is loaded from ./<modname>)
+```
+
+## Gameplay stubs
+
+`progs/progs.go` contains `SpawnPlayerStart` and `HealthPickupThink` stubs
+following `pkg/qgo/quakego` patterns. Port your QuakeC/QuakeGo logic there,
+or copy the full gameplay base and adapt it.

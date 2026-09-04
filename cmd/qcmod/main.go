@@ -12,7 +12,12 @@
 //	                         QC bytecode function with globals set (plan 25
 //	                         Phase B).
 //	qcmod sim <moddir>    — interactive headless REPL (WIP; see plan 25.6).
-//	qcmod init [dir]     — scaffold a new standalone mod from a template
+//	qcmod init [-kind <kind>] [-engine <path>] [dir]
+//	                       — scaffold a standalone mod (kinds: generic, sp,
+//	                         dm, tc) from an embedded template via the SDK.
+//	qcmod pak pack|unpack|list|check
+//	                       — create, extract, list, and validate .pak files.
+//	qcmod wad <img...>    — generate a Quake WAD (QPic/MipTex) from images.
 //	qcmod disasm [progs]  — disassemble progs.dat bytecode (default: compile
 //	                         pkg/qgo/quakego); -func <name> filters to one
 //	                         function, -o <path> writes to a file.
@@ -58,6 +63,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runQC2Go(args[1:], stdout, stderr)
 	case "init":
 		return runInit(args[1:], stdout, stderr)
+	case "pak":
+		return runPak(args[1:], stdout, stderr)
+	case "wad":
+		return runWad(args[1:], stdout, stderr)
 	case "dap":
 		return runDAP(args[1:], stdout, stderr)
 	case "docs", "help", "-h", "--help":
@@ -131,6 +140,12 @@ Commands:
   qcmod vm <fn> [self [other [time]]]
                         boot compiled progs + fire a QC bytecode function
   qcmod sim <moddir>    interactive headless REPL (WIP)
+  qcmod init [-kind <kind>] [-engine <path>] [dir]
+                        scaffold a standalone mod (generic|sp|dm|tc)
+  qcmod pak <pack|unpack|list|check> [args]
+                        create/extract/list/validate .pak archives
+  qcmod wad -o out.wad <img...>
+                        generate a Quake WAD (QPic/MipTex) from images
   qcmod dap [addr]      start standalone DAP debug server
   qcmod docs            print this guide
 

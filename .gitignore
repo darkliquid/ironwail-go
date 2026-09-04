@@ -22,6 +22,9 @@
 !/pkg/qgo/quakego/go.mod
 !/cmd/qgo/testdata/**/go.mod
 
+# Keep qcmod init embedded templates (non-Go files used by go:embed)
+!/cmd/qcmod/template/**
+
 # Keep this file
 !.gitignore
 !/docs/**/*.md

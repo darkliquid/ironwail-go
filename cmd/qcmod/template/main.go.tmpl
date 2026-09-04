@@ -1,0 +1,20 @@
+// Command {{.Module}} is a standalone game built on the Ironwail-Go engine.
+//
+// The sdk.Config determines the game's identity, data paths, and feature
+// gates; zero-value fields resolve to stock Quake defaults.
+package main
+
+import (
+	"os"
+
+	"github.com/darkliquid/ironwail-go/sdk"
+)
+
+func main() {
+	config := newGameConfig()
+	g, err := sdk.Run(config, sdk.Args(os.Args...))
+	if err != nil {
+		panic(err)
+	}
+	_ = g // the engine owns the game loop; add hooks here as needed
+}

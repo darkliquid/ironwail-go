@@ -1,0 +1,12 @@
+module {{.Module}}
+
+go 1.26
+
+require (
+	github.com/darkliquid/ironwail-go v0.0.0
+	quake v0.0.0
+)
+
+replace github.com/darkliquid/ironwail-go => {{.EngineRoot}}
+
+replace quake => {{.EngineRoot}}/pkg/qgo/quake

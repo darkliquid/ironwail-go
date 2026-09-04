@@ -1,0 +1,20 @@
+# {{.GameName}}
+
+A deathmatch-first standalone game built on the Ironwail-Go engine
+(github.com/darkliquid/ironwail-go/sdk). `DefaultDeathmatch` is 1; set
+`DefaultCoop`/`DefaultTeamplay` in `gameconfig.go` as needed.
+
+## Commands
+
+```sh
+go mod tidy        # resolve quake + engine module replaces
+go test ./...      # run the sim tests
+make build         # build the game binary
+make run           # build + run (from the parent dir, where ./<modname> is
+                   # found; game data is loaded from ./<modname>)
+```
+
+## Item respawn
+
+`progs/progs.go` contains `RespawnItemThink` / `ItemTouch` stubs following
+`pkg/qgo/quakego` page item patterns.

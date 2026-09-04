@@ -1,0 +1,31 @@
+package main
+
+import (
+	"testing"
+
+	"quake"
+	"quake/sim"
+)
+
+// TestExample is a minimal simulation test: spawn an entity in the headless
+// sim world and assert it exists.
+func TestExample(t *testing.T) {
+	w := sim.New()
+	e := w.Spawn("info_player_start")
+	if e == nil {
+		t.Fatal("expected entity")
+	}
+	_ = quake.Entity{} // placeholder
+}
+
+// TestDeathmatchDefaults protects the DM identity contract: the game must
+// default to deathmatch mode.
+func TestDeathmatchDefaults(t *testing.T) {
+	c := newGameConfig()
+	if c.DefaultDeathmatch != 1 {
+		t.Errorf("DefaultDeathmatch = %d, want 1", c.DefaultDeathmatch)
+	}
+	if c.RequireRegistered {
+		t.Error("RequireRegistered must be false for a standalone DM game")
+	}
+}

@@ -1,0 +1,17 @@
+package {{.Pkg}}
+
+// QuakeGo gameplay sources live here (compiled to progs.dat by cmd/qgo; also
+// plain Go for qcmod test / sim runs). Single-player starter stubs follow
+// the patterns in pkg/qgo/quakego.
+
+// SpawnPlayerStart places the player spawn point. Called by the
+// info_player_start classname handler.
+func SpawnPlayerStart() {
+	// TODO: locate info_player_start and set the player's origin/angles.
+}
+
+// HealthPickupThink is an example think for a health pickup entity. Called
+// on self.nextthink when a player touches the item.
+func HealthPickupThink() {
+	// TODO: add +15 health to the touching player, then remove self.
+}

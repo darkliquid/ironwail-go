@@ -1,0 +1,20 @@
+package main
+
+import (
+	"testing"
+
+	"quake"
+	"quake/sim"
+)
+
+// TestExample is a minimal simulation test: spawn an entity in the
+// headless sim world and assert it exists. Real gameplay tests follow this
+// same pattern (see docs/QGO_QUAKEGO_GUIDE.md).
+func TestExample(t *testing.T) {
+	w := sim.New()
+	e := w.Spawn("info_player_start")
+	if e == nil {
+		t.Fatal("expected entity")
+	}
+	_ = quake.Entity{} // placeholder
+}
