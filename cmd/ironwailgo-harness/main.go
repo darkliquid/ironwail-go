@@ -21,6 +21,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/game"
+	"github.com/darkliquid/ironwail-go/internal/gameconfig"
 	"github.com/darkliquid/ironwail-go/internal/input"
 )
 
@@ -403,7 +404,7 @@ func mountPak() uint32 {
 	// Bootstrap: InitSubsystems with the pak pre-mounted (idempotent).
 	if !bootOnce {
 		bootOnce = true
-		if err := g.InitSubsystems(false, false, 4, "/", "id1", nil, pack); err != nil {
+		if err := g.InitSubsystems(false, false, 4, "/", gameconfig.Default().BaseGameDir, nil, pack); err != nil {
 			fmt.Fprintf(os.Stderr, "harness init failed: %v\n", err)
 			return 5
 		}

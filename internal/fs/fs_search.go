@@ -243,7 +243,7 @@ func (fs *FileSystem) ListMods() []ModInfo {
 			continue
 		}
 		name := entry.Name()
-		if strings.EqualFold(name, "id1") {
+		if strings.EqualFold(name, fs.baseGameDirOrDefault()) {
 			continue
 		}
 		dirPath := filepath.Join(fs.baseDir, name)

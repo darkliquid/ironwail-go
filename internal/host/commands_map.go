@@ -222,7 +222,7 @@ func (h *Host) CmdGame(args []string, subs *Subsystems) {
 
 	current := strings.TrimSpace(fileSys.GameDir())
 	if current == "" {
-		current = "id1"
+		current = h.baseGameDir
 	}
 	if len(args) == 0 {
 		subs.Console.Print(fmt.Sprintf("\"game\" is \"%s\"\n", current))
@@ -243,7 +243,7 @@ func (h *Host) CmdGame(args []string, subs *Subsystems) {
 		subs.Console.Print("game: invalid gamedir\n")
 		return
 	}
-	if target != "id1" {
+	if target != h.baseGameDir {
 		allowed := false
 		for _, mod := range fileSys.ListMods() {
 			if strings.EqualFold(mod.Name, target) {

@@ -24,7 +24,7 @@ func (g *Game) profileBaseDirAndModDir() (baseDir, modDir string) {
 	}
 	modDir = strings.TrimSpace(g.ModDir)
 	if modDir == "" {
-		modDir = "id1"
+		modDir = g.Config.BaseGameDir
 	}
 	return baseDir, modDir
 }

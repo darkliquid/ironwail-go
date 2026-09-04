@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/darkliquid/ironwail-go/internal/gameconfig"
 	"github.com/darkliquid/ironwail-go/internal/host"
 )
 
@@ -24,7 +25,7 @@ type startupOptions struct {
 func parseStartupOptions(rawArgs []string) (startupOptions, error) {
 	opts := startupOptions{
 		BaseDir:     ".",
-		GameDir:     "id1",
+		GameDir:     gameconfig.Default().BaseGameDir,
 		MaxClients:  1,
 		Port:        26000,
 		QCDebugPort: 2345,

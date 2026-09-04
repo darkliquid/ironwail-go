@@ -36,7 +36,7 @@ func (g *Game) formatViewpointJSON(args []string) (string, viewpointJSON) {
 		mapName = g.Server.MapName()
 	}
 
-	gameDir := "id1"
+	gameDir := g.Config.BaseGameDir
 	if g.Host != nil && g.Host.CVar != nil {
 		if cvarVal := strings.TrimSpace(g.Host.CVar.StringValue("game")); cvarVal != "" {
 			gameDir = cvarVal

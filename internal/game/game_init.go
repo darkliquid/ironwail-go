@@ -149,7 +149,7 @@ func (g *Game) configureRegistrationMode(vfs interface{ FileExists(filename stri
 	console.Printf("Playing shareware version.\n")
 
 	modDir := strings.ToLower(strings.TrimSpace(gameDir))
-	if modDir != "" && modDir != "id1" {
+	if modDir != "" && modDir != g.Config.BaseGameDirLower() {
 		return fmt.Errorf("you must have the registered version to use modified games")
 	}
 
@@ -648,7 +648,7 @@ func (g *Game) EnsureRuntimeProgsData(basedir string) error {
 	if basedir == "" {
 		return fmt.Errorf("EnsureRuntimeProgsData: basedir empty")
 	}
-	id1 := filepath.Join(basedir, "id1")
+	id1 := filepath.Join(basedir, g.Config.BaseGameDir)
 	if _, err := os.Stat(filepath.Join(id1, "progs.dat")); err == nil {
 		return nil
 	}
@@ -731,7 +731,7 @@ func (g *Game) reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *f
 
 	modDir := strings.ToLower(strings.TrimSpace(changed.GameDir()))
 	if modDir == "" {
-		modDir = "id1"
+		modDir = g.Config.BaseGameDir
 	}
 	g.ModDir = modDir
 	g.ShowScores = false
@@ -760,6 +760,7 @@ func (g *Game) reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *f
 }
 
 func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir string, args []string, preMountedPaks ...*fs.Pack) error {
+	g.Config = g.Config.Resolve()
 	g.ModDir = strings.ToLower(strings.TrimSpace(gamedir))
 	g.Input = nil
 	g.Draw = nil

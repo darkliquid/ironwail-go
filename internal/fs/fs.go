@@ -143,6 +143,8 @@ type SearchPathEntry struct {
 // the currently active mod directory name (e.g. "hipnotic"), and baseDir is
 // the root installation path containing id1/ and other game directories.
 type FileSystem struct {
+	baseGameDir string // base game dir name (stock "id1"); set before Init
+
 	// mounts is the unified override stack (high→low priority, index 0 =
 	// highest). Loose directories are rootFS mounts; PAK archives are PakFS
 	// mounts. This single stack replaced the old searchPaths/lookupPaths
@@ -152,6 +154,15 @@ type FileSystem struct {
 	gameDir     string
 	baseDir     string
 	initialized bool
+}
+
+// baseGameDirOrDefault returns the base game dir, defaulting to "id1"
+// when not explicitly set (e.g. in tests that construct a bare FileSystem).
+func (fs *FileSystem) baseGameDirOrDefault() string {
+	if fs.baseGameDir != "" {
+		return fs.baseGameDir
+	}
+	return "id1"
 }
 
 // SearchPathEntries returns the current mount stack in the same front-to-back
@@ -209,12 +220,12 @@ func (fs *FileSystem) Init(basedir, gamedir string) error {
 	// Base directory is the installation directory, we must always add 'id1'
 	// as the fundamental Quake directory, then add any custom game directory.
 
-	if err := fs.AddGameDirectory(filepath.Join(basedir, "id1")); err != nil {
-		return fmt.Errorf("failed to add id1 directory: %w", err)
+	if err := fs.AddGameDirectory(filepath.Join(basedir, fs.baseGameDirOrDefault())); err != nil {
+		return fmt.Errorf("failed to add base game directory: %w", err)
 	}
 	fs.addEnginePak()
 
-	if gamedir != "" && gamedir != "id1" {
+	if gamedir != "" && gamedir != fs.baseGameDirOrDefault() {
 		if err := fs.AddGameDirectory(filepath.Join(basedir, gamedir)); err != nil {
 			return fmt.Errorf("failed to add game directory: %w", err)
 		}

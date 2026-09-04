@@ -75,7 +75,7 @@ func TestDefaultMatchesCurrentLiterals(t *testing.T) {
 func TestResolveFillsZeroValues(t *testing.T) {
 	// A mod overrides only the name and base dir; everything else must
 	// fall back to Default().
-	c := Config{GameName: "MyGame", BaseGameDir: "mydata"}.resolve()
+	c := Config{GameName: "MyGame", BaseGameDir: "mydata"}.Resolve()
 
 	if c.GameName != "MyGame" {
 		t.Errorf("GameName = %q, want %q", c.GameName, "MyGame")
@@ -97,7 +97,7 @@ func TestResolveFillsZeroValues(t *testing.T) {
 func TestResolvePreservesFalseGate(t *testing.T) {
 	// A standalone mod explicitly disables the registered gate. The
 	// zero-value false must NOT be replaced by Default()'s true.
-	c := Config{RequireRegistered: false}.resolve()
+	c := Config{RequireRegistered: false}.Resolve()
 	if c.RequireRegistered != false {
 		t.Errorf("RequireRegistered = %v, want false (explicitly disabled)", c.RequireRegistered)
 	}
@@ -108,7 +108,7 @@ func TestResolvePreservesFalseGate(t *testing.T) {
 }
 
 func TestResolveFeaturesDefaultToAllEnabled(t *testing.T) {
-	c := Config{}.resolve()
+	c := Config{}.Resolve()
 	if !c.Features.Console {
 		t.Error("Features.Console should resolve to true (all-false falls back to Default)")
 	}
@@ -121,7 +121,7 @@ func TestResolveFeaturesDefaultToAllEnabled(t *testing.T) {
 }
 
 func TestResolveFeaturesPreservesExplicitDisable(t *testing.T) {
-	c := Config{Features: Features{Console: true}}.resolve()
+	c := Config{Features: Features{Console: true}}.Resolve()
 	// At least one feature is explicitly set (Console=true), so the
 	// zero-value fallback must NOT kick in. Unset features stay false.
 	if c.Features.SinglePlayer {
@@ -136,7 +136,7 @@ func TestDefaultRegisteredInt(t *testing.T) {
 	if Default().DefaultRegisteredInt() != "0" {
 		t.Errorf("Default registered int = %q, want %q", Default().DefaultRegisteredInt(), "0")
 	}
-	mod := Config{DefaultRegistered: true}.resolve()
+	mod := Config{DefaultRegistered: true}.Resolve()
 	if mod.DefaultRegisteredInt() != "1" {
 		t.Errorf("Mod registered int = %q, want %q", mod.DefaultRegisteredInt(), "1")
 	}
@@ -146,7 +146,7 @@ func TestBaseGameDirLower(t *testing.T) {
 	if Default().BaseGameDirLower() != "id1" {
 		t.Errorf("BaseGameDirLower = %q, want %q", Default().BaseGameDirLower(), "id1")
 	}
-	c := Config{BaseGameDir: "MyData"}.resolve()
+	c := Config{BaseGameDir: "MyData"}.Resolve()
 	if c.BaseGameDirLower() != "mydata" {
 		t.Errorf("BaseGameDirLower = %q, want %q", c.BaseGameDirLower(), "mydata")
 	}

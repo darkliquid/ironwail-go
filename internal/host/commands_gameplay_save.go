@@ -92,7 +92,7 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 	if save.text != nil {
 		activeGameDir := strings.TrimSpace(h.gameDir)
 		if activeGameDir == "" {
-			activeGameDir = "id1"
+			activeGameDir = h.baseGameDir
 		}
 		targetGameDir := strings.TrimSpace(save.text.GameDir)
 		if targetGameDir != "" && !strings.EqualFold(targetGameDir, activeGameDir) {
@@ -498,9 +498,9 @@ func (h *Host) saveFileSearchPaths(name string, options loadSaveOptions) ([]stri
 	searchPaths = append(searchPaths, filepath.Join(h.baseDir, legacyName))
 
 	// 4. Vanilla Quake directory
-	if strings.TrimSpace(h.gameDir) != "id1" {
-		searchPaths = append(searchPaths, filepath.Join(h.baseDir, "id1", legacyName))
-		searchPaths = append(searchPaths, filepath.Join(h.baseDir, "id1", "saves", legacyName))
+	if strings.TrimSpace(h.gameDir) != h.baseGameDir {
+		searchPaths = append(searchPaths, filepath.Join(h.baseDir, h.baseGameDir, legacyName))
+		searchPaths = append(searchPaths, filepath.Join(h.baseDir, h.baseGameDir, "saves", legacyName))
 	}
 
 	return searchPaths, nil

@@ -120,7 +120,7 @@ func Default() Config {
 // resolve returns a Config with zero-value fields filled from Default().
 // A standalone mod constructs a Config with only the fields it cares about;
 // resolve fills in the rest so downstream code never sees a zero value.
-func (c Config) resolve() Config {
+func (c Config) Resolve() Config {
 	def := Default()
 	if c.GameName == "" {
 		c.GameName = def.GameName

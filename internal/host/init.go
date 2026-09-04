@@ -45,6 +45,7 @@ func (h *Host) registerHostCVars() {
 	cv.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
 	cv.Register("maxplayers", "1", cvar.FlagServerInfo, "Maximum number of server player slots")
 	cv.Register("sv_altnoclip", "1", cvar.FlagServerInfo, "Use fly-style noclip movement when enabled")
+	cv.Register("sv_aim", "1", cvar.FlagArchive, "Autoaim angle threshold (1=off, 0.93=classic autoaim)")
 	cv.Register("sv_freezenonclients", "0", cvar.FlagServerInfo, "Freeze non-client entities when enabled")
 	cv.Register("sv_nostep", "0", cvar.FlagServerInfo, "Disable stair-step movement retries when enabled")
 	cv.Register("fraglimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match frag limit")
@@ -321,6 +322,7 @@ func (c *localLoopbackClient) LocalSignon() int {
 
 type InitParams struct {
 	BaseDir      string
+	BaseGameDir  string // base game directory name (stock: "id1")
 	Dedicated    bool
 	GameDir      string
 	UserDir      string
@@ -433,6 +435,10 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	h.baseDir = params.BaseDir
 	h.dedicated = params.Dedicated
 	h.gameDir = params.GameDir
+	h.baseGameDir = params.BaseGameDir
+	if h.baseGameDir == "" {
+		h.baseGameDir = "id1"
+	}
 	h.userDir = params.UserDir
 	h.args = params.Args
 	h.maxClients = params.MaxClients

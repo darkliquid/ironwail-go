@@ -706,7 +706,7 @@ func (g *Game) cmdScreenshot(args []string) {
 	}
 	modDir := strings.TrimSpace(g.ModDir)
 	if modDir == "" {
-		modDir = "id1"
+		modDir = g.Config.BaseGameDir
 	}
 
 	outputPath := filename

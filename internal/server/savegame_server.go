@@ -202,7 +202,7 @@ func (s *Server) validateTextSaveGameDir(gameDir string) error {
 
 	current := strings.TrimSpace(fsInfo.GameDir())
 	if current == "" {
-		current = "id1"
+		current = "id1" // TODO(bvw): thread BaseGameDir
 	}
 	if strings.EqualFold(current, gameDir) {
 		return nil

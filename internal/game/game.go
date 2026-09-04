@@ -14,6 +14,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/draw"
 	"github.com/darkliquid/ironwail-go/internal/game/camera"
+	"github.com/darkliquid/ironwail-go/internal/gameconfig"
 	"github.com/darkliquid/ironwail-go/internal/host"
 	"github.com/darkliquid/ironwail-go/internal/hud"
 	"github.com/darkliquid/ironwail-go/internal/input"
@@ -62,6 +63,7 @@ type Game struct {
 	WorldUploadKey    string
 	ShowScores        bool
 	ModDir            string
+	Config            gameconfig.Config
 
 	CameraSys          *camera.System
 	CameraInLiquid     bool

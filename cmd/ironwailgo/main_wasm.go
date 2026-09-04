@@ -11,6 +11,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/game"
+	"github.com/darkliquid/ironwail-go/internal/gameconfig"
 )
 
 const (
@@ -69,7 +70,7 @@ func main() {
 	// Non-headless so the WebGPU renderer constructs and binds the <canvas>
 	// (gogpu browser platform). basedir "/" + gamedir "id1" keeps the
 	// registration check on the shareware path; testing pak0 supplies map data.
-	if err := g.InitSubsystems(false, false, 4, "/", "id1", nil, mountedPak); err != nil {
+	if err := g.InitSubsystems(false, false, 4, "/", gameconfig.Default().BaseGameDir, nil, mountedPak); err != nil {
 		log.Fatalf("WASM initialization failed: %v", err)
 	}
 
@@ -104,7 +105,7 @@ func main() {
 
 	startup := game.StartupOptions{
 		BaseDir:    "/",
-		GameDir:    "id1",
+		GameDir:    gameconfig.Default().BaseGameDir,
 		Listen:     true,
 		MaxClients: 4,
 	}
