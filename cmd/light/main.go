@@ -23,6 +23,8 @@ import (
 func main() {
 	outPath := flag.String("o", "", "output .bsp path (default: overwrite input)")
 	lit := flag.Bool("lit", false, "write a QLIT v1 colored .lit sidecar")
+	sun := flag.Bool("sun", false, "enable sun entity / sunlight worldspawn lighting")
+	bounce := flag.Int("bounce", 0, "radiosity bounce count (0 = direct only)")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		fmt.Fprintln(os.Stderr, "usage: light [-o out.bsp] [-lit] map.bsp")
@@ -48,7 +50,15 @@ func main() {
 		log.Fatalf("light: load tree: %v", err)
 	}
 
-	res := light.Bake(faces, lights, light.TreeTracer(tree))
+	opts := light.BakeOpts{Bounce: *bounce}
+	if *sun {
+		s, err := light.ParseSun(bspData)
+		if err != nil {
+			log.Fatalf("light: parse sun: %v", err)
+		}
+		opts.Sun = s
+	}
+	res := light.BakeWithOpts(faces, lights, light.TreeTracer(tree), opts)
 	if len(res.Lighting) == 0 {
 		fmt.Println("light: no lightable faces (add light entities)")
 	}
@@ -68,7 +78,7 @@ func main() {
 
 	if *lit {
 		litPath := strings.TrimSuffix(out, filepath.Ext(out)) + ".lit"
-		if err := os.WriteFile(litPath, light.WriteLit(res.Lighting), 0o644); err != nil {
+		if err := os.WriteFile(litPath, light.WriteLit(&res), 0o644); err != nil {
 			log.Fatalf("light: write %s: %v", litPath, err)
 		}
 		fmt.Printf("light: wrote %s\n", litPath)
@@ -91,8 +101,16 @@ func patchBSP(bspData []byte, res light.Result) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Faces lump (BSP29): 20 bytes/face, lightofs int32 at offset 16.
+	// Faces lump (BSP29): 20 bytes/face, styles[4] at offset 12,
+	// lightofs int32 at offset 16.
 	facesLump := append([]byte(nil), lumps[7]...)
+	for i := range res.Styles {
+		off := i * 20
+		if off+20 > len(facesLump) {
+			continue
+		}
+		copy(facesLump[off+12:off+16], res.Styles[i][:])
+	}
 	for i, ofs := range res.LightOfs {
 		if ofs < 0 {
 			continue

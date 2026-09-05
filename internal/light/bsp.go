@@ -230,7 +230,25 @@ func ParseLights(bspData []byte) ([]Light, error) {
 				value = f
 			}
 		}
-		lights = append(lights, Light{Origin: o, Value: value})
+		style := 0
+		if v, ok := e["style"]; ok {
+			if n, err := strconv.Atoi(v); err == nil && n >= 0 && n <= 31 {
+				style = n
+			}
+		}
+		col := [3]float64{255, 255, 255}
+		if v, ok := e["_color"]; ok {
+			var c [3]float64
+			if _, err := fmt.Sscanf(v, "%f %f %f", &c[0], &c[1], &c[2]); err == nil {
+				col = c
+			}
+		} else if v, ok := e["color"]; ok {
+			var c [3]float64
+			if _, err := fmt.Sscanf(v, "%f %f %f", &c[0], &c[1], &c[2]); err == nil {
+				col = c
+			}
+		}
+		lights = append(lights, Light{Origin: o, Value: value, Style: style, Color: col})
 	}
 	return lights, nil
 }

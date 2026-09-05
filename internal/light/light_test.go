@@ -74,7 +74,7 @@ func TestWriteLitRoundTrip(t *testing.T) {
 	face := floorFace()
 	lights := []Light{{Origin: [3]float64{40, 40, 8}, Value: 1000}}
 	res := Bake([]Face{face}, lights, nil)
-	lit := WriteLit(res.Lighting)
+	lit := WriteLit(&res)
 
 	// ApplyLitFile must accept it against the mono lighting lump.
 	tree := &bsp.Tree{Lighting: res.Lighting}
@@ -97,6 +97,7 @@ func TestSkyFaceUnlit(t *testing.T) {
 		t.Error("sky face should have no lightmap offset")
 	}
 }
+
 // compileBoxWithLight builds a hollow box with a light entity and returns
 // the compiled BSP bytes.
 func compileBoxWithLight(t *testing.T) []byte {
@@ -206,7 +207,112 @@ func TestBSPIntegrationBake(t *testing.T) {
 	}
 	// The .lit sidecar must satisfy ApplyLitFile against the mono lump.
 	tree.Lighting = res.Lighting
-	if err := bsp.ApplyLitFile(tree, WriteLit(res.Lighting)); err != nil {
+	if err := bsp.ApplyLitFile(tree, WriteLit(&res)); err != nil {
 		t.Fatalf("ApplyLitFile: %v", err)
+	}
+}
+
+// TestStyleRouting verifies per-style lightmap blocks: two lights of
+// styles 0 and 3 on one face produce styles[4] = [0,3,255,255] and two
+// consecutive W*H blocks in the Lighting lump, with style-3 light only
+// affecting block 1.
+func TestStyleRouting(t *testing.T) {
+	face := floorFace()
+	l0 := Light{Origin: [3]float64{40, 40, 8}, Value: 1000, Style: 0}
+	l3 := Light{Origin: [3]float64{24, 24, 8}, Value: 1000, Style: 3}
+	res := Bake([]Face{face}, []Light{l0, l3}, nil)
+	if res.LightOfs[0] < 0 {
+		t.Fatal("face not lit")
+	}
+	if res.Styles[0] != [4]byte{0, 3, 255, 255} {
+		t.Errorf("styles = %v, want [0 3 255 255]", res.Styles[0])
+	}
+	// Two 5x5 blocks: block 0 only lit by style 0 (origin 40,40), block 1
+	// only lit by style 3 (origin 24,24).
+	block0 := res.Lighting[res.LightOfs[0] : res.LightOfs[0]+25]
+	block1 := res.Lighting[res.LightOfs[0]+25 : res.LightOfs[0]+50]
+	// Style 0 centre sample (2,2 -> s=40,t=40) bright; style 3 centre
+	// sample (1,1 -> s=24,t=24) bright.
+	if block0[2*5+2] == 0 {
+		t.Error("style-0 block centre is 0")
+	}
+	if block1[1*5+1] == 0 {
+		t.Error("style-3 block centre is 0")
+	}
+	// Style 3 must not contribute to block 0: near (40,40) the style-0
+	// block is the only lit one.
+	if block0[1*5+1] >= block0[2*5+2] {
+		t.Error("style-3 light leaked into the style-0 block")
+	}
+}
+
+// TestStyleLitSidecar verifies the .lit sidecar carries only style-0
+// samples: size == 8 + 3 * (style-0 block size).
+func TestStyleLitSidecar(t *testing.T) {
+	face := floorFace()
+	res := Bake([]Face{face}, []Light{
+		{Origin: [3]float64{40, 40, 8}, Value: 1000, Style: 0},
+		{Origin: [3]float64{24, 24, 8}, Value: 1000, Style: 3},
+	}, nil)
+	lit := WriteLit(&res)
+	// 5x5 = 25 style-0 samples.
+	if len(lit) != 8+25*3 {
+		t.Fatalf("lit size = %d, want %d", len(lit), 8+25*3)
+	}
+	if string(lit[0:4]) != "QLIT" {
+		t.Fatalf("lit magic = %q", lit[0:4])
+	}
+}
+
+// TestSunLightTopFaces verifies sun direction cosine: a floor face is
+// brightly lit from a straight-down sun, a vertical wall face is dark.
+func TestSunLightTopFaces(t *testing.T) {
+	sun := &Sun{Dir: [3]float64{0, 0, -1}, Value: 1000, Color: [3]float64{255, 255, 255}}
+	floor := floorFace()
+	wall := Face{
+		Index:  1,
+		Poly:   [][3]float64{{0, 0, 0}, {0, 64, 0}, {0, 64, 64}, {0, 0, 64}},
+		Vecs:   [2][4]float64{{0, 1, 0, 0}, {0, 0, 1, 0}},
+		Normal: [3]float64{-1, 0, 0},
+	}
+	r, _, _ := sun.SunLight(&floor, [3]float64{32, 32, 0})
+	if r <= 0 {
+		t.Error("sun should light a floor facing up")
+	}
+	r2, _, _ := sun.SunLight(&wall, [3]float64{0, 32, 32})
+	if r2 > r*0.01 {
+		t.Errorf("wall normal away from sun got %v, want ~0", r2)
+	}
+}
+
+// TestBounceLightReachesShadowedWall verifies single-bounce radiosity:
+// a wall whose direct light is shadow-blocked still receives non-zero
+// light from the lit floor (the bounce pass).
+func TestBounceLightReachesShadowedWall(t *testing.T) {
+	floor := floorFace()
+	wall := Face{
+		Index:  1,
+		Poly:   [][3]float64{{0, 0, 0}, {0, 64, 0}, {0, 64, 64}, {0, 0, 64}},
+		Vecs:   [2][4]float64{{0, 1, 0, 0}, {0, 0, 1, 0}},
+		Normal: [3]float64{1, 0, 0}, // +x, facing the lit floor
+	}
+	lights := []Light{{Origin: [3]float64{32, 32, 8}, Value: 20000}}
+	// Occlude rays FROM the light (z=8) TO the wall (x=0); floor-light rays
+	// and floor->wall radiosity rays pass.
+	trace := func(from, to [3]float64) bool {
+		return to[0] < 8 && from[2] > 2
+	}
+	direct := Bake([]Face{floor, wall}, lights, trace)
+	if direct.LightOfs[1] < 0 {
+		t.Fatal("wall should have a lightmap")
+	}
+	directVal := direct.Lighting[int(direct.LightOfs[1])+2*5+2]
+	bounced := BakeWithOpts([]Face{floor, wall}, lights, trace, BakeOpts{Bounce: 1})
+	bouncedVal := bounced.Lighting[int(bounced.LightOfs[1])+2*5+2]
+	if directVal != 0 {
+		t.Logf("note: wall direct sample = %d (expected 0 with occlusion)", directVal)
+	}
+	if bouncedVal <= directVal {
+		t.Errorf("bounce did not light the wall: direct=%d bounced=%d", directVal, bouncedVal)
 	}
 }

@@ -11,11 +11,13 @@ import (
 type Options struct {
 	// BSP2 emits the extended 32-bit BSP2 format instead of BSP29.
 	BSP2 bool
-	// Margin is the void ring around the map used for leak detection and
-	// the root bounding box (units).
+	// Margin is retained for API compatibility; the solidbsp region is the
+	// union of the world brush bounds (the classic qbsp entity bounds).
 	Margin float64
 	// Log receives progress diagnostics; may be nil.
 	Log func(format string, a ...any)
+	// OmitDetail drops func_detail* brush entities entirely.
+	OmitDetail bool
 }
 
 func (o *Options) log(format string, a ...any) {
@@ -34,6 +36,8 @@ type CompileResult struct {
 	// PortalFile is the PRT1 portal file for vis (nil when the tree is
 	// degenerate or sealed with no portals).
 	PortalFile *PortalFile
+	// Models is the number of model records emitted (1 + brush entities).
+	Models int
 }
 
 // Point is the exported alias for the compiler's double-precision 3D point,
@@ -47,6 +51,7 @@ type worldBrush struct {
 	planes  []int // plane table indices (one per face)
 	content int32
 	bounds  [2]vec3
+	sortKey int64
 }
 
 // texinfoEntry is one final texinfo (deduplicated).
@@ -64,8 +69,6 @@ type compiler struct {
 	// texByPlane maps a plane index to the texinfo entry used by the brush
 	// that owns it (first brush wins).
 	texByPlane map[int]int
-	brushes    []worldBrush
-	wbounds    [2]vec3
 	logs       []string
 }
 
@@ -74,13 +77,24 @@ func (c *compiler) logf(format string, a ...any) {
 	c.opts.log(format, a...)
 }
 
+// modelOut is one emitted model record (world or brush-entity submodel).
+type modelOut struct {
+	mins, maxs vec3
+	origin     vec3
+	root       childRef // absolute node/leaf ref into the shared tables
+	visLeafs   int32
+	firstFace  int
+	numFaces   int
+	clipRoot   int32 // headnode[1] (clip hull root)
+}
+
 // Compile runs the qbsp pipeline over a parsed map and returns a writable
-// result. The pipeline is: collect world brushes and planes, build the
-// plane arrangement (CSG), resolve cell contents, detect leaks, generate
-// faces/edges/vertexes, build clipnode hulls, then serialise lumps.
+// result: per-model solidbsp trees (world + brush entities), chops,
+// leaf-content resolution, faces/edges/vertexes, leak detection, and
+// per-model clipnode hulls, then serialises the lumps.
 func Compile(m *Map, opts Options) (*CompileResult, error) {
-	if opts.Margin == 0 {
-		opts.Margin = 64
+	if len(m.Entities) == 0 {
+		return nil, fmt.Errorf("qbsp: no entities")
 	}
 	c := &compiler{
 		opts:       opts,
@@ -88,128 +102,161 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 	}
 	c.logf("--- qbsp %d entities, building planes ---", len(m.Entities))
 
-	world, err := c.collectBrushes(m)
+	groups, err := c.collectAllBrushes(m, opts.OmitDetail)
 	if err != nil {
 		return nil, err
 	}
+	if len(groups) == 0 || len(groups[0].brushes) == 0 {
+		return nil, fmt.Errorf("qbsp: no world geometry")
+	}
 
-	// 1. Planes: brush faces + six box planes.
-	c.addBoxPlanes()
+	var models []modelOut
+	var allFaces []outFace
+	var allNodes []outNode
+	var allLeafs []outLeaf
+	var allClips []outClipNode
 
-	// 2. Arrangement (CSG).
-	arr, err := c.buildWorldArrangement()
+	var pf *PortalFile
+	var leakPath []vec3
+	leaked := false
+
+	for gi, g := range groups {
+		world := g.isWorld
+		bounds := worldBoundsOf(&g)
+		list := c.bspBrushList(&g)
+		list = chopBrushes(list)
+		policy := splitPrecise
+		if !world {
+			policy = splitFast
+		}
+		tb := &treeBuild{register: c.addPlaneIndex}
+		root := tb.build(bounds, rootRegion(bounds), -1, -1, list, policy)
+		tb.finalize(bounds)
+
+		// Renumber leaves non-solid-first (per model) and offset into the
+		// shared node/leaf tables. Paths are computed on the local tree
+		// before offsetting (parent links stay model-local afterwards).
+		nodes, leafs, remap := renumberLeaves(tb.nodes, tb.leafs)
+		paths := modelPaths(tb.nodes, tb.leafs, remap)
+		nodeBase, leafBase := len(allNodes), len(allLeafs)
+		for i := range nodes {
+			for ch := 0; ch < 2; ch++ {
+				ref := &nodes[i].children[ch]
+				if ref.isLeaf {
+					// renumberLeaves already remapped this leaf ref.
+					ref.idx += leafBase
+				} else {
+					ref.idx += nodeBase
+				}
+			}
+		}
+		if root.isLeaf {
+			root.idx = remap[root.idx] + leafBase
+		} else {
+			root.idx += nodeBase
+		}
+
+		// Single-leaf trees get a dummy node so headnode points into the
+		// node lump (the engine assumes model headnodes are nodes).
+		if root.isLeaf {
+			dmy := outNode{
+				planenum: 0,
+				splitN:   v3(1, 0, 0),
+				splitD:   bounds[1][0],
+				bounds:   bounds,
+				parent:   -1,
+				side:     -1,
+				children: [2]childRef{{isLeaf: true, idx: root.idx}, {isLeaf: true, idx: root.idx}},
+			}
+			nodes = append(nodes, dmy)
+			root = childRef{isLeaf: false, idx: nodeBase + len(nodes) - 1}
+		}
+
+		var faces []outFace
+		var attach [][]int
+		if world {
+			faces, attach, pf, leakPath, leaked = c.buildWorldSurfaces(bounds, root, nodes, leafs, paths, m)
+		} else {
+			faces, attach = c.buildModelSurfaces(bounds, root, nodes, leafs, paths)
+		}
+		for i := range leafs {
+			leafs[i].marksurface = attach[i]
+		}
+
+		// Clip hulls (per model, shared lump).
+		clipBase := int32(len(allClips))
+		hulls := list
+		if !world {
+			var solid []*bspBrush
+			for _, b := range list {
+				if b.content == bsp.ContentsSolid {
+					solid = append(solid, b)
+				}
+			}
+			hulls = solid
+		}
+		expanded := c.expandSolidBrushes(hulls, bounds)
+		clip := c.buildHullClipNodes(expanded, bounds)
+		for i := range clip {
+			clip[i].children[0] = offsetClipChild(clip[i].children[0], clipBase)
+			clip[i].children[1] = offsetClipChild(clip[i].children[1], clipBase)
+		}
+		allClips = append(allClips, clip...)
+
+		mo := modelOut{
+			mins:      bounds[0],
+			maxs:      bounds[1],
+			origin:    g.origin,
+			root:      root,
+			visLeafs:  visLeafs(leafs),
+			firstFace: len(allFaces),
+			numFaces:  len(faces),
+			clipRoot:  clipBase,
+		}
+		if !world {
+			// Q1 shrunken submodel bounds (the engine compensates).
+			for i := 0; i < 3; i++ {
+				mo.mins[i] += 1
+				mo.maxs[i] -= 1
+			}
+		}
+		models = append(models, mo)
+		allFaces = append(allFaces, faces...)
+		allNodes = append(allNodes, nodes...)
+		allLeafs = append(allLeafs, leafs...)
+
+		c.logf("model %d: %s, nodes %d, leafs %d, faces %d, clipnodes %d",
+			gi, map[bool]string{true: "world", false: "submodel"}[world],
+			len(nodes), len(leafs), len(faces), len(allClips))
+	}
+
+	// T-junction fixing (crack elimination between coplanar faces), then
+	// global face plane-ordering + node spans.
+	if len(allFaces) > 1 {
+		fixTJunctions(allFaces)
+	}
+	orderFacesByPlane(&allFaces, allLeafs)
+	setNodeFaceSpans(allNodes, allFaces)
+
+	res, err := c.assemble(m, models, allFaces, allNodes, allLeafs, allClips, leakPath, leaked)
 	if err != nil {
 		return nil, err
 	}
-
-	// 3. Cell contents.
-	c.assignContents(arr, world)
-
-	// 4. Leak detection.
-	leakPath, leaked := c.detectLeak(m, arr)
-
-	// 5. Faces + edges + texinfo.
-	faces, faceByCell, err := c.makeFaces(arr)
-	if err != nil {
-		return nil, err
-	}
-
-	// 6. BSP node/leaf tree for the world (non-solid leaves first, so the
-	// engine's PVS row math lines up with leaf indices).
-	root, nodes, leafs, cellLeaf := c.buildTree(arr, faceByCell)
-	nodes, leafs, leafRenumber := renumberLeaves(nodes, leafs)
-
-	// 6b. Portal file (.prt) for vis: shared facets between non-solid
-	// leaves, using the renumbered leaf indices.
-	portalData := c.gatherPortals(arr, cellLeaf, leafRenumber)
-
-	// 7. Clipnode hulls (one expanded tree shared by hulls 1 and 2).
-	clipNodes := c.buildHullClipNodes(world)
-
-	res, err := c.assemble(m, faces, nodes, leafs, root, clipNodes, leakPath, leaked)
-	if err != nil {
-		return nil, err
-	}
-	res.PortalFile = portalData
+	res.PortalFile = pf
+	res.Models = len(models)
 	if leaked {
 		c.logf("LEAK: map leaks to the void (%d points in trail)", len(leakPath))
 	}
 	return res, nil
 }
 
-// collectBrushes enumerates world + brush-entity brushes and registers
-// their planes/texinfo entries.
-func (c *compiler) collectBrushes(m *Map) ([]worldBrush, error) {
-	faces := []MapFace{}
-	planeIdx := []int{}
-	planeOwner := []int{} // brush index per plane
-	var bounds [2]vec3
-	haveBounds := false
-
-	addBrush := func(brush MapBrush, content int32) (worldBrush, error) {
-		wb := worldBrush{orig: brush, content: content}
-		for _, face := range brush.Faces {
-			pi, ok := c.planeIndexFor(face)
-			if !ok {
-				// degenerate; skip
-				continue
-			}
-			wb.planes = append(wb.planes, pi)
-			if _, exists := c.texByPlane[pi]; !exists {
-				// texture from this brush's face
-				ti := c.texinfoIndex(face)
-				c.texByPlane[pi] = ti
-			}
-			_ = faces
-			_ = planeIdx
-			_ = planeOwner
-		}
-		// bounds of the brush (from its faces' planes)
-		wm, wx, err := brushBounds(brush)
-		if err != nil {
-			return wb, err
-		}
-		wb.bounds = [2]vec3{wm, wx}
-		if !haveBounds {
-			bounds = wb.bounds
-			haveBounds = true
-		} else {
-			for i := 0; i < 3; i++ {
-				if wm[i] < bounds[0][i] {
-					bounds[0][i] = wm[i]
-				}
-				if wx[i] > bounds[1][i] {
-					bounds[1][i] = wx[i]
-				}
-			}
-		}
-		return wb, nil
+// offsetClipChild rebases a clipnode child (>=0 node index) by base;
+// negative children are contents and are untouched.
+func offsetClipChild(ch int32, base int32) int32 {
+	if ch >= 0 {
+		return ch + base
 	}
-
-	// World entity brushes.
-	world := m.Entities[0]
-	for _, brush := range world.Brushes {
-		content, draw := contentsForBrush(brush.Faces)
-		if !draw {
-			continue
-		}
-		wb, err := addBrush(brush, content)
-		if err != nil {
-			return nil, err
-		}
-		c.brushes = append(c.brushes, wb)
-	}
-
-	// Expand world bounds by the margin.
-	bounds[0][0] -= c.opts.Margin
-	bounds[0][1] -= c.opts.Margin
-	bounds[0][2] -= c.opts.Margin
-	bounds[1][0] += c.opts.Margin
-	bounds[1][1] += c.opts.Margin
-	bounds[1][2] += c.opts.Margin
-	c.wbounds = bounds
-
-	return c.brushes, nil
+	return ch
 }
 
 // planeIndexFor finds or creates the plane-table entry for a face.
@@ -223,15 +270,6 @@ func (c *compiler) planeIndexFor(face MapFace) (int, bool) {
 	}
 	c.planes = append(c.planes, p)
 	return len(c.planes) - 1, true
-}
-
-// addBoxPlanes appends the root bounding box planes (always last in the
-// table, which buildArrangement requires).
-func (c *compiler) addBoxPlanes() {
-	bp := boxPlanes(c.wbounds[0], c.wbounds[1])
-	for _, p := range bp {
-		c.planes = append(c.planes, p)
-	}
 }
 
 // texinfoIndex dedupes a texinfo entry.
@@ -334,47 +372,6 @@ func planeTriplePoint(a, b, c plane) (vec3, bool) {
 
 func inBrush(p vec3, planes []plane) bool {
 	for _, pl := range planes {
-		if v3Dot(pl.Normal, p)-pl.Dist > 0.01 {
-			return false
-		}
-	}
-	return true
-}
-
-
-// buildWorldArrangement constructs the CSG arrangement over the world
-// brushes' planes within the bounds box.
-func (c *compiler) buildWorldArrangement() (*arrangement, error) {
-	// planes table already contains brush planes + 6 box planes.
-	if len(c.planes) < 6 {
-		return nil, fmt.Errorf("no world geometry")
-	}
-	return buildArrangement(c.planes, c.wbounds), nil
-}
-
-// assignContents resolves each cell's contents: the content of the last
-// world brush containing the cell centre (later brushes override, matching
-// Quake's water-in-pit semantics), else empty.
-func (c *compiler) assignContents(arr *arrangement, brushes []worldBrush) {
-	for ci := range arr.cells {
-		center := arr.cellCenter(ci)
-		content := int32(bsp.ContentsEmpty)
-		for _, b := range brushes {
-			if insideBrush(center, b) {
-				content = b.content
-			}
-		}
-		arr.cells[ci].content = content
-	}
-}
-
-// insideBrush tests a point against the brush's outward planes
-// (interior = dot(n,x) <= d + tol).
-func insideBrush(p vec3, b worldBrush) bool {
-	// b.planes refers to c.planes — but assignContents doesn't have c. Use
-	// the original faces instead; this mirrors the caller's data.
-	for _, face := range b.orig.Faces {
-		pl := face.Plane()
 		if v3Dot(pl.Normal, p)-pl.Dist > 0.01 {
 			return false
 		}

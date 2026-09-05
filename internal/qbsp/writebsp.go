@@ -11,47 +11,31 @@ import (
 )
 
 // assemble builds all lumps and returns the serialised BSP.
-func (c *compiler) assemble(m *Map, faces []outFace, nodes []outNode, leafs []outLeaf, root childRef, clip []outClipNode, leakPath []vec3, leaked bool) (*CompileResult, error) {
+func (c *compiler) assemble(m *Map, models []modelOut, faces []outFace, nodes []outNode, leafs []outLeaf, clip []outClipNode, leakPath []vec3, leaked bool) (*CompileResult, error) {
 	vertexes, edges, surfedges := edgeTables(faces)
-
-	// Model bounds: union of the world brush bounds.
-	var modelMins, modelMaxs vec3
-	if len(c.brushes) > 0 {
-		modelMins, modelMaxs = c.brushes[0].bounds[0], c.brushes[0].bounds[1]
-		for _, b := range c.brushes[1:] {
-			for i := 0; i < 3; i++ {
-				if b.bounds[0][i] < modelMins[i] {
-					modelMins[i] = b.bounds[0][i]
-				}
-				if b.bounds[1][i] > modelMaxs[i] {
-					modelMaxs[i] = b.bounds[1][i]
-				}
-			}
-		}
-	}
 
 	res := &CompileResult{
 		BSP2:     c.opts.BSP2,
 		LeakPath: leakPath,
 		Leaked:   leaked,
 	}
-	c.logf("planes %d, nodes %d, leafs %d, faces %d, clipnodes %d",
-		len(c.planes), len(nodes), len(leafs), len(faces), len(clip))
+	c.logf("planes %d, nodes %d, leafs %d, faces %d, clipnodes %d, models %d",
+		len(c.planes), len(nodes), len(leafs), len(faces), len(clip), len(models))
 
 	// ---- lumps (in header order) ----
 	entities := serializeEntities(m)
 	planes := c.serializePlanes()
 	textures := c.serializeTextures()
 	vis := []byte{}
-	nodeBytes := serializeNodes(nodes, root, c.opts.BSP2)
+	nodeBytes := serializeNodes(nodes, childRef{}, c.opts.BSP2)
 	texinfoBytes := c.serializeTexinfo()
 	faceBytes := serializeFaces(faces, c.opts.BSP2)
 	lighting := []byte{}
 	clipBytes := serializeClipnodes(clip, c.opts.BSP2)
-	leafBytes, marksurfBytes := serializeLeafs(leafs, root, c.opts.BSP2)
+	leafBytes, marksurfBytes := serializeLeafs(leafs, childRef{}, c.opts.BSP2)
 	edgeBytes := serializeEdges(edges, c.opts.BSP2)
 	surfedgeBytes := serializeInts32(surfedges)
-	modelBytes := serializeModels(modelMins, modelMaxs, len(nodes), len(clip), visLeafs(leafs), len(faces))
+	modelBytes := serializeModels(models, c.opts.BSP2)
 
 	lumps := [][]byte{
 		entities, planes, textures, vertexBytes(vertexes), vis,
@@ -216,7 +200,7 @@ func serializeNodes(nodes []outNode, root childRef, bsp2 bool) []byte {
 	if bsp2 {
 		for _, n := range nodes {
 			var rec [44]byte
-			binary.LittleEndian.PutUint32(rec[0:], uint32(n.plane))
+			binary.LittleEndian.PutUint32(rec[0:], uint32(n.planenum))
 			for i := 0; i < 2; i++ {
 				binary.LittleEndian.PutUint32(rec[4+i*4:], uint32(int32(childBytes(n.children[i], true))))
 			}
@@ -224,14 +208,14 @@ func serializeNodes(nodes []outNode, root childRef, bsp2 bool) []byte {
 				binary.LittleEndian.PutUint32(rec[12+i*4:], math.Float32bits(float32(n.bounds[0][i])))
 				binary.LittleEndian.PutUint32(rec[24+i*4:], math.Float32bits(float32(n.bounds[1][i])))
 			}
-			binary.LittleEndian.PutUint32(rec[36:], 0)
-			binary.LittleEndian.PutUint32(rec[40:], 0)
+			binary.LittleEndian.PutUint32(rec[36:], uint32(n.firstface))
+			binary.LittleEndian.PutUint32(rec[40:], uint32(n.numfaces))
 			b.Write(rec[:])
 		}
 	} else {
 		for _, n := range nodes {
 			var rec [24]byte
-			binary.LittleEndian.PutUint32(rec[0:], uint32(n.plane))
+			binary.LittleEndian.PutUint32(rec[0:], uint32(n.planenum))
 			for i := 0; i < 2; i++ {
 				binary.LittleEndian.PutUint16(rec[4+i*2:], uint16(int16(childBytes(n.children[i], false))))
 			}
@@ -239,8 +223,8 @@ func serializeNodes(nodes []outNode, root childRef, bsp2 bool) []byte {
 				binary.LittleEndian.PutUint16(rec[8+i*2:], uint16(int16(clamp16(n.bounds[0][i]))))
 				binary.LittleEndian.PutUint16(rec[14+i*2:], uint16(int16(clamp16(n.bounds[1][i]))))
 			}
-			binary.LittleEndian.PutUint16(rec[20:], 0)
-			binary.LittleEndian.PutUint16(rec[22:], 0)
+			binary.LittleEndian.PutUint16(rec[20:], uint16(n.firstface))
+			binary.LittleEndian.PutUint16(rec[22:], uint16(n.numfaces))
 			b.Write(rec[:])
 		}
 	}
@@ -399,22 +383,31 @@ func vertexBytes(vertexes []vec3) []byte {
 
 // ---- models ----
 
-func serializeModels(mins, maxs vec3, numNodes, numClip int, visLeafs int32, numFaces int) []byte {
+func serializeModels(models []modelOut, bsp2 bool) []byte {
 	// DModel layout: mins f32[3] @0, maxs @12, origin @24, headnode[4] @36,
 	// visleafs @52, firstface @56, numfaces @60 (64 bytes).
-	_ = numNodes
-	_ = numClip
-	var rec [64]byte
-	for i := 0; i < 3; i++ {
-		binary.LittleEndian.PutUint32(rec[i*4:], math.Float32bits(float32(mins[i])))
-		binary.LittleEndian.PutUint32(rec[12+i*4:], math.Float32bits(float32(maxs[i])))
+	var b bytes.Buffer
+	for _, mo := range models {
+		var rec [64]byte
+		for i := 0; i < 3; i++ {
+			binary.LittleEndian.PutUint32(rec[i*4:], math.Float32bits(float32(mo.mins[i])))
+			binary.LittleEndian.PutUint32(rec[12+i*4:], math.Float32bits(float32(mo.maxs[i])))
+			binary.LittleEndian.PutUint32(rec[24+i*4:], math.Float32bits(float32(mo.origin[i])))
+		}
+		head := int32(0)
+		if !mo.root.isLeaf {
+			head = int32(mo.root.idx)
+		}
+		binary.LittleEndian.PutUint32(rec[36:], uint32(head))        // headnode[0]
+		binary.LittleEndian.PutUint32(rec[40:], uint32(mo.clipRoot)) // headnode[1]
+		binary.LittleEndian.PutUint32(rec[44:], 0)
+		binary.LittleEndian.PutUint32(rec[48:], 0)
+		binary.LittleEndian.PutUint32(rec[52:], uint32(mo.visLeafs))
+		binary.LittleEndian.PutUint32(rec[56:], uint32(mo.firstFace))
+		binary.LittleEndian.PutUint32(rec[60:], uint32(mo.numFaces))
+		b.Write(rec[:])
 	}
-	binary.LittleEndian.PutUint32(rec[36:], 0) // headnode[0] = world node root (node 0)
-	binary.LittleEndian.PutUint32(rec[40:], 0) // headnode[1] unused (clip tree root is 0)
-	binary.LittleEndian.PutUint32(rec[44:], 0)
-	binary.LittleEndian.PutUint32(rec[48:], 0)
-	binary.LittleEndian.PutUint32(rec[52:], uint32(visLeafs))
-	return rec[:]
+	return b.Bytes()
 }
 
 // writeBSP assembles the header + lumps. Header: int32 version followed by

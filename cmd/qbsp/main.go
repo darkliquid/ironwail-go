@@ -20,6 +20,7 @@ func main() {
 	bsp2 := flag.Bool("bsp2", false, "emit the extended BSP2 format (32-bit lumps)")
 	leaktest := flag.Bool("leaktest", false, "exit 1 if the map leaks")
 	margin := flag.Float64("margin", 64, "void ring around the map (units)")
+	omitDetail := flag.Bool("omitdetail", false, "drop func_detail* entities entirely")
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -44,9 +45,10 @@ func main() {
 	}
 
 	res, err := qbsp.Compile(m, qbsp.Options{
-		BSP2:   *bsp2,
-		Margin: *margin,
-		Log:    func(f string, a ...any) { fmt.Printf("  "+f+"\n", a...) },
+		BSP2:       *bsp2,
+		Margin:     *margin,
+		OmitDetail: *omitDetail,
+		Log:        func(f string, a ...any) { fmt.Printf("  "+f+"\n", a...) },
 	})
 	if err != nil {
 		log.Fatalf("qbsp: %v", err)

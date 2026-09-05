@@ -20,142 +20,86 @@ type outClipNode struct {
 // must be expanded for the largest box.
 var clipHullExtents = [2]vec3{{32, 32, 24}, {32, 32, 64}}
 
-// buildHullClipNodes expands the solid world brushes by the clip-hull box
-// and builds a single clip tree (root at index 0) shared by hulls 1 and 2.
-// Liquids and sky are passable in the clip hulls (treated as empty), and
-// skip/hint brushes are ignored, matching classic qbsp hull semantics.
-func (c *compiler) buildHullClipNodes(world []worldBrush) []outClipNode {
-	// 1. Expanded plane table.
-	var planes []plane
-	addPlane := func(p plane) int {
-		p = normalizePlane(p)
-		for i, existing := range planes {
-			if planeEqualNear(p, existing) {
-				return i
-			}
-		}
-		planes = append(planes, p)
-		return len(planes) - 1
-	}
-
-	type expandedBrush struct {
-		planes []int
-		volume bool
-	}
-	var expBrushes []expandedBrush
+// expandSolidBrushes builds the clip-hull brush list: every solid world
+// brush with its planes shifted outward by the hull extents projection
+// (liquids/sky are passable in the clip hulls and are skipped, matching
+// classic qbsp hull semantics). Expanded planes are registered in the
+// compiler's main plane table (clip nodes reference it), deduped against
+// existing entries.
+func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3) []*bspBrush {
+	var out []*bspBrush
 	for _, b := range world {
 		if b.content != bsp.ContentsSolid {
 			continue // liquids/sky passable in clip hulls
 		}
-		eb := expandedBrush{}
-		for _, pi := range b.planes {
-			p := c.planes[pi]
-			// Shift the inward-facing-solid plane outward by the hull box
-			// projection so a point trace (hull centre) stays clear.
-			shift := math.Abs(p.Normal[0])*clipHullExtents[1][0] +
-				math.Abs(p.Normal[1])*clipHullExtents[1][1]
-			if p.Normal[2] >= 0 {
+		faces := make([]brushFace, 0, len(b.sides))
+		for _, s := range b.sides {
+			n := s.n
+			shift := math.Abs(n[0])*clipHullExtents[1][0] +
+				math.Abs(n[1])*clipHullExtents[1][1]
+			if n[2] >= 0 {
 				shift += clipHullExtents[1][2]
 			} else {
 				shift += clipHullExtents[0][2]
 			}
-			p.Dist = snapPlaneDist(p.Dist + shift)
-			eb.planes = append(eb.planes, addPlane(p))
+			p := plane{Normal: n, Dist: snapPlaneDist(s.d + shift)}
+			faces = append(faces, brushFace{p: p, pn: c.addPlaneIndex(p)})
 		}
-		if len(eb.planes) > 0 {
-			eb.volume = true
-			expBrushes = append(expBrushes, eb)
+		eb := buildBspBrushFaces(faces, bounds)
+		if eb == nil {
+			continue
 		}
+		eb.content = bsp.ContentsSolid
+		eb.sortKey = b.sortKey
+		out = append(out, eb)
 	}
+	return out
+}
 
-	// 2. Box planes.
-	np := len(planes)
-	bp := boxPlanes(c.wbounds[0], c.wbounds[1])
-	for _, p := range bp {
-		planes = append(planes, p)
+// addPlaneIndex finds or creates a normalized plane-table entry (used for
+// hull clip planes, which share the main plane lump).
+func (c *compiler) addPlaneIndex(p plane) int {
+	p = normalizePlane(p)
+	p.Dist = snapPlaneDist(p.Dist)
+	for i, existing := range c.planes {
+		if planeEqualNear(p, existing) {
+			return i
+		}
 	}
+	c.planes = append(c.planes, p)
+	return len(c.planes) - 1
+}
 
-	// 3. Arrangement + contents: solid iff inside any expanded brush.
-	arr := buildArrangement(planes, c.wbounds)
-	for ci := range arr.cells {
-		center := arr.cellCenter(ci)
-		solid := false
-		for _, eb := range expBrushes {
-			inside := true
-			for _, pi := range eb.planes {
-				if v3Dot(planes[pi].Normal, center)-planes[pi].Dist > 0.01 {
-					inside = false
-					break
-				}
-			}
-			if inside {
-				solid = true
-				break
-			}
+// buildHullClipNodes compiles the clip-hull tree (hulls 1/2 shared root at
+// clipnode 0) from the expanded solid brushes using the solidbsp recursion.
+func (c *compiler) buildHullClipNodes(hulls []*bspBrush, bounds [2]vec3) []outClipNode {
+	tb := &treeBuild{}
+	tb.register = c.addPlaneIndex
+	root := tb.build(bounds, rootRegion(bounds), -1, -1, hulls, splitFast)
+	if root.isLeaf {
+		// Empty clip tree: a single EMPTY clipnode keeps headnode valid.
+		var content int32 = bsp.ContentsEmpty
+		if len(hulls) > 0 {
+			content = hulls[0].content
 		}
-		if solid {
-			arr.cells[ci].content = bsp.ContentsSolid
-		} else {
-			arr.cells[ci].content = bsp.ContentsEmpty
-		}
+		return []outClipNode{{plane: 0, children: [2]int32{content, content}}}
 	}
-
-	// 4. Clip tree.
-	cells := make([]int, len(arr.cells))
-	for i := range arr.cells {
-		cells[i] = i
+	leafContent := make([]int32, len(tb.leafs))
+	for i := range tb.leafs {
+		leafContent[i] = tb.leafs[i].content
 	}
-	var clip []outClipNode
-	var build func(cells []int) int32
-	build = func(sub []int) int32 {
-		content := arr.cells[sub[0]].content
-		homogeneous := true
-		for _, ci := range sub[1:] {
-			if arr.cells[ci].content != content {
-				homogeneous = false
-				break
-			}
-		}
-		if homogeneous || len(sub) == 1 {
-			return content // negative = leaf
-		}
-		bestPlane, bestScore := -1, 0
-		for pi := 0; pi < np; pi++ {
-			front, back := 0, 0
-			for _, ci := range sub {
-				if hsFront(arr.cells[ci], pi) {
-					front++
-				} else {
-					back++
-				}
-			}
-			score := front
-			if back < score {
-				score = back
-			}
-			if score > 0 && score > bestScore {
-				bestScore = score
-				bestPlane = pi
-			}
-		}
-		if bestPlane < 0 {
-			return content
-		}
-		var front, back []int
-		for _, ci := range sub {
-			if hsFront(arr.cells[ci], bestPlane) {
-				front = append(front, ci)
+	clip := make([]outClipNode, len(tb.nodes))
+	for i, nd := range tb.nodes {
+		cn := outClipNode{plane: nd.planenum}
+		for c := 0; c < 2; c++ {
+			ch := nd.children[c]
+			if ch.isLeaf {
+				cn.children[c] = leafContent[ch.idx]
 			} else {
-				back = append(back, ci)
+				cn.children[c] = int32(ch.idx)
 			}
 		}
-		idx := int32(len(clip))
-		clip = append(clip, outClipNode{plane: bestPlane})
-		clip[idx].children[0] = build(front)
-		clip[idx].children[1] = build(back)
-		return idx
+		clip[i] = cn
 	}
-	root := build(cells)
-	_ = root // always 0 for a non-empty tree
 	return clip
 }

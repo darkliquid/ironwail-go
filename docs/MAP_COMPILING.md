@@ -33,11 +33,13 @@ whole chain with `mise run map-build MAP=name` (reads `name.map`, writes
 ```
 
 `qbsp` flags: `-o out.bsp`, `-bsp2` (extended 32-bit BSP2 format), `-leaktest`
-(fail on leaks), `-margin n` (void ring around the map). On a leak it writes
-`mymap.pts` with the point trail from the entity to the void.
+(fail on leaks), `-margin n`, `-omitdetail` (drop `func_detail*` entities
+entirely). On a leak it writes `mymap.pts` with the point trail from the
+entity to the void.
 
 `vis` flags: `-o out.bsp`. `light` flags: `-o out.bsp`, `-lit` (write the
-colored `.lit` sidecar).
+colored `.lit` sidecar), `-sun` (sun/`sunlight` directional lighting),
+`-bounce n` (radiosity bounce count, 0 = direct only).
 
 ## Map format
 
@@ -58,11 +60,32 @@ names; the engine renders them from the BSP lump.
 
 ## Lighting
 
-`light` bakes direct point lighting: each lightmap luxel (16 units apart in
-S/T space) accumulates `light / dist² · cosθ` from every `light` entity
-(`"origin" "x y z"`, `"light" "300"`), clamped to 255, with a ray-vs-BSP
-shadow trace. `-lit` writes a QLIT v1 colored sidecar (3 bytes per sample)
-that the engine's `ApplyLitFile` reads.
+`light` bakes per-style point lighting: each lightmap luxel (16 units
+apart in S/T space) accumulates `light / dist² · cosθ` from every `light`
+entity (`"origin" "x y z"`, `"light" "300"`, optional `"style" "k"` 0..31
+for separate animated lightmaps and `"_color" "r g b"`), clamped to 255,
+with a ray-vs-BSP shadow trace. The Lighting lump holds one `W·H` block per
+face style (face `styles[4]` + `lightofs` are patched in the BSP). `-lit`
+writes a QLIT v1 colored sidecar of the style-0 samples that the engine's
+`ApplyLitFile` reads.
+
+- **Sun** (`-sun`): a `sun` entity (or worldspawn `sunlight`,
+  `sun_mangle`, `sunlight_color`) lights non-sky faces directionally; sky
+  faces (`sky*` textures) get no lightmap.
+- **Bounce** (`-bounce n`): clamped single-bounce radiosity re-emits each
+  lit surface's style-0 radiance onto its neighbours (shadow-traced),
+  illuminating walls with no direct light.
+
+## Brush entities
+
+Brush-carrying entities (`func_wall`, `func_door`, …) compile to inline
+`*N` BSP submodels: each gets its own node tree, faces, and per-hull clip
+tree, and the entity gains a `"model" "*N"` key the engine resolves.
+World-first model records; submodel bounds are shrunken by 1 unit per the
+Q1 convention. The compiler CSG is classic **solidbsp** (brush splitting)
+— real-sized maps (thousands of planes) compile in linear-ish time, and a
+**t-junction fixing pass** splits crack-prone edges between coplanar
+faces.
 
 ## Verifying output
 
@@ -74,8 +97,7 @@ that the engine's `ApplyLitFile` reads.
 
 ## Known limits (follow-up)
 
-- Brush-entity submodels (`func_wall` `*N`) are not yet emitted.
-- The arrangement-based CSG is suited to small maps; a solidbsp port is the
-  scale-up path for large maps.
-- No t-junction fixing.
-- Light styles, sun, and bounce are not yet implemented (direct lighting only).
+Tracked in bead `ironwail-go-c05`: HDR/`-lit2`, `-extra` supersampling,
+phong shading, lightgrid, `-2psb`, HL/Q2 targets, BSPX lumps, per-submodel
+PVS rows, and texture-color bounce without `-wadpath`. Submodel clip hulls
+use the shared ±32-unit expansion seed (per-hull trees are a follow-up).
