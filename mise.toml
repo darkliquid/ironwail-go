@@ -94,6 +94,28 @@ depends = ["test", "build"]
 description = "E2E mod SDK check: scaffold each template kind and build/test it (slow; QC_E2E_BUILD gates it)"
 run = "QC_E2E_BUILD=1 go test ./cmd/qcmod -run TestInitScaffoldBuilds -count=1"
 
+[tasks.build-qbsp]
+description = "Build the pure-Go map compiler (qbsp)"
+run = "go build -o qbsp ./cmd/qbsp"
+
+[tasks.build-vis]
+description = "Build the pure-Go PVS calculator (vis)"
+run = "go build -o vis ./cmd/vis"
+
+[tasks.build-light]
+description = "Build the pure-Go lightmap baker (light)"
+run = "go build -o light ./cmd/light"
+
+[tasks.map-build]
+description = "Compile a map end-to-end: qbsp -> vis -> light (set MAP=name)"
+depends = ["build-qbsp", "build-vis", "build-light"]
+run = """
+set -e
+./qbsp -o ${MAP}.bsp ${MAP}.map
+./vis -o ${MAP}.bsp ${MAP}.bsp
+./light -lit -o ${MAP}.bsp ${MAP}.bsp
+"""
+
 [tasks.build-qgo]
 depends = ["go-generate"]
 description = "Build the QGo compiler"
