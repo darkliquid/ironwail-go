@@ -12,19 +12,21 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qbsp"
 )
 
-// ParseFaces decodes the BSP's face geometry (BSP29) into lightable faces:
-// each face's polygon (from vertexes/edges/surfedges), texinfo vectors,
-// and plane normal. Sky faces are marked; TEX_SPECIAL faces are skipped.
+// ParseFaces decodes the BSP's face geometry (BSP29 and BSP2) into
+// lightable faces: each face's polygon (from vertexes/edges/surfedges),
+// texinfo vectors, and plane normal. Sky faces are marked; TEX_SPECIAL
+// faces are skipped.
 func ParseFaces(bspData []byte) ([]Face, error) {
-	_, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(bspData))
+	version, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(bspData))
 	if err != nil {
 		return nil, err
 	}
+	bsp2 := bsp.IsBSP2(version)
 	planes := parsePlanes(lumps[1])
 	vertexes := parseVertexes(lumps[3])
 	texinfos := parseTexinfos(lumps[6])
-	faces := parseFacesLump(lumps[7])
-	edges := parseEdges(lumps[12])
+	faces := parseFacesLump(lumps[7], bsp2)
+	edges := parseEdges(lumps[12], bsp2)
 	surfedges := parseSurfedges(lumps[13])
 	textures := lumps[2]
 
@@ -107,6 +109,8 @@ type bspFace struct {
 	FirstEdge int32
 	NumEdges  int32
 	Texinfo   int32
+	LightOfs  int32
+	Styles    [4]byte
 }
 
 func parsePlanes(lump []byte) []bspPlane {
@@ -152,8 +156,23 @@ func parseTexinfos(lump []byte) []bspTexinfo {
 	return out
 }
 
-func parseFacesLump(lump []byte) []bspFace {
+func parseFacesLump(lump []byte, bsp2 bool) []bspFace {
 	var out []bspFace
+	if bsp2 {
+		// BSP2 face: 28-byte records, all-int32 fields.
+		for i := 0; i+28 <= len(lump); i += 28 {
+			var f bspFace
+			f.Planenum = int32(binary.LittleEndian.Uint32(lump[i:]))
+			f.Side = int32(binary.LittleEndian.Uint32(lump[i+4:]))
+			f.FirstEdge = int32(binary.LittleEndian.Uint32(lump[i+8:]))
+			f.NumEdges = int32(binary.LittleEndian.Uint32(lump[i+12:]))
+			f.Texinfo = int32(binary.LittleEndian.Uint32(lump[i+16:]))
+			f.LightOfs = int32(binary.LittleEndian.Uint32(lump[i+24:]))
+			copy(f.Styles[:], lump[i+20:i+24])
+			out = append(out, f)
+		}
+		return out
+	}
 	for i := 0; i+20 <= len(lump); i += 20 {
 		out = append(out, bspFace{
 			Planenum:  int32(binary.LittleEndian.Uint16(lump[i:])),
@@ -161,13 +180,24 @@ func parseFacesLump(lump []byte) []bspFace {
 			FirstEdge: int32(binary.LittleEndian.Uint32(lump[i+4:])),
 			NumEdges:  int32(binary.LittleEndian.Uint16(lump[i+8:])),
 			Texinfo:   int32(binary.LittleEndian.Uint16(lump[i+10:])),
+			LightOfs:  int32(binary.LittleEndian.Uint32(lump[i+16:])),
 		})
+		copy(out[len(out)-1].Styles[:], lump[i+12:i+16])
 	}
 	return out
 }
 
-func parseEdges(lump []byte) [][2]int {
+func parseEdges(lump []byte, bsp2 bool) [][2]int {
 	var out [][2]int
+	if bsp2 {
+		for i := 0; i+8 <= len(lump); i += 8 {
+			out = append(out, [2]int{
+				int(binary.LittleEndian.Uint32(lump[i:])),
+				int(binary.LittleEndian.Uint32(lump[i+4:])),
+			})
+		}
+		return out
+	}
 	for i := 0; i+4 <= len(lump); i += 4 {
 		out = append(out, [2]int{
 			int(binary.LittleEndian.Uint16(lump[i:])),
@@ -353,4 +383,40 @@ func tokenizeEntities(lump []byte) []string {
 		}
 	}
 	return toks
+}
+
+// PatchBSP writes the baked result back into the BSP: each lightable
+// face's styles[4] and lightofs are patched (BSP29 20-byte or BSP2
+// 28-byte face records, detected from the file version) and the Lighting
+// lump is replaced.
+func PatchBSP(bspData []byte, res Result) ([]byte, error) {
+	version, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(bspData))
+	if err != nil {
+		return nil, err
+	}
+	facesLump := append([]byte(nil), lumps[7]...)
+	rec, stylesOfs, lightOfs := 20, 12, 16
+	if bsp.IsBSP2(version) {
+		rec, stylesOfs, lightOfs = 28, 20, 24
+	}
+	for i := range res.Styles {
+		off := i * rec
+		if off+rec > len(facesLump) {
+			continue
+		}
+		copy(facesLump[off+stylesOfs:off+stylesOfs+4], res.Styles[i][:])
+	}
+	for i, ofs := range res.LightOfs {
+		if ofs < 0 {
+			continue
+		}
+		off := i*rec + lightOfs
+		if off+4 > len(facesLump) {
+			continue
+		}
+		binary.LittleEndian.PutUint32(facesLump[off:], uint32(ofs))
+	}
+	lumps[7] = facesLump
+	lumps[8] = res.Lighting
+	return qbsp.WriteBSP(lumps, version)
 }

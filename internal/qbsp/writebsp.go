@@ -456,9 +456,9 @@ func serializeModels(models []modelOut, bsp2 bool) []byte {
 		if !mo.root.isLeaf {
 			head = int32(mo.root.idx)
 		}
-		binary.LittleEndian.PutUint32(rec[36:], uint32(head))        // headnode[0]
-		binary.LittleEndian.PutUint32(rec[40:], uint32(mo.clipRoot)) // headnode[1]
-		binary.LittleEndian.PutUint32(rec[44:], 0)
+		binary.LittleEndian.PutUint32(rec[36:], uint32(head))         // headnode[0]
+		binary.LittleEndian.PutUint32(rec[40:], uint32(mo.clipRoot1)) // headnode[1]
+		binary.LittleEndian.PutUint32(rec[44:], uint32(mo.clipRoot2)) // headnode[2]
 		binary.LittleEndian.PutUint32(rec[48:], 0)
 		binary.LittleEndian.PutUint32(rec[52:], uint32(mo.visLeafs))
 		binary.LittleEndian.PutUint32(rec[56:], uint32(mo.firstFace))

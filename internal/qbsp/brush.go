@@ -28,7 +28,9 @@ type bspBrush struct {
 func (s *bspSide) sidePlane() plane { return plane{Normal: s.n, Dist: s.d} }
 
 // negPlane flips an oriented plane.
-func negPlane(p plane) plane { return plane{Normal: v3(-p.Normal[0], -p.Normal[1], -p.Normal[2]), Dist: -p.Dist} }
+func negPlane(p plane) plane {
+	return plane{Normal: v3(-p.Normal[0], -p.Normal[1], -p.Normal[2]), Dist: -p.Dist}
+}
 
 // planeEqualOriented reports whether two oriented planes are the same
 // geometric plane (allowing the same plane in either orientation).
@@ -174,10 +176,14 @@ func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
 			sortKey: b.sortKey,
 		}
 		front.bounds = brushBoundsOf(front)
+		if brushDegenerate(front) {
+			front = nil
+		}
 	}
-	if len(bs) >= 3 {
+	if len(bs) >= 3 && front != nil {
 		// Back child region: dot(p.Normal, x) <= p.Dist; boundary outward
-		// normal is +p.Normal.
+		// normal is +p.Normal. Skip when the front piece absorbed the whole
+		// brush (a cap sliver on the plane must not become a solid leaf).
 		capB := windingOrientTo(cap, p.Normal)
 		back = &bspBrush{
 			sides:   append(bs, bspSide{planenum: pn, n: p.Normal, d: p.Dist, w: capB}),
@@ -185,6 +191,9 @@ func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
 			sortKey: b.sortKey,
 		}
 		back.bounds = brushBoundsOf(back)
+		if brushDegenerate(back) {
+			back = nil
+		}
 	}
 	return front, back
 }
@@ -229,6 +238,15 @@ func subtractBrush(a, b *bspBrush) []*bspBrush {
 		cur = bk
 	}
 	return out
+}
+
+// brushDegenerate reports whether a brush has no real volume (a
+// zero-thickness cap sliver from splitting exactly on a face plane).
+func brushDegenerate(b *bspBrush) bool {
+	v := (b.bounds[1][0] - b.bounds[0][0]) *
+		(b.bounds[1][1] - b.bounds[0][1]) *
+		(b.bounds[1][2] - b.bounds[0][2])
+	return v < 0.01
 }
 
 // brushesDisjoint reports whether a and b definitely do not intersect

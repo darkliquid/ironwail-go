@@ -40,11 +40,18 @@ whole chain with `mise run map-build MAP=name` (reads `name.map`, writes
 ignores it. On a leak it writes `mymap.pts` with the point trail from the
 entity to the void.
 
+Collision clip trees are per-hull: hull 1 (player box ±16, used by the
+engine's world collision from clipnode 0) and hull 2 (large box ±32) with
+roots in `headnode[1]`/`headnode[2]` per model. Brush planes expand only
+along their own axis (the old code leaked the z hull term into x/y planes,
+collapsing thin-wall interiors to solid).
+
 `vis` flags: `-o out.bsp`. `light` flags: `-o out.bsp`, `-lit` (write the
 colored `.lit` sidecar), `-sun` (sun/`sunlight` directional lighting),
 `-bounce n` (radiosity bounce count, 0 = direct only), `-extra n` (luxel
 supersampling, e.g. 2/4), `-phong <deg>` (per-sample phong-shaded normals
-at shared vertices within the angle).
+at shared vertices within the angle). `light` parses and patches both
+BSP29 (20-byte faces) and BSP2 (28-byte faces) output.
 
 ## Map format
 

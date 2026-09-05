@@ -3,6 +3,7 @@ package light
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -397,4 +398,87 @@ func TestPhongNormalsBlendSharedVertices(t *testing.T) {
 	if len(faces2[0].VNormals) != 0 {
 		t.Error("0-degree threshold should not blend perpendicular faces")
 	}
+}
+
+// TestLightBSP2 is AC2: light's face parsing and patching are
+// version-aware. A BSP2-compiled map bakes and patches with 28-byte face
+// records; the version-aware loader round-trips the styles/lightofs.
+func TestLightBSP2(t *testing.T) {
+	// AC2: light's face parsing and patching are version-aware. A
+	// BSP2-compiled hollow room bakes and patches with 28-byte face
+	// records; the version-aware loader round-trips styles/lightofs.
+	src := "{\n\"classname\" \"worldspawn\"\n" +
+		slab(0, 0, 0, 64, 64, 8, "mt_floor") +
+		slab(0, 0, 56, 64, 64, 64, "mt_floor") +
+		slab(0, 0, 8, 8, 64, 56, "mt_wall") +
+		slab(56, 0, 8, 64, 64, 56, "mt_wall") +
+		slab(0, 0, 8, 64, 8, 56, "mt_wall") +
+		slab(0, 56, 8, 64, 64, 56, "mt_wall") +
+		"}\n{\n\"classname\" \"light\"\n\"origin\" \"32 32 40\"\n\"light\" \"2000\"\n}\n" +
+		"{\n\"classname\" \"info_player_start\"\n\"origin\" \"32 32 32\"\n}\n"
+	m, err := qbsp.ParseMap(strings.NewReader(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := qbsp.Compile(m, qbsp.Options{BSP2: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	faces, err := ParseFaces(res.Data)
+	if err != nil {
+		t.Fatalf("ParseFaces (bsp2): %v", err)
+	}
+	if len(faces) == 0 {
+		t.Fatal("no faces parsed from BSP2")
+	}
+	lights, err := ParseLights(res.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := bsp.LoadTree(bytes.NewReader(res.Data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	baked := Bake(faces, lights, TreeTracer(tree))
+	out, err := PatchBSP(res.Data, baked)
+	if err != nil {
+		t.Fatalf("PatchBSP (bsp2): %v", err)
+	}
+	ftree, err := bsp.LoadTree(bytes.NewReader(out))
+	if err != nil {
+		t.Fatalf("LoadTree after BSP2 patch: %v", err)
+	}
+	lit := 0
+	for i, f := range ftree.Faces {
+		if baked.LightOfs[i] >= 0 {
+			if f.LightOfs < 0 {
+				t.Errorf("face %d lightofs not patched (BSP2)", i)
+			}
+			if f.Styles != baked.Styles[i] {
+				t.Errorf("face %d styles = %v, want %v", i, f.Styles, baked.Styles[i])
+			}
+			lit++
+		}
+	}
+	if lit == 0 {
+		t.Error("no faces lit in BSP2 pipeline")
+	}
+}
+
+// slab renders one axis-aligned box brush (light-test helper).
+func slab(x0, y0, z0, x1, y1, z1 float64, tex string) string {
+	format := func(p1, p2, p3 [3]float64) string {
+		return fmt.Sprintf("( %g %g %g ) ( %g %g %g ) ( %g %g %g ) %s 0 0 0 1 1\n",
+			p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2], tex)
+	}
+	mins := [3]float64{x0, y0, z0}
+	maxs := [3]float64{x1, y1, z1}
+	return "{\n" +
+		format([3]float64{maxs[0], mins[1], mins[2]}, [3]float64{maxs[0], mins[1], maxs[2]}, [3]float64{maxs[0], maxs[1], mins[2]}) +
+		format([3]float64{mins[0], maxs[1], mins[2]}, [3]float64{mins[0], maxs[1], maxs[2]}, [3]float64{mins[0], mins[1], maxs[2]}) +
+		format([3]float64{mins[0], maxs[1], mins[2]}, [3]float64{maxs[0], maxs[1], mins[2]}, [3]float64{mins[0], maxs[1], maxs[2]}) +
+		format([3]float64{mins[0], mins[1], mins[2]}, [3]float64{mins[0], mins[1], maxs[2]}, [3]float64{maxs[0], mins[1], mins[2]}) +
+		format([3]float64{mins[0], mins[1], maxs[2]}, [3]float64{mins[0], maxs[1], maxs[2]}, [3]float64{maxs[0], mins[1], maxs[2]}) +
+		format([3]float64{mins[0], mins[1], mins[2]}, [3]float64{maxs[0], mins[1], mins[2]}, [3]float64{mins[0], maxs[1], mins[2]}) +
+		"}\n"
 }

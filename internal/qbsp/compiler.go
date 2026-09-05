@@ -88,7 +88,8 @@ type modelOut struct {
 	visLeafs   int32
 	firstFace  int
 	numFaces   int
-	clipRoot   int32 // headnode[1] (clip hull root)
+	clipRoot1  int32 // headnode[1] (hull-1 clip root)
+	clipRoot2  int32 // headnode[2] (hull-2 clip root)
 }
 
 // Compile runs the qbsp pipeline over a parsed map and returns a writable
@@ -186,25 +187,11 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 			leafs[i].marksurface = attach[i]
 		}
 
-		// Clip hulls (per model, shared lump).
-		clipBase := int32(len(allClips))
-		hulls := list
-		if !world {
-			var solid []*bspBrush
-			for _, b := range list {
-				if b.content == bsp.ContentsSolid {
-					solid = append(solid, b)
-				}
-			}
-			hulls = solid
-		}
-		expanded := c.expandSolidBrushes(hulls, bounds)
-		clip := c.buildHullClipNodes(expanded, bounds)
-		for i := range clip {
-			clip[i].children[0] = offsetClipChild(clip[i].children[0], clipBase)
-			clip[i].children[1] = offsetClipChild(clip[i].children[1], clipBase)
-		}
-		allClips = append(allClips, clip...)
+		// Clip hulls (per model, shared lump): hull 1 (player box) and
+		// hull 2 (large box). The world's hull-1 tree lands at clipnode 0,
+		// which the engine's world collision uses directly; submodels get
+		// both trees with roots in headnode[1]/[2].
+		clipRoot1, clipRoot2 := c.buildClipHulls(world, list, bounds, &allClips)
 
 		mo := modelOut{
 			mins:      bounds[0],
@@ -214,7 +201,8 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 			visLeafs:  visLeafs(leafs),
 			firstFace: len(allFaces),
 			numFaces:  len(faces),
-			clipRoot:  clipBase,
+			clipRoot1: clipRoot1,
+			clipRoot2: clipRoot2,
 		}
 		if !world {
 			// Q1 shrunken submodel bounds (the engine compensates).
@@ -256,6 +244,38 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		res.Data = bx
 	}
 	return res, nil
+}
+
+// buildClipHulls compiles and appends the per-model clip trees (hull 1 =
+// player box, hull 2 = large box) into the shared clipnode lump, returning
+// their roots (clipnode indices).
+func (c *compiler) buildClipHulls(world bool, list []*bspBrush, bounds [2]vec3, allClips *[]outClipNode) (int32, int32) {
+	hulls := list
+	if !world {
+		var solid []*bspBrush
+		for _, b := range list {
+			if b.content == bsp.ContentsSolid {
+				solid = append(solid, b)
+			}
+		}
+		hulls = solid
+	}
+	appendTree := func(ext [2]vec3) int32 {
+		base := int32(len(*allClips))
+		expanded := c.expandSolidBrushes(hulls, bounds, ext)
+		clip := c.buildHullClipNodes(expanded, bounds)
+		for i := range clip {
+			clip[i].children[0] = offsetClipChild(clip[i].children[0], base)
+			clip[i].children[1] = offsetClipChild(clip[i].children[1], base)
+		}
+		*allClips = append(*allClips, clip...)
+		return base
+	}
+	// The world's hull-1 tree must stay at clipnode 0 (the engine's world
+	// collision traces from FirstClipNode=0).
+	r1 := appendTree(hull1Extents)
+	_ = r1
+	return r1, appendTree(hull2Extents)
 }
 
 // offsetClipChild rebases a clipnode child (>=0 node index) by base;

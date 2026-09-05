@@ -1,8 +1,6 @@
 package qbsp
 
 import (
-	"math"
-
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 )
 
@@ -13,12 +11,15 @@ type outClipNode struct {
 	children [2]int32
 }
 
-// clipHullExtents is the expansion applied to world brush planes for the
-// clip hull tree. The Go engine uses a single clip tree (starting at
-// clipnode 0) for movement hulls 1 and 2 with bounds
-// ±16x±16x(-24..32) (player) and ±32x±32x(-24..64) (large), so the tree
-// must be expanded for the largest box.
-var clipHullExtents = [2]vec3{{32, 32, 24}, {32, 32, 64}}
+// clipHullExtents pairs describe the classic movement hull boxes applied
+// to brush planes for the clip trees: [0] is the expansion below the
+// origin (±x, ±y, -z) and [1] above. Hull 1 is the player box
+// (±16x±16x(-24..32)) which the Go engine's world collision traces
+// against (FirstClipNode=0 in modelbuild.go, with box offsets driving
+// larger entity sizes). Hull 2 is the large box (±32x±32x(-24..64)) used
+// for submodel clip trees (the engine uses HeadNode[1]/[2] for those).
+var hull1Extents = [2]vec3{{16, 16, 24}, {16, 16, 32}}
+var hull2Extents = [2]vec3{{32, 32, 24}, {32, 32, 64}}
 
 // expandSolidBrushes builds the clip-hull brush list: every solid world
 // brush with its planes shifted outward by the hull extents projection
@@ -26,7 +27,7 @@ var clipHullExtents = [2]vec3{{32, 32, 24}, {32, 32, 64}}
 // classic qbsp hull semantics). Expanded planes are registered in the
 // compiler's main plane table (clip nodes reference it), deduped against
 // existing entries.
-func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3) []*bspBrush {
+func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3, ext [2]vec3) []*bspBrush {
 	var out []*bspBrush
 	for _, b := range world {
 		if b.content != bsp.ContentsSolid {
@@ -34,13 +35,17 @@ func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3) []*bspB
 		}
 		faces := make([]brushFace, 0, len(b.sides))
 		for _, s := range b.sides {
+			// Per-axis hull-box projection: planes shift by the box half
+			// span along their own normal axis only (adding the z term to
+			// x/y faces would inflate walls by the player height).
 			n := s.n
-			shift := math.Abs(n[0])*clipHullExtents[1][0] +
-				math.Abs(n[1])*clipHullExtents[1][1]
-			if n[2] >= 0 {
-				shift += clipHullExtents[1][2]
-			} else {
-				shift += clipHullExtents[0][2]
+			shift := 0.0
+			for i := 0; i < 3; i++ {
+				if n[i] > 0 {
+					shift += ext[1][i]
+				} else if n[i] < 0 {
+					shift += ext[0][i]
+				}
 			}
 			p := plane{Normal: n, Dist: snapPlaneDist(s.d + shift)}
 			faces = append(faces, brushFace{p: p, pn: c.addPlaneIndex(p)})

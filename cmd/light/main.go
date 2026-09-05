@@ -7,7 +7,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"log"
@@ -17,7 +16,6 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/light"
-	"github.com/darkliquid/ironwail-go/internal/qbsp"
 )
 
 func main() {
@@ -65,7 +63,7 @@ func main() {
 		fmt.Println("light: no lightable faces (add light entities)")
 	}
 
-	outData, err := patchBSP(bspData, res)
+	outData, err := light.PatchBSP(bspData, res)
 	if err != nil {
 		log.Fatalf("light: patch bsp: %v", err)
 	}
@@ -95,35 +93,4 @@ func countLit(ofs []int32) int {
 		}
 	}
 	return n
-}
-
-// patchBSP sets each lit face's lightofs and replaces the lighting lump.
-func patchBSP(bspData []byte, res light.Result) ([]byte, error) {
-	version, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(bspData))
-	if err != nil {
-		return nil, err
-	}
-	// Faces lump (BSP29): 20 bytes/face, styles[4] at offset 12,
-	// lightofs int32 at offset 16.
-	facesLump := append([]byte(nil), lumps[7]...)
-	for i := range res.Styles {
-		off := i * 20
-		if off+20 > len(facesLump) {
-			continue
-		}
-		copy(facesLump[off+12:off+16], res.Styles[i][:])
-	}
-	for i, ofs := range res.LightOfs {
-		if ofs < 0 {
-			continue
-		}
-		off := i*20 + 16
-		if off+4 > len(facesLump) {
-			continue
-		}
-		binary.LittleEndian.PutUint32(facesLump[off:], uint32(ofs))
-	}
-	lumps[7] = facesLump
-	lumps[8] = res.Lighting
-	return qbsp.WriteBSP(lumps, version)
 }
