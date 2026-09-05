@@ -25,6 +25,8 @@ func main() {
 	lit := flag.Bool("lit", false, "write a QLIT v1 colored .lit sidecar")
 	sun := flag.Bool("sun", false, "enable sun entity / sunlight worldspawn lighting")
 	bounce := flag.Int("bounce", 0, "radiosity bounce count (0 = direct only)")
+	extra := flag.Int("extra", 0, "luxel supersample factor (2 = -extra, 4 = -extra4); 0 = none")
+	phong := flag.Float64("phong", 0, "phong shading angle in degrees (0 disables; e.g. 89)")
 	flag.Parse()
 	if flag.NArg() != 1 {
 		fmt.Fprintln(os.Stderr, "usage: light [-o out.bsp] [-lit] map.bsp")
@@ -50,7 +52,7 @@ func main() {
 		log.Fatalf("light: load tree: %v", err)
 	}
 
-	opts := light.BakeOpts{Bounce: *bounce}
+	opts := light.BakeOpts{Bounce: *bounce, Extra: *extra, Phong: *phong}
 	if *sun {
 		s, err := light.ParseSun(bspData)
 		if err != nil {

@@ -18,6 +18,7 @@ import (
 func main() {
 	outPath := flag.String("o", "", "output .bsp path (default: <map>.bsp)")
 	bsp2 := flag.Bool("bsp2", false, "emit the extended BSP2 format (32-bit lumps)")
+	twoPSB := flag.Bool("2psb", false, "emit the BSP2RMQ variant (32-bit indices, 16-bit bounds; implies -bsp2)")
 	leaktest := flag.Bool("leaktest", false, "exit 1 if the map leaks")
 	margin := flag.Float64("margin", 64, "void ring around the map (units)")
 	omitDetail := flag.Bool("omitdetail", false, "drop func_detail* entities entirely")
@@ -45,7 +46,8 @@ func main() {
 	}
 
 	res, err := qbsp.Compile(m, qbsp.Options{
-		BSP2:       *bsp2,
+		BSP2:       *bsp2 || *twoPSB,
+		TwoPSB:     *twoPSB,
 		Margin:     *margin,
 		OmitDetail: *omitDetail,
 		Log:        func(f string, a ...any) { fmt.Printf("  "+f+"\n", a...) },

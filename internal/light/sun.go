@@ -85,8 +85,8 @@ func mangleToDir(yaw, pitch float64) [3]float64 {
 
 // SunLight computes the direct sun contribution at a sample point on a
 // face: intensity * max(dot(normal, -sun.Dir), 0) * color.
-func (s *Sun) SunLight(f *Face, p [3]float64) (float64, float64, float64) {
-	cos := -(f.Normal[0]*s.Dir[0] + f.Normal[1]*s.Dir[1] + f.Normal[2]*s.Dir[2])
+func (s *Sun) SunLight(f *Face, n [3]float64, p [3]float64) (float64, float64, float64) {
+	cos := -(n[0]*s.Dir[0] + n[1]*s.Dir[1] + n[2]*s.Dir[2])
 	if cos <= 0 {
 		return 0, 0, 0
 	}

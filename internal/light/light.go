@@ -25,6 +25,13 @@ type Face struct {
 	Normal [3]float64
 	Sky    bool // sky faces receive no direct light
 	NoDraw bool // skip (no lightmap)
+	// Albedo is the face's mid-gray material brightness (0..1) used by the
+	// radiosity pass; derived from the miptex pixel average (0.5 default
+	// for untextured/black placeholders).
+	Albedo float64
+	// VNormals holds per-polygon-vertex phong-blended normals (nil = flat
+	// shaded); see BuildPhongNormals.
+	VNormals [][3]float64
 	// Styles is filled by Bake with the face's distinct light styles.
 	Styles [4]byte
 }
@@ -86,9 +93,10 @@ type Result struct {
 }
 
 // directLight accumulates the intensity of all lights of the given style
-// at the sample point, returning the RGB contribution (equally weighted
+// at the sample point, using the per-sample normal n (flat face normal or
+// phong-interpolated), returning the RGB contribution (equally weighted
 // from the light's color, mono when uncolored).
-func directLight(f *Face, p [3]float64, lights []Light, style int, trace func([3]float64, [3]float64) bool) (float64, float64, float64) {
+func directLight(f *Face, n [3]float64, p [3]float64, lights []Light, style int, trace func([3]float64, [3]float64) bool) (float64, float64, float64) {
 	var r, g, b float64
 	for _, l := range lights {
 		if l.Style != style {
@@ -102,7 +110,7 @@ func directLight(f *Face, p [3]float64, lights []Light, style int, trace func([3
 			dist2 = 1e-6
 		}
 		dist := math.Sqrt(dist2)
-		cos := (f.Normal[0]*dx + f.Normal[1]*dy + f.Normal[2]*dz) / dist
+		cos := (n[0]*dx + n[1]*dy + n[2]*dz) / dist
 		if cos <= 0 {
 			continue // light behind the face
 		}

@@ -10,9 +10,29 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 )
 
+// bspLayout is the wire format the writer emits.
+type bspLayout int
+
+const (
+	layoutBsp29 bspLayout = iota
+	layoutBsp2
+	layoutBspRMQ // -2psb: BSP2 indices with 16-bit node/leaf bounds
+)
+
+func (c *compiler) layout() bspLayout {
+	if c.opts.BSP2 {
+		if c.opts.TwoPSB {
+			return layoutBspRMQ
+		}
+		return layoutBsp2
+	}
+	return layoutBsp29
+}
+
 // assemble builds all lumps and returns the serialised BSP.
 func (c *compiler) assemble(m *Map, models []modelOut, faces []outFace, nodes []outNode, leafs []outLeaf, clip []outClipNode, leakPath []vec3, leaked bool) (*CompileResult, error) {
 	vertexes, edges, surfedges := edgeTables(faces)
+	lay := c.layout()
 
 	res := &CompileResult{
 		BSP2:     c.opts.BSP2,
@@ -27,12 +47,12 @@ func (c *compiler) assemble(m *Map, models []modelOut, faces []outFace, nodes []
 	planes := c.serializePlanes()
 	textures := c.serializeTextures()
 	vis := []byte{}
-	nodeBytes := serializeNodes(nodes, childRef{}, c.opts.BSP2)
+	nodeBytes := serializeNodes(nodes, lay)
 	texinfoBytes := c.serializeTexinfo()
 	faceBytes := serializeFaces(faces, c.opts.BSP2)
 	lighting := []byte{}
 	clipBytes := serializeClipnodes(clip, c.opts.BSP2)
-	leafBytes, marksurfBytes := serializeLeafs(leafs, childRef{}, c.opts.BSP2)
+	leafBytes, marksurfBytes := serializeLeafs(leafs, lay)
 	edgeBytes := serializeEdges(edges, c.opts.BSP2)
 	surfedgeBytes := serializeInts32(surfedges)
 	modelBytes := serializeModels(models, c.opts.BSP2)
@@ -43,7 +63,7 @@ func (c *compiler) assemble(m *Map, models []modelOut, faces []outFace, nodes []
 		leafBytes, marksurfBytes, edgeBytes, surfedgeBytes, modelBytes,
 	}
 	res.Log = c.logs
-	data, err := writeBSP(lumps, c.opts.BSP2)
+	data, err := writeBSP(lumps, lay)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +144,10 @@ func miptexSize(dim int) uint32 {
 	return uint32(40 + dim*dim + dim/2*dim/2 + dim/4*dim/4 + dim/8*dim/8)
 }
 
-// miptexData builds a 16x16 miptex with four mip levels of zero data.
+// miptexData builds a 16x16 miptex with four mip levels of mid-gray pixel
+// data (palette index 128). The placeholder is intentionally non-black so
+// light's texture-brightness bounce and the engine's fallback rendering
+// see material instead of void.
 func miptexData(name string, dim int) []byte {
 	lv := [4]int{dim, dim / 2, dim / 4, dim / 8}
 	size := int(miptexSize(dim))
@@ -136,6 +159,9 @@ func miptexData(name string, dim int) []byte {
 	for i := 0; i < 4; i++ {
 		binary.LittleEndian.PutUint32(out[24+i*4:], uint32(off))
 		off += lv[i] * lv[i]
+	}
+	for i := 40; i < size; i++ {
+		out[i] = 128
 	}
 	return out
 }
@@ -195,9 +221,9 @@ func childBytes(child childRef, bsp2 bool) int32 {
 	return int32(child.idx)
 }
 
-func serializeNodes(nodes []outNode, root childRef, bsp2 bool) []byte {
+func serializeNodes(nodes []outNode, lay bspLayout) []byte {
 	var b bytes.Buffer
-	if bsp2 {
+	if lay == layoutBsp2 {
 		for _, n := range nodes {
 			var rec [44]byte
 			binary.LittleEndian.PutUint32(rec[0:], uint32(n.planenum))
@@ -212,21 +238,39 @@ func serializeNodes(nodes []outNode, root childRef, bsp2 bool) []byte {
 			binary.LittleEndian.PutUint32(rec[40:], uint32(n.numfaces))
 			b.Write(rec[:])
 		}
-	} else {
+		return b.Bytes()
+	}
+	if lay == layoutBspRMQ {
+		// BSP2RMQ: int32 plane/children, int16 bounds, uint32 face spans.
 		for _, n := range nodes {
-			var rec [24]byte
+			var rec [32]byte
 			binary.LittleEndian.PutUint32(rec[0:], uint32(n.planenum))
 			for i := 0; i < 2; i++ {
-				binary.LittleEndian.PutUint16(rec[4+i*2:], uint16(int16(childBytes(n.children[i], false))))
+				binary.LittleEndian.PutUint32(rec[4+i*4:], uint32(int32(childBytes(n.children[i], true))))
 			}
 			for i := 0; i < 3; i++ {
-				binary.LittleEndian.PutUint16(rec[8+i*2:], uint16(int16(clamp16(n.bounds[0][i]))))
-				binary.LittleEndian.PutUint16(rec[14+i*2:], uint16(int16(clamp16(n.bounds[1][i]))))
+				binary.LittleEndian.PutUint16(rec[12+i*2:], uint16(int16(clamp16(n.bounds[0][i]))))
+				binary.LittleEndian.PutUint16(rec[18+i*2:], uint16(int16(clamp16(n.bounds[1][i]))))
 			}
-			binary.LittleEndian.PutUint16(rec[20:], uint16(n.firstface))
-			binary.LittleEndian.PutUint16(rec[22:], uint16(n.numfaces))
+			binary.LittleEndian.PutUint32(rec[24:], uint32(n.firstface))
+			binary.LittleEndian.PutUint32(rec[28:], uint32(n.numfaces))
 			b.Write(rec[:])
 		}
+		return b.Bytes()
+	}
+	for _, n := range nodes {
+		var rec [24]byte
+		binary.LittleEndian.PutUint32(rec[0:], uint32(n.planenum))
+		for i := 0; i < 2; i++ {
+			binary.LittleEndian.PutUint16(rec[4+i*2:], uint16(int16(childBytes(n.children[i], false))))
+		}
+		for i := 0; i < 3; i++ {
+			binary.LittleEndian.PutUint16(rec[8+i*2:], uint16(int16(clamp16(n.bounds[0][i]))))
+			binary.LittleEndian.PutUint16(rec[14+i*2:], uint16(int16(clamp16(n.bounds[1][i]))))
+		}
+		binary.LittleEndian.PutUint16(rec[20:], uint16(n.firstface))
+		binary.LittleEndian.PutUint16(rec[22:], uint16(n.numfaces))
+		b.Write(rec[:])
 	}
 	return b.Bytes()
 }
@@ -242,13 +286,14 @@ func clamp16(v float64) int16 {
 }
 
 // serializeLeafs returns the leaf lump and the marksurfaces lump.
-func serializeLeafs(leafs []outLeaf, root childRef, bsp2 bool) ([]byte, []byte) {
+func serializeLeafs(leafs []outLeaf, lay bspLayout) ([]byte, []byte) {
 	var lb, mb bytes.Buffer
 	marksPos := 0
 	for i := range leafs {
 		l := &leafs[i]
 		visofs := int32(-1)
-		if bsp2 {
+		switch lay {
+		case layoutBsp2:
 			var rec [44]byte
 			binary.LittleEndian.PutUint32(rec[0:], uint32(l.content))
 			binary.LittleEndian.PutUint32(rec[4:], uint32(visofs))
@@ -259,7 +304,20 @@ func serializeLeafs(leafs []outLeaf, root childRef, bsp2 bool) ([]byte, []byte) 
 			binary.LittleEndian.PutUint32(rec[32:], uint32(marksPos))
 			binary.LittleEndian.PutUint32(rec[36:], uint32(len(l.marksurface)))
 			lb.Write(rec[:])
-		} else {
+		case layoutBspRMQ:
+			// BSP2RMQ leaf: contents/visofs, int16 bounds, uint32 marks,
+			// ambient bytes (32 total, mirrors the loader's DL1Leaf).
+			var rec [32]byte
+			binary.LittleEndian.PutUint32(rec[0:], uint32(l.content))
+			binary.LittleEndian.PutUint32(rec[4:], uint32(visofs))
+			for j := 0; j < 3; j++ {
+				binary.LittleEndian.PutUint16(rec[8+j*2:], uint16(int16(clamp16(l.mins[j]))))
+				binary.LittleEndian.PutUint16(rec[14+j*2:], uint16(int16(clamp16(l.maxs[j]))))
+			}
+			binary.LittleEndian.PutUint32(rec[20:], uint32(marksPos))
+			binary.LittleEndian.PutUint32(rec[24:], uint32(len(l.marksurface)))
+			lb.Write(rec[:])
+		default:
 			var rec [28]byte
 			binary.LittleEndian.PutUint32(rec[0:], uint32(l.content))
 			binary.LittleEndian.PutUint32(rec[4:], uint32(visofs))
@@ -272,13 +330,13 @@ func serializeLeafs(leafs []outLeaf, root childRef, bsp2 bool) ([]byte, []byte) 
 			lb.Write(rec[:])
 		}
 		for _, f := range l.marksurface {
-			if bsp2 {
-				var v [4]byte
-				binary.LittleEndian.PutUint32(v[:], uint32(f))
-				mb.Write(v[:])
-			} else {
+			if lay == layoutBsp29 {
 				var v [2]byte
 				binary.LittleEndian.PutUint16(v[:], uint16(f))
+				mb.Write(v[:])
+			} else {
+				var v [4]byte
+				binary.LittleEndian.PutUint32(v[:], uint32(f))
 				mb.Write(v[:])
 			}
 		}
@@ -412,7 +470,7 @@ func serializeModels(models []modelOut, bsp2 bool) []byte {
 
 // writeBSP assembles the header + lumps. Header: int32 version followed by
 // 15 (offset, length) pairs — 4 + 15*8 = 124 bytes.
-func writeBSP(lumps [][]byte, bsp2 bool) ([]byte, error) {
+func writeBSP(lumps [][]byte, lay bspLayout) ([]byte, error) {
 	if len(lumps) != 15 {
 		return nil, fmt.Errorf("expected 15 lumps, got %d", len(lumps))
 	}
@@ -420,8 +478,11 @@ func writeBSP(lumps [][]byte, bsp2 bool) ([]byte, error) {
 	var b bytes.Buffer
 	var header [headerSize]byte
 	version := int32(bsp.BSPVersion)
-	if bsp2 {
+	switch lay {
+	case layoutBsp2:
 		version = bsp.BSP2Version_BSP2
+	case layoutBspRMQ:
+		version = bsp.BSP2Version_2PSB
 	}
 	binary.LittleEndian.PutUint32(header[0:], uint32(version))
 
@@ -438,8 +499,6 @@ func writeBSP(lumps [][]byte, bsp2 bool) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// ReadBSPLumps reads a BSP file's header version and every lump's raw
-// bytes, so post-processors (vis, light) can patch lumps and re-emit.
 func ReadBSPLumps(r io.ReaderAt) (int32, [][]byte, error) {
 	var version int32
 	if err := binary.Read(io.NewSectionReader(r, 0, 4), binary.LittleEndian, &version); err != nil {

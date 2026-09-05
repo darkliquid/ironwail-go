@@ -11,6 +11,9 @@ import (
 type Options struct {
 	// BSP2 emits the extended 32-bit BSP2 format instead of BSP29.
 	BSP2 bool
+	// TwoPSB (with BSP2) emits the BSP2RMQ format: 32-bit indices with
+	// 16-bit node/leaf bounds ("2psb" magic, large-map compromise).
+	TwoPSB bool
 	// Margin is retained for API compatibility; the solidbsp region is the
 	// union of the world brush bounds (the classic qbsp entity bounds).
 	Margin float64
@@ -246,6 +249,11 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 	res.Models = len(models)
 	if leaked {
 		c.logf("LEAK: map leaks to the void (%d points in trail)", len(leakPath))
+	}
+	// Append the BRUSHLIST BSPX lump (tools/verification; the engine
+	// tolerates its absence and ignores appended data).
+	if bx, err := AppendBSPX(res.Data, groups); err == nil {
+		res.Data = bx
 	}
 	return res, nil
 }

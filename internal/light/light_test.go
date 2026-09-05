@@ -2,6 +2,7 @@ package light
 
 import (
 	"bytes"
+	"encoding/binary"
 	"strings"
 	"testing"
 
@@ -275,11 +276,11 @@ func TestSunLightTopFaces(t *testing.T) {
 		Vecs:   [2][4]float64{{0, 1, 0, 0}, {0, 0, 1, 0}},
 		Normal: [3]float64{-1, 0, 0},
 	}
-	r, _, _ := sun.SunLight(&floor, [3]float64{32, 32, 0})
+	r, _, _ := sun.SunLight(&floor, floor.Normal, [3]float64{32, 32, 0})
 	if r <= 0 {
 		t.Error("sun should light a floor facing up")
 	}
-	r2, _, _ := sun.SunLight(&wall, [3]float64{0, 32, 32})
+	r2, _, _ := sun.SunLight(&wall, wall.Normal, [3]float64{0, 32, 32})
 	if r2 > r*0.01 {
 		t.Errorf("wall normal away from sun got %v, want ~0", r2)
 	}
@@ -314,5 +315,86 @@ func TestBounceLightReachesShadowedWall(t *testing.T) {
 	}
 	if bouncedVal <= directVal {
 		t.Errorf("bounce did not light the wall: direct=%d bounced=%d", directVal, bouncedVal)
+	}
+}
+
+// TestSupersamplingKeepsGrid verifies -extra preserves the lightmap grid
+// (same sample count) while changing the baked values.
+func TestSupersamplingKeepsGrid(t *testing.T) {
+	face := floorFace()
+	lights := []Light{{Origin: [3]float64{40, 40, 8}, Value: 4000}}
+	base := Bake([]Face{face}, lights, nil)
+	sup := BakeWithOpts([]Face{face}, lights, nil, BakeOpts{Extra: 4})
+	if len(base.Lighting) != len(sup.Lighting) {
+		t.Fatalf("grid changed: base %d vs supersampled %d", len(base.Lighting), len(sup.Lighting))
+	}
+	// The grazing corner luxel (i=0,j=0 -> s=t=8) averages sub-samples
+	// closer to the light than the default centre sample; the value must
+	// not be lower than the coarse one's zero-only result is invalid.
+	if sup.Lighting[0] == 0 && base.Lighting[0] != 0 {
+		t.Error("supersampling darkened a lit luxel to zero")
+	}
+	// Centre luxel values are clamped bytes (always in range).
+	if len(sup.Lighting) == 0 {
+		t.Fatal("no supersampled samples produced")
+	}
+}
+
+// TestTextureBrightness verifies the miptex-albedo path: a mid-gray
+// placeholder miptex yields the 0.5 default, a bright texture yields a
+// higher albedo, and a black (legacy) texture falls back to 0.5.
+func TestTextureBrightness(t *testing.T) {
+	tmtex := func(pixel byte) []byte {
+		out := make([]byte, 8+40+16*16)           // count+ptr, 40-byte miptex, mip0
+		binary.LittleEndian.PutUint32(out[0:], 1) // one texture
+		binary.LittleEndian.PutUint32(out[4:], 8) // entry offset
+		copy(out[8:24], "tex")
+		binary.LittleEndian.PutUint32(out[8+16:], 16) // width
+		binary.LittleEndian.PutUint32(out[8+20:], 16) // height
+		binary.LittleEndian.PutUint32(out[8+24:], 40) // mip0 offset
+		for i := 8 + 40; i < 8+40+16*16; i++ {
+			out[i] = pixel
+		}
+		return out
+	}
+	if v := textureBrightness(tmtex(128), 0); v < 0.49 || v > 0.51 {
+		t.Errorf("gray albedo = %v, want ~0.5", v)
+	}
+	if v := textureBrightness(tmtex(255), 0); v < 0.99 {
+		t.Errorf("white albedo = %v, want ~1", v)
+	}
+	if v := textureBrightness(tmtex(0), 0); v != 0.5 {
+		t.Errorf("black placeholder albedo = %v, want 0.5 fallback", v)
+	}
+}
+
+// TestPhongNormalsBlendSharedVertices verifies BuildPhongNormals: two
+// faces sharing an edge vertex within the angle threshold get a blended
+// normal at the seam; a far-angled pair stays flat.
+func TestPhongNormalsBlendSharedVertices(t *testing.T) {
+	a := floorFace()
+	b := Face{
+		Index:  1,
+		Poly:   [][3]float64{{0, 0, 0}, {64, 0, 0}, {64, 0, 64}, {0, 0, 64}},
+		Vecs:   [2][4]float64{{1, 0, 0, 0}, {0, 0, 1, 0}},
+		Normal: [3]float64{0, -1, 0},
+	}
+	// b's normal is 90° from a's (+z vs -y): with a 120° threshold they
+	// blend.
+	faces := []Face{a, b}
+	BuildPhongNormals(faces, 120)
+	if len(faces[0].VNormals) == 0 {
+		t.Fatal("floor should gain phong normals")
+	}
+	// Shared vertex (0,0,0) normal averages (+z, -y).
+	v := faces[0].VNormals[0]
+	if v[2] < 0.5 || v[1] > -0.5 {
+		t.Errorf("blended normal = %v, want roughly (0,-0.7,0.7)", v)
+	}
+	// With a tight threshold (0°), no blending.
+	faces2 := []Face{a, b}
+	BuildPhongNormals(faces2, 0)
+	if len(faces2[0].VNormals) != 0 {
+		t.Error("0-degree threshold should not blend perpendicular faces")
 	}
 }

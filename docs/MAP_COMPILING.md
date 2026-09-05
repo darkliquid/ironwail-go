@@ -32,14 +32,19 @@ whole chain with `mise run map-build MAP=name` (reads `name.map`, writes
 ./light -lit -o mymap.bsp mymap.bsp
 ```
 
-`qbsp` flags: `-o out.bsp`, `-bsp2` (extended 32-bit BSP2 format), `-leaktest`
-(fail on leaks), `-margin n`, `-omitdetail` (drop `func_detail*` entities
-entirely). On a leak it writes `mymap.pts` with the point trail from the
+`qbsp` flags: `-o out.bsp`, `-bsp2` (extended 32-bit BSP2 format),
+`-2psb` (BSP2RMQ variant: 32-bit indices, 16-bit bounds; implies `-bsp2`),
+`-leaktest` (fail on leaks), `-margin n`, `-omitdetail` (drop
+`func_detail*` entities entirely). Compiled maps carry an appended
+`BRUSHLIST` BSPX lump (per-model brushes) that tools can read; the engine
+ignores it. On a leak it writes `mymap.pts` with the point trail from the
 entity to the void.
 
 `vis` flags: `-o out.bsp`. `light` flags: `-o out.bsp`, `-lit` (write the
 colored `.lit` sidecar), `-sun` (sun/`sunlight` directional lighting),
-`-bounce n` (radiosity bounce count, 0 = direct only).
+`-bounce n` (radiosity bounce count, 0 = direct only), `-extra n` (luxel
+supersampling, e.g. 2/4), `-phong <deg>` (per-sample phong-shaded normals
+at shared vertices within the angle).
 
 ## Map format
 

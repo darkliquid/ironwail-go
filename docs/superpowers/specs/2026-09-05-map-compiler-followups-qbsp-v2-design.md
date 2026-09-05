@@ -399,15 +399,20 @@ in the Lighting lump — the engine's animated-style path is mono anyway.
 | Porting while `csg.go` deletion churns | Long unbuildable window | Land solidbsp behind the old path (`Compile` flag), flip default, then delete; tests gate the flip |
 | Scope creep (phong, lightgrid, -lit2, -extra shading, HDR) | Bead drags | Explicit non-goals below; separate follow-up beads |
 
-## 11. Non-Goals & Follow-ups
+## 11. Non-Goals & Follow-ups — status decisions (bead `ironwail-go-c05`)
 
-Out of scope for `ironwail-go-rhg` (tracked separately or deferred):
+Each v2 non-goal now carries a documented decision (implemented where
+bounded, otherwise explicitly deferred with rationale):
 
-- HDR/`-lit2`/`-lithdr`, `-extra`/`-extra4` supersampling, phong shading,
-  lightgrid, `-2psb`, HL/Q2 targets, BSPX brushes lump (engine already
-  tolerates its absence), `lightpreview` integration, BSP2 → `-vis` interop
-  beyond what the engine reads.
-- Per-submodel PVS membership (world-only PVS is the v1 contract; submodel
-  `visleafs` counts are written, rows remain world).
-- Automatic texture-color bounce without `-wadpath` (placeholder miptex
-  stays 16×16; emissive requires keys).
+| Item | Decision (2026-09-05) |
+|---|---|
+| HDR lighting (`-lit2`/`-lithdr`, E5BGR9 v2) | **Deferred.** The engine lightmap pipeline is 8-bit mono + QLIT v1 (`bsp.ApplyLitFile`); a v2 reader plus half-float rendering is a renderer-scale change. Tracked in `ironwail-go-c05`; sub-bead when the renderer grows HDR support. |
+| Luxel supersampling (`-extra`/`-extra4`) | **Implemented.** `cmd/light -extra n` → `BakeOpts.Extra`: each luxel averages `n×n` sub-samples inside the unchanged grid; test `TestSupersamplingKeepsGrid`. |
+| Phong shading | **Implemented.** `light.BuildPhongNormals` (classic vertex-average within the angle threshold) + per-sample interpolated normals through `directLight`/sun; `cmd/light -phong <deg>`; test `TestPhongNormalsBlendSharedVertices`. |
+| Lightgrid | **Deferred.** Needs engine-side dynamic-entity lighting consumption (renderer/QC paths) on top of the compiler grid — new engine feature, out of scope here. |
+| `-2psb` (BSP2RMQ) | **Implemented.** `cmd/qbsp -2psb` (implies `-bsp2`): 32-bit indices with 16-bit node/leaf bounds; loader round-trip (`TestCompileBSPRMQ`) and **ericw `bspinfo` accepts the output as "Quake BSP2-RMQ bsp2rmq"**. |
+| HL/Q2 compiler targets | **Deferred.** Q1 output only; HL/Q2 share the Q1-style lumps but add surf-flags/water-current semantics — new target plumbing, out of scope. |
+| BSPX brush lumps | **Implemented.** `AppendBSPX` writes the ericw-compatible `BRUSHLIST` lump (per-model brushes, bounds, plane faces) appended 4-aligned after the base BSP; the engine tolerates it; `TestBSPXBrushList` round-trips it and the loader still loads (ericw locates BSPX at the aligned lump end). |
+| Per-submodel PVS | **Deferred.** World-only rows remain the v1./v2 contract: vis computes PVS over world leaves (`Models[0].VisLeafs`); submodel `visleafs` counts are written but rows stay world. Requires vis + engine `LeafPVS` rework. |
+| Texture-color bounce without `-wadpath` | **Implemented.** qbsp placeholders are now mid-gray (palette 128) instead of black, and `light` derives each face's albedo from its miptex pixel average (`textureBrightness`, 0.5 fallback for legacy black/absent) feeding `applyBounce` flux; `TestTextureBrightness`. `_texlight`/emissive keys remain supported extension points. |
+| `lightpreview` integration | **Deferred** (unchanged). |

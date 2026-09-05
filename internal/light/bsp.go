@@ -40,6 +40,7 @@ func ParseFaces(bspData []byte) ([]Face, error) {
 		name := textureName(textures, int(ti.Miptex))
 		sky := strings.HasPrefix(name, "sky")
 		noDraw := ti.Flags&bsp.TexSpecial != 0
+		albedo := textureBrightness(textures, int(ti.Miptex))
 
 		var poly [][3]float64
 		ok := true
@@ -83,6 +84,7 @@ func ParseFaces(bspData []byte) ([]Face, error) {
 			Normal: normal,
 			Sky:    sky,
 			NoDraw: noDraw,
+			Albedo: albedo,
 		})
 	}
 	return out, nil
@@ -181,6 +183,39 @@ func parseSurfedges(lump []byte) []int32 {
 		out = append(out, int32(binary.LittleEndian.Uint32(lump[i:])))
 	}
 	return out
+}
+
+// textureBrightness returns the mid-gray albedo (0..1) of the miptex's
+// first mip level, from its palette-index pixel average. Zero (the old
+// black placeholder) falls back to the classic 0.5 default.
+func textureBrightness(lump []byte, idx int) float64 {
+	if idx < 0 || idx >= numTextures(lump) || len(lump) < 4+4*(idx+1) {
+		return 0.5
+	}
+	ofs := int(binary.LittleEndian.Uint32(lump[4+idx*4:]))
+	if ofs+40 > len(lump) {
+		return 0.5
+	}
+	dim := int(binary.LittleEndian.Uint32(lump[ofs+16:]))
+	if dim <= 0 || dim > 256 {
+		return 0.5
+	}
+	n := dim * dim
+	if ofs+40+n > len(lump) {
+		return 0.5
+	}
+	var sum int
+	for i := 0; i < n; i++ {
+		sum += int(lump[ofs+40+i])
+	}
+	if n == 0 {
+		return 0.5
+	}
+	avg := float64(sum) / float64(n)
+	if avg < 1 {
+		return 0.5 // black placeholder (legacy)
+	}
+	return avg / 255
 }
 
 func numTextures(lump []byte) int {

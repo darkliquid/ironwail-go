@@ -334,3 +334,68 @@ func facePolygons(tree *bsp.Tree) [][]types.Vec3 {
 
 // vec3From converts a types.Vec3 to the compiler's vec3.
 func vec3From(v types.Vec3) vec3 { return vec3{float64(v.X), float64(v.Y), float64(v.Z)} }
+
+// TestBSPXBrushList verifies the appended BRUSHLIST lump: per-model brush
+// counts round-trip, the file still loads through the engine loader, and
+// the BSPX data survives the vis pipeline (raw lump passthrough).
+func TestBSPXBrushList(t *testing.T) {
+	res := compileMapString(t, boxMapWithFuncWall())
+	counts, err := ReadBSPXBrushList(res.Data)
+	if err != nil {
+		t.Fatalf("ReadBSPXBrushList: %v", err)
+	}
+	if len(counts) != res.Models {
+		t.Fatalf("bspx models = %d, want %d", len(counts), res.Models)
+	}
+	if counts[0] < 6 {
+		t.Errorf("world brush count = %d, want >= 6", counts[0])
+	}
+	if res.Models > 1 && counts[1] < 1 {
+		t.Errorf("submodel brush count = %d, want >= 1", counts[1])
+	}
+	// The engine loader must still read the BSP (appended data is inert).
+	tree, err := bsp.LoadTree(bytes.NewReader(res.Data))
+	if err != nil {
+		t.Fatalf("LoadTree after BSPX: %v", err)
+	}
+	if len(tree.Models) != res.Models {
+		t.Errorf("models = %d, want %d", len(tree.Models), res.Models)
+	}
+}
+
+// boxMapWithFuncWall returns a sealed room plus one func_wall brush entity.
+func boxMapWithFuncWall() string {
+	return "{\n\"classname\" \"worldspawn\"\n" +
+		prettyRoom(0, 0, 0, 64, 64, 64, 8) +
+		"}\n{\n\"classname\" \"func_wall\"\n\"origin\" \"32 32 24\"\n" +
+		prettySlab(28, 28, 16, 36, 36, 40, "mt_wall") +
+		"}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"32 32 12\"\n}\n"
+}
+
+// TestCompileBSPRMQ verifies -2psb output: the BSP2RMQ variant round-trips
+// through the version-aware loader with the 2PSB magic and 16-bit bounds.
+func TestCompileBSPRMQ(t *testing.T) {
+	m, err := ParseMap(strings.NewReader(boxMap()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Compile(m, Options{BSP2: true, TwoPSB: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := bsp.LoadTree(bytes.NewReader(res.Data))
+	if err != nil {
+		t.Fatalf("LoadTree (2psb): %v", err)
+	}
+	if tree.Version != bsp.BSP2Version_2PSB {
+		t.Errorf("version = %x, want 2PSB (%x)", uint32(tree.Version), uint32(bsp.BSP2Version_2PSB))
+	}
+	if len(tree.Nodes) == 0 || len(tree.Faces) < 6 {
+		t.Errorf("2psb tree empty: nodes %d faces %d", len(tree.Nodes), len(tree.Faces))
+	}
+	// The engine's point descent must resolve the interior as empty.
+	l := tree.PointInLeaf(types.Vec3{X: 32, Y: 32, Z: 32})
+	if l.Contents == bsp.ContentsSolid {
+		t.Error("2psb interior resolved solid")
+	}
+}

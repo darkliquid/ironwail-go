@@ -4,8 +4,16 @@ import (
 	"math"
 )
 
-// BakeOpts extends Bake with optional features (sun, radiosity bounces).
+// BakeOpts extends Bake with optional features (supersampling, sun,
+// radiosity bounces).
 type BakeOpts struct {
+	// Extra is the luxel supersample factor: 1 = one sample per luxel,
+	// 2 = 2x2 (-extra), 4 = 4x4 (-extra4). The lightmap grid is unchanged;
+	// each luxel averages Extra*Extra sub-samples.
+	Extra int
+	// Phong is the phong-shading angle in degrees (>0 enables per-sample
+	// interpolated normals at shared vertices within the angle).
+	Phong float64
 	// Sun lights all non-sky faces from a directional sky light.
 	Sun *Sun
 	// Bounce is the radiosity bounce count (0 = direct only; 1 = single
@@ -24,6 +32,9 @@ func Bake(faces []Face, lights []Light, trace func(from, to [3]float64) bool) Re
 
 // BakeWithOpts is Bake with sun/bounce options.
 func BakeWithOpts(faces []Face, lights []Light, trace func(from, to [3]float64) bool, opts BakeOpts) Result {
+	if opts.Phong > 0 {
+		BuildPhongNormals(faces, opts.Phong)
+	}
 	res := bakeInternal(faces, lights, trace, opts)
 	if opts.Bounce > 0 {
 		res = applyBounce(res, faces, opts.Bounce, trace)
@@ -31,9 +42,13 @@ func BakeWithOpts(faces []Face, lights []Light, trace func(from, to [3]float64) 
 	return res
 }
 
-// bakeInternal does the core per-face per-style light accumulation and the
-// optional sun term.
+// bakeInternal does the core per-face per-style light accumulation, the
+// optional sun term, and optional luxel supersampling.
 func bakeInternal(faces []Face, lights []Light, trace func(from, to [3]float64) bool, opts BakeOpts) Result {
+	extra := opts.Extra
+	if extra < 1 {
+		extra = 1
+	}
 	var res Result
 	res.LightOfs = make([]int32, len(faces))
 	res.Styles = make([][4]byte, len(faces))
@@ -57,24 +72,42 @@ func bakeInternal(faces []Face, lights []Light, trace func(from, to [3]float64) 
 		res.LightOfs[fi] = int32(len(res.Lighting))
 		for bi := 0; bi < styleCount(styles); bi++ {
 			for i := 0; i < n; i++ {
-				s := e.Mins[0] + (float64(i%e.W)+0.5)*16
-				t := e.Mins[1] + (float64(i/e.W)+0.5)*16
-				p := samplePoint(f, s, t)
 				var r, g, b float64
-				if bi == 0 {
-					r, g, b = directLight(f, p, lights, int(styles[0]), trace)
-					if opts.Sun != nil {
-						sr, sg, sb := opts.Sun.SunLight(f, p)
-						r += sr
-						g += sg
-						b += sb
+				for sy := 0; sy < extra; sy++ {
+					for sx := 0; sx < extra; sx++ {
+						offS := (float64(sx)+0.5)/float64(extra) - 0.5
+						offT := (float64(sy)+0.5)/float64(extra) - 0.5
+						s := e.Mins[0] + (float64(i%e.W)+0.5+offS)*16
+						t := e.Mins[1] + (float64(i/e.W)+0.5+offT)*16
+						p := samplePoint(f, s, t)
+						n := f.Normal
+						if len(f.VNormals) == len(f.Poly) {
+							n = interpolatedNormal(f, p)
+						}
+						if bi == 0 {
+							sr, sg, sb := directLight(f, n, p, lights, int(styles[0]), trace)
+							if opts.Sun != nil {
+								ur, ug, ub := opts.Sun.SunLight(f, n, p)
+								sr += ur
+								sg += ug
+								sb += ub
+							}
+							r += sr
+							g += sg
+							b += sb
+						} else {
+							sr, sg, sb := directLight(f, n, p, lights, int(styles[bi]), trace)
+							r += sr
+							g += sg
+							b += sb
+						}
 					}
-				} else {
-					r, g, b = directLight(f, p, lights, int(styles[bi]), trace)
 				}
-				res.Lighting = append(res.Lighting, byte((r+g+b)/3))
+				div := float64(extra * extra)
+				ar, ag, ab := r/div, g/div, b/div
+				res.Lighting = append(res.Lighting, byte((ar+ag+ab)/3))
 				if bi == 0 {
-					res.Lit = append(res.Lit, byte(math.Min(r, 255)), byte(math.Min(g, 255)), byte(math.Min(b, 255)))
+					res.Lit = append(res.Lit, byte(math.Min(ar, 255)), byte(math.Min(ag, 255)), byte(math.Min(ab, 255)))
 				}
 			}
 		}
@@ -84,9 +117,9 @@ func bakeInternal(faces []Face, lights []Light, trace func(from, to [3]float64) 
 
 // surfel is one baked style-0 lightmap sample used as a radiosity emitter.
 type surfel struct {
-	p     [3]float64
-	n     [3]float64
-	flux  float64 // albedo-weighted radiance
+	p    [3]float64
+	n    [3]float64
+	flux float64 // albedo-weighted radiance
 }
 
 // applyBounce adds bounce passes of clamped colour-bleed radiosity from
@@ -119,10 +152,14 @@ func applyBounce(res Result, faces []Face, bounces int, trace func(from, to [3]f
 			if v <= 4 {
 				continue // unlit surfels don't emit
 			}
+			albedo := f.Albedo
+			if albedo <= 0 {
+				albedo = 0.5 // untextured default (classic gray)
+			}
 			surfels = append(surfels, surfel{
 				p:    p,
 				n:    [3]float64{f.Normal[0], f.Normal[1], f.Normal[2]},
-				flux: v * 0.5, // classic albedo-ish falloff
+				flux: v * albedo,
 			})
 		}
 	}

@@ -377,8 +377,10 @@ parity_test.go` + `internal/light` parity tests; Extend
 | Scope creep (phong, lightgrid, HDR/-lit2, -extra, 2psb, HL/Q2, BSPX) | Bead drags | Explicit non-goals in the v2 spec; follow-up bead `ironwail-go-c05` |
 | GPL-2 ericw sources | Cannot copy code | Clean-room algorithm ports; parity harness verifies behavior only |
 
-## Non-goals (tracked in `ironwail-go-c05`)
+## Follow-up status (bead `ironwail-go-c05`)
 
-HDR/`-lit2`/`-lithdr`, `-extra`/`-extra4`, phong shading, lightgrid,
-`-2psb`, HL/Q2 targets, BSPX brushes lump, per-submodel PVS rows,
-automatic texture-color bounce without `-wadpath`.
+Implemented: `-extra`/`-extra4` supersampling, phong shading
+(`-phong`), `-2psb` (BSP2RMQ), the BSPX `BRUSHLIST` lump, and
+texture-color bounce (mid-gray placeholders + miptex-albedo). Deferred
+with rationale in the spec (section 11): HDR/`-lit2`, lightgrid,
+HL/Q2 targets, per-submodel PVS rows.
