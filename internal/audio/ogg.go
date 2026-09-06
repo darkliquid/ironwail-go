@@ -47,6 +47,9 @@ func (s *oggStream) ReadFrames(dst []byte) (int, error) {
 }
 
 func (s *oggStream) SeekFrame(frame int64) error {
+	if frame < 0 || (s.length > 0 && frame > s.length) {
+		return fmt.Errorf("invalid frame offset %d", frame)
+	}
 	return s.reader.SetPosition(frame)
 }
 

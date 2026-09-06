@@ -3,7 +3,9 @@ package audio
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 	"testing"
@@ -372,4 +374,334 @@ func testMusicOGG(t *testing.T, sampleRate, channels, width, frames int) []byte 
 		t.Fatalf("ffmpeg OGG encoding returned empty output")
 	}
 	return out.Bytes()
+}
+
+type mockMusicStream struct {
+	readFramesFunc func(dst []byte) (int, error)
+	seekFrameFunc  func(frame int64) error
+	closeFunc      func() error
+	seekCalls      []int64
+	closeCalls     int
+}
+
+func (m *mockMusicStream) ReadFrames(dst []byte) (int, error) {
+	if m.readFramesFunc != nil {
+		return m.readFramesFunc(dst)
+	}
+	return 0, io.EOF
+}
+
+func (m *mockMusicStream) SeekFrame(frame int64) error {
+	m.seekCalls = append(m.seekCalls, frame)
+	if m.seekFrameFunc != nil {
+		return m.seekFrameFunc(frame)
+	}
+	return nil
+}
+
+func (m *mockMusicStream) Close() error {
+	m.closeCalls++
+	if m.closeFunc != nil {
+		return m.closeFunc()
+	}
+	return nil
+}
+
+// TestStreamingMusicPlaybackInMixer verifies that streaming music playback decodes PCM
+// audio into raw samples in the mixer.
+func TestStreamingMusicPlaybackInMixer(t *testing.T) {
+	sys := newTestMusicSystem()
+	oggData := testMusicOGG(t, 44100, 2, 2, 128)
+
+	err := sys.PlayMusic("track02.ogg", func(name string) ([]byte, error) {
+		if name != "music/track02.ogg" {
+			return nil, fmt.Errorf("unexpected path %q", name)
+		}
+		return oggData, nil
+	})
+	if err != nil {
+		t.Fatalf("PlayMusic failed: %v", err)
+	}
+
+	if sys.music == nil || sys.music.track == nil || sys.music.track.stream == nil {
+		t.Fatalf("expected active streaming track")
+	}
+
+	sys.updateMusic(64)
+
+	if sys.rawSamples.End < 64 {
+		t.Fatalf("rawSamples.End = %d, want at least 64", sys.rawSamples.End)
+	}
+	hasNonZero := false
+	for i := 0; i < sys.rawSamples.End; i++ {
+		if sys.rawSamples.Samples[i].Left != 0 || sys.rawSamples.Samples[i].Right != 0 {
+			hasNonZero = true
+			break
+		}
+	}
+	if !hasNonZero {
+		t.Fatalf("expected raw samples to be populated with decoded PCM from streaming music")
+	}
+}
+
+// TestStreamingMusicLooping tests that looping streaming tracks resets position to 0 via
+// SeekFrame(0) and continues playback seamlessly across loop boundaries.
+func TestStreamingMusicLooping(t *testing.T) {
+	sys := newTestMusicSystem()
+	sys.musicLoop = true
+
+	totalFrames := 64
+	streamPos := 0
+	mock := &mockMusicStream{
+		readFramesFunc: func(dst []byte) (int, error) {
+			frameSize := 4
+			maxFrames := len(dst) / frameSize
+			avail := totalFrames - streamPos
+			if avail <= 0 {
+				return 0, io.EOF
+			}
+			toRead := maxFrames
+			if toRead > avail {
+				toRead = avail
+			}
+			for f := 0; f < toRead; f++ {
+				val := int16((streamPos + f + 1) * 100)
+				binary.LittleEndian.PutUint16(dst[f*frameSize:], uint16(val))
+				binary.LittleEndian.PutUint16(dst[f*frameSize+2:], uint16(-val))
+			}
+			streamPos += toRead
+			return toRead, nil
+		},
+		seekFrameFunc: func(frame int64) error {
+			streamPos = int(frame)
+			return nil
+		},
+	}
+
+	sys.music = &musicState{
+		loop: true,
+		track: &musicTrack{
+			name:     "music/mock_loop.ogg",
+			stream:   mock,
+			samples:  totalFrames,
+			rate:     44100,
+			width:    2,
+			channels: 2,
+		},
+	}
+
+	// Update past the 64-frame track length to 100 frames
+	sys.updateMusic(100)
+
+	if len(mock.seekCalls) == 0 {
+		t.Fatalf("expected SeekFrame to be called upon looping, got 0 calls")
+	}
+	if mock.seekCalls[0] != 0 {
+		t.Fatalf("expected SeekFrame(0), got SeekFrame(%d)", mock.seekCalls[0])
+	}
+	if sys.music == nil {
+		t.Fatalf("expected music to remain active after loop")
+	}
+	if sys.music.position != 36 {
+		t.Fatalf("music position after loop = %d, want 36", sys.music.position)
+	}
+	if sys.rawSamples.End < 100 {
+		t.Fatalf("rawSamples.End = %d, want at least 100", sys.rawSamples.End)
+	}
+
+	sampleBeforeLoop := sys.rawSamples.Samples[63]
+	sampleAfterLoop := sys.rawSamples.Samples[64]
+	if sampleBeforeLoop.Left == 0 && sampleBeforeLoop.Right == 0 {
+		t.Fatalf("expected non-zero samples before loop boundary")
+	}
+	if sampleAfterLoop.Left == 0 && sampleAfterLoop.Right == 0 {
+		t.Fatalf("expected non-zero samples after loop boundary")
+	}
+}
+
+// TestStreamingMusicSeekErrorHandling verifies that when SeekFrame(0) fails, advanceMusicTrack
+// returns an error and updateMusic cleanly stops music without entering an infinite loop.
+func TestStreamingMusicSeekErrorHandling(t *testing.T) {
+	sys := newTestMusicSystem()
+	sys.musicLoop = true
+	mock := &mockMusicStream{
+		seekFrameFunc: func(frame int64) error {
+			return errors.New("seek failed: disk I/O error")
+		},
+		readFramesFunc: func(dst []byte) (int, error) {
+			return 0, io.EOF
+		},
+	}
+
+	// 1. Verify advanceMusicTrack returns an error on SeekFrame failure for regular music
+	sys.music = &musicState{
+		loop:     true,
+		position: 32,
+		track: &musicTrack{
+			name:     "music/seek_fail.ogg",
+			stream:   mock,
+			samples:  32,
+			rate:     44100,
+			width:    2,
+			channels: 2,
+		},
+	}
+
+	err := sys.advanceMusicTrack()
+	if err == nil {
+		t.Fatalf("advanceMusicTrack() expected error when SeekFrame fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to seek music stream") {
+		t.Fatalf("advanceMusicTrack() error = %q, want containing 'failed to seek music stream'", err.Error())
+	}
+
+	// 2. Verify updateMusic stops music cleanly without an infinite loop
+	sys.music = &musicState{
+		loop:     true,
+		position: 32,
+		track: &musicTrack{
+			name:     "music/seek_fail.ogg",
+			stream:   mock,
+			samples:  32,
+			rate:     44100,
+			width:    2,
+			channels: 2,
+		},
+	}
+
+	sys.updateMusic(64)
+
+	if sys.music != nil {
+		t.Fatalf("expected StopMusic() to be called after seek failure, got sys.music != nil")
+	}
+	if mock.closeCalls == 0 {
+		t.Fatalf("expected stream to be closed after StopMusic()")
+	}
+
+	// 3. Verify advanceMusicTrack returns an error on SeekFrame failure for same-track CD loop
+	sys.music = &musicState{
+		requestTrack: 2,
+		loopTrack:    2,
+		activeTrack:  2,
+		loop:         true,
+		position:     32,
+		track: &musicTrack{
+			name:     "music/track02.ogg",
+			stream:   mock,
+			samples:  32,
+			rate:     44100,
+			width:    2,
+			channels: 2,
+		},
+	}
+
+	err = sys.advanceMusicTrack()
+	if err == nil {
+		t.Fatalf("advanceMusicTrack() for CD track expected error when SeekFrame fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to seek music stream") {
+		t.Fatalf("advanceMusicTrack() CD loop error = %q, want containing 'failed to seek music stream'", err.Error())
+	}
+}
+
+// TestStreamingMusicCorruptDecodeHandling verifies that non-EOF decode errors from ReadFrames
+// cause updateMusic to cleanly stop playback.
+func TestStreamingMusicCorruptDecodeHandling(t *testing.T) {
+	sys := newTestMusicSystem()
+	mock := &mockMusicStream{
+		readFramesFunc: func(dst []byte) (int, error) {
+			return 0, errors.New("corrupted ogg stream data")
+		},
+	}
+	sys.music = &musicState{
+		loop:     true,
+		position: 16,
+		track: &musicTrack{
+			name:     "music/corrupt.ogg",
+			stream:   mock,
+			samples:  64,
+			rate:     44100,
+			width:    2,
+			channels: 2,
+		},
+	}
+
+	sys.updateMusic(64)
+
+	if sys.music != nil {
+		t.Fatalf("expected StopMusic() on corrupt decode error, got sys.music != nil")
+	}
+	if mock.closeCalls == 0 {
+		t.Fatalf("expected stream to be closed when corrupt music stopped")
+	}
+}
+
+// TestStreamingMusicUnplayableStreamStops verifies that an unplayable stream (0 frames at pos 0)
+// stops music immediately to avoid infinite loops.
+func TestStreamingMusicUnplayableStreamStops(t *testing.T) {
+	sys := newTestMusicSystem()
+	mock := &mockMusicStream{
+		readFramesFunc: func(dst []byte) (int, error) {
+			return 0, io.EOF
+		},
+	}
+	sys.music = &musicState{
+		loop:     true,
+		position: 0,
+		track: &musicTrack{
+			name:     "music/unplayable.ogg",
+			stream:   mock,
+			samples:  64,
+			rate:     44100,
+			width:    2,
+			channels: 2,
+		},
+	}
+
+	sys.updateMusic(64)
+
+	if sys.music != nil {
+		t.Fatalf("expected StopMusic() on unplayable stream (0 frames at pos 0), got sys.music != nil")
+	}
+}
+
+// TestStreamingMusicStopClosesStream verifies that StopMusic calls stream.Close().
+func TestStreamingMusicStopClosesStream(t *testing.T) {
+	sys := newTestMusicSystem()
+	mock := &mockMusicStream{}
+	sys.music = &musicState{
+		track: &musicTrack{
+			name:   "music/test.ogg",
+			stream: mock,
+		},
+	}
+
+	sys.StopMusic()
+
+	if mock.closeCalls != 1 {
+		t.Fatalf("expected stream.Close() to be called once, got %d calls", mock.closeCalls)
+	}
+	if sys.music != nil {
+		t.Fatalf("expected sys.music == nil after StopMusic()")
+	}
+}
+
+// TestOGGStreamSeekFrameBounds verifies that oggStream.SeekFrame rejects negative frame
+// offsets and offsets past the stream length.
+func TestOGGStreamSeekFrameBounds(t *testing.T) {
+	oggData := testMusicOGG(t, 44100, 2, 2, 64)
+	track, err := decodeMusicOGG("music/bounds.ogg", oggData)
+	if err != nil {
+		t.Fatalf("decodeMusicOGG failed: %v", err)
+	}
+
+	if err := track.stream.SeekFrame(-1); err == nil {
+		t.Fatalf("expected SeekFrame(-1) to return error, got nil")
+	}
+	if err := track.stream.SeekFrame(int64(track.samples) + 1); err == nil {
+		t.Fatalf("expected SeekFrame(past end) to return error, got nil")
+	}
+	if err := track.stream.SeekFrame(0); err != nil {
+		t.Fatalf("SeekFrame(0) should succeed, got %v", err)
+	}
 }

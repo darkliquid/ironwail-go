@@ -4,7 +4,9 @@
 package audio
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"path"
 	"path/filepath"
 	"strings"
@@ -211,8 +213,17 @@ func (s *System) updateMusic(endTime int) {
 			if len(s.music.streamBuf) < neededBytes {
 				s.music.streamBuf = make([]byte, neededBytes)
 			}
-			framesRead, _ := s.music.track.stream.ReadFrames(s.music.streamBuf[:neededBytes])
+			framesRead, err := s.music.track.stream.ReadFrames(s.music.streamBuf[:neededBytes])
 			if framesRead <= 0 {
+				if err != nil && !errors.Is(err, io.EOF) {
+					s.StopMusic()
+					return
+				}
+				// If position == 0 and framesRead == 0, stop music to avoid infinite loop on unplayable stream
+				if s.music.position == 0 {
+					s.StopMusic()
+					return
+				}
 				if err := s.advanceMusicTrack(); err != nil {
 					s.StopMusic()
 					return
@@ -242,7 +253,9 @@ func (s *System) advanceMusicTrack() error {
 		if s.music.loop {
 			s.music.position = 0
 			if s.music.track != nil && s.music.track.stream != nil {
-				_ = s.music.track.stream.SeekFrame(0)
+				if err := s.music.track.stream.SeekFrame(0); err != nil {
+					return fmt.Errorf("failed to seek music stream: %w", err)
+				}
 			}
 			return nil
 		}
@@ -256,7 +269,9 @@ func (s *System) advanceMusicTrack() error {
 	if s.music.loopTrack == s.music.activeTrack {
 		s.music.position = 0
 		if s.music.track != nil && s.music.track.stream != nil {
-			_ = s.music.track.stream.SeekFrame(0)
+			if err := s.music.track.stream.SeekFrame(0); err != nil {
+				return fmt.Errorf("failed to seek music stream: %w", err)
+			}
 		}
 		return nil
 	}
