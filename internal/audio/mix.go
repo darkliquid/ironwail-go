@@ -388,6 +388,9 @@ func (m *Mixer) transferPaintBuffer(dma *DMAInfo, paintedTime int, count int) {
 }
 
 func (m *Mixer) SetUnderwaterIntensity(target float32, frameTime float32, waterfx float32) {
+	if target < 0 {
+		target = 0
+	}
 	target *= float32(math.Max(0.0, math.Min(float64(waterfx), 2.0)))
 	step := frameTime * 4.0
 	if step <= 0 {

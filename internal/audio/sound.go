@@ -588,6 +588,9 @@ func (s *System) getWaterFx() float32 {
 }
 
 func (s *System) SetUnderwaterIntensity(intensity float32) {
+	if s == nil {
+		return
+	}
 	if mixer, ok := s.mixer.(interface{ SetUnderwaterIntensity(float32, float32, float32) }); ok {
 		mixer.SetUnderwaterIntensity(intensity, 0.016, s.getWaterFx())
 	}
