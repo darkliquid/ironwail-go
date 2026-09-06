@@ -45,7 +45,7 @@ func (h *Host) registerHostCVars() {
 	cv.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
 	cv.Register("maxplayers", "1", cvar.FlagServerInfo, "Maximum number of server player slots")
 	cv.Register("sv_altnoclip", "1", cvar.FlagServerInfo, "Use fly-style noclip movement when enabled")
-	cv.Register("sv_aim", "1", cvar.FlagArchive, "Autoaim angle threshold (1=off, 0.93=classic autoaim)")
+	cv.Register("sv_aim", "0.93", cvar.FlagArchive, "Autoaim angle threshold (1=off, 0.93=classic autoaim)")
 	cv.Register("sv_freezenonclients", "0", cvar.FlagServerInfo, "Freeze non-client entities when enabled")
 	cv.Register("sv_nostep", "0", cvar.FlagServerInfo, "Disable stair-step movement retries when enabled")
 	cv.Register("fraglimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match frag limit")

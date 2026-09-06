@@ -162,11 +162,16 @@ func (s *System) AnyKeyDown() bool {
 }
 
 // ClearKeyStates resets every key to the "up" state. This is called when
-// changing video modes or loading a new level to prevent stuck keys caused
-// by a release event being missed during the transition.
+// changing video modes, losing window focus, or loading a new level to prevent
+// stuck keys. Mirrors C Quake Key_ClearStates (keys.c:1500) by dispatching
+// key-up events for all keys that were marked down, ensuring gameplay buttons
+// are released and KButton tracking slots do not remain orphaned.
 func (s *System) ClearKeyStates() {
 	for i := range s.state.Keys {
 		s.state.Keys[i] = false
+	}
+	if s.OnClearKeyStates != nil {
+		s.OnClearKeyStates()
 	}
 }
 

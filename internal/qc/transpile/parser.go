@@ -797,8 +797,3 @@ func (p *parser) parsePrimary() (Expr, error) {
 	}
 	return nil, fmt.Errorf("line %d: unexpected token %q", t.Line, t.Text)
 }
-
-// isPunctTok is a Token method form of isPunct for lookahead.
-func (t Token) isPunctTok(tok string) bool {
-	return t.Kind == TokPunct && t.Text == tok
-}

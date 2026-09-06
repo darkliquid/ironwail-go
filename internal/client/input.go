@@ -94,6 +94,14 @@ func absf(v float32) float32 {
 
 func (c *Client) KeyDown(b *KButton, key int) {
 	if key == b.Down[0] || key == b.Down[1] {
+		if b.State&1 != 0 {
+			return // repeating key while button already held
+		}
+		// Stale tracking slot from an orphaned press: re-activate the button.
+		b.State |= 1 + 2
+		if inpdbgLevel() >= 1 {
+			InpdbgLogf("KeyDown button=%p key=%d re-activated (stale slot) -> State=%d Down=[%d, %d]", b, key, b.State, b.Down[0], b.Down[1])
+		}
 		return
 	}
 	if b.Down[0] == 0 {
@@ -101,12 +109,21 @@ func (c *Client) KeyDown(b *KButton, key int) {
 	} else if b.Down[1] == 0 {
 		b.Down[1] = key
 	} else {
+		if inpdbgLevel() >= 1 {
+			InpdbgLogf("KeyDown button=%p key=%d REJECTED (both slots full: [%d, %d])", b, key, b.Down[0], b.Down[1])
+		}
 		return
 	}
 	if b.State&1 != 0 {
+		if inpdbgLevel() >= 2 {
+			InpdbgLogf("KeyDown button=%p key=%d already down (State=%d Down=[%d, %d])", b, key, b.State, b.Down[0], b.Down[1])
+		}
 		return
 	}
 	b.State |= 1 + 2
+	if inpdbgLevel() >= 1 {
+		InpdbgLogf("KeyDown button=%p key=%d -> State=%d Down=[%d, %d]", b, key, b.State, b.Down[0], b.Down[1])
+	}
 }
 
 func (c *Client) KeyUp(b *KButton, key int) {
@@ -114,6 +131,9 @@ func (c *Client) KeyUp(b *KButton, key int) {
 		b.Down[0] = 0
 		b.Down[1] = 0
 		b.State = 4
+		if inpdbgLevel() >= 1 {
+			InpdbgLogf("KeyUp button=%p key=-1 (cleared all) -> State=%d", b, b.State)
+		}
 		return
 	}
 	if b.Down[0] == key {
@@ -121,16 +141,28 @@ func (c *Client) KeyUp(b *KButton, key int) {
 	} else if b.Down[1] == key {
 		b.Down[1] = 0
 	} else {
+		if inpdbgLevel() >= 2 {
+			InpdbgLogf("KeyUp button=%p key=%d ignored (not in Down=[%d, %d])", b, key, b.Down[0], b.Down[1])
+		}
 		return
 	}
 	if b.Down[0] != 0 || b.Down[1] != 0 {
+		if inpdbgLevel() >= 1 {
+			InpdbgLogf("KeyUp button=%p key=%d still held by other key Down=[%d, %d]", b, key, b.Down[0], b.Down[1])
+		}
 		return
 	}
 	if b.State&1 == 0 {
+		if inpdbgLevel() >= 2 {
+			InpdbgLogf("KeyUp button=%p key=%d already up (State=%d)", b, key, b.State)
+		}
 		return
 	}
 	b.State &^= 1
 	b.State |= 4
+	if inpdbgLevel() >= 1 {
+		InpdbgLogf("KeyUp button=%p key=%d -> State=%d", b, key, b.State)
+	}
 }
 
 func (c *Client) KeyState(key *KButton) float32 {
@@ -278,8 +310,14 @@ func (c *Client) BaseMove(cmd *UserCmd) {
 	cmd.Up += c.MouseUpMove
 
 	if c.InputKLook.State&1 == 0 {
-		cmd.Forward += c.ForwardSpeed * c.KeyState(&c.InputForward)
-		cmd.Forward -= c.BackSpeed * c.KeyState(&c.InputBack)
+		forward := c.ForwardSpeed * c.KeyState(&c.InputForward)
+		back := c.BackSpeed * c.KeyState(&c.InputBack)
+		cmd.Forward += forward
+		cmd.Forward -= back
+		if inpdbgLevel() >= 2 || (inpdbgLevel() >= 1 && (forward != 0 || back != 0)) {
+			InpdbgLogf("BaseMove: Forward=%.1f Back=%.1f -> cmd.Forward=%.1f (InputBack.State=%d)",
+				forward, back, cmd.Forward, c.InputBack.State)
+		}
 	}
 
 	if (c.InputSpeed.State&1 != 0) != c.AlwaysRun {

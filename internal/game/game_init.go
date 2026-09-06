@@ -793,6 +793,7 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 		g.Input.OnMenuChar = g.handleMenuCharEvent
 		g.Input.OnKey = g.handleGameKeyEvent
 		g.Input.OnChar = g.handleGameCharEvent
+		g.Input.OnClearKeyStates = g.releaseGameplayButtons
 	}
 
 	if err := g.initGameHost(); err != nil {

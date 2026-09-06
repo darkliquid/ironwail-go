@@ -509,6 +509,10 @@ type System struct {
 	OnMenuKey  KeyEventCallback
 	OnMenuChar CharEventCallback
 
+	// OnClearKeyStates is called when ClearKeyStates resets all key states,
+	// allowing subscribers (e.g. game layer) to release active button latches.
+	OnClearKeyStates func()
+
 	// Current state
 	state     InputState
 	keyDest   KeyDest

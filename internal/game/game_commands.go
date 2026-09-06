@@ -134,14 +134,14 @@ func (g *Game) registerConsoleCompletionProviders() {
 
 func (g *Game) registerGameplayButtonCommand(name string, selectButton func(*cl.Client) *cl.KButton) {
 	g.Host.Cmd.AddCommand("+"+name, func(args []string) {
-		g.runGameplayButtonCommand(selectButton, true, args)
+		g.runGameplayButtonCommand(name, selectButton, true, args)
 	}, "Gameplay button press")
 	g.Host.Cmd.AddCommand("-"+name, func(args []string) {
-		g.runGameplayButtonCommand(selectButton, false, args)
+		g.runGameplayButtonCommand(name, selectButton, false, args)
 	}, "Gameplay button release")
 }
 
-func (g *Game) runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButton, down bool, args []string) {
+func (g *Game) runGameplayButtonCommand(name string, selectButton func(*cl.Client) *cl.KButton, down bool, args []string) {
 	if g.Client == nil {
 		return
 	}
@@ -150,6 +150,13 @@ func (g *Game) runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButto
 		if parsed, err := strconv.Atoi(args[0]); err == nil {
 			key = parsed
 		}
+	}
+	if cl.InDebugLevel() >= 1 {
+		prefix := "-"
+		if down {
+			prefix = "+"
+		}
+		cl.InpdbgLogf("btn %s%s key=%d", prefix, name, key)
 	}
 	button := selectButton(g.Client)
 	if down {

@@ -65,6 +65,19 @@ func (g *Game) handleGameKeyEvent(event input.KeyEvent) {
 		}
 	}
 
+	// C Quake keys.c:1357: key up events always generate button-release
+	// commands if the key is bound to a button (+command), regardless of
+	// key_dest (menu, console, message, game). This prevents actions started
+	// before a mode switch or focus loss from getting stuck.
+	binding := strings.TrimSpace(g.Input.Binding(event.Key))
+	if !event.Down && strings.HasPrefix(binding, "+") {
+		if g.Client != nil {
+			command := "-" + binding[1:]
+			g.Host.Cmd.ExecuteText(fmt.Sprintf("%s %d", command, event.Key))
+		}
+		return
+	}
+
 	switch g.Input.KeyDest() {
 	case input.KeyConsole:
 		g.handleConsoleKeyEvent(event)
@@ -94,7 +107,6 @@ func (g *Game) handleGameKeyEvent(event input.KeyEvent) {
 		return
 	}
 
-	binding := strings.TrimSpace(g.Input.Binding(event.Key))
 	if binding == "" {
 		if event.Down && event.Key >= input.KMouseBegin && !g.isDemoPlaybackActive() {
 			keyName := input.KeyToString(event.Key)

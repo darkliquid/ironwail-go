@@ -21,6 +21,7 @@ const (
 	SvDebugMultiplayerCVarName = srvdebug.SvDebugMultiplayerCVarName
 	SvDebugMoveCVarName        = srvdebug.SvDebugMoveCVarName
 	SvDebugPushCVarName        = srvdebug.SvDebugPushCVarName
+	SvDebugCombatCVarName      = srvdebug.SvDebugCombatCVarName
 )
 
 // RegisterSvdbgCVars is re-exported from the debug sub-package.
@@ -34,11 +35,19 @@ var (
 	SvdbgMoveLogfAt        = srvdebug.SvdbgMoveLogfAt
 	SvdbgPushLogf          = srvdebug.SvdbgPushLogf
 	SvdbgPushLogfAt        = srvdebug.SvdbgPushLogfAt
+	SvdbgCombatLogf        = srvdebug.SvdbgCombatLogf
+	SvdbgCombatLogfAt      = srvdebug.SvdbgCombatLogfAt
 )
 
+// SetSvdbgEmit sets the debug telemetry line sink.
+func SetSvdbgEmit(fn func(string)) {
+	srvdebug.SvdbgEmit = fn
+}
+
 // svdbg level checker functions — thin wrappers for internal use.
-func svDebugMoveLevel() int { return srvdebug.SvDebugMoveLevel() }
-func svDebugPushLevel() int { return srvdebug.SvDebugPushLevel() }
+func svDebugMoveLevel() int   { return srvdebug.SvDebugMoveLevel() }
+func svDebugPushLevel() int   { return srvdebug.SvDebugPushLevel() }
+func svDebugCombatLevel() int { return srvdebug.SvDebugCombatLevel() }
 
 // svDebugPushDumpTriggersOnce dumps all SOLID_TRIGGER entities once per
 // session so we can see what triggers exist and where they are positioned.

@@ -25,6 +25,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"strconv"
@@ -353,6 +354,19 @@ func NewServer() *Server {
 			if trace.Entity != nil {
 				res.EntNum = s.NumForEdict(trace.Entity)
 			}
+			if svDebugCombatLevel() >= 1 {
+				entDesc := "world/none"
+				if trace.Entity != nil {
+					entNum := s.NumForEdict(trace.Entity)
+					classname := s.String(trace.Entity.ClassName(s))
+					takeDmg := int(trace.Entity.TakeDamage(s))
+					entDesc = fmt.Sprintf("ent=%d(%s,takedmg=%d)", entNum, classname, takeDmg)
+				}
+				if trace.Entity != nil || svDebugCombatLevel() >= 2 {
+					SvdbgCombatLogf("traceline start=(%.1f %.1f %.1f) end=(%.1f %.1f %.1f) frac=%.3f hit=%s allsolid=%t startsolid=%t",
+						start.X, start.Y, start.Z, end.X, end.Y, end.Z, trace.Fraction, entDesc, trace.AllSolid, trace.StartSolid)
+				}
+			}
 			return res
 		},
 		Spawn: func(vm *qc.VM) (int, error) {
@@ -487,10 +501,11 @@ func NewServer() *Server {
 		PointContents: func(vm *qc.VM, point qtypes.Vec3) int {
 			return s.PointContents(point)
 		},
-		Aim: func(vm *qc.VM, entNum int, missileSpeed float32) qtypes.Vec3 {
+		Aim: func(vm *qc.VM, entNum int, missileSpeed float32) (ret qtypes.Vec3) {
 			ent := s.EdictNum(entNum)
 			if ent == nil {
-				return vm.GVector(qc.OFSGlobalVForward)
+				ret = vm.GVector(qc.OFSGlobalVForward)
+				return ret
 			}
 			start := ent.Origin(s)
 			start.Z += 20
@@ -502,19 +517,37 @@ func NewServer() *Server {
 				teamplay = s.CVar.FloatValue("teamplay") != 0
 			}
 			entTeam := ent.Team(s)
-			if trace.Entity != nil &&
-				TakeDamage(int(trace.Entity.TakeDamage(s))) == DamageAim &&
-				(!teamplay || entTeam <= 0 || entTeam != trace.Entity.Team(s)) {
-				return bestDir
-			}
 
-			bestDist := float32(1.0)
+			var bestEnt *Edict
+			bestDist := float32(0.93)
 			if s.CVar != nil {
 				if cv := s.CVar.Get("sv_aim"); cv != nil {
 					bestDist = float32(cv.Float)
 				}
 			}
-			var bestEnt *Edict
+
+			defer func() {
+				if svDebugCombatLevel() >= 1 {
+					bestNum := 0
+					bestClass := "none"
+					if bestEnt != nil {
+						bestNum = s.NumForEdict(bestEnt)
+						bestClass = s.String(bestEnt.ClassName(s))
+					}
+					SvdbgCombatLogf("Aim player=%d v_forward=(%.3f %.3f %.3f) sv_aim=%.2f directHit=%v targetEnt=%d(%s) -> dir=(%.3f %.3f %.3f)",
+						entNum, bestDir.X, bestDir.Y, bestDir.Z, bestDist,
+						trace.Entity != nil && TakeDamage(int(trace.Entity.TakeDamage(s))) == DamageAim,
+						bestNum, bestClass, ret.X, ret.Y, ret.Z)
+				}
+			}()
+
+			if trace.Entity != nil &&
+				TakeDamage(int(trace.Entity.TakeDamage(s))) == DamageAim &&
+				(!teamplay || entTeam <= 0 || entTeam != trace.Entity.Team(s)) {
+				ret = bestDir
+				return ret
+			}
+
 			for i := 1; i < s.NumEdicts && i < vm.NumEdicts; i++ {
 				check := s.EdictNum(i)
 				if check == nil || check.Free || check == ent {
@@ -547,13 +580,15 @@ func NewServer() *Server {
 				}
 			}
 			if bestEnt == nil {
-				return bestDir
+				ret = bestDir
+				return ret
 			}
 			dir := bestEnt.Origin(s).Sub(ent.Origin(s))
 			dist := dir.Dot(bestDir)
 			end = bestDir.Scale(dist)
 			end.Z = dir.Z
-			return end.Normalize()
+			ret = end.Normalize()
+			return ret
 		},
 		WalkMove: func(vm *qc.VM, yaw, dist float32) bool {
 			self := int(vm.GInt(qc.OFSSelf))

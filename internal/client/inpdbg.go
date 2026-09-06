@@ -33,6 +33,10 @@ func RegisterInDebugCVars(cv *cvar.CVarSystem) {
 		"Input debug telemetry (0=off, 1=events, 2=verbose)")
 }
 
+func InDebugLevel() int {
+	return inpdbgLevel()
+}
+
 func inpdbgLevel() int {
 	if inDebugCVar == nil {
 		return 0

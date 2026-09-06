@@ -15,6 +15,7 @@ var (
 	svDebugMultiplayerCVar *cvar.CVar
 	svDebugMoveCVar        *cvar.CVar
 	svDebugPushCVar        *cvar.CVar
+	svDebugCombatCVar      *cvar.CVar
 	// SvDebugPushTriggerDumpDone ensures the trigger entity dump is only
 	// emitted once per session (on the first touchLinks call after
 	// sv_debug_push is enabled).
@@ -33,6 +34,8 @@ func RegisterSvdbgCVars(cv *cvar.CVarSystem) {
 		"Server physics-client debug telemetry (0=off, 1=events, 2=verbose)")
 	svDebugPushCVar = cv.Register(SvDebugPushCVarName, "0", cvar.FlagNone,
 		"Debug PushMove riding/push detection: logs pusher, riding check, AABB overlap, and touchLinks results for MOVETYPE_PUSH entities (0=off, 1=summary, 2=verbose)")
+	svDebugCombatCVar = cv.Register(SvDebugCombatCVarName, "0", cvar.FlagNone,
+		"Server combat/hitscan debug telemetry (0=off, 1=hits & damage, 2=verbose all traces & Aim)")
 	inet.SlistDebugHook = func(event, format string, args ...any) {
 		SvdbgMultiplayerLogf("slist/"+event+" "+format, args...)
 	}
@@ -67,12 +70,25 @@ func SvDebugPushEnabled() bool {
 	return svDebugPushCVar != nil && svDebugPushCVar.Int > 0
 }
 
+func SvDebugCombatLevel() int {
+	if svDebugCombatCVar == nil {
+		return 0
+	}
+	return svDebugCombatCVar.Int
+}
+
+// SvDebugCombatEnabled reports whether sv_debug_combat logging is active.
+func SvDebugCombatEnabled() bool {
+	return svDebugCombatCVar != nil && svDebugCombatCVar.Int > 0
+}
+
 // ResetSvdbgCVars clears the svdbg cvar references. Used by tests to
 // ensure a clean state between test cases.
 func ResetSvdbgCVars() {
 	svDebugMultiplayerCVar = nil
 	svDebugMoveCVar = nil
 	svDebugPushCVar = nil
+	svDebugCombatCVar = nil
 	SvDebugPushTriggerDumpDone = false
 }
 
@@ -125,4 +141,20 @@ func SvdbgPushLogfAt(level int, format string, args ...any) {
 		return
 	}
 	SvdbgEmit("[svdbg kind=push] " + fmt.Sprintf(format, args...))
+}
+
+// SvdbgCombatLogf emits a kind=combat line at level>=1.
+func SvdbgCombatLogf(format string, args ...any) {
+	if SvDebugCombatLevel() < 1 {
+		return
+	}
+	SvdbgEmit("[svdbg kind=combat] " + fmt.Sprintf(format, args...))
+}
+
+// SvdbgCombatLogfAt emits a kind=combat line at level>=the given verbosity.
+func SvdbgCombatLogfAt(level int, format string, args ...any) {
+	if SvDebugCombatLevel() < level {
+		return
+	}
+	SvdbgEmit("[svdbg kind=combat] " + fmt.Sprintf(format, args...))
 }

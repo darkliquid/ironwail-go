@@ -7,6 +7,7 @@ package physics
 import (
 	"math"
 
+	srvdebug "github.com/darkliquid/ironwail-go/internal/server/debug"
 	srvtypes "github.com/darkliquid/ironwail-go/internal/server/types"
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
@@ -260,6 +261,10 @@ func (m *ClientMover) waterMove(ctx *clientMoveContext) {
 func (m *ClientMover) waterJump(ent *srvtypes.Edict) {
 	sh := m.sh
 	if m.cfg.GetTime() > ent.TeleportTime(sh) || ent.WaterLevel(sh) <= 0 {
+		if srvdebug.SvDebugMoveLevel() >= 1 {
+			srvdebug.SvdbgMoveLogf("waterJump player=%d cleared FlagWaterJump (time=%.3f, tele_time=%.3f, waterlevel=%d)",
+				ent.Num, m.cfg.GetTime(), ent.TeleportTime(sh), int(ent.WaterLevel(sh)))
+		}
 		ent.SetFlags(sh, float32(uint32(ent.Flags(sh))&^uint32(srvtypes.FlagWaterJump)))
 		ent.SetTeleportTime(sh, 0)
 	}
@@ -306,8 +311,17 @@ func (m *ClientMover) airMove(ctx *clientMoveContext) {
 	fmove := ctx.cmd.ForwardMove
 	smove := ctx.cmd.SideMove
 
-	if facade.GetTime() < ctx.player.TeleportTime(sh) && fmove < 0 {
-		fmove = 0
+	teleTime := ctx.player.TeleportTime(sh)
+	curTime := facade.GetTime()
+	if curTime < teleTime && fmove < 0 {
+		if teleTime > curTime+2.0 {
+			// TeleportTime is unreasonably far in the future (max waterjump is 2s); clear it.
+			ctx.player.SetTeleportTime(sh, 0)
+		} else {
+			srvdebug.SvdbgMoveLogf("airMove player=%d backward move (fmove=%.1f) SUPPRESSED by TeleportTime (server_time=%.3f, tele_time=%.3f)",
+				ctx.player.Num, fmove, curTime, teleTime)
+			fmove = 0
+		}
 	}
 
 	wishvel := ctx.forward.Scale(fmove).Add(ctx.right.Scale(smove))

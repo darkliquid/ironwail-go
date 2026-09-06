@@ -29,6 +29,7 @@ func newInputTestGame(t *testing.T) *Game {
 	// Wire the same input callbacks the real init does.
 	g.Input.OnKey = g.handleGameKeyEvent
 	g.Input.OnChar = g.handleGameCharEvent
+	g.Input.OnClearKeyStates = g.releaseGameplayButtons
 
 	// Register gameplay button commands (+forward/-forward etc).
 	registerGameplayButtonCommands(g)
@@ -530,5 +531,86 @@ func TestProcessConsoleCommandsDoesNotClearKeysEveryFrame(t *testing.T) {
 	releaseKey(t, g, int('w'))
 	if g.Client.InputForward.State&1 != 0 {
 		t.Fatalf("forward state = %d after release, want up", g.Client.InputForward.State)
+	}
+}
+
+// TestKeyReleasedInMenuModeDoesNotStickButton guards against the regression
+// where releasing a key while in menu mode (or console/message mode) drops the
+// button-up command, leaving KButton.Down slots full and rejecting subsequent
+// presses as key repeats.
+func TestKeyReleasedInMenuModeDoesNotStickButton(t *testing.T) {
+	g := newInputTestGame(t)
+	g.Input.SetKeyDest(input.KeyGame)
+	g.Client.State = client.StateActive
+	g.Client.Signon = client.Signons
+
+	// 1. Player presses 's' to move backwards in gameplay.
+	pressKey(t, g, int('s'))
+	if g.Client.InputBack.State&1 == 0 {
+		t.Fatal("pre-menu: back button should be active after pressing 's'")
+	}
+
+	// 2. Menu opens while 's' is held. KeyDest changes to KeyMenu.
+	g.Input.SetKeyDest(input.KeyMenu)
+
+	// 3. Player releases 's' while in menu mode.
+	releaseKey(t, g, int('s'))
+	if g.Client.InputBack.State&1 != 0 {
+		t.Fatalf("while in menu: releasing 's' did not release back button: State=%d Down=%v",
+			g.Client.InputBack.State, g.Client.InputBack.Down)
+	}
+
+	// 4. Menu closes and returns to KeyGame.
+	g.Input.SetKeyDest(input.KeyGame)
+
+	// 5. Player presses 's' again to move backwards.
+	pressKey(t, g, int('s'))
+	if g.Client.InputBack.State&1 == 0 {
+		t.Fatalf("after re-pressing 's' post-menu: back button state = %d, want bit0 set (button stuck/unbound)", g.Client.InputBack.State)
+	}
+
+	// 6. Clean release.
+	releaseKey(t, g, int('s'))
+	if g.Client.InputBack.State&1 != 0 {
+		t.Fatalf("after releasing 's': back button state = %d, want up", g.Client.InputBack.State)
+	}
+}
+
+// TestFocusLossClearKeyStatesReleasesGameplayButtons guards against the focus
+// loss regression: when ClearKeyStates() runs upon focus loss, any currently
+// held gameplay buttons must be released so that KButton state and Down slots
+// are not orphaned.
+func TestFocusLossClearKeyStatesReleasesGameplayButtons(t *testing.T) {
+	g := newInputTestGame(t)
+	g.Input.SetKeyDest(input.KeyGame)
+	g.Client.State = client.StateActive
+	g.Client.Signon = client.Signons
+
+	// 1. Player is holding 's'.
+	pressKey(t, g, int('s'))
+	if g.Client.InputBack.State&1 == 0 {
+		t.Fatal("pre-focus loss: back button should be active")
+	}
+
+	// 2. Focus is lost; platform backend calls ClearKeyStates().
+	g.Input.ClearKeyStates()
+
+	// Both key state and client button should be released.
+	if g.Client.InputBack.State&1 != 0 {
+		t.Fatalf("after ClearKeyStates: back button state = %d, want released", g.Client.InputBack.State)
+	}
+	if g.Client.InputBack.Down[0] != 0 || g.Client.InputBack.Down[1] != 0 {
+		t.Fatalf("after ClearKeyStates: Down slots = %v, want [0 0]", g.Client.InputBack.Down)
+	}
+
+	// 3. Player re-presses 's' upon returning to the window.
+	pressKey(t, g, int('s'))
+	if g.Client.InputBack.State&1 == 0 {
+		t.Fatalf("after re-pressing 's': back button state = %d, want down", g.Client.InputBack.State)
+	}
+
+	releaseKey(t, g, int('s'))
+	if g.Client.InputBack.State&1 != 0 {
+		t.Fatalf("after releasing 's': back button state = %d, want up", g.Client.InputBack.State)
 	}
 }

@@ -30,6 +30,7 @@ const (
 	SvDebugMultiplayerCVarName = "sv_debug_multiplayer"
 	SvDebugMoveCVarName        = "sv_debug_move"
 	SvDebugPushCVarName        = "sv_debug_push"
+	SvDebugCombatCVarName      = "sv_debug_combat"
 )
 
 // Emit is the default telemetry sink for debug telemetry lines.
