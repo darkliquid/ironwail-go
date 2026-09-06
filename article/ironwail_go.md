@@ -14,6 +14,10 @@
 - [Chapter 9: The Browser Frontier — WASM, WebGPU Validation, and the Interactive Walkthrough](#chapter-9)
 - [Chapter 10: Closing the Parity Gap — Dumpstate, Hash Gates, and Bit-Level Verification](#chapter-10)
 - [Chapter 11: The Compiler Grows Up — QGo Function Values, Global Cells, and In-VM Debugging](#chapter-11)
+- [Chapter 12: The OIT Endgame — Weighted-Blended Transparency Goes to Production](#chapter-12)
+- [Chapter 13: The Debugger Arrives — DAP, Source Maps, and the Transpiler](#chapter-13)
+- [Chapter 14: The Engine Becomes a Platform — gameconfig, the SDK, and qcmod](#chapter-14)
+- [Chapter 15: The Map Compiler Pipeline — qbsp, vis, and light in Pure Go](#chapter-15)
 - [Consolidated References and Sources](#ref-consolidated)
 
 ---
@@ -4093,6 +4097,390 @@ the development process being self-correcting.
 
 ---
 
+<a id="chapter-12"></a>
+# Chapter 12: The OIT Endgame — Weighted-Blended Transparency Goes to Production
+
+Chapter 3 described order-independent transparency as an optional renderer
+path, and Chapter 4 covered it as Stage 14. In late August 2026, it stopped
+being optional. A player looking at water saw a solid slab instead of a
+surface you can see through. Submerged stairs, floors, and monsters
+vanished. Liquid was only transparent when one liquid face looked through
+another liquid face. The bug took days to find, and the root cause was not
+in the engine at all.
+
+## 12.1 The symptom and the suspect list
+
+The renderer's OIT path draws liquid into two extra images, then combines
+them. McGuire's weighted-blended formulation multiplies each fragment's
+alpha into a reveal image, so that fully covered pixels end up revealing
+nothing behind them. When the water came out fully opaque, the reveal image
+was coming out as zero coverage everywhere: the shader was reading alpha
+equal to one even where the water should be see-through.
+
+The investigation worked through the usual suspects first. Depth state was
+correct: both passes shared the world depth texture with depth writes off.
+Visibility was correct: the face selection code picked the liquid faces and
+the underwater solid faces. The multiple-render-target blend states matched
+the C engine, and the OIT math matched C Ironwail sample for sample. Only
+one theory survived: the dynamic uniform buffer offset that carries the
+per-face alpha value was not reaching the shader.
+
+## 12.2 Render target dumps at the byte level
+
+The team dumped every attachment of the failing frame: the accumulation
+image, the reveal image, the depth image, and the final scene. The reveal
+target stored a constant full-brightness value, which is exactly what
+`(1.0 - 1.0)` produces. The fragment shader was receiving `alpha = 1.0`
+from a uniform even though the Go side passed a list of per-face offsets
+into a shared uniform buffer.
+
+That combination pointed at one thing: the offsets were ignored, and every
+surface read the first few bytes of the buffer. The first surface in the
+buffer was the opaque world pass, whose alpha is always one. The water was
+not broken. It was reading the wrong uniform block.
+
+## 12.3 The missing dynamic descriptor
+
+The bug lived in the upstream pure-Go Vulkan backend, `gogpu/wgpu`. Its
+`CreateBindGroupLayout` saw `HasDynamicOffset: true` and ignored it,
+creating a static `VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER` descriptor set
+instead. Vulkan then silently dropped the dynamic offsets passed to
+`vkCmdBindDescriptorSets`. The GPU drew the water with byte offset zero
+and never complained.
+
+This is the worst kind of graphics bug: no validation error, no crash, and
+a wrong picture that is still a complete picture. The engine side fixed it
+by restructuring the uniforms to 16-byte `std140` alignment and by giving
+the OIT passes dedicated uniform buffers and static bind groups bound at
+offset zero. The renderer no longer depends on dynamic offsets for the
+translucent passes that carry per-face values.
+
+## 12.4 The upstream report and the regression tests
+
+The fix shipped with two documents and one reproducer. The post-mortem,
+`docs/OIT_WATER_INVESTIGATION.md`, walks the full diagnostic chain. The
+bug report, `docs/GOGPU_VULKAN_DYNAMIC_OFFSET_BUG.md`, isolates the HAL
+behavior. A standalone reproducer at `tools/repro_wgpu_dynamic_offset`
+drops the whole matter to one compute shader, one descriptor set, and 16
+bytes of buffer, so the upstream project can fix the backend. Raster
+regression tests now run the OIT accumulation and resolve paths against
+golden expectations, so a silent offset regression shows up in a test run
+instead of on a player's screen.
+
+Two smaller fixes followed. The translucent liquid alpha binding in the
+accumulation pass was aligned with the other per-surface uniforms, and OIT
+pipelines got proper cleanup paths on world and subsystem resource
+destruction, closing leaks on repeated map loads. Weighted-blended
+transparency crossed from experimental to production-ready by the end of
+the week.
+
+---
+
+<a id="chapter-13"></a>
+# Chapter 13: The Debugger Arrives — DAP, Source Maps, and the Transpiler
+
+Chapter 11 ended with an in-VM debugger and a headless REPL. The next step
+was to make that state machine speak a protocol that real editors
+understand. September opened with the Debug Adapter Protocol, or DAP, the
+wire protocol used by VS Code, Neovim, and Emacs debuggers.
+
+## 13.1 The design: one protocol, two targets
+
+The design spec (`docs/superpowers/specs/2026-09-01-qcvm-remote-debugging-dap-design.md`)
+and the implementation plan
+(`docs/superpowers/plans/2026-09-01-qcvm-remote-debugging-dap.md`) fix the
+shape: a pure-Go DAP server inside the engine, speaking TCP with the
+standard Content-Length framing, and a small `Target` interface that lets
+the same server attach to either a live engine session or the headless
+simulator world. There is no CGO, no native extension, and no second
+debugger to learn.
+
+## 13.2 The protocol layer in `internal/qc/dap`
+
+The package implements the DAP message types and the wire framing, plus a
+session state machine that tracks breakpoints, sequence numbers, and
+stopped state. A hierarchical variable inspector walks the three levels a
+QuakeC developer cares about: the VM locals, the engine globals, and the
+edict table with its fields. The same inspector drives the REPL watches
+from Chapter 11 and the DAP variable panels.
+
+The interesting part is the execution barrier. When a breakpoint hits, the
+simulation thread blocks inside `vm.BreakHook` on a synchronization point.
+While paused, the DAP listener inspects VM memory, call stacks, globals,
+and entity state with no race and no mutation. Stepping resumes by setting
+the instruction pointer and calling `ExecuteFrom`, exactly like the REPL.
+Breakpoints and watches resolve through the same `BreakHook` interface the
+REPL used, so the engine exposes one debugging core with two front ends.
+
+## 13.3 Engine integration and the standalone server
+
+The game binary gains two startup flags: `-qcdbg <port>` starts the DAP
+server, and `-qcdbg-wait` pauses engine startup until a debugger attaches
+and finishes configuring. The initial map spawn waits for the attach, which
+makes source-level breakpoints in the very first frames reliable. A console
+command starts the server from inside a running game, and the DAP manual
+(`docs/manuals/DAP.md`) documents flags, cvars, and every editor setup.
+
+The debugger is also a `qcmod` command. `qcmod dap` boots a standalone DAP
+server with the simulator world as its target, defaulting to
+`127.0.0.1:2345`. Both targets speak the same protocol, and both attach the
+side-car source map that the compiler writes next to `progs.dat`, so
+breakpoint and stack-frame resolution works at QuakeGo source lines rather
+than raw bytecode offsets. End-to-end tests cover connect, breakpoint,
+step, inspect, and continue against both the real server and the simulator,
+and a series of hardening fixes tightened bounds checking, socket
+deadlines, and shutdown cleanup.
+
+## 13.4 The disassembler and the source map
+
+Debugging at source level needs two supporting pieces. The disassembler
+(`qcmod disasm`) prints compiled bytecode as readable opcode mnemonics,
+optionally filtered to one function with `-func` and written to a file with
+`-o`. The source map is the other piece: the compiler emits a `.map`
+side-car beside every `progs.dat` it builds, mapping statement indexes back
+to QuakeGo source lines. The DAP server loads that map at attach time, and
+the debugger falls back to bytecode-level debugging when no map exists.
+
+## 13.5 The transpiler: QuakeC to QuakeGo
+
+The same compiler sprint produced `qcmod qc2go`, a one-file transpiler from
+QuakeC to QuakeGo (`internal/qc/transpile`). It handles the mechanical
+translation: declarations, statements, and the classic QuakeC idioms that
+map onto the QuakeGo runtime. Constructs that need human judgment carry
+`TODO(transpile)` markers in the output, because a transpiler can guess but
+should not silently decide. The tool exists so the mechanical port
+convention from Chapter 5 can extend to arbitrary existing mods, not just
+the hand-ported `pkg/qgo/quakego`.
+
+One more VM fix landed in the same window. The rerelease `progs.dat`
+declares its extension builtins in a different order, so `LoadProgs` now
+remaps extension builtin numbers on load. The original Quake shareware data
+and the rerelease data both run through the same VM without a second
+code path.
+
+---
+
+<a id="chapter-14"></a>
+# Chapter 14: The Engine Becomes a Platform — gameconfig, the SDK, and qcmod
+
+Chapter 8 introduced `qcmod` as a developer tool, and Chapter 11 grew its
+compiler and simulator. But the road from tool to platform runs through
+one architectural change: the engine must be importable as a library.
+SPEC-006 (`docs/internal/specs/006-engine-sdk.md`) defines that surface.
+
+## 14.1 SPEC-006: the SDK spec
+
+The spec's central claim is that a mod is an ordinary Go module. Its
+`main` builds a config, calls one function, and the engine owns the rest.
+Nothing in the mod imports an `internal/` package, because Go forbids that
+across module boundaries. Instead, the engine exposes a thin public facade
+package, `sdk`, that re-exports the stable parts of the bootstrap.
+
+The supporting refactor replaced hard-coded Quake identity with a config
+struct. Twenty-two hard-coded `"id1"` literals became one `BaseGameDir`
+field. The shareware and registered gate became config fields, `skill`,
+`deathmatch`, `coop`, and `teamplay` defaults became config fields, and
+the network handshake identity (the `"QUAKE"` magic and its version byte)
+became config fields too. Menu labels, the game name, and the user config
+directory follow the same pattern. Any field left at zero resolves to the
+stock Quake default, so a mod only overrides what it cares about.
+
+## 14.2 `engine.Run` and the `sdk` package
+
+The bootstrap entry point is `engine.Run(config, opts...)`, re-exported as
+`sdk.Run`. It boots the same engine the binary uses: filesystem, server,
+renderer, audio, and the game loop, and it returns the initialized game.
+Options stay small on purpose. `sdk.Headless()` runs without rendering,
+which is how dedicated servers and automated tests work, and
+`sdk.Args(...)` passes a command line in the same format the engine binary
+accepts. The package also re-exports the config type, the feature toggles,
+and the protocol identity numbers. Nothing else is stable enough yet to
+promise to mod authors.
+
+## 14.3 `qcmod init`: scaffolding a game
+
+The scaffolder turns the spec into a working project:
+
+```sh
+qcmod init -kind tc mygame
+```
+
+Four template kinds exist. `generic` is a minimal standalone game with the
+registration gate off. `sp` adds single-player stubs for spawn and think.
+`dm` starts from a deathmatch-first config with item respawn stubs. `tc` is
+a total conversion: it overrides the menu labels, the game name, and the
+base data directory.
+
+The generated directory is a complete Go module. It has a `go.mod` with
+`replace` directives pointing back at the engine and the Quake module, a
+`main.go` that calls `sdk.Run`, a `gameconfig.go` pre-populated from the
+directory name, QuakeGo sources under `progs/`, a `game_test.go` with
+simulation tests, and a `Makefile` with the build, test, and run targets.
+The `replace` paths are relative, so the scaffold stays portable across
+checkouts, and `qcmod init` resolves the engine location automatically or
+from `-engine <path>` when it cannot.
+
+The first build stays inside the mod directory: `go mod tidy`, then
+`make test`, `make build`, and `make run`. The run target launches the
+binary from the parent directory, because the engine mounts the game data
+at `./<BaseGameDir>` relative to the working directory.
+
+## 14.4 Packaging: PAK and WAD tooling
+
+`qcmod pak` creates, extracts, lists, and tests PAK archives. The writer
+sorts entries and produces byte-deterministic output, and every name is
+validated against the Quake rules: at most 56 bytes, forward slashes only,
+and no `..` traversal. Archives are named `pak0.pak`, `pak1.pak`, and so
+on, and the engine mounts them in override order so later packs win.
+
+`qcmod wad` converts PNG and TGA images into Quake WAD lumps. The `auto`
+type picks QPic for menu art and MipTex for world textures, with explicit
+`-type` and a `-palette` override for custom color tables. MipTex inputs
+must be multiples of 16, the classic Quake constraint, and pixels are
+quantised to the palette by nearest color, with alpha below 128 mapping to
+the transparent index. Together the two commands cover the whole data
+pipeline of a standalone game without touching the C toolchain.
+
+## 14.5 The platform plumbing
+
+Two smaller changes completed the platform story. Command-line parsing now
+reorders arguments so that `-flags` work no matter where they sit among
+`+commands` and positionals, which matters once mods pass their own flags
+through the same entry path. And the engine gained a localisation
+subsystem (`internal/loc`) ported from C Ironwail's KEX localization code,
+parsing `loc_*.txt` files and replacing `$key` tokens with translated
+strings and format placeholders.
+
+The documentation wave kept pace: with the SDK came the mod authoring
+guide, the qcmod manual, and the SDK manual in `docs/manuals/`, the
+rebuilt project README, and the plain-English glossary. SPEC-007
+(`docs/internal/specs/007-postfx.md`) drafts the next shelf: a modular
+post-processing pipeline with bloom, SSAO, and CRT passes behind `r_bloom`,
+`r_ssao`, and `r_crt` cvars, plus a registry that lets mods insert their
+own WGSL passes at named points in the frame chain. The engine is becoming
+a platform, and this chapter's shape keeps it importable, testable, and
+documented.
+
+---
+
+<a id="chapter-15"></a>
+# Chapter 15: The Map Compiler Pipeline — qbsp, vis, and light in Pure Go
+
+The renderer, the physics, the VM, and the debugger were all pure Go by
+September. One workflow still pointed outside the repository: building a
+level. Quake maps ship as `.map` text files and become `.bsp` files
+through a reference C toolchain built outside this repository. The September push replaced it with three
+Go tools, `qbsp`, `vis`, and `light`, so a complete map ships entirely
+through this repository.
+
+The three tools are clean-room ports of the classic algorithms, written
+from the formats and from the behavior of the reference tools. The
+reference for the pipeline is the C qbsp, vis, and light toolchain by
+ericw-tools, and the parity harness runs the Go output against those
+binaries when they are present. The result is a pure-Go chain:
+
+```text
+map.map -> qbsp -> map.bsp + map.prt -> vis -> map.bsp -> light -> map.bsp + map.lit
+```
+
+## 15.1 qbsp: from brushes to a world
+
+qbsp is the geometry stage. Its parser accepts both brush syntaxes, the
+classic QuakeEd form and the Valve 220 axis-aligned form, and it detects
+the style per face. Entities are key-value blocks, and brushes sit inside
+them. The compiler merges the solid brushes with classic solidbsp brush
+splitting, choosing split planes under a split-policy heuristic, and a
+t-junction pass splits crack-prone edges where faces meet coplanar
+neighbors.
+
+The output covers the whole format family. BSP29 is the default, `-bsp2`
+emits the extended 32-bit-index form, and `-2psb` emits the BSP2RMQ
+variant. A `BRUSHLIST` extension section carries the per-model brushes for
+tooling, and the engine ignores it. The texture table carries the names
+plus placeholder 16 by 16 gray mip data; the game resolves the real images
+by name from its data, which is the classic Quake arrangement.
+
+## 15.2 qbsp: hulls, submodels, and leaks
+
+Collision comes from clip trees built per model and per hull. Hull one
+suits the player box, plus or minus 16 units, and hull two suits large
+monsters, plus or minus 32 units, with roots in the per-model headnode
+slots. Brush-carrying entities compile into inline submodels, each with
+its own node tree, its own faces, and its own clip trees, and the entity
+record gains a `model` key like `*1` that the engine resolves at run time.
+
+A leak is a path from inside the map to the void. qbsp floods from the
+void with a breadth-first search, assigns every reachable leaf a distance
+to the outside, and walks the shortest path back to a point entity to
+produce a `.pts` trail the editor can open. In build scripts, `-leaktest`
+turns any leak into a non-zero exit. `-margin` widens or narrows the empty
+ring around the map, and `-omitdetail` drops every `func_detail*` brush
+from the output entirely.
+
+## 15.3 vis: portal flow and the PVS
+
+qbsp also writes the `.prt` portal file: for every boundary between two
+leaves, the polygon that separates them. vis consumes that file and
+computes the Potentially Visible Set, the per-leaf bitmask the engine uses
+to skip hidden geometry and the server uses to skip hidden entities.
+
+The Go vis mirrors the classic portal-flow algorithm, supporting both the
+leaf-based portal file form and the cluster form that groups leaves into
+shared visibility footprints. The initial visibility pass tests portal
+pairs, and a recursive flow pass pushes visibility from leaf to leaf
+through clipped portal polygons, tracking the window of sight. The result
+is compressed into the engine's exact row format, run-length encoded as
+literal bytes and zero-run skips, so the engine's `DecompressVis` reads it
+verbatim. Leaf visibility offsets and the world leaf count are patched
+back into the BSP, and the output file is the input file with visibility
+attached.
+
+## 15.4 light: luxels, styles, and shadows
+
+light bakes the lightmaps. It parses the faces and the `light` entities,
+builds a BSP tracer from the tree, and casts a shadow ray to every
+sample point. Luxels sit 16 units apart in the face's texture space, and
+each one accumulates `light / dist^2` scaled by the angle of incidence,
+clamped to 255. Style keys from 0 to 31 allocate separate animated
+lightmaps per face, and `_color` keys tint the light. Sky faces are exempt:
+they take no lightmap at all, in the classic Quake rule.
+
+Sun and bounce lighting extend the direct pass. `-sun` reads a sun entity
+or the worldspawn sunlight keys and lights every non-sky face from one
+direction with shadow casts. `-bounce` adds clamped single-bounce
+radiosity, so each lit surface re-emits light onto its neighbors and walls
+with no direct light brighten instead of staying black. The final pass
+supports luxel supersampling for soft edges (`-extra`, at factors of two
+and four as in the classic tools) and phong-shaded normals at shared
+vertices within a configurable angle, so large flat surfaces smooth
+instead of faceting.
+
+Colored light needs a colored store. The BSP lightmap is one byte per
+sample, so `-lit` writes a QLIT side-car file next to the BSP with the
+style-zero samples as RGB triplets, and the engine's `ApplyLitFile` reads
+it when present. The tool reads and patches both BSP29 faces and the
+larger BSP2 faces, so the compiler choices from section 15.1 flow through
+unchanged.
+
+## 15.5 Verification and the limits
+
+The pipeline is tested the same way the engine is. The loader round-trips
+every stage and asserts the structural invariants of the formats. Hermetic
+fixtures are embedded in the tests, so the suite runs with no assets and
+no network. The parity harness compiles the same maps with the Go tools
+and the ericw-tools binaries and compares the portal files, the PVS bytes,
+and the light output when an ericw build is available, with `bspinfo`
+reading the Go output as an independent check.
+
+The documented limits are honest. HDR lightmaps and the `-lit2` variant,
+the lightgrid for entity tinting, per-submodel PVS rows, and full
+texture-color bounce are tracked as follow-up work, and per-hull submodel
+clip trees currently share one expansion seed. None of them block the
+central claim, which is that this repository now stands alone: source
+maps, compiled maps, and gameplay logic all start and end in Go.
+
+---
+
 <a id="ref-consolidated"></a>
 
 ## Consolidated References and Sources
@@ -4137,6 +4525,20 @@ the development process being self-correcting.
 - <a id="ref-qcmodrepl"></a>**[QcmodREPL]** [`cmd/qcmod/repl.go`](../cmd/qcmod/repl.go), ironwail-go repository.
 - <a id="ref-vmrunner"></a>**[VMRunner]** [`cmd/qcmod/vmrunner.go`](../cmd/qcmod/vmrunner.go), ironwail-go repository.
 - <a id="ref-anomalies"></a>**[Anomalies]** [`docs/diagnoses/intermittent_anomalies.md`](../docs/diagnoses/intermittent_anomalies.md), ironwail-go repository.
+- <a id="ref-oitpostmortem"></a>**[OITPostMortem]** [`docs/OIT_WATER_INVESTIGATION.md`](../docs/OIT_WATER_INVESTIGATION.md), ironwail-go repository.
+- <a id="ref-gogpudynoffset"></a>**[GogpuDynOffset]** [`docs/GOGPU_VULKAN_DYNAMIC_OFFSET_BUG.md`](../docs/GOGPU_VULKAN_DYNAMIC_OFFSET_BUG.md), ironwail-go repository.
+- <a id="ref-dapspec"></a>**[DAPSpec]** [`docs/superpowers/specs/2026-09-01-qcvm-remote-debugging-dap-design.md`](../docs/superpowers/specs/2026-09-01-qcvm-remote-debugging-dap-design.md), ironwail-go repository.
+- <a id="ref-sdk006"></a>**[Sdk006]** [`docs/internal/specs/006-engine-sdk.md`](../docs/internal/specs/006-engine-sdk.md), ironwail-go repository.
+- <a id="ref-postfx007"></a>**[PostFx007]** [`docs/internal/specs/007-postfx.md`](../docs/internal/specs/007-postfx.md), ironwail-go repository.
+- <a id="ref-manualqcmod"></a>**[ManualQcmod]** [`docs/manuals/qcmod.md`](../docs/manuals/qcmod.md), ironwail-go repository.
+- <a id="ref-manualsdk"></a>**[ManualSdk]** [`docs/manuals/sdk.md`](../docs/manuals/sdk.md), ironwail-go repository.
+- <a id="ref-manualdap"></a>**[ManualDap]** [`docs/manuals/DAP.md`](../docs/manuals/DAP.md), ironwail-go repository.
+- <a id="ref-manualqbsp"></a>**[ManualQbsp]** [`docs/manuals/qbsp.md`](../docs/manuals/qbsp.md), ironwail-go repository.
+- <a id="ref-manualvis"></a>**[ManualVis]** [`docs/manuals/vis.md`](../docs/manuals/vis.md), ironwail-go repository.
+- <a id="ref-manuallight"></a>**[ManualLight]** [`docs/manuals/light.md`](../docs/manuals/light.md), ironwail-go repository.
+- <a id="ref-mapcompile"></a>**[MapCompile]** [`docs/MAP_COMPILING.md`](../docs/MAP_COMPILING.md), ironwail-go repository.
+- <a id="ref-modauthoring"></a>**[ModAuthoring]** [`docs/MOD_AUTHORING.md`](../docs/MOD_AUTHORING.md), ironwail-go repository.
+- <a id="ref-glossary"></a>**[Glossary]** [`docs/GLOSSARY.md`](../docs/GLOSSARY.md), ironwail-go repository.
 
 [ironwail]: https://github.com/andrei-drexler/ironwail
 [gogpu]: https://github.com/gogpu/gogpu
