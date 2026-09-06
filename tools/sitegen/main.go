@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -38,8 +39,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	articleHTML := markdownToHTML(string(articleMD))
-	readmeHTML := markdownToHTML(stripTitleHeading(string(readmeMD)))
+	articleHTML := markdownToHTML(string(articleMD), "article")
+	readmeHTML := markdownToHTML(stripTitleHeading(string(readmeMD)), "")
 
 	data := templateData{
 		ArticleHTML: template.HTML(articleHTML),
@@ -224,11 +225,21 @@ func formatGoLOC(n int) string {
 	return fmt.Sprintf("%d", n)
 }
 
-// markdownToHTML converts the article's markdown to HTML. It handles the
-// specific patterns used in the article: headings, fenced code blocks,
-// tables, links, bold/italic, lists, horizontal rules, anchor tags, and
-// blockquotes.
-func markdownToHTML(md string) string {
+// linkBaseDir is the repo-relative directory of the markdown being
+// converted, used to remap relative links to GitHub blob URLs.
+var linkBaseDir string
+
+// markdownToHTML converts a markdown document to HTML for the site. It
+// handles the specific patterns used in the article: headings, fenced code
+// blocks, tables, links, bold/italic, lists, horizontal rules, anchor tags,
+// and blockquotes. The baseDir is the repo-relative directory the markdown
+// lives in; relative links from that directory are remapped to absolute
+// GitHub blob URLs, because the generated site does not sit next to the
+// repository files. Absolute URLs, mailto links, and in-page anchors pass
+// through unchanged.
+func markdownToHTML(md, baseDir string) string {
+	linkBaseDir = baseDir
+
 	// First pass: collect reference-style link definitions [label]: url
 	refLinks := map[string]string{}
 	refLinkRe := regexp.MustCompile(`^\[([^\]]+)\]:\s+(.+)$`)
@@ -394,7 +405,10 @@ func inlineMarkdown(s string, refLinks map[string]string) string {
 	s = regexp.MustCompile(`\*(.+?)\*`).ReplaceAllString(s, `<em>$1</em>`)
 
 	// Links [text](url)
-	s = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).ReplaceAllString(s, `<a href="$2">$1</a>`)
+	s = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).ReplaceAllStringFunc(s, func(match string) string {
+		sub := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).FindStringSubmatch(match)
+		return `<a href="` + remapRepoLink(sub[2]) + `">` + sub[1] + `</a>`
+	})
 
 	// Reference-style links [text][label]
 	if refLinks != nil {
@@ -406,13 +420,29 @@ func inlineMarkdown(s string, refLinks map[string]string) string {
 				label = strings.ToLower(text)
 			}
 			if url, ok := refLinks[label]; ok {
-				return `<a href="` + url + `">` + text + `</a>`
+				return `<a href="` + remapRepoLink(url) + `">` + text + `</a>`
 			}
 			return match
 		})
 	}
 
 	return s
+}
+
+// remapRepoLink turns a repo-relative markdown link into an absolute
+// GitHub blob URL. External URLs, mailto links, in-page anchors, and
+// protocol-relative URLs pass through unchanged.
+func remapRepoLink(url string) string {
+	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") ||
+		strings.HasPrefix(url, "//") || strings.HasPrefix(url, "mailto:") ||
+		strings.HasPrefix(url, "#") {
+		return url
+	}
+	rel := path.Clean(path.Join(linkBaseDir, url))
+	if rel == "." || rel == "" {
+		return url
+	}
+	return "https://github.com/darkliquid/ironwail-go/blob/main/" + rel
 }
 
 func renderTable(rows []string, refLinks map[string]string) string {
