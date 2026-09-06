@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"path"
 	"path/filepath"
 	"strings"
@@ -180,6 +181,11 @@ func (s *System) updateMusic(endTime int) {
 	if !s.started || s.music == nil || s.music.track == nil || s.dma == nil || s.music.paused {
 		return
 	}
+	if s.music.track.samples <= 0 {
+		slog.Warn("music track has no samples, stopping playback", "track", s.music.track.name)
+		s.StopMusic()
+		return
+	}
 	if s.rawSamples.End < s.paintedTime {
 		s.rawSamples.End = s.paintedTime
 	}
@@ -187,6 +193,7 @@ func (s *System) updateMusic(endTime int) {
 	for s.music != nil && s.music.track != nil && s.rawSamples.End < endTime {
 		if s.music.position >= s.music.track.samples {
 			if err := s.advanceMusicTrack(); err != nil {
+				slog.Warn("failed to advance music track", "track", s.music.track.name, "error", err)
 				s.StopMusic()
 				return
 			}
@@ -216,15 +223,18 @@ func (s *System) updateMusic(endTime int) {
 			framesRead, err := s.music.track.stream.ReadFrames(s.music.streamBuf[:neededBytes])
 			if framesRead <= 0 {
 				if err != nil && !errors.Is(err, io.EOF) {
+					slog.Warn("music stream decode error, stopping playback", "track", s.music.track.name, "error", err)
 					s.StopMusic()
 					return
 				}
 				// If position == 0 and framesRead == 0, stop music to avoid infinite loop on unplayable stream
 				if s.music.position == 0 {
+					slog.Warn("music stream yielded 0 frames at start, stopping playback", "track", s.music.track.name)
 					s.StopMusic()
 					return
 				}
 				if err := s.advanceMusicTrack(); err != nil {
+					slog.Warn("failed to advance music track on EOF", "track", s.music.track.name, "error", err)
 					s.StopMusic()
 					return
 				}
@@ -251,12 +261,12 @@ func (s *System) advanceMusicTrack() error {
 	}
 	if s.music.requestTrack == 0 {
 		if s.music.loop {
-			s.music.position = 0
 			if s.music.track != nil && s.music.track.stream != nil {
 				if err := s.music.track.stream.SeekFrame(0); err != nil {
 					return fmt.Errorf("failed to seek music stream: %w", err)
 				}
 			}
+			s.music.position = 0
 			return nil
 		}
 		s.StopMusic()
@@ -267,12 +277,12 @@ func (s *System) advanceMusicTrack() error {
 		return nil
 	}
 	if s.music.loopTrack == s.music.activeTrack {
-		s.music.position = 0
 		if s.music.track != nil && s.music.track.stream != nil {
 			if err := s.music.track.stream.SeekFrame(0); err != nil {
 				return fmt.Errorf("failed to seek music stream: %w", err)
 			}
 		}
+		s.music.position = 0
 		return nil
 	}
 
@@ -434,5 +444,6 @@ func resampleInputFrames(outputFrames, inputRate, outputRate int) int {
 	if outputFrames <= 0 || inputRate <= 0 || outputRate <= 0 {
 		return 0
 	}
-	return (outputFrames*inputRate + outputRate - 1) / outputRate
+	product := int64(outputFrames) * int64(inputRate)
+	return int((product + int64(outputRate) - 1) / int64(outputRate))
 }

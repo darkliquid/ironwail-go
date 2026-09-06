@@ -705,3 +705,31 @@ func TestOGGStreamSeekFrameBounds(t *testing.T) {
 		t.Fatalf("SeekFrame(0) should succeed, got %v", err)
 	}
 }
+
+// TestStreamingMusicZeroSamplesStopsPlayback asserts that a track with 0 samples
+// immediately stops playback in updateMusic rather than hanging in an infinite loop.
+func TestStreamingMusicZeroSamplesStopsPlayback(t *testing.T) {
+	sys := NewSystem()
+	sys.started = true
+	sys.dma = &DMAInfo{Speed: 44100, Channels: 2, SampleBits: 16}
+
+	mock := &mockMusicStream{}
+	sys.music = &musicState{
+		activeTrack: 1,
+		loop:        true,
+		track: &musicTrack{
+			name:     "music/empty.ogg",
+			stream:   mock,
+			samples:  0,
+			rate:     44100,
+			width:    2,
+			channels: 2,
+		},
+	}
+
+	sys.updateMusic(1024)
+
+	if sys.music != nil {
+		t.Fatalf("expected playback to stop for track with 0 samples, got non-nil music state")
+	}
+}
