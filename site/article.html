@@ -185,19 +185,147 @@ footer {
 <div class="container">
   <div class="article-layout">
     <aside class="article-toc">
-      <a href="#prologue" class="toc-h1">Prologue</a>
-      <a href="#chapter-1" class="toc-h1">Ch 1: Quake Engine</a>
-      <a href="#chapter-2" class="toc-h1">Ch 2: Go Divergence</a>
-      <a href="#chapter-3" class="toc-h1">Ch 3: The Renderer</a>
-      <a href="#chapter-4" class="toc-h1">Ch 4: Render Stages</a>
-      <a href="#chapter-5" class="toc-h1">Ch 5: QuakeC VM</a>
-      <a href="#chapter-6" class="toc-h1">Ch 6: GoGPU</a>
-      <a href="#chapter-7" class="toc-h1">Ch 7: Synthesis</a>
-      <a href="#chapter-8" class="toc-h1">Ch 8: Hardening Days</a>
-      <a href="#chapter-9" class="toc-h1">Ch 9: Browser Frontier</a>
-      <a href="#chapter-10" class="toc-h1">Ch 10: Parity Gap</a>
-      <a href="#chapter-11" class="toc-h1">Ch 11: Compiler Grows Up</a>
-      <a href="#ref-consolidated" class="toc-h1">References</a>
+      <a href="#prologue-why-port-quake-to-go-in-2026" class="toc-h1">Prologue: Why Port Quake to Go in 2026</a>
+      <a href="#an-experiment-in-agentic-coding-with-multiple-agents" class="toc-h2">An experiment in agentic coding — with multiple agents</a>
+      <a href="#an-educational-artifact-not-just-a-working-engine" class="toc-h2">An educational artifact, not just a working engine</a>
+      <a href="#the-quake-brutalist-jams-as-the-unforgiving-integration-test" class="toc-h2">The Quake Brutalist Jams as the unforgiving integration test</a>
+      <a href="#the-central-tension" class="toc-h2">The central tension</a>
+      <a href="#chapter-1-how-the-quake-engine-actually-works" class="toc-h1">Chapter 1: How the Quake Engine Actually Works</a>
+      <a href="#the-game-loop-time-is-real-and-the-server-owns-truth" class="toc-h2">The game loop: time is real, and the server owns truth</a>
+      <a href="#resource-management-the-hunk-the-zone-and-the-cache" class="toc-h2">Resource management: the Hunk, the Zone, and the Cache</a>
+      <a href="#the-client-server-architecture" class="toc-h2">The client-server architecture</a>
+      <a href="#the-filesystem-pak-files-and-search-paths" class="toc-h2">The filesystem: PAK files and search paths</a>
+      <a href="#the-bsp-world-geometry-visibility-and-collision" class="toc-h2">The BSP world: geometry, visibility, and collision</a>
+      <a href="#the-quakec-vm-game-logic-as-bytecode" class="toc-h2">The QuakeC VM: game logic as bytecode</a>
+      <a href="#the-command-system-everything-is-a-command" class="toc-h2">The command system: everything is a command</a>
+      <a href="#networking-datagrams-reliability-and-the-protocol" class="toc-h2">Networking: datagrams, reliability, and the protocol</a>
+      <a href="#rendering-from-rrenderview-to-the-screen" class="toc-h2">Rendering: from `R_RenderView` to the screen</a>
+      <a href="#game-object-models-alias-sprite-bsp" class="toc-h2">Game object models: alias, sprite, BSP</a>
+      <a href="#audio-spatialization-and-mixing" class="toc-h2">Audio: spatialization and mixing</a>
+      <a href="#math-mathlib-and-the-assembly-fast-paths" class="toc-h2">Math: `mathlib` and the assembly fast paths</a>
+      <a href="#why-this-architecture-endures" class="toc-h2">Why this architecture endures</a>
+      <a href="#chapter-2-the-go-divergence-from-c-hunk-to-gc-from-opengl-to-webgpu" class="toc-h1">Chapter 2: The Go Divergence — From C Hunk to GC, From OpenGL to WebGPU</a>
+      <a href="#memory-from-hunkzonecache-to-the-garbage-collector" class="toc-h2">Memory: from Hunk/Zone/Cache to the garbage collector</a>
+      <a href="#concurrency-from-single-threaded-sdl-threads-to-goroutines" class="toc-h2">Concurrency: from single-threaded &#43; SDL threads to goroutines</a>
+      <a href="#packaging-from-flat-quakec-to-internal-packages" class="toc-h2">Packaging: from flat `Quake/*.c` to `internal/*` packages</a>
+      <a href="#stdlib-adoption-replacing-custom-quake-utilities" class="toc-h2">stdlib adoption: replacing custom Quake utilities</a>
+      <a href="#the-cgo-policy-pure-go-always" class="toc-h2">The CGO policy: pure Go, always</a>
+      <a href="#input-from-sdl-to-backend-injection" class="toc-h2">Input: from SDL to backend injection</a>
+      <a href="#parity-first-discipline" class="toc-h2">Parity-first discipline</a>
+      <a href="#the-technology-stack" class="toc-h2">The technology stack</a>
+      <a href="#what-this-sets-up" class="toc-h2">What this sets up</a>
+      <a href="#chapter-3-the-renderer-opengl-then-webgpu-now" class="toc-h1">Chapter 3: The Renderer — OpenGL Then, WebGPU Now</a>
+      <a href="#the-c-renderer-rrenderview-and-the-single-framebuffer" class="toc-h2">The C renderer: `R_RenderView` and the single framebuffer</a>
+      <a href="#the-go-renderer-webgpu-command-buffers-and-explicit-pipelines" class="toc-h2">The Go renderer: WebGPU command buffers and explicit pipelines</a>
+      <a href="#the-48-byte-worldvertex-contract" class="toc-h2">The 48-byte `WorldVertex` contract</a>
+      <a href="#texture-atlas-per-vertex-material-id" class="toc-h2">Texture atlas &#43; per-vertex material ID</a>
+      <a href="#lightmap-array-with-1px-padding-and-the-vulkan-workaround" class="toc-h2">Lightmap array with 1px padding and the Vulkan workaround</a>
+      <a href="#cluster-forward-dynamic-lights-via-compute-shader" class="toc-h2">Cluster-forward dynamic lights via compute shader</a>
+      <a href="#oit-weighted-blended-transparency-as-an-optional-path" class="toc-h2">OIT: weighted-blended transparency as an optional path</a>
+      <a href="#render-order-parity" class="toc-h2">Render order parity</a>
+      <a href="#the-offscreen-scene-render-target" class="toc-h2">The offscreen scene render target</a>
+      <a href="#the-2d-overlay-cpu-compositing" class="toc-h2">The 2D overlay: CPU compositing</a>
+      <a href="#what-this-means-for-parity" class="toc-h2">What this means for parity</a>
+      <a href="#chapter-4-render-stages-broken-down" class="toc-h1">Chapter 4: Render Stages, Broken Down</a>
+      <a href="#stage-0-the-gpu-core-instance-adapter-device-queue" class="toc-h2">Stage 0: The GPU core — Instance, Adapter, Device, Queue</a>
+      <a href="#stage-1-the-triangle-pipelines-shaders-bind-groups" class="toc-h2">Stage 1: The triangle — pipelines, shaders, bind groups</a>
+      <a href="#stage-2-matrices-the-camera-and-3d-to-2d" class="toc-h2">Stage 2: Matrices, the camera, and 3D-to-2D</a>
+      <a href="#stage-3-loading-real-geometry-the-bsp-world" class="toc-h2">Stage 3: Loading real geometry — the BSP world</a>
+      <a href="#stage-4-textures-and-the-texture-atlas" class="toc-h2">Stage 4: Textures and the texture atlas</a>
+      <a href="#stage-5-lightmaps-pre-baked-lighting" class="toc-h2">Stage 5: Lightmaps — pre-baked lighting</a>
+      <a href="#stage-6-visibility-bsp-pvs-and-dont-draw-what-you-cant-see" class="toc-h2">Stage 6: Visibility — BSP, PVS, and &#34;don&#39;t draw what you can&#39;t see&#34;</a>
+      <a href="#stage-7-depth-testing-and-the-opaquetranslucent-ordering-problem" class="toc-h2">Stage 7: Depth testing and the opaque/translucent ordering problem</a>
+      <a href="#stage-8-sky-liquids-turbulent-and-fog" class="toc-h2">Stage 8: Sky, liquids (turbulent), and fog</a>
+      <a href="#stage-9-dynamic-lights-cluster-compute" class="toc-h2">Stage 9: Dynamic lights (cluster compute)</a>
+      <a href="#stage-10-entities-brush-alias-sprite-decal-viewmodel" class="toc-h2">Stage 10: Entities — brush, alias, sprite, decal, viewmodel</a>
+      <a href="#stage-11-particles" class="toc-h2">Stage 11: Particles</a>
+      <a href="#stage-12-post-processing-scene-composite-polyblend-overlay" class="toc-h2">Stage 12: Post-processing — scene composite, polyblend, overlay</a>
+      <a href="#stage-13-the-full-frame-renderframe-top-to-bottom" class="toc-h2">Stage 13: The full frame — `RenderFrame()` top to bottom</a>
+      <a href="#stage-14-optional-order-independent-transparency" class="toc-h2">Stage 14 (optional): Order-Independent Transparency</a>
+      <a href="#chapter-5-the-modding-system-and-the-quakec-vm" class="toc-h1">Chapter 5: The Modding System and the QuakeC VM</a>
+      <a href="#what-quakec-is" class="toc-h2">What QuakeC is</a>
+      <a href="#the-vm-architecture" class="toc-h2">The VM architecture</a>
+      <a href="#bit-perfect-parity-concerns" class="toc-h2">Bit-perfect parity concerns</a>
+      <a href="#the-c-shared-memory-model" class="toc-h2">The C shared-memory model</a>
+      <a href="#the-go-dual-storage-problem" class="toc-h2">The Go dual-storage problem</a>
+      <a href="#the-bug-chain-selective-sync-and-the-qbj2-lift" class="toc-h2">The bug chain: selective sync and the qbj2 lift</a>
+      <a href="#the-long-term-goal-eliminate-sync-entirely" class="toc-h2">The long-term goal: eliminate sync entirely</a>
+      <a href="#csqc-client-side-quakec" class="toc-h2">CSQC: client-side QuakeC</a>
+      <a href="#quakego-the-side-project-not-used-in-the-engine" class="toc-h2">QuakeGo: the side project (not used in the engine)</a>
+      <a href="#chapter-6-gogpu-pure-go-webgpu-in-practice" class="toc-h1">Chapter 6: GoGPU — Pure-Go WebGPU in Practice</a>
+      <a href="#the-gogpu-module-family" class="toc-h2">The GoGPU module family</a>
+      <a href="#the-wgsl-spir-v-pipeline-via-naga" class="toc-h2">The WGSL → SPIR-V pipeline via naga</a>
+      <a href="#bug-naga-invalid-spir-v-for-scalar-mix-issue-162" class="toc-h2">Bug: naga invalid SPIR-V for scalar `mix()` (issue #162)</a>
+      <a href="#bug-naga-swizzle-gap-issue-157-comments" class="toc-h2">Bug: naga swizzle gap (issue #157 comments)</a>
+      <a href="#bug-linux-x11-input-stub-issue-129" class="toc-h2">Bug: Linux X11 input stub (issue #129)</a>
+      <a href="#bug-no-pointer-lock-mouse-grab-issues-173-175" class="toc-h2">Bug: no pointer lock / mouse grab (issues #173, #175)</a>
+      <a href="#bug-adapter-power-preference-ignored-issue-176" class="toc-h2">Bug: adapter power preference ignored (issue #176)</a>
+      <a href="#the-wayland-two-connection-bug-bug-gogpu-002" class="toc-h2">The Wayland two-connection bug (BUG-GOGPU-002)</a>
+      <a href="#the-cgo-glfw-detour-and-return" class="toc-h2">The cgo-GLFW detour and return</a>
+      <a href="#general-state-of-pure-go-graphics-in-2026" class="toc-h2">General state of pure-Go graphics in 2026</a>
+      <a href="#chapter-7-synthesis-what-was-learned-and-where-it-goes" class="toc-h1">Chapter 7: Synthesis — What Was Learned, and Where It Goes</a>
+      <a href="#what-the-port-validated" class="toc-h2">What the port validated</a>
+      <a href="#what-the-port-exposed" class="toc-h2">What the port exposed</a>
+      <a href="#reflection-on-multi-agent-agentic-coding" class="toc-h2">Reflection on multi-agent agentic coding</a>
+      <a href="#future-directions" class="toc-h2">Future directions</a>
+      <a href="#conclusion-quake-as-a-forever-benchmark" class="toc-h2">Conclusion: Quake as a forever-benchmark</a>
+      <a href="#chapter-8-the-hardening-days-parity-harness-and-developer-tooling" class="toc-h1">Chapter 8: The Hardening Days — Parity, Harness, and Developer Tooling</a>
+      <a href="#81-taming-the-megastructs-the-modularisation-wave" class="toc-h2">8.1 Taming the megastructs: the modularisation wave</a>
+      <a href="#82-zero-sync-qcvm-finished" class="toc-h2">8.2 Zero-sync QCVM, finished</a>
+      <a href="#83-the-parity-audit-a-real-race-found-and-fixed" class="toc-h2">8.3 The parity audit: a real race, found and fixed</a>
+      <a href="#84-executing-the-plans-docs-gates-and-the-dev-kit" class="toc-h2">8.4 Executing the plans: docs, gates, and the dev kit</a>
+      <a href="#85-the-shape-of-the-next-era" class="toc-h2">8.5 The shape of the next era</a>
+      <a href="#chapter-9-the-browser-frontier-wasm-webgpu-validation-and-the-interactive-walkthrough" class="toc-h1">Chapter 9: The Browser Frontier — WASM, WebGPU Validation, and the Interactive Walkthrough</a>
+      <a href="#91-booting-in-the-browser-the-easy-part-that-wasnt" class="toc-h2">9.1 Booting in the browser: the easy part that wasn&#39;t</a>
+      <a href="#92-webgpus-two-faces-native-leniency-vs-browser-strictness" class="toc-h2">9.2 WebGPU&#39;s two faces: native leniency vs. browser strictness</a>
+      <a href="#93-the-frame-loop-problem-gogpus-apprun-doesnt-work-on-wasm" class="toc-h2">9.3 The frame loop problem: gogpu&#39;s App.Run doesn&#39;t work on WASM</a>
+      <a href="#94-the-cpu-blit-path-bgra-rgba-and-the-cost-of-putimagedata" class="toc-h2">9.4 The CPU blit path: BGRA, RGBA, and the cost of putImageData</a>
+      <a href="#95-the-inspector-bridge-crossing-the-go-js-boundary-safely" class="toc-h2">9.5 The inspector bridge: crossing the Go-JS boundary safely</a>
+      <a href="#96-pause-step-and-the-playback-control-protocol" class="toc-h2">9.6 Pause, step, and the playback control protocol</a>
+      <a href="#97-userfs-localstorage-as-a-config-directory" class="toc-h2">9.7 UserFS: localStorage as a config directory</a>
+      <a href="#98-the-deno-harness-testing-wasm-without-a-browser" class="toc-h2">9.8 The Deno harness: testing WASM without a browser</a>
+      <a href="#99-the-walkthrough-ui-seven-layers-of-engine-state" class="toc-h2">9.9 The walkthrough UI: seven layers of engine state</a>
+      <a href="#910-what-the-browser-port-taught" class="toc-h2">9.10 What the browser port taught</a>
+      <a href="#chapter-10-closing-the-parity-gap-dumpstate-hash-gates-and-bit-level-verification" class="toc-h1">Chapter 10: Closing the Parity Gap — Dumpstate, Hash Gates, and Bit-Level Verification</a>
+      <a href="#101-h1-extending-the-dumpstate-schema" class="toc-h2">10.1 H1: Extending the dumpstate schema</a>
+      <a href="#102-h3-render-record-hashing-parity-without-pixels" class="toc-h2">10.2 H3: Render-record hashing — parity without pixels</a>
+      <a href="#103-h6-message-stream-recording-bit-level-net-codec-parity" class="toc-h2">10.3 H6: Message-stream recording — bit-level net codec parity</a>
+      <a href="#104-closing-the-intermittent-anomalies" class="toc-h2">10.4 Closing the intermittent anomalies</a>
+      <a href="#105-the-parity-verification-stack" class="toc-h2">10.5 The parity verification stack</a>
+      <a href="#106-renderer-photometric-progress-d5-audit" class="toc-h2">10.6 Renderer photometric progress: D5 audit</a>
+      <a href="#107-performance-receipts-o3-o6" class="toc-h2">10.7 Performance receipts: O3-O6</a>
+      <a href="#chapter-11-the-compiler-grows-up-qgo-function-values-global-cells-and-in-vm-debugging" class="toc-h1">Chapter 11: The Compiler Grows Up — QGo Function Values, Global Cells, and In-VM Debugging</a>
+      <a href="#111-three-compiler-defects-function-values-global-collisions-and-field-stores" class="toc-h2">11.1 Three compiler defects: function values, global collisions, and field stores</a>
+      <a href="#112-plain-package-vars-and-dependency-entity-fields" class="toc-h2">11.2 Plain package vars and dependency entity fields</a>
+      <a href="#113-the-dead-sync-stub-removing-the-last-per-callback-copy" class="toc-h2">11.3 The dead sync stub: removing the last per-callback copy</a>
+      <a href="#114-in-vm-bytecode-runner-plan-25-phase-b" class="toc-h2">11.4 In-VM bytecode runner: plan 25 phase B</a>
+      <a href="#115-resumable-breakpoints-plan-25-phase-c" class="toc-h2">11.5 Resumable breakpoints: plan 25 phase C</a>
+      <a href="#116-the-headless-repl-plan-25-phase-d" class="toc-h2">11.6 The headless REPL: plan 25 phase D</a>
+      <a href="#117-the-compiler-devkit-feedback-loop" class="toc-h2">11.7 The compiler-devkit feedback loop</a>
+      <a href="#chapter-12-the-oit-endgame-weighted-blended-transparency-goes-to-production" class="toc-h1">Chapter 12: The OIT Endgame — Weighted-Blended Transparency Goes to Production</a>
+      <a href="#121-the-symptom-and-the-suspect-list" class="toc-h2">12.1 The symptom and the suspect list</a>
+      <a href="#122-render-target-dumps-at-the-byte-level" class="toc-h2">12.2 Render target dumps at the byte level</a>
+      <a href="#123-the-missing-dynamic-descriptor" class="toc-h2">12.3 The missing dynamic descriptor</a>
+      <a href="#124-the-upstream-report-and-the-regression-tests" class="toc-h2">12.4 The upstream report and the regression tests</a>
+      <a href="#chapter-13-the-debugger-arrives-dap-source-maps-and-the-transpiler" class="toc-h1">Chapter 13: The Debugger Arrives — DAP, Source Maps, and the Transpiler</a>
+      <a href="#131-the-design-one-protocol-two-targets" class="toc-h2">13.1 The design: one protocol, two targets</a>
+      <a href="#132-the-protocol-layer-in-internalqcdap" class="toc-h2">13.2 The protocol layer in `internal/qc/dap`</a>
+      <a href="#133-engine-integration-and-the-standalone-server" class="toc-h2">13.3 Engine integration and the standalone server</a>
+      <a href="#134-the-disassembler-and-the-source-map" class="toc-h2">13.4 The disassembler and the source map</a>
+      <a href="#135-the-transpiler-quakec-to-quakego" class="toc-h2">13.5 The transpiler: QuakeC to QuakeGo</a>
+      <a href="#chapter-14-the-engine-becomes-a-platform-gameconfig-the-sdk-and-qcmod" class="toc-h1">Chapter 14: The Engine Becomes a Platform — gameconfig, the SDK, and qcmod</a>
+      <a href="#141-spec-006-the-sdk-spec" class="toc-h2">14.1 SPEC-006: the SDK spec</a>
+      <a href="#142-enginerun-and-the-sdk-package" class="toc-h2">14.2 `engine.Run` and the `sdk` package</a>
+      <a href="#143-qcmod-init-scaffolding-a-game" class="toc-h2">14.3 `qcmod init`: scaffolding a game</a>
+      <a href="#144-packaging-pak-and-wad-tooling" class="toc-h2">14.4 Packaging: PAK and WAD tooling</a>
+      <a href="#145-the-platform-plumbing" class="toc-h2">14.5 The platform plumbing</a>
+      <a href="#chapter-15-the-map-compiler-pipeline-qbsp-vis-and-light-in-pure-go" class="toc-h1">Chapter 15: The Map Compiler Pipeline — qbsp, vis, and light in Pure Go</a>
+      <a href="#151-qbsp-from-brushes-to-a-world" class="toc-h2">15.1 qbsp: from brushes to a world</a>
+      <a href="#152-qbsp-hulls-submodels-and-leaks" class="toc-h2">15.2 qbsp: hulls, submodels, and leaks</a>
+      <a href="#153-vis-portal-flow-and-the-pvs" class="toc-h2">15.3 vis: portal flow and the PVS</a>
+      <a href="#154-light-luxels-styles-and-shadows" class="toc-h2">15.4 light: luxels, styles, and shadows</a>
+      <a href="#155-verification-and-the-limits" class="toc-h2">15.5 Verification and the limits</a>
+      <a href="#consolidated-references-and-sources" class="toc-h2">Consolidated References and Sources</a>
     </aside>
     <main class="article-body article-content">
 <h1 id="porting-quake-to-go-the-ironwail-go-story">Porting Quake to Go — The ironwail-go Story</h1>

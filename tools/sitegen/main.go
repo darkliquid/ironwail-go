@@ -8,7 +8,9 @@ import (
 	"bufio"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -17,6 +19,7 @@ import (
 func main() {
 	repoRoot := findRepoRoot()
 	articlePath := filepath.Join(repoRoot, "article", "ironwail_go.md")
+	readmePath := filepath.Join(repoRoot, "README.md")
 	outDir := filepath.Join(repoRoot, "site")
 
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
@@ -29,11 +32,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "read article: %v\n", err)
 		os.Exit(1)
 	}
+	readmeMD, err := os.ReadFile(readmePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "read readme: %v\n", err)
+		os.Exit(1)
+	}
 
 	articleHTML := markdownToHTML(string(articleMD))
+	readmeHTML := markdownToHTML(stripTitleHeading(string(readmeMD)))
 
 	data := templateData{
 		ArticleHTML: template.HTML(articleHTML),
+		ReadmeHTML:  template.HTML(readmeHTML),
+		ArticleTOC:  buildArticleTOC(string(articleMD)),
+		Packages:    countPackages(repoRoot),
+		Chapters:    countChapters(string(articleMD)),
+		GoLOC:       formatGoLOC(countGoLines(repoRoot)),
 	}
 
 	for _, page := range pages {
@@ -61,6 +75,19 @@ func main() {
 
 type templateData struct {
 	ArticleHTML template.HTML
+	ReadmeHTML  template.HTML
+	ArticleTOC  []tocEntry
+	Packages    int
+	Chapters    int
+	GoLOC       string
+}
+
+// tocEntry is one link in the article sidebar, derived from the article
+// markdown headings.
+type tocEntry struct {
+	Class string
+	Text  string
+	ID    string
 }
 
 type pageSpec struct {
@@ -86,6 +113,115 @@ func findRepoRoot() string {
 		}
 		dir = parent
 	}
+}
+
+// stripTitleHeading removes the document's own first H1 heading, so the
+// site hero can own the page title.
+func stripTitleHeading(md string) string {
+	parts := strings.SplitN(md, "\n", 2)
+	if len(parts) == 2 && strings.HasPrefix(parts[0], "# ") {
+		return strings.TrimPrefix(parts[1], "\n")
+	}
+	return md
+}
+
+// countChapters counts the # Chapter headings in the article.
+func countChapters(articleMD string) int {
+	re := regexp.MustCompile(`(?m)^# Chapter `)
+	return len(re.FindAllStringIndex(articleMD, -1))
+}
+
+// buildArticleTOC derives the article sidebar from the markdown headings.
+// It keeps the top two levels and skips code blocks and the article's own
+// table of contents heading.
+func buildArticleTOC(articleMD string) []tocEntry {
+	var entries []tocEntry
+	scanner := bufio.NewScanner(strings.NewReader(articleMD))
+	inCode := false
+	skippedTitle := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "```") {
+			inCode = !inCode
+			continue
+		}
+		if inCode {
+			continue
+		}
+		text, level := parseHeading(line)
+		if text == "" || level > 2 || text == "Table of Contents" {
+			continue
+		}
+		if level == 1 && !skippedTitle {
+			// The first H1 is the document title, not a section.
+			skippedTitle = true
+			continue
+		}
+		cls := "toc-h1"
+		if level == 2 {
+			cls = "toc-h2"
+		}
+		entries = append(entries, tocEntry{Class: cls, Text: text, ID: headingToID(text)})
+	}
+	return entries
+}
+
+// countPackages counts the Go packages of the root module via go list.
+// It falls back to zero when the Go toolchain is not available.
+func countPackages(repoRoot string) int {
+	cmd := exec.Command("go", "list", "./...")
+	cmd.Dir = repoRoot
+	out, err := cmd.Output()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "go list: %v\n", err)
+		return 0
+	}
+	n := 0
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.TrimSpace(line) != "" {
+			n++
+		}
+	}
+	return n
+}
+
+// countGoLines sums the lines of every .go file in the tree, skipping
+// scratch and build output directories.
+func countGoLines(repoRoot string) int {
+	total := 0
+	_ = filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if d.Name() == ".git" || d.Name() == ".tmp" || d.Name() == ".gograph" || d.Name() == "site" || d.Name() == "bin" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".go") {
+			return nil
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		sc := bufio.NewScanner(f)
+		for sc.Scan() {
+			total++
+		}
+		_ = f.Close()
+		return nil
+	})
+	return total
+}
+
+// formatGoLOC renders a line count as a compact thousands shorthand.
+func formatGoLOC(n int) string {
+	if n >= 1000 {
+		return fmt.Sprintf("%dk", n/1000)
+	}
+	return fmt.Sprintf("%d", n)
 }
 
 // markdownToHTML converts the article's markdown to HTML. It handles the

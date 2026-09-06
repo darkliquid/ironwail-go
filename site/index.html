@@ -194,53 +194,134 @@ footer {
   </section>
 
   <section class="stats">
-    <div><div class="stat-value">53+</div><div class="stat-label">Packages</div></div>
-    <div><div class="stat-value">11</div><div class="stat-label">Chapters</div></div>
+    <div><div class="stat-value">81</div><div class="stat-label">Packages</div></div>
+    <div><div class="stat-value">15</div><div class="stat-label">Article Chapters</div></div>
+    <div><div class="stat-value">238k</div><div class="stat-label">Lines of Go</div></div>
     <div><div class="stat-value">0</div><div class="stat-label">CGO Dependencies</div></div>
-    <div><div class="stat-value">7+</div><div class="stat-label">AI Agents</div></div>
   </section>
 
-  <section class="features">
-    <div class="card">
-      <h3>WebGPU Renderer</h3>
-      <p>Canonical renderer built on gogpu, a pure-Go WebGPU implementation. Supports BSP world, alias models, sprites, particles, decals, sky, liquids, and HUD overlays.</p>
-    </div>
-    <div class="card">
-      <h3>Browser Walkthrough</h3>
-      <p>Full engine runs as WebAssembly in the browser with a 7-layer interactive inspection tour: Boot, Console, Host, Server, QuakeC, Client, Renderer.</p>
-    </div>
-    <div class="card">
-      <h3>Parity Verification</h3>
-      <p>Deterministic hash-based parity gates replace screenshot comparison. Dumpstate schema, render-record hashing, and message-stream recording prove bit-level C equivalence.</p>
-    </div>
-    <div class="card">
-      <h3>QGo Compiler &amp; Debugger</h3>
-      <p>QuakeGo dialect compiler with In-VM bytecode runner, resumable breakpoints, and headless REPL. Mod authors can test gameplay logic without booting the engine.</p>
-    </div>
-    <div class="card">
-      <h3>Educational Codebase</h3>
-      <p>Built to be read and learned from. Package doc.go lineage sections, per-subsystem guides, stage-by-stage renderer curriculum, and C citation conventions throughout.</p>
-    </div>
-    <div class="card">
-      <h3>Multi-Agent Experiment</h3>
-      <p>Field test of AI-assisted development across Copilot, Claude, GPT, GLM, Gemini, and Qwen under a human-as-architect model codified in AGENTS.md.</p>
-    </div>
-  </section>
+  <main class="article-body article-content">
+<p>Ironwail-Go is a port of the Ironwail Quake engine from C to Go. Ironwail is a modernized rebuild of Quake, the classic 1996 first-person shooter by id Software. This project translates the engine, keeps the same gameplay, and rewrites the internals in clean, readable Go.</p>
 
-  <section style="padding: 2rem 0;">
-    <h2 style="margin-bottom: 1rem;">Architecture</h2>
-    <p style="color: var(--muted); margin-bottom: 1rem;">The engine preserves Quake's client-server split even in single-player. The server is authoritative for physics, QuakeC, and entity state; the client parses server messages and presents player-visible state.</p>
-    <div class="features" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-      <div class="card"><h3>cmd/ironwailgo</h3><p>Entry point. Constructs Game, wires backends, parses flags.</p></div>
-      <div class="card"><h3>internal/game</h3><p>Top-level coordinator. Owns all subsystems.</p></div>
-      <div class="card"><h3>internal/host</h3><p>Startup/shutdown, command execution, frame timing.</p></div>
-      <div class="card"><h3>internal/server</h3><p>Authoritative simulation: physics, collision, QC hooks.</p></div>
-      <div class="card"><h3>internal/client</h3><p>Signon state, parsed entities, usercmd generation.</p></div>
-      <div class="card"><h3>internal/renderer</h3><p>GoGPU/WebGPU rendering pipeline.</p></div>
-      <div class="card"><h3>internal/qc</h3><p>QuakeC bytecode VM loader and executor.</p></div>
-      <div class="card"><h3>internal/fs</h3><p>Quake virtual filesystem with pak support.</p></div>
-    </div>
-  </section>
+<p>The port is pure Go. It has no C code, and it builds with CGO turned off. It runs on desktops and compiles to WebAssembly for browsers.</p>
+
+<h2 id="why-this-project-exists">Why this project exists</h2>
+
+<p>The project has four purposes.</p>
+
+<table>
+<thead><tr><th>Purpose</th><th>What it means</th></tr></thead>
+<tbody>
+<tr><td>Learning</td><td>It explains an entire game engine in a language that is easy to read.</td></tr>
+<tr><td>Experiment</td><td>It tests how far agentic coding can carry a large port.</td></tr>
+<tr><td>Parity</td><td>It proves that a rewrite can match the original behavior and look.</td></tr>
+<tr><td>Tooling</td><td>It ships the compilers and mod kit most Quake projects need.</td></tr>
+</tbody></table>
+
+<p>Agentic coding means that AI agents write the code. A large portion of this codebase was written by agents that convert the C source to Go. A human plans the work, reviews each change, and writes the manual parts. The result is not a dump of machine output. It is a guided port with a human in charge.</p>
+
+<h2 id="goals">Goals</h2>
+
+<p>The primary goal is full behavioral parity with the C engine. Parity means that the Go engine behaves and looks like the C engine. Regular audits compare the two, and the results live in the parity guide.</p>
+
+<p>The secondary goals shape how the port is written:</p>
+
+<table>
+<thead><tr><th>Goal</th><th>How the project meets it</th></tr></thead>
+<tbody>
+<tr><td>Parity</td><td>The GoGPU renderer is the canonical path, and a screenshot harness gates it.</td></tr>
+<tr><td>Readability</td><td>The code splits into small packages, with comments that explain the why.</td></tr>
+<tr><td>Pure Go</td><td>Standard Go libraries replace the custom C implementations where it makes sense.</td></tr>
+<tr><td>Completeness</td><td>The repo includes a game VM, a mod SDK, and a map compiler pipeline.</td></tr>
+</tbody></table>
+
+<h2 id="current-status">Current status</h2>
+
+<p>The project is under active development. It is not a finished product.</p>
+
+<p>What works today:</p>
+
+<table>
+<thead><tr><th>Area</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Gameplay</td><td>Single player and multiplayer run through the authoritative client and server split.</td></tr>
+<tr><td>Rendering</td><td>The GoGPU path renders the world, models, sprites, particles, decals, sky, liquids, and the HUD.</td></tr>
+<tr><td>Game logic</td><td>The QuakeC VM runs <code>progs.dat</code>, and the QGo compiler builds QuakeGo source into it.</td></tr>
+<tr><td>Debugging</td><td>A Debug Adapter Protocol server debugs bytecode from IDEs.</td></tr>
+<tr><td>Mod SDK</td><td>The <code>sdk</code> package and the <code>qcmod</code> toolkit build standalone games.</td></tr>
+<tr><td>Map tools</td><td>The <code>qbsp</code>, <code>vis</code>, and <code>light</code> compilers build playable maps.</td></tr>
+<tr><td>Web</td><td>The engine compiles to WebAssembly and runs in browsers.</td></tr>
+</tbody></table>
+
+<p>The parity screenshot harness is an automatic gate. It captures reference frames from the C engine and the Go engine, then compares them. The commands are <code>mise run parity-ref</code>, <code>mise run parity-go</code>, and <code>mise run parity-compare</code>.</p>
+
+<p>The map compiler pipeline is newer than the engine port. It follows the classic Quake algorithms, and it is tested against the reference tools where those are available.</p>
+
+<h2 id="building-and-running">Building and running</h2>
+
+<p>The project uses mise for its toolchain. Run <code>mise tasks</code> to see every task.</p>
+
+<p>The core tasks:</p>
+
+<table>
+<thead><tr><th>Task</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>mise run build</code></td><td>Builds the game binary.</td></tr>
+<tr><td><code>mise run test</code></td><td>Runs the Go test suite.</td></tr>
+<tr><td><code>mise run run</code></td><td>Builds and runs the game.</td></tr>
+<tr><td><code>mise run verify</code></td><td>Runs the tests and the build.</td></tr>
+<tr><td><code>mise run lint</code></td><td>Runs the linters.</td></tr>
+<tr><td><code>mise run smoke-all</code></td><td>Runs the smoke tests.</td></tr>
+</tbody></table>
+
+<p>The game needs the original Quake data to run. Point the run task at your data with the <code>QUAKE_DIR</code> environment variable, or set up the <code>quake-data</code> symlink.</p>
+
+<pre><code class="language-sh">export QUAKE_DIR=/path/to/your/quake
+mise run run</code></pre>
+
+<p>The map pipeline has its own tasks. Build the tools with <code>mise run build-qbsp</code>, <code>mise run build-vis</code>, and <code>mise run build-light</code>. Compile a whole map with <code>mise run map-build MAP=mymap</code>.</p>
+
+<p>The mod SDK has an end-to-end check: <code>mise run verify-mod-sdk</code> scaffolds every template and builds each one.</p>
+
+<h2 id="documentation-and-manuals">Documentation and manuals</h2>
+
+<p>The docs folder holds the full documentation.</p>
+
+<table>
+<thead><tr><th>Document</th><th>What it covers</th></tr></thead>
+<tbody>
+<tr><td><code>docs/LEARNING_GUIDE.md</code></td><td>The package map and how the engine fits together.</td></tr>
+<tr><td><code>docs/PARITY.md</code></td><td>The parity goals, current gaps, and how to audit.</td></tr>
+<tr><td><code>docs/QGO_QUAKEGO_GUIDE.md</code></td><td>The QuakeGo gameplay language and the QGo compiler.</td></tr>
+<tr><td><code>docs/GLOSSARY.md</code></td><td>Every technical term explained in plain English.</td></tr>
+<tr><td><code>docs/manuals/qcmod.md</code></td><td>The mod development toolkit.</td></tr>
+<tr><td><code>docs/manuals/sdk.md</code></td><td>Building a standalone game on the engine.</td></tr>
+<tr><td><code>docs/manuals/qbsp.md</code></td><td>The map compiler, first stage.</td></tr>
+<tr><td><code>docs/manuals/vis.md</code></td><td>The visibility calculator.</td></tr>
+<tr><td><code>docs/manuals/light.md</code></td><td>The lightmap baker.</td></tr>
+<tr><td><code>docs/manuals/DAP.md</code></td><td>The interactive debugger.</td></tr>
+<tr><td>Walkthroughs</td><td>End-to-end tours of boot, single player, and multiplayer.</td></tr>
+</tbody></table>
+
+<h2 id="license">License</h2>
+
+<p>The project is licensed under the GNU General Public License, version 2. The full license text is in <code>LICENSE.txt</code>.</p>
+
+<h2 id="attribution">Attribution</h2>
+
+<p>This project stands on the work of three families of code.</p>
+
+<p>The primary source is Ironwail, the C engine maintained by andrei-drexler. Ironwail preserves and modernizes the original Quake engine, and this port follows it closely. The original Ironwail developers have not reviewed or endorsed the work in this repository.</p>
+
+<p>Quake is the original game and engine by id Software. Its source code was released under the GNU General Public License. Every Quake engine, including this one, traces back to that release and to the people who wrote it.</p>
+
+<p>The map compiler pipeline follows the algorithms of the classic Quake tools and their modern descendant, the ericw-tools suite by Eric Wasylishen. The Go compilers are tested against the reference tools when those binaries are present.</p>
+
+<p>The Go port also builds on open libraries. The renderer uses the gogpu WebGPU stack, and audio uses Oto. Their licenses live in their own repositories.</p>
+
+<p>Quake and its related marks belong to id Software. This project is unofficial, it is not affiliated with id Software, and it does not distribute game data. You bring your own legally obtained data to play.</p>
+
+  </main>
 </div>
 
 <footer>

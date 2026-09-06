@@ -198,53 +198,15 @@ const indexTemplate = sharedHead + `<title>ironwail-go — Porting Quake to Go</
   </section>
 
   <section class="stats">
-    <div><div class="stat-value">53+</div><div class="stat-label">Packages</div></div>
-    <div><div class="stat-value">11</div><div class="stat-label">Chapters</div></div>
+    <div><div class="stat-value">{{.Packages}}</div><div class="stat-label">Packages</div></div>
+    <div><div class="stat-value">{{.Chapters}}</div><div class="stat-label">Article Chapters</div></div>
+    <div><div class="stat-value">{{.GoLOC}}</div><div class="stat-label">Lines of Go</div></div>
     <div><div class="stat-value">0</div><div class="stat-label">CGO Dependencies</div></div>
-    <div><div class="stat-value">7+</div><div class="stat-label">AI Agents</div></div>
   </section>
 
-  <section class="features">
-    <div class="card">
-      <h3>WebGPU Renderer</h3>
-      <p>Canonical renderer built on gogpu, a pure-Go WebGPU implementation. Supports BSP world, alias models, sprites, particles, decals, sky, liquids, and HUD overlays.</p>
-    </div>
-    <div class="card">
-      <h3>Browser Walkthrough</h3>
-      <p>Full engine runs as WebAssembly in the browser with a 7-layer interactive inspection tour: Boot, Console, Host, Server, QuakeC, Client, Renderer.</p>
-    </div>
-    <div class="card">
-      <h3>Parity Verification</h3>
-      <p>Deterministic hash-based parity gates replace screenshot comparison. Dumpstate schema, render-record hashing, and message-stream recording prove bit-level C equivalence.</p>
-    </div>
-    <div class="card">
-      <h3>QGo Compiler &amp; Debugger</h3>
-      <p>QuakeGo dialect compiler with In-VM bytecode runner, resumable breakpoints, and headless REPL. Mod authors can test gameplay logic without booting the engine.</p>
-    </div>
-    <div class="card">
-      <h3>Educational Codebase</h3>
-      <p>Built to be read and learned from. Package doc.go lineage sections, per-subsystem guides, stage-by-stage renderer curriculum, and C citation conventions throughout.</p>
-    </div>
-    <div class="card">
-      <h3>Multi-Agent Experiment</h3>
-      <p>Field test of AI-assisted development across Copilot, Claude, GPT, GLM, Gemini, and Qwen under a human-as-architect model codified in AGENTS.md.</p>
-    </div>
-  </section>
-
-  <section style="padding: 2rem 0;">
-    <h2 style="margin-bottom: 1rem;">Architecture</h2>
-    <p style="color: var(--muted); margin-bottom: 1rem;">The engine preserves Quake's client-server split even in single-player. The server is authoritative for physics, QuakeC, and entity state; the client parses server messages and presents player-visible state.</p>
-    <div class="features" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-      <div class="card"><h3>cmd/ironwailgo</h3><p>Entry point. Constructs Game, wires backends, parses flags.</p></div>
-      <div class="card"><h3>internal/game</h3><p>Top-level coordinator. Owns all subsystems.</p></div>
-      <div class="card"><h3>internal/host</h3><p>Startup/shutdown, command execution, frame timing.</p></div>
-      <div class="card"><h3>internal/server</h3><p>Authoritative simulation: physics, collision, QC hooks.</p></div>
-      <div class="card"><h3>internal/client</h3><p>Signon state, parsed entities, usercmd generation.</p></div>
-      <div class="card"><h3>internal/renderer</h3><p>GoGPU/WebGPU rendering pipeline.</p></div>
-      <div class="card"><h3>internal/qc</h3><p>QuakeC bytecode VM loader and executor.</p></div>
-      <div class="card"><h3>internal/fs</h3><p>Quake virtual filesystem with pak support.</p></div>
-    </div>
-  </section>
+  <main class="article-body article-content">
+{{.ReadmeHTML}}
+  </main>
 </div>
 
 <footer>
@@ -271,19 +233,9 @@ const articleTemplate = sharedHead + `<title>Development Article — ironwail-go
 <div class="container">
   <div class="article-layout">
     <aside class="article-toc">
-      <a href="#prologue" class="toc-h1">Prologue</a>
-      <a href="#chapter-1" class="toc-h1">Ch 1: Quake Engine</a>
-      <a href="#chapter-2" class="toc-h1">Ch 2: Go Divergence</a>
-      <a href="#chapter-3" class="toc-h1">Ch 3: The Renderer</a>
-      <a href="#chapter-4" class="toc-h1">Ch 4: Render Stages</a>
-      <a href="#chapter-5" class="toc-h1">Ch 5: QuakeC VM</a>
-      <a href="#chapter-6" class="toc-h1">Ch 6: GoGPU</a>
-      <a href="#chapter-7" class="toc-h1">Ch 7: Synthesis</a>
-      <a href="#chapter-8" class="toc-h1">Ch 8: Hardening Days</a>
-      <a href="#chapter-9" class="toc-h1">Ch 9: Browser Frontier</a>
-      <a href="#chapter-10" class="toc-h1">Ch 10: Parity Gap</a>
-      <a href="#chapter-11" class="toc-h1">Ch 11: Compiler Grows Up</a>
-      <a href="#ref-consolidated" class="toc-h1">References</a>
+{{- range .ArticleTOC}}
+      <a href="#{{.ID}}" class="{{.Class}}">{{.Text}}</a>
+{{- end}}
     </aside>
     <main class="article-body article-content">
 {{.ArticleHTML}}
