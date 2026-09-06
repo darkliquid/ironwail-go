@@ -242,11 +242,11 @@ func markdownToHTML(md, baseDir string) string {
 
 	// First pass: collect reference-style link definitions [label]: url
 	refLinks := map[string]string{}
-	refLinkRe := regexp.MustCompile(`^\[([^\]]+)\]:\s+(.+)$`)
+	refLinkRe := regexp.MustCompile(`^\[([^\]]+)\]:\s*<?([^\s>]+)>?(?:\s+.*)?$`)
 	scanner := bufio.NewScanner(strings.NewReader(md))
 	for scanner.Scan() {
-		if m := refLinkRe.FindStringSubmatch(scanner.Text()); m != nil {
-			refLinks[strings.ToLower(m[1])] = strings.TrimSpace(m[2])
+		if m := refLinkRe.FindStringSubmatch(strings.TrimSpace(scanner.Text())); m != nil {
+			refLinks[strings.ToLower(strings.TrimSpace(m[1]))] = strings.TrimSpace(m[2])
 		}
 	}
 
@@ -272,7 +272,7 @@ func markdownToHTML(md, baseDir string) string {
 		line := scanner.Text()
 
 		// Skip reference-style link definitions (already collected)
-		if refLinkRe.MatchString(line) {
+		if refLinkRe.MatchString(strings.TrimSpace(line)) {
 			continue
 		}
 
@@ -404,6 +404,9 @@ func inlineMarkdown(s string, refLinks map[string]string) string {
 	// Italic
 	s = regexp.MustCompile(`\*(.+?)\*`).ReplaceAllString(s, `<em>$1</em>`)
 
+	// Autolinks <https://...>
+	s = regexp.MustCompile(`&lt;(https?://[^&>]+)&gt;`).ReplaceAllString(s, `<a href="$1">$1</a>`)
+
 	// Links [text](url)
 	s = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).ReplaceAllStringFunc(s, func(match string) string {
 		sub := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).FindStringSubmatch(match)
@@ -415,12 +418,22 @@ func inlineMarkdown(s string, refLinks map[string]string) string {
 		s = regexp.MustCompile(`\[([^\]]+)\]\[([^\]]*)\]`).ReplaceAllStringFunc(s, func(match string) string {
 			parts := regexp.MustCompile(`\[([^\]]+)\]\[([^\]]*)\]`).FindStringSubmatch(match)
 			text := parts[1]
-			label := strings.ToLower(parts[2])
+			label := strings.ToLower(strings.TrimSpace(parts[2]))
 			if label == "" {
-				label = strings.ToLower(text)
+				label = strings.ToLower(strings.TrimSpace(text))
 			}
 			if url, ok := refLinks[label]; ok {
 				return `<a href="` + remapRepoLink(url) + `">` + text + `</a>`
+			}
+			return match
+		})
+
+		// Shortcut reference links [label]
+		s = regexp.MustCompile(`\[([^\]]+)\]`).ReplaceAllStringFunc(s, func(match string) string {
+			sub := regexp.MustCompile(`\[([^\]]+)\]`).FindStringSubmatch(match)
+			label := strings.ToLower(strings.TrimSpace(sub[1]))
+			if url, ok := refLinks[label]; ok {
+				return `<a href="` + remapRepoLink(url) + `">` + sub[1] + `</a>`
 			}
 			return match
 		})
@@ -433,10 +446,18 @@ func inlineMarkdown(s string, refLinks map[string]string) string {
 // GitHub blob URL. External URLs, mailto links, in-page anchors, and
 // protocol-relative URLs pass through unchanged.
 func remapRepoLink(url string) string {
+	url = strings.TrimSpace(url)
+	url = strings.TrimPrefix(url, "<")
+	url = strings.TrimSuffix(url, ">")
+
 	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") ||
 		strings.HasPrefix(url, "//") || strings.HasPrefix(url, "mailto:") ||
 		strings.HasPrefix(url, "#") {
 		return url
+	}
+	clean := strings.TrimPrefix(url, "./")
+	if clean == "index.html" || clean == "article.html" {
+		return clean
 	}
 	rel := path.Clean(path.Join(linkBaseDir, url))
 	if rel == "." || rel == "" {
