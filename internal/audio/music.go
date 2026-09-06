@@ -14,9 +14,16 @@ var supportedMusicExtensions = []string{".ogg", ".opus", ".mp3", ".flac", ".wav"
 
 type musicResolveFunc func([]string) (string, []byte, error)
 
+type musicStream interface {
+	ReadFrames(dst []byte) (framesRead int, err error)
+	SeekFrame(frame int64) error
+	Close() error
+}
+
 type musicTrack struct {
 	name     string
-	data     []byte
+	data     []byte      // Non-nil for static/buffered tracks
+	stream   musicStream // Non-nil for streaming tracks
 	samples  int
 	rate     int
 	width    int
@@ -33,6 +40,7 @@ type musicState struct {
 	loader       func(string) ([]byte, error)
 	resolver     musicResolveFunc
 	track        *musicTrack
+	streamBuf    []byte
 }
 
 func (s *System) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, error), resolvers ...musicResolveFunc) error {
@@ -60,6 +68,9 @@ func (s *System) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, 
 		s.StopMusic()
 		return err
 	}
+	if s.music != nil && s.music.track != nil && s.music.track.stream != nil {
+		_ = s.music.track.stream.Close()
+	}
 
 	s.music = &musicState{
 		requestTrack: track,
@@ -77,6 +88,9 @@ func (s *System) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, 
 }
 
 func (s *System) StopMusic() {
+	if s.music != nil && s.music.track != nil && s.music.track.stream != nil {
+		_ = s.music.track.stream.Close()
+	}
 	s.music = nil
 	s.rawSamples.End = s.paintedTime
 }
@@ -145,6 +159,9 @@ func (s *System) PlayMusic(filename string, loader func(string) ([]byte, error),
 		s.StopMusic()
 		return err
 	}
+	if s.music != nil && s.music.track != nil && s.music.track.stream != nil {
+		_ = s.music.track.stream.Close()
+	}
 	s.music = &musicState{
 		loop:     s.musicLoop,
 		loader:   loader,
@@ -189,6 +206,27 @@ func (s *System) updateMusic(endTime int) {
 		}
 
 		frameSize := s.music.track.channels * s.music.track.width
+		if s.music.track.stream != nil {
+			neededBytes := inputFrames * frameSize
+			if len(s.music.streamBuf) < neededBytes {
+				s.music.streamBuf = make([]byte, neededBytes)
+			}
+			framesRead, _ := s.music.track.stream.ReadFrames(s.music.streamBuf[:neededBytes])
+			if framesRead <= 0 {
+				if err := s.advanceMusicTrack(); err != nil {
+					s.StopMusic()
+					return
+				}
+				if s.music == nil || s.music.track == nil {
+					return
+				}
+				continue
+			}
+			s.AddRawSamples(framesRead, s.music.track.rate, s.music.track.width, s.music.track.channels, s.music.streamBuf[:framesRead*frameSize], 1)
+			s.music.position += framesRead
+			continue
+		}
+
 		start := s.music.position * frameSize
 		stop := start + inputFrames*frameSize
 		s.AddRawSamples(inputFrames, s.music.track.rate, s.music.track.width, s.music.track.channels, s.music.track.data[start:stop], 1)
@@ -203,6 +241,9 @@ func (s *System) advanceMusicTrack() error {
 	if s.music.requestTrack == 0 {
 		if s.music.loop {
 			s.music.position = 0
+			if s.music.track != nil && s.music.track.stream != nil {
+				_ = s.music.track.stream.SeekFrame(0)
+			}
 			return nil
 		}
 		s.StopMusic()
@@ -214,12 +255,18 @@ func (s *System) advanceMusicTrack() error {
 	}
 	if s.music.loopTrack == s.music.activeTrack {
 		s.music.position = 0
+		if s.music.track != nil && s.music.track.stream != nil {
+			_ = s.music.track.stream.SeekFrame(0)
+		}
 		return nil
 	}
 
 	resolved, err := loadMusicTrack(s.music.loopTrack, s.music.loader, s.music.resolver)
 	if err != nil {
 		return err
+	}
+	if s.music.track != nil && s.music.track.stream != nil {
+		_ = s.music.track.stream.Close()
 	}
 	s.music.track = resolved
 	s.music.activeTrack = s.music.loopTrack
