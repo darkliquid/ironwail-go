@@ -30,6 +30,7 @@ func (s *System) UpdateFromCVars(cv *cvar.CVarSystem) {
 	if !s.initialized || cv == nil {
 		return
 	}
+	s.cvars = cv
 	vol := cv.FloatValue("volume")
 	if vol < 0 {
 		vol = 0

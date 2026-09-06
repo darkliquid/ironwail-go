@@ -258,3 +258,17 @@ func (a *AudioAdapter) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambi
 	}
 	a.sys.UpdateAmbientSounds(frameTime, hasLeaf, ambientLevels, underwaterIntensity)
 }
+
+func (a *AudioAdapter) SetUnderwaterIntensity(intensity float32) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.SetUnderwaterIntensity(intensity)
+}
+
+func (a *AudioAdapter) UnderwaterIntensity() float32 {
+	if a == nil || a.sys == nil {
+		return 0
+	}
+	return a.sys.UnderwaterIntensity()
+}

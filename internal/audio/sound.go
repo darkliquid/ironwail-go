@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
@@ -23,6 +24,7 @@ type System struct {
 	started     bool
 	blocked     int
 	nosound     bool
+	cvars       *cvar.CVarSystem
 
 	dma        *DMAInfo
 	cache      *SFXCache
@@ -576,9 +578,18 @@ func (s *System) Unblock() {
 	}
 }
 
+func (s *System) getWaterFx() float32 {
+	if s != nil && s.cvars != nil {
+		if cv := s.cvars.Get("snd_waterfx"); cv != nil {
+			return cv.Float32()
+		}
+	}
+	return 1.0
+}
+
 func (s *System) SetUnderwaterIntensity(intensity float32) {
-	if mixer, ok := s.mixer.(interface{ SetUnderwaterIntensity(float32) }); ok {
-		mixer.SetUnderwaterIntensity(intensity)
+	if mixer, ok := s.mixer.(interface{ SetUnderwaterIntensity(float32, float32, float32) }); ok {
+		mixer.SetUnderwaterIntensity(intensity, 0.016, s.getWaterFx())
 	}
 }
 func (s *System) SetAmbientSound(channel int, sfx *SFX) {
@@ -645,8 +656,8 @@ func (s *System) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambientLev
 		return
 	}
 
-	if mixer, ok := s.mixer.(interface{ SetUnderwaterIntensity(float32) }); ok {
-		mixer.SetUnderwaterIntensity(underwaterIntensity)
+	if mixer, ok := s.mixer.(interface{ SetUnderwaterIntensity(float32, float32, float32) }); ok {
+		mixer.SetUnderwaterIntensity(underwaterIntensity, frameTime, s.getWaterFx())
 	}
 	SnddbgLogf("underwater intensity=%.3f hasLeaf=%v", underwaterIntensity, hasLeaf)
 

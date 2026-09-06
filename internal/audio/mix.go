@@ -145,9 +145,7 @@ func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, 
 			m.lowpassFilter(false, count, &m.filterR, m.filterQuality)
 		}
 
-		if m.underwater.Intensity > 0 {
-			m.applyUnderwaterFilter(count)
-		}
+		m.applyUnderwaterFilter(count)
 
 		m.updateLevels(count)
 
@@ -246,6 +244,14 @@ func (m *Mixer) paintChannel16(ch *Channel, cache *SoundCache, count int, sndVol
 }
 
 func (m *Mixer) applyUnderwaterFilter(count int) {
+	if m.underwater.Intensity <= 0 {
+		if count > 0 {
+			m.underwater.Accum[0] = float32(m.paintBuffer[count-1].Left)
+			m.underwater.Accum[1] = float32(m.paintBuffer[count-1].Right)
+		}
+		return
+	}
+
 	for i := 0; i < count; i++ {
 		m.underwater.Accum[0] += m.underwater.Alpha * (float32(m.paintBuffer[i].Left) - m.underwater.Accum[0])
 		m.underwater.Accum[1] += m.underwater.Alpha * (float32(m.paintBuffer[i].Right) - m.underwater.Accum[1])
@@ -381,15 +387,19 @@ func (m *Mixer) transferPaintBuffer(dma *DMAInfo, paintedTime int, count int) {
 	}
 }
 
-func (m *Mixer) SetUnderwaterIntensity(target float32) {
-	target = float32(math.Min(float64(target), 2.0))
+func (m *Mixer) SetUnderwaterIntensity(target float32, frameTime float32, waterfx float32) {
+	target *= float32(math.Max(0.0, math.Min(float64(waterfx), 2.0)))
+	step := frameTime * 4.0
+	if step <= 0 {
+		step = 0.016
+	}
 	if m.underwater.Intensity < target {
-		m.underwater.Intensity += 0.016
+		m.underwater.Intensity += step
 		if m.underwater.Intensity > target {
 			m.underwater.Intensity = target
 		}
 	} else if m.underwater.Intensity > target {
-		m.underwater.Intensity -= 0.016
+		m.underwater.Intensity -= step
 		if m.underwater.Intensity < target {
 			m.underwater.Intensity = target
 		}
