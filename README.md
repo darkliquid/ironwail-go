@@ -102,12 +102,18 @@ The project is licensed under the GNU General Public License, version 2. The ful
 
 This project stands on the work of three families of code.
 
-The primary source is Ironwail, the C engine maintained by andrei-drexler. Ironwail preserves and modernizes the original Quake engine, and this port follows it closely. The original Ironwail developers have not reviewed or endorsed the work in this repository.
+The primary source is [Ironwail][1], the C engine maintained by andrei-drexler. Ironwail preserves and modernizes the original Quake engine, and this port follows it closely. The original Ironwail developers have not reviewed or endorsed the work in this repository.
 
-Quake is the original game and engine by id Software. Its source code was released under the GNU General Public License. Every Quake engine, including this one, traces back to that release and to the people who wrote it.
+[Quake][2] is the original game and engine by id Software. Its source code was released under the GNU General Public License. Every Quake engine, including this one, traces back to that release and to the people who wrote it.
 
-The map compiler pipeline follows the algorithms of the classic Quake tools and their modern descendant, the ericw-tools suite by Eric Wasylishen. The Go compilers are tested against the reference tools when those binaries are present.
+The map compiler pipeline follows the algorithms of the classic Quake tools and their modern descendant, the [ericw-tools][3] suite by Eric Wasylishen. The Go compilers are tested against the reference tools when those binaries are present.
 
-The Go port also builds on open libraries. The renderer uses the gogpu WebGPU stack, and audio uses Oto. Their licenses live in their own repositories.
+The Go port also builds on open libraries. The renderer uses the [gogpu WebGPU stack][4], and audio uses [Oto][5]. Their licenses live in their own repositories.
 
 Quake and its related marks belong to id Software. This project is unofficial, it is not affiliated with id Software, and it does not distribute game data. You bring your own legally obtained data to play.
+
+[1]:https://github.com/andrei-drexler/ironwail
+[2]:https://github.com/id-Software/Quake
+[3]:https://github.com/ericwa/ericw-tools
+[4]:https://github.com/gogpu
+[5]:https://github.com/ebitengine/oto
