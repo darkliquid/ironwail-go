@@ -3,7 +3,6 @@ package renderer
 import (
 	"fmt"
 	"log/slog"
-	"runtime"
 
 	"time"
 	"unsafe"
@@ -314,12 +313,10 @@ func (r *Renderer) getWGPUDevice() *wgpu.Device {
 
 // worldDepthFormatForFeatures picks the world depth format from a device's
 // enabled features, preferring Depth32FloatStencil8 over
-// Depth24PlusStencil8. On native, the gogpu HAL always exposes
-// Depth32FloatStencil8 (the desktop default, chosen for NVIDIA parity), so
-// the feature check is only authoritative in browsers where strict
-// validation rejects pipelines that use a format whose feature was not
-// requested on the device (gogpu's browser path never requests extra
-// features). Callers decide which mode applies.
+// Depth24PlusStencil8. Strict WebGPU validation requires that
+// Depth32FloatStencil8 only be used when the feature was explicitly requested
+// on the device. When absent (the default for standard devices),
+// Depth24PlusStencil8 is used as it requires no optional features.
 func worldDepthFormatForFeatures(features gputypes.Features) gputypes.TextureFormat {
 	if features.Contains(gputypes.FeatureDepth32FloatStencil8) {
 		return gputypes.TextureFormatDepth32FloatStencil8
@@ -327,30 +324,30 @@ func worldDepthFormatForFeatures(features gputypes.Features) gputypes.TextureFor
 	return gputypes.TextureFormatDepth24PlusStencil8
 }
 
-// updateWorldDepthFormatForDevice picks the world depth format for the
-// current device. In browsers (js/wasm) gogpu cannot request the
-// depth32float-stencil8 feature, so strict-validating browsers reject
-// depth32float-stencil8 pipelines; fall back to Depth24PlusStencil8, which
-// requires no feature. On native the desktop default
-// Depth32FloatStencil8 is kept unconditionally (NVIDIA parity). The format
-// is mirrored into the pipeline subpackage so depth attachments and pipeline
-// depth states agree. No-op before a device exists.
-func (r *Renderer) updateWorldDepthFormatForDevice() {
-	device := r.getWGPUDevice()
-	if device == nil {
-		return
-	}
-	format := gputypes.TextureFormatDepth32FloatStencil8
-	if runtime.GOOS == "js" {
-		format = worldDepthFormatForFeatures(device.Features())
-		if format != gputypes.TextureFormatDepth32FloatStencil8 {
-			slog.Warn("depth32float-stencil8 unavailable in browser; falling back to depth24plus-stencil8")
-		}
+func (r *Renderer) updateWorldDepthFormat(features gputypes.Features) {
+	format := worldDepthFormatForFeatures(features)
+	if format != gputypes.TextureFormatDepth32FloatStencil8 {
+		slog.Debug("depth32float-stencil8 feature not enabled on device; using depth24plus-stencil8")
 	}
 	if worldDepthTextureFormat != format {
 		worldDepthTextureFormat = format
 		pipeline.SetWorldDepthTextureFormat(format)
 	}
+}
+
+// updateWorldDepthFormatForDevice picks the world depth format for the
+// current device based on its enabled features.
+// Strict WebGPU validation rejects Depth32FloatStencil8 when the feature was
+// not requested on the device; this ensures Depth24PlusStencil8 fallback occurs
+// on any device lacking the feature. The format is mirrored into the pipeline
+// subpackage so depth attachments and pipeline depth states agree. No-op before
+// a device exists.
+func (r *Renderer) updateWorldDepthFormatForDevice() {
+	device := r.getWGPUDevice()
+	if device == nil {
+		return
+	}
+	r.updateWorldDepthFormat(device.Features())
 }
 
 func (r *Renderer) getWGPUQueue() *wgpu.Queue {

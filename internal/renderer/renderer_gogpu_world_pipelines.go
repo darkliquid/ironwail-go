@@ -15,9 +15,12 @@ import (
 // by the external-sky pipeline and bind-group creation.
 func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule) (*wgpu.RenderPipeline, *wgpu.PipelineLayout, error) {
 	// Pick the world depth format from the device's enabled features before
-	// any depth-state pipeline is created (browsers reject pipelines that use
-	// an unrequested depth feature at strict validation).
-	r.updateWorldDepthFormatForDevice()
+	// any depth-state pipeline is created.
+	if device != nil {
+		r.updateWorldDepthFormat(device.Features())
+	} else {
+		r.updateWorldDepthFormatForDevice()
+	}
 	pipelineObj, pipelineLayout, uniformLayout, textureLayout, lightmapLayout, err := pipeline.CreateWorldPipeline(device, vertexShader, fragmentShader, r.worldPipelineParams())
 	if err != nil {
 		return nil, nil, err

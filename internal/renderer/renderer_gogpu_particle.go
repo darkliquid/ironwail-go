@@ -442,8 +442,8 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
@@ -516,7 +516,7 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 			if i == len(batchByteOffsets)-1 {
 				batchCount = totalVertices - i*particleBatchCapacity
 			}
-			renderPass.Draw(4, uint32(batchCount), firstVertex, 0)
+			renderPass.Draw(gputypes.DrawArgs{VertexCount: 4, InstanceCount: uint32(batchCount), FirstVertex: firstVertex, FirstInstance: 0})
 		}
 	}
 

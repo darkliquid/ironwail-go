@@ -3,6 +3,7 @@ package renderer
 import (
 	"testing"
 
+	"github.com/darkliquid/ironwail-go/internal/renderer/pipeline"
 	"github.com/gogpu/gputypes"
 )
 
@@ -39,5 +40,34 @@ func TestWorldDepthFormatForFeatures(t *testing.T) {
 				t.Fatalf("worldDepthFormatForFeatures(%v) = %v, want %v", tc.features, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestUpdateWorldDepthFormat(t *testing.T) {
+	origRenderer := worldDepthTextureFormat
+	origPipeline := pipeline.WorldDepthTextureFormat
+	defer func() {
+		worldDepthTextureFormat = origRenderer
+		pipeline.SetWorldDepthTextureFormat(origPipeline)
+	}()
+
+	r := &Renderer{}
+
+	// Feature absent -> Depth24PlusStencil8
+	r.updateWorldDepthFormat(0)
+	if worldDepthTextureFormat != gputypes.TextureFormatDepth24PlusStencil8 {
+		t.Fatalf("worldDepthTextureFormat = %v, want Depth24PlusStencil8", worldDepthTextureFormat)
+	}
+	if pipeline.WorldDepthTextureFormat != gputypes.TextureFormatDepth24PlusStencil8 {
+		t.Fatalf("pipeline.WorldDepthTextureFormat = %v, want Depth24PlusStencil8", pipeline.WorldDepthTextureFormat)
+	}
+
+	// Feature present -> Depth32FloatStencil8
+	r.updateWorldDepthFormat(gputypes.Features(gputypes.FeatureDepth32FloatStencil8))
+	if worldDepthTextureFormat != gputypes.TextureFormatDepth32FloatStencil8 {
+		t.Fatalf("worldDepthTextureFormat = %v, want Depth32FloatStencil8", worldDepthTextureFormat)
+	}
+	if pipeline.WorldDepthTextureFormat != gputypes.TextureFormatDepth32FloatStencil8 {
+		t.Fatalf("pipeline.WorldDepthTextureFormat = %v, want Depth32FloatStencil8", pipeline.WorldDepthTextureFormat)
 	}
 }

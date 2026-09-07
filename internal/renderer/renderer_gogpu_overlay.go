@@ -1,11 +1,13 @@
 package renderer
 
 import (
+	stdimage "image"
 	"log/slog"
 
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/gmath"
+	"github.com/gogpu/gpucontext"
 )
 
 type overlay2D struct {
@@ -65,7 +67,7 @@ func (dc *DrawContext) flush2DOverlayWithDraw(doDraw bool) {
 		if uploadRect.x == 0 && uploadRect.y == 0 && uploadRect.w == ov.width && uploadRect.h == ov.height {
 			err = tex.UpdateData(ov.pixels)
 		} else {
-			err = tex.UpdateRegion(uploadRect.x, uploadRect.y, uploadRect.w, uploadRect.h, uploadPixels)
+			err = tex.UpdateRegion(stdimage.Rect(uploadRect.x, uploadRect.y, uploadRect.x+uploadRect.w, uploadRect.y+uploadRect.h), uploadPixels, gpucontext.ImageDataLayout{})
 		}
 		if err != nil {
 			slog.Error("flush2DOverlay: texture update failed", "error", err)

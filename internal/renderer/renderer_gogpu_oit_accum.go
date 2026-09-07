@@ -101,8 +101,8 @@ func (dc *DrawContext) renderOITTranslucentPassHAL(state *RenderFrameState, plan
 		return false
 	}
 
-	renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-	renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+	renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+	renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 
 	passStartUniformOffset := r.uniformOffset
 	if dynamicLightsBuffer != nil && len(activeDynamicLights) > 0 {
@@ -187,7 +187,7 @@ func (dc *DrawContext) recordOITWorldTranslucentLiquid(renderPass *wgpu.RenderPa
 	renderPass.SetPipeline(pipelineObj)
 	renderPass.SetVertexBuffer(0, r.worldVertexBuffer, 0)
 	renderPass.SetIndexBuffer(r.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
-	renderPass.SetBindGroup(0, uniformBG, nil)
+	renderPass.SetBindGroup(0, uniformBG, []uint32{0})
 
 	worldHasLitWater := r.deferredTranslucentLiquidLitWater
 
@@ -221,7 +221,7 @@ func (dc *DrawContext) recordOITWorldTranslucentLiquid(renderPass *wgpu.RenderPa
 		if setFullbright {
 			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		}
-		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+		renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 	}
 }
 
@@ -309,7 +309,7 @@ func (dc *DrawContext) recordOITTranslucentBrushFaces(renderPass *wgpu.RenderPas
 		if setFullbright {
 			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		}
-		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
+		renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: draw.face.face.NumIndices, InstanceCount: 1, FirstIndex: draw.face.face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 	}
 }
 
@@ -411,7 +411,7 @@ func (dc *DrawContext) recordOITTranslucentAliasModels(renderPass *wgpu.RenderPa
 		renderPass.SetVertexBuffer(0, scratchBuffer, dc.aliasVertexOffsets[i])
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{dc.aliasUniformOffsets[i]})
 		renderPass.SetBindGroup(1, pd.skin.bindGroup, nil)
-		renderPass.Draw(dc.aliasVertexCounts[i], 1, 0, 0)
+		renderPass.Draw(gputypes.DrawArgs{VertexCount: dc.aliasVertexCounts[i], InstanceCount: 1, FirstVertex: 0, FirstInstance: 0})
 	}
 }
 
@@ -475,7 +475,7 @@ func (dc *DrawContext) recordOITDecalMarks(renderPass *wgpu.RenderPassEncoder, q
 	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
 	renderPass.SetBindGroup(1, bindGroup, nil)
-	renderPass.Draw(totalVertices, 1, 0, 0)
+	renderPass.Draw(gputypes.DrawArgs{VertexCount: totalVertices, InstanceCount: 1, FirstVertex: 0, FirstInstance: 0})
 }
 
 func (dc *DrawContext) recordOITSprites(renderPass *wgpu.RenderPassEncoder, queue *wgpu.Queue, entities []SpriteEntity, fogColor types.Vec3, fogDensity float32) {
@@ -588,7 +588,7 @@ func (dc *DrawContext) recordOITSprites(renderPass *wgpu.RenderPassEncoder, queu
 		frame := draw.sprite.frames[draw.frame]
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{uniformOffsets[i]})
 		renderPass.SetBindGroup(1, frame.bindGroup, nil)
-		renderPass.Draw(vertexCounts[i], 1, vertexOffsets[i], 0)
+		renderPass.Draw(gputypes.DrawArgs{VertexCount: vertexCounts[i], InstanceCount: 1, FirstVertex: vertexOffsets[i], FirstInstance: 0})
 	}
 }
 
@@ -688,6 +688,6 @@ func (dc *DrawContext) recordOITParticles(renderPass *wgpu.RenderPassEncoder, qu
 		if i == len(batchByteOffsets)-1 {
 			batchCount = totalVertices - i*particleBatchCapacity
 		}
-		renderPass.Draw(4, uint32(batchCount), firstVertex, 0)
+		renderPass.Draw(gputypes.DrawArgs{VertexCount: 4, InstanceCount: uint32(batchCount), FirstVertex: firstVertex, FirstInstance: 0})
 	}
 }

@@ -434,8 +434,8 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor type
 	}
 	width, height := r.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	// HAL backends require an active pipeline layout before SetBindGroup.
 	renderPass.SetPipeline(pipeline)
@@ -533,7 +533,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor type
 		}
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{uniformOffsets[i]})
 		renderPass.SetBindGroup(1, frame.bindGroup, nil)
-		renderPass.Draw(vertexCounts[i], 1, vertexOffsets[i], 0)
+		renderPass.Draw(gputypes.DrawArgs{VertexCount: vertexCounts[i], InstanceCount: 1, FirstVertex: vertexOffsets[i], FirstInstance: 0})
 	}
 
 	if err := renderPass.End(); err != nil {

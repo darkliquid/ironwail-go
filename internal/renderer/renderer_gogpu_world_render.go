@@ -145,8 +145,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	w, h := dc.renderer.Size()
 	if w > 0 && h > 0 {
 		slog.Debug("renderWorldInternal: setting viewport", "x", 0, "y", 0, "w", w, "h", h)
-		renderPass.SetViewport(0, 0, float32(w), float32(h), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(w), uint32(h))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(w), Height: float32(h), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(w), Height: uint32(h)})
 	} else {
 		slog.Warn("renderWorldInternal: invalid viewport size", "w", w, "h", h)
 	}
@@ -608,8 +608,8 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor types.Vec3, fog
 
 	width, height := dc.renderer.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	var uniformBytes [worldUniformBufferSize]byte
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
@@ -627,7 +627,7 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor types.Vec3, fog
 	renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
 	var drawnIndices uint32
 	for _, face := range skyFaces {
-		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+		renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 		drawnIndices += face.NumIndices
 	}
 	if err := renderPass.End(); err != nil {

@@ -19,6 +19,9 @@ func TransformVertex(pos types.Vec3, mvp types.Mat4) types.Vec4 {
 
 // createWorldDepthTexture allocates a depth attachment used by multi-pass world rendering so later passes can depth-test against the opaque world.
 func (r *Renderer) createWorldDepthTexture(device *wgpu.Device, width, height int) (*wgpu.Texture, *wgpu.TextureView, error) {
+	if device != nil {
+		r.updateWorldDepthFormat(device.Features())
+	}
 	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "World Depth Texture",
 		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},

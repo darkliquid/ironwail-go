@@ -4,11 +4,11 @@ go 1.26
 
 require (
 	github.com/ebitengine/oto/v3 v3.5.0-alpha.6
-	github.com/gogpu/gogpu v0.53.1
-	github.com/gogpu/gpucontext v0.29.0
-	github.com/gogpu/gputypes v0.6.0
+	github.com/gogpu/gogpu v0.54.0
+	github.com/gogpu/gpucontext v0.31.3
+	github.com/gogpu/gputypes v0.8.0
 	github.com/gogpu/naga v0.19.0
-	github.com/gogpu/wgpu v0.32.1
+	github.com/gogpu/wgpu v0.34.5
 	github.com/gotracker/playback v1.5.0
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jfreymuth/oggvorbis v1.0.5

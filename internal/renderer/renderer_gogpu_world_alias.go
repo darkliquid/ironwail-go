@@ -22,6 +22,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
+	r.updateWorldDepthFormat(device.Features())
 	if r.aliasPipeline != nil && r.aliasUniformBuffer != nil && r.aliasUniformBindGroup != nil && r.aliasSampler != nil {
 		return nil
 	}
@@ -770,15 +771,15 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		if useViewModelDepthRange {
 			maxDepth = 0.3
 		}
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, maxDepth)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: maxDepth})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 
 	for i, pd := range dc.aliasPreparedScratch {
 		renderPass.SetVertexBuffer(0, scratchBuffer, dc.aliasVertexOffsets[i])
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{dc.aliasUniformOffsets[i]})
 		renderPass.SetBindGroup(1, pd.skin.bindGroup, nil)
-		renderPass.Draw(dc.aliasVertexCounts[i], 1, 0, 0)
+		renderPass.Draw(gputypes.DrawArgs{VertexCount: dc.aliasVertexCounts[i], InstanceCount: 1, FirstVertex: 0, FirstInstance: 0})
 	}
 
 	if err := renderPass.End(); err != nil {

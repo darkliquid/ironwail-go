@@ -179,8 +179,8 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	passStartUniformOffset := r.uniformOffset
 	ptr1, lightData1 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
@@ -253,7 +253,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 				if setFullbright {
 					renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 				}
-				renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+				renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 			}
 		}
 		if len(draw.alphaTestFaces) > 0 {
@@ -296,7 +296,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 				if setFullbright {
 					renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 				}
-				renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+				renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 			}
 		}
 	}
@@ -417,8 +417,8 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	}
 	width, height := r.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	passStartUniformOffset := r.uniformOffset
 	if !useExternalSky {
@@ -477,7 +477,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
 		for _, face := range draw.faces {
 			if useExternalSky {
-				renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+				renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 				continue
 			}
 			solidBindGroup := whiteTextureBindGroup
@@ -493,7 +493,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 			// Bind group 3 (fullbright/lightmap) is required by the shared pipeline
 			// layout even though the sky shader doesn't use it.
 			renderPass.SetBindGroup(3, whiteTextureBindGroup, nil)
-			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+			renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 		}
 	}
 	if logExternalSkyDraw {
@@ -688,8 +688,8 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	passStartUniformOffset := r.uniformOffset
 	ptr2, lightData2 := encodeGoGPUWorldDynamicLights(activeDynamicLights)
@@ -748,7 +748,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			if setFullbright {
 				renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 			}
-			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+			renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 		}
 	}
 	if err := renderPass.End(); err != nil {

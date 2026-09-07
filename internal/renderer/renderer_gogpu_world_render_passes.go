@@ -37,7 +37,7 @@ func (dc *DrawContext) renderWorldSkyPass(
 			slog.Debug("external sky world draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.resources.WorldSkyExternalName)
 		}
 		for _, face := range skyFaces {
-			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+			renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 			skyDrawnIndices += face.NumIndices
 		}
 		if logExternalSkyDraw {
@@ -74,7 +74,7 @@ func (dc *DrawContext) renderWorldSkyPass(
 			if setFullbright {
 				renderPass.SetBindGroup(3, dc.renderer.resources.WhiteTextureBindGroup, nil)
 			}
-			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+			renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 			skyDrawnIndices += face.NumIndices
 		}
 	}
@@ -107,7 +107,7 @@ func (dc *DrawContext) renderWorldOpaquePasses(
 		if setFullbright {
 			renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
 		}
-		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+		renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: batch.numIndices, InstanceCount: 1, FirstIndex: batch.firstIndex, BaseVertex: 0, FirstInstance: 0})
 		drawnIndices += batch.numIndices
 	}
 	if dc.renderer.resources.WorldAlphaTestPipeline != nil {
@@ -127,7 +127,7 @@ func (dc *DrawContext) renderWorldOpaquePasses(
 			if setFullbright {
 				renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
 			}
-			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+			renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: batch.numIndices, InstanceCount: 1, FirstIndex: batch.firstIndex, BaseVertex: 0, FirstInstance: 0})
 			alphaTestDrawnIndices += batch.numIndices
 		}
 	} else if len(alphaTestBatches) > 0 {
@@ -161,7 +161,7 @@ func (dc *DrawContext) renderWorldOpaquePasses(
 			if setFullbright {
 				renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
 			}
-			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+			renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: batch.numIndices, InstanceCount: 1, FirstIndex: batch.firstIndex, BaseVertex: 0, FirstInstance: 0})
 			liquidDrawnIndices += batch.numIndices
 		}
 	}

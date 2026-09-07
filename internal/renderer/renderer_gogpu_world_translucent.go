@@ -444,8 +444,8 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	renderPass.SetPipeline(res.alphaTestPipeline)
 	width, height := dc.renderer.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	// GoGPU's Vulkan render-pass backend resolves descriptor-set binding through the
 	// currently bound pipeline layout, so a known-good world pipeline must be selected
@@ -491,7 +491,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 		if setFullbright {
 			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		}
-		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
+		renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: draw.face.face.NumIndices, InstanceCount: 1, FirstIndex: draw.face.face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 	}
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderGoGPUAlphaTestBrushFaceRendersHAL: render pass end error", "error", err)
@@ -531,8 +531,8 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	}
 	width, height := dc.renderer.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	// GoGPU's Vulkan backend resolves descriptor-set binding through the active
 	// pipeline layout, so the sorted late-translucent pass must select a pipeline
@@ -605,7 +605,7 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		if setFullbright {
 			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		}
-		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
+		renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: draw.face.face.NumIndices, InstanceCount: 1, FirstIndex: draw.face.face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 	}
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderGoGPUSortedTranslucentFaceRendersHAL: render pass end error", "error", err)
@@ -714,8 +714,8 @@ func (dc *DrawContext) renderDeferredTranslucentWorldLiquidHAL(fogColor types.Ve
 	}
 	width, height := r.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	renderPass.SetPipeline(r.resources.WorldTranslucentTurbulentPipeline)
 	// The world vertex buffer must be bound explicitly: unlike the inline world
@@ -776,7 +776,7 @@ func (dc *DrawContext) renderDeferredTranslucentWorldLiquidHAL(fogColor types.Ve
 		if setFullbright {
 			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		}
-		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+		renderPass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: face.NumIndices, InstanceCount: 1, FirstIndex: face.FirstIndex, BaseVertex: 0, FirstInstance: 0})
 	}
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderDeferredTranslucentWorldLiquidHAL: render pass end error", "error", err)

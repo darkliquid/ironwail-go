@@ -111,9 +111,9 @@ func (c *Core) InitHeadless() error {
 	// a required feature is unsupported, so the request must be gated rather
 	// than unconditional — the world renderer falls back to
 	// depth24plus-stencil8 when the feature is absent.
-	requiredFeatures := wgpu.Features(0)
+	var requiredFeatures gputypes.Features
 	if adapter.Features().Contains(gputypes.FeatureDepth32FloatStencil8) {
-		requiredFeatures = wgpu.Features(gputypes.FeatureDepth32FloatStencil8)
+		requiredFeatures.Insert(gputypes.FeatureDepth32FloatStencil8)
 	}
 	openDevice, err := adapter.RequestDevice(&wgpu.DeviceDescriptor{
 		Label:            "Ironwail-Go WGPU Device",

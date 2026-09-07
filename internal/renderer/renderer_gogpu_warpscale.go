@@ -513,14 +513,14 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 	renderPass.SetBindGroup(0, bindGroup, nil)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		renderPass.SetViewport(gputypes.Viewport{X: 0, Y: 0, Width: float32(width), Height: float32(height), MinDepth: 0.0, MaxDepth: 1.0})
+		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	if err := queue.WriteBuffer(uniformBuffer, 0, sceneCompositeUniformBytes(warpActive, warpTime, dc.contrast, dc.gamma)); err != nil {
 		_ = renderPass.End()
 		return false
 	}
-	renderPass.Draw(3, 1, 0, 0)
+	renderPass.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1, FirstVertex: 0, FirstInstance: 0})
 	if err := renderPass.End(); err != nil {
 		return false
 	}
