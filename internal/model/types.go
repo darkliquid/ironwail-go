@@ -1,9 +1,8 @@
 package model
 
 import (
-	"math"
-
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/mdl"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
@@ -17,12 +16,12 @@ const (
 )
 
 // SyncType determines how model animations are synchronized.
-type SyncType int
+type SyncType = mdl.SyncType
 
 const (
-	STSync      SyncType = iota // Synchronized animation
-	STRand                      // Random animation
-	STFrameTime                 // Sync to frame changes
+	STSync      = mdl.STSync
+	STRand      = mdl.STRand
+	STFrameTime = mdl.STFrameTime
 )
 
 // TextureType classifies texture surfaces for rendering.
@@ -199,141 +198,6 @@ type Hull struct {
 	ClipMaxs      types.Vec3
 }
 
-// MSpriteFrame represents a single sprite frame.
-type MSpriteFrame struct {
-	Width, Height         int
-	Up, Down, Left, Right float32
-	SMax, TMax            float32 // Image might be padded
-	Pixels                []byte
-}
-
-// MSpriteGroup represents a group of animated sprite frames.
-type MSpriteGroup struct {
-	NumFrames int
-	Intervals []float32
-	Frames    []*MSpriteFrame
-}
-
-// MSpriteFrameDesc describes a sprite frame with its type.
-type MSpriteFrameDesc struct {
-	Type     int // spriteframetype_t
-	FramePtr any // *MSpriteFrame or *MSpriteGroup
-}
-
-// MSprite represents an in-memory sprite model.
-type MSprite struct {
-	Type      int
-	MaxWidth  int
-	MaxHeight int
-	NumFrames int
-	SyncType  SyncType
-	Frames    []MSpriteFrameDesc
-}
-
-// AliasFrameDesc describes an alias model frame.
-type AliasFrameDesc struct {
-	FirstPose int
-	NumPoses  int
-	Interval  float32
-	BBoxMin   [4]byte // trivertx_t
-	BBoxMax   [4]byte // trivertx_t
-	Frame     int
-	Name      [16]byte
-}
-
-// AliasSkinDesc describes a logical alias skin entry and the flat skin-frame
-// range it owns inside AliasHeader.Skins.
-type AliasSkinDesc struct {
-	FirstFrame int
-	NumFrames  int
-	Intervals  []float32
-}
-
-// AliasHeader represents an in-memory alias model header.
-type AliasHeader struct {
-	Ident          int
-	Version        int
-	Scale          types.Vec3
-	ScaleOrigin    types.Vec3
-	BoundingRadius float32
-	EyePosition    types.Vec3
-	NumSkins       int
-	SkinWidth      int
-	SkinHeight     int
-	NumVerts       int
-	NumTris        int
-	NumFrames      int
-	SyncType       SyncType
-	Flags          int
-	Size           float32
-	NumVertsVBO    int
-	NumPoses       int
-	PoseVertType   int // PV_QUAKE1, PV_IQM, PV_MD3
-	Skins          [][]byte
-	SkinDescs      []AliasSkinDesc
-	STVerts        []STVert
-	Triangles      []DTriangle
-	Poses          [][]TriVertX
-	Frames         []AliasFrameDesc
-}
-
-// ResolveSkinFrame maps a logical skin selection and time value to a concrete
-// flattened skin-frame index inside Skins.
-func (a *AliasHeader) ResolveSkinFrame(skinNum int, timeSeconds float64) int {
-	if a == nil || len(a.Skins) == 0 {
-		return 0
-	}
-
-	descCount := len(a.SkinDescs)
-	if descCount == 0 {
-		if skinNum < 0 {
-			skinNum = 0
-		}
-		return skinNum % len(a.Skins)
-	}
-	if skinNum < 0 {
-		skinNum = 0
-	}
-	skinNum %= descCount
-	desc := a.SkinDescs[skinNum]
-	if desc.NumFrames <= 1 {
-		return clampAliasSkinFrame(desc.FirstFrame, len(a.Skins))
-	}
-	if len(desc.Intervals) >= desc.NumFrames {
-		fullInterval := float64(desc.Intervals[desc.NumFrames-1])
-		if fullInterval > 0 {
-			target := math.Mod(timeSeconds, fullInterval)
-			if target < 0 {
-				target += fullInterval
-			}
-			for i, interval := range desc.Intervals[:desc.NumFrames] {
-				if float64(interval) > target {
-					return clampAliasSkinFrame(desc.FirstFrame+i, len(a.Skins))
-				}
-			}
-			return clampAliasSkinFrame(desc.FirstFrame+desc.NumFrames-1, len(a.Skins))
-		}
-	}
-
-	frame := desc.FirstFrame + int(timeSeconds*10)%desc.NumFrames
-	if frame < desc.FirstFrame {
-		frame = desc.FirstFrame
-	}
-	return clampAliasSkinFrame(frame, len(a.Skins))
-}
-
-func clampAliasSkinFrame(index, count int) int {
-	if count <= 0 {
-		return 0
-	}
-	if index < 0 {
-		return 0
-	}
-	if index >= count {
-		return count - 1
-	}
-	return index
-}
 
 // Model represents a loaded Quake model (brush, alias, or sprite).
 type Model struct {
