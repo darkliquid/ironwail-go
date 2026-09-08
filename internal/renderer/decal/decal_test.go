@@ -47,7 +47,7 @@ func TestBuildQuadFloorFacingUp(t *testing.T) {
 }
 
 func TestBuildQuadDefaultNormalUp(t *testing.T) {
-	// Direct zero normal is rejected by Normalize3 inside BuildQuad; callers
+	// Direct zero normal is rejected by NormalizeSafe inside BuildQuad; callers
 	// (PrepareDraws' legacy root adapter) default normals before building.
 	if _, ok := BuildQuad(markStub{
 		origin:   types.Vec3{X: 10, Y: 20, Z: 30},

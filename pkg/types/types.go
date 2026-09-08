@@ -53,7 +53,23 @@
 // =============================================================================
 package types
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
+
+// Float represents supported floating-point types for Quake vectors.
+type Float interface {
+	~float32 | ~float64
+}
+
+// Vec3T is a generic 3D vector with X, Y, Z components in Quake's right-handed
+// coordinate system (X=forward, Y=left, Z=up).
+type Vec3T[T Float] struct {
+	X T
+	Y T
+	Z T
+}
 
 // Vec3 represents a 3D vector with X, Y, Z components in Quake's right-handed
 // coordinate system (X=forward, Y=left, Z=up).
@@ -62,11 +78,10 @@ import "math"
 // velocities, normals, and Euler angles. When used as an angle vector, the
 // components map to: X=pitch, Y=yaw, Z=roll. All components use float32
 // to match C Quake's single-precision math and GPU uniform expectations.
-type Vec3 struct {
-	X float32
-	Y float32
-	Z float32
-}
+type Vec3 = Vec3T[float32]
+
+// Vec3d is the double-precision 3D vector used for high-precision map tools (CSG, lighting).
+type Vec3d = Vec3T[float64]
 
 // Vec3Add adds two vectors component-wise and returns the result.
 //
@@ -77,11 +92,7 @@ type Vec3 struct {
 // It is also used to combine bounding box offsets with entity positions
 // for collision hull construction.
 func Vec3Add(a, b Vec3) Vec3 {
-	return Vec3{
-		X: a.X + b.X,
-		Y: a.Y + b.Y,
-		Z: a.Z + b.Z,
-	}
+	return a.Add(b)
 }
 
 // Vec3Sub subtracts two vectors component-wise (a - b) and returns the result.
@@ -90,11 +101,7 @@ func Vec3Add(a, b Vec3) Vec3 {
 // from a player to a target for projectile aiming, or between two
 // entity origins for distance checks in the physics/AI code).
 func Vec3Sub(a, b Vec3) Vec3 {
-	return Vec3{
-		X: a.X - b.X,
-		Y: a.Y - b.Y,
-		Z: a.Z - b.Z,
-	}
+	return a.Sub(b)
 }
 
 // Vec3Scale multiplies every component of v by the scalar s.
@@ -104,11 +111,7 @@ func Vec3Sub(a, b Vec3) Vec3 {
 // For example, SV_FlyMove scales the remaining velocity by the fraction
 // of a time step not consumed by a collision.
 func Vec3Scale(v Vec3, s float32) Vec3 {
-	return Vec3{
-		X: v.X * s,
-		Y: v.Y * s,
-		Z: v.Z * s,
-	}
+	return v.Scale(s)
 }
 
 // Vec3Dot returns the dot product (inner product) of two vectors.
@@ -126,7 +129,7 @@ func Vec3Scale(v Vec3, s float32) Vec3 {
 // The dot product also measures projection length, making it essential for
 // sliding collision response (velocity projected onto a wall normal).
 func Vec3Dot(a, b Vec3) float32 {
-	return a.X*b.X + a.Y*b.Y + a.Z*b.Z
+	return a.Dot(b)
 }
 
 // Vec3Cross returns the cross product of two vectors, producing a vector
@@ -139,11 +142,7 @@ func Vec3Dot(a, b Vec3) float32 {
 //   - Build orthonormal basis vectors (forward/right/up) from angles
 //   - Determine winding order for backface culling in the renderer
 func Vec3Cross(a, b Vec3) Vec3 {
-	return Vec3{
-		X: a.Y*b.Z - a.Z*b.Y,
-		Y: a.Z*b.X - a.X*b.Z,
-		Z: a.X*b.Y - a.Y*b.X,
-	}
+	return a.Cross(b)
 }
 
 // Vec3Len returns the Euclidean length (magnitude) of a vector:
@@ -155,7 +154,7 @@ func Vec3Cross(a, b Vec3) Vec3 {
 // expensive sqrt — but Quake's original C code uses the full length in
 // many places, and this port preserves that behavior.
 func Vec3Len(v Vec3) float32 {
-	return float32(math.Sqrt(float64(v.X*v.X + v.Y*v.Y + v.Z*v.Z)))
+	return v.Len()
 }
 
 // Vec3Normalize returns a unit-length vector pointing in the same direction
@@ -166,11 +165,7 @@ func Vec3Len(v Vec3) float32 {
 // unit-length for correct distance calculations), direction vectors for
 // ray tracing, and surface normals for lighting dot-product shading.
 func Vec3Normalize(v Vec3) Vec3 {
-	length := Vec3Len(v)
-	if length > 0 {
-		return Vec3Scale(v, 1.0/length)
-	}
-	return v
+	return v.Normalize()
 }
 
 // Clamp restricts a float32 value to the closed interval [min, max].
@@ -316,15 +311,7 @@ func LerpAngle(degfrom, degto, frac float32) float32 {
 // XY plane to isolate yaw, then uses the Z component vs. horizontal
 // length for pitch — matching the original C Quake VectorAngles exactly.
 func VectorAngles(forward Vec3) Vec3 {
-	var angles Vec3
-	// Quake's VectorAngles implementation:
-	// angles[PITCH] = -atan2(forward[2], VectorLength(temp)) / M_PI_DIV_180;
-	// angles[YAW] = atan2(forward[1], forward[0]) / M_PI_DIV_180;
-	temp := Vec3{X: forward.X, Y: forward.Y, Z: 0}
-	angles.X = -float32(math.Atan2(float64(forward.Z), float64(Vec3Len(temp)))) * (180.0 / math.Pi)
-	angles.Y = float32(math.Atan2(float64(forward.Y), float64(forward.X))) * (180.0 / math.Pi)
-	angles.Z = 0
-	return angles
+	return forward.Angles()
 }
 
 // AngleVectors calculates forward, right, and up basis vectors from Euler
@@ -347,25 +334,7 @@ func VectorAngles(forward Vec3) Vec3 {
 // the entity's RIGHT (negative Y direction in world space), which is
 // the opposite of the Y-left convention — hence the -1 multipliers.
 func AngleVectors(angles Vec3) (forward, right, up Vec3) {
-	sy := math.Sin(float64(angles.Y) * (math.Pi * 2 / 360))
-	cy := math.Cos(float64(angles.Y) * (math.Pi * 2 / 360))
-	sp := math.Sin(float64(angles.X) * (math.Pi * 2 / 360))
-	cp := math.Cos(float64(angles.X) * (math.Pi * 2 / 360))
-	sr := math.Sin(float64(angles.Z) * (math.Pi * 2 / 360))
-	cr := math.Cos(float64(angles.Z) * (math.Pi * 2 / 360))
-
-	forward.X = float32(cp * cy)
-	forward.Y = float32(cp * sy)
-	forward.Z = float32(-sp)
-
-	right.X = float32(-1*sr*sp*cy + -1*cr*-sy)
-	right.Y = float32(-1*sr*sp*sy + -1*cr*cy)
-	right.Z = float32(-1 * sr * cp)
-
-	up.X = float32(cr*sp*cy + -sr*-sy)
-	up.Y = float32(cr*sp*sy + -sr*cy)
-	up.Z = float32(cr * cp)
-	return
+	return angles.AngleVectors()
 }
 
 // QRint rounds a float32 to the nearest integer using Quake's rounding
@@ -437,11 +406,7 @@ func QNextPow2(val int) int {
 //
 // The name "MA" comes from the original C macro VectorMA (Vector Multiply-Add).
 func Vec3MA(veca Vec3, scale float32, vecb Vec3) Vec3 {
-	return Vec3{
-		X: veca.X + scale*vecb.X,
-		Y: veca.Y + scale*vecb.Y,
-		Z: veca.Z + scale*vecb.Z,
-	}
+	return veca.MA(scale, vecb)
 }
 
 // Vec3Lerp performs component-wise linear interpolation between two vectors.
@@ -452,11 +417,7 @@ func Vec3MA(veca Vec3, scale float32, vecb Vec3) Vec3 {
 // 72 Hz), and the client interpolates between the two most recent positions
 // at the display frame rate (e.g., 144+ Hz) for visually smooth motion.
 func Vec3Lerp(veca, vecb Vec3, frac float32) Vec3 {
-	return Vec3{
-		X: Lerp(veca.X, vecb.X, frac),
-		Y: Lerp(veca.Y, vecb.Y, frac),
-		Z: Lerp(veca.Z, vecb.Z, frac),
-	}
+	return veca.Lerp(vecb, frac)
 }
 
 // NewVec3 creates a Vec3 from individual float32 components.
@@ -466,153 +427,9 @@ func NewVec3(x, y, z float32) Vec3 {
 	return Vec3{X: x, Y: y, Z: z}
 }
 
-// Sub returns v - other. Method form of Vec3Sub for fluent chaining:
-//
-//	dir := target.Sub(origin).Normalize()
-func (v Vec3) Sub(other Vec3) Vec3 {
-	return Vec3Sub(v, other)
-}
-
-// Add returns v + other. Method form of Vec3Add for fluent chaining.
-func (v Vec3) Add(other Vec3) Vec3 {
-	return Vec3Add(v, other)
-}
-
-// Scale returns v * s. Method form of Vec3Scale for fluent chaining.
-func (v Vec3) Scale(s float32) Vec3 {
-	return Vec3Scale(v, s)
-}
-
-// Dot returns the dot product of v and other. Method form of Vec3Dot.
-func (v Vec3) Dot(other Vec3) float32 {
-	return Vec3Dot(v, other)
-}
-
-// Cross returns the cross product of v and other. Method form of Vec3Cross.
-func (v Vec3) Cross(other Vec3) Vec3 {
-	return Vec3Cross(v, other)
-}
-
-// Mul returns v * s. Alias for Scale for fluent chaining.
-func (v Vec3) Mul(s float32) Vec3 {
-	return Vec3Scale(v, s)
-}
-
-// Div returns v / s.
-func (v Vec3) Div(s float32) Vec3 {
-	inv := 1.0 / s
-	return Vec3{
-		X: v.X * inv,
-		Y: v.Y * inv,
-		Z: v.Z * inv,
-	}
-}
-
-// Neg returns -v.
-func (v Vec3) Neg() Vec3 {
-	return Vec3{X: -v.X, Y: -v.Y, Z: -v.Z}
-}
-
-// Negate returns -v. Alias for Neg.
-func (v Vec3) Negate() Vec3 {
-	return Vec3{X: -v.X, Y: -v.Y, Z: -v.Z}
-}
-
-// Len returns the Euclidean length (magnitude) of the vector.
-// Method form of Vec3Len.
-func (v Vec3) Len() float32 {
-	return Vec3Len(v)
-}
-
-// Length returns the Euclidean length of the vector. Alias for Len.
-func (v Vec3) Length() float32 {
-	return Vec3Len(v)
-}
-
-// LenSq returns the squared length of the vector (X² + Y² + Z²).
-// Avoids the square root operation for distance comparisons.
-func (v Vec3) LenSq() float32 {
-	return v.X*v.X + v.Y*v.Y + v.Z*v.Z
-}
-
-// LengthSq returns the squared length of the vector. Alias for LenSq.
-func (v Vec3) LengthSq() float32 {
-	return v.LenSq()
-}
-
-// Distance returns the Euclidean distance between v and other.
-func (v Vec3) Distance(other Vec3) float32 {
-	return v.Sub(other).Len()
-}
-
-// Dist returns the Euclidean distance between v and other. Alias for Distance.
-func (v Vec3) Dist(other Vec3) float32 {
-	return v.Distance(other)
-}
-
-// DistanceSq returns the squared Euclidean distance between v and other.
-func (v Vec3) DistanceSq(other Vec3) float32 {
-	return v.Sub(other).LenSq()
-}
-
-// Normalize returns a unit-length vector in the same direction.
-// Method form of Vec3Normalize.
-func (v Vec3) Normalize() Vec3 {
-	return Vec3Normalize(v)
-}
-
-// MA performs fused Multiply-Add: v + scale*b.
-func (v Vec3) MA(scale float32, b Vec3) Vec3 {
-	return Vec3MA(v, scale, b)
-}
-
-// MultiplyAdd performs fused Multiply-Add: v + scale*b. Alias for MA.
-func (v Vec3) MultiplyAdd(scale float32, b Vec3) Vec3 {
-	return Vec3MA(v, scale, b)
-}
-
-// Lerp linearly interpolates between v and other by factor t ∈ [0, 1].
-func (v Vec3) Lerp(other Vec3, t float32) Vec3 {
-	return Vec3Lerp(v, other, t)
-}
-
-// Angles converts this direction vector into Euler angles (pitch, yaw, 0).
-func (v Vec3) Angles() Vec3 {
-	return VectorAngles(v)
-}
-
-// AngleVectors calculates forward, right, and up basis vectors from this Euler angle vector.
-func (v Vec3) AngleVectors() (forward, right, up Vec3) {
-	return AngleVectors(v)
-}
-
-// Array converts Vec3 to a [3]float32 array.
-func (v Vec3) Array() [3]float32 {
-	return [3]float32{v.X, v.Y, v.Z}
-}
-
-// Slice converts Vec3 to a 3-element float32 slice.
-func (v Vec3) Slice() []float32 {
-	return []float32{v.X, v.Y, v.Z}
-}
-
-// Set mutates the vector components in-place.
-func (v *Vec3) Set(x, y, z float32) {
-	v.X = x
-	v.Y = y
-	v.Z = z
-}
-
-// Equals returns true if all components of v and other match exactly.
-func (v Vec3) Equals(other Vec3) bool {
-	return v.X == other.X && v.Y == other.Y && v.Z == other.Z
-}
-
-// ApproxEqual returns true if all components are within epsilon of each other.
-func (v Vec3) ApproxEqual(other Vec3, eps float32) bool {
-	return float32(math.Abs(float64(v.X-other.X))) <= eps &&
-		float32(math.Abs(float64(v.Y-other.Y))) <= eps &&
-		float32(math.Abs(float64(v.Z-other.Z))) <= eps
+// NewVec3d creates a Vec3d from individual float64 components.
+func NewVec3d(x, y, z float64) Vec3d {
+	return Vec3d{X: x, Y: y, Z: z}
 }
 
 // Vec3FromArray constructs a Vec3 from a [3]float32 array.
@@ -623,4 +440,240 @@ func Vec3FromArray(arr [3]float32) Vec3 {
 // Vec3FromSlice constructs a Vec3 from a slice. Panics if slice length < 3.
 func Vec3FromSlice(s []float32) Vec3 {
 	return Vec3{X: s[0], Y: s[1], Z: s[2]}
+}
+
+// Vec3dFromArray constructs a Vec3d from a [3]float64 array.
+func Vec3dFromArray(arr [3]float64) Vec3d {
+	return Vec3d{X: arr[0], Y: arr[1], Z: arr[2]}
+}
+
+// Vec3dFromSlice constructs a Vec3d from a slice. Panics if slice length < 3.
+func Vec3dFromSlice(s []float64) Vec3d {
+	return Vec3d{X: s[0], Y: s[1], Z: s[2]}
+}
+
+// Sub returns v - other. Method form of Vec3Sub for fluent chaining:
+//
+//	dir := target.Sub(origin).Normalize()
+func (v Vec3T[T]) Sub(other Vec3T[T]) Vec3T[T] {
+	return Vec3T[T]{
+		X: v.X - other.X,
+		Y: v.Y - other.Y,
+		Z: v.Z - other.Z,
+	}
+}
+
+// Add returns v + other. Method form of Vec3Add for fluent chaining.
+func (v Vec3T[T]) Add(other Vec3T[T]) Vec3T[T] {
+	return Vec3T[T]{
+		X: v.X + other.X,
+		Y: v.Y + other.Y,
+		Z: v.Z + other.Z,
+	}
+}
+
+// Scale returns v * s. Method form of Vec3Scale for fluent chaining.
+func (v Vec3T[T]) Scale(s T) Vec3T[T] {
+	return Vec3T[T]{
+		X: v.X * s,
+		Y: v.Y * s,
+		Z: v.Z * s,
+	}
+}
+
+// Dot returns the dot product of v and other. Method form of Vec3Dot.
+func (v Vec3T[T]) Dot(other Vec3T[T]) T {
+	return v.X*other.X + v.Y*other.Y + v.Z*other.Z
+}
+
+// Cross returns the cross product of v and other. Method form of Vec3Cross.
+func (v Vec3T[T]) Cross(other Vec3T[T]) Vec3T[T] {
+	return Vec3T[T]{
+		X: v.Y*other.Z - v.Z*other.Y,
+		Y: v.Z*other.X - v.X*other.Z,
+		Z: v.X*other.Y - v.Y*other.X,
+	}
+}
+
+// Mul returns v * s. Alias for Scale for fluent chaining.
+func (v Vec3T[T]) Mul(s T) Vec3T[T] {
+	return v.Scale(s)
+}
+
+// Div returns v / s.
+func (v Vec3T[T]) Div(s T) Vec3T[T] {
+	inv := T(1.0) / s
+	return Vec3T[T]{
+		X: v.X * inv,
+		Y: v.Y * inv,
+		Z: v.Z * inv,
+	}
+}
+
+// Neg returns -v.
+func (v Vec3T[T]) Neg() Vec3T[T] {
+	return Vec3T[T]{X: -v.X, Y: -v.Y, Z: -v.Z}
+}
+
+// Negate returns -v. Alias for Neg.
+func (v Vec3T[T]) Negate() Vec3T[T] {
+	return v.Neg()
+}
+
+// Len returns the Euclidean length (magnitude) of the vector.
+// Method form of Vec3Len.
+func (v Vec3T[T]) Len() T {
+	return T(math.Sqrt(float64(v.LenSq())))
+}
+
+// Length returns the Euclidean length of the vector. Alias for Len.
+func (v Vec3T[T]) Length() T {
+	return v.Len()
+}
+
+// LenSq returns the squared length of the vector (X² + Y² + Z²).
+// Avoids the square root operation for distance comparisons.
+func (v Vec3T[T]) LenSq() T {
+	return v.Dot(v)
+}
+
+// LengthSq returns the squared length of the vector. Alias for LenSq.
+func (v Vec3T[T]) LengthSq() T {
+	return v.LenSq()
+}
+
+// Distance returns the Euclidean distance between v and other.
+func (v Vec3T[T]) Distance(other Vec3T[T]) T {
+	return v.Sub(other).Len()
+}
+
+// Dist returns the Euclidean distance between v and other. Alias for Distance.
+func (v Vec3T[T]) Dist(other Vec3T[T]) T {
+	return v.Distance(other)
+}
+
+// DistanceSq returns the squared Euclidean distance between v and other.
+func (v Vec3T[T]) DistanceSq(other Vec3T[T]) T {
+	return v.Sub(other).LenSq()
+}
+
+// Normalize returns a unit-length vector in the same direction.
+// Method form of Vec3Normalize.
+func (v Vec3T[T]) Normalize() Vec3T[T] {
+	l := v.Len()
+	if l > 0 {
+		return v.Scale(T(1.0) / l)
+	}
+	return v
+}
+
+// NormalizeSafe normalizes a vector, returning the unit vector and true,
+// or the zero vector and false if the vector length squared is <= 1e-12.
+func (v Vec3T[T]) NormalizeSafe() (Vec3T[T], bool) {
+	lSq := float64(v.LenSq())
+	if !(lSq > 1e-12) || math.IsNaN(lSq) {
+		return Vec3T[T]{}, false
+	}
+	len := T(math.Sqrt(lSq))
+	return Vec3T[T]{X: v.X / len, Y: v.Y / len, Z: v.Z / len}, true
+}
+
+// MA performs fused Multiply-Add: v + scale*b.
+func (v Vec3T[T]) MA(scale T, b Vec3T[T]) Vec3T[T] {
+	return Vec3T[T]{
+		X: v.X + scale*b.X,
+		Y: v.Y + scale*b.Y,
+		Z: v.Z + scale*b.Z,
+	}
+}
+
+// MultiplyAdd performs fused Multiply-Add: v + scale*b. Alias for MA.
+func (v Vec3T[T]) MultiplyAdd(scale T, b Vec3T[T]) Vec3T[T] {
+	return v.MA(scale, b)
+}
+
+// Lerp linearly interpolates between v and other by factor t ∈ [0, 1].
+func (v Vec3T[T]) Lerp(other Vec3T[T], t T) Vec3T[T] {
+	return Vec3T[T]{
+		X: v.X + (other.X-v.X)*t,
+		Y: v.Y + (other.Y-v.Y)*t,
+		Z: v.Z + (other.Z-v.Z)*t,
+	}
+}
+
+// Angles converts this direction vector into Euler angles (pitch, yaw, 0).
+func (v Vec3T[T]) Angles() Vec3T[T] {
+	var angles Vec3T[T]
+	temp := Vec3T[T]{X: v.X, Y: v.Y, Z: 0}
+	angles.X = -T(math.Atan2(float64(v.Z), float64(temp.Len()))) * (180.0 / math.Pi)
+	angles.Y = T(math.Atan2(float64(v.Y), float64(v.X))) * (180.0 / math.Pi)
+	angles.Z = 0
+	return angles
+}
+
+// AngleVectors calculates forward, right, and up basis vectors from this Euler angle vector.
+func (v Vec3T[T]) AngleVectors() (forward, right, up Vec3T[T]) {
+	sy := math.Sin(float64(v.Y) * (math.Pi * 2 / 360))
+	cy := math.Cos(float64(v.Y) * (math.Pi * 2 / 360))
+	sp := math.Sin(float64(v.X) * (math.Pi * 2 / 360))
+	cp := math.Cos(float64(v.X) * (math.Pi * 2 / 360))
+	sr := math.Sin(float64(v.Z) * (math.Pi * 2 / 360))
+	cr := math.Cos(float64(v.Z) * (math.Pi * 2 / 360))
+
+	forward.X = T(cp * cy)
+	forward.Y = T(cp * sy)
+	forward.Z = T(-sp)
+
+	right.X = T(-1*sr*sp*cy + -1*cr*-sy)
+	right.Y = T(-1*sr*sp*sy + -1*cr*cy)
+	right.Z = T(-1 * sr * cp)
+
+	up.X = T(cr*sp*cy + -sr*-sy)
+	up.Y = T(cr*sp*sy + -sr*cy)
+	up.Z = T(cr * cp)
+	return
+}
+
+// Array converts Vec3T to a [3]T array.
+func (v Vec3T[T]) Array() [3]T {
+	return [3]T{v.X, v.Y, v.Z}
+}
+
+// Slice converts Vec3T to a 3-element T slice.
+func (v Vec3T[T]) Slice() []T {
+	return []T{v.X, v.Y, v.Z}
+}
+
+// Set mutates the vector components in-place.
+func (v *Vec3T[T]) Set(x, y, z T) {
+	v.X = x
+	v.Y = y
+	v.Z = z
+}
+
+// Equals returns true if all components of v and other match exactly.
+func (v Vec3T[T]) Equals(other Vec3T[T]) bool {
+	return v.X == other.X && v.Y == other.Y && v.Z == other.Z
+}
+
+// ApproxEqual returns true if all components are within epsilon of each other.
+func (v Vec3T[T]) ApproxEqual(other Vec3T[T], eps T) bool {
+	return T(math.Abs(float64(v.X-other.X))) <= eps &&
+		T(math.Abs(float64(v.Y-other.Y))) <= eps &&
+		T(math.Abs(float64(v.Z-other.Z))) <= eps
+}
+
+// String returns formatted vector coordinates "X Y Z".
+func (v Vec3T[T]) String() string {
+	return fmt.Sprintf("%v %v %v", v.X, v.Y, v.Z)
+}
+
+// Vec3 converts this vector to a single-precision Vec3.
+func (v Vec3T[T]) Vec3() Vec3 {
+	return Vec3{X: float32(v.X), Y: float32(v.Y), Z: float32(v.Z)}
+}
+
+// Vec3d converts this vector to a double-precision Vec3d.
+func (v Vec3T[T]) Vec3d() Vec3d {
+	return Vec3d{X: float64(v.X), Y: float64(v.Y), Z: float64(v.Z)}
 }

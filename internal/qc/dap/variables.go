@@ -37,7 +37,7 @@ func (vm *VariableManager) GetScopes(frameID int) []Scope {
 func formatEdictField(target Target, entNum int, name string, ofs int) (val string, varType string) {
 	if strings.Contains(name, "origin") || strings.Contains(name, "velocity") || strings.Contains(name, "angles") {
 		vec := target.GetEdictVector(entNum, ofs)
-		return fmt.Sprintf("[%v, %v, %v]", vec[0], vec[1], vec[2]), "vector"
+		return fmt.Sprintf("[%v, %v, %v]", vec.X, vec.Y, vec.Z), "vector"
 	}
 	if name == "classname" || name == "model" || name == "target" || name == "targetname" {
 		str := target.GetEdictString(entNum, ofs)

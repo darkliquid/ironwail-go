@@ -105,7 +105,7 @@ func TestParticleUniformBytes(t *testing.T) {
 	vp := types.IdentityMatrix()
 	projScale := [2]float32{1.5, -2.25}
 	uvScale := float32(0.25)
-	cameraOrigin := [3]float32{4, 5, 6}
+	cameraOrigin := types.Vec3{X: 4, Y: 5, Z: 6}
 	fogColor := types.Vec3{X: 0.1, Y: 0.2, Z: 0.3}
 	fogDensity := float32(0.75)
 
@@ -122,7 +122,25 @@ func TestParticleUniformBytes(t *testing.T) {
 	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[72:76])); got != uvScale {
 		t.Fatalf("uvScale = %v, want %v", got, uvScale)
 	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[80:84])); got != cameraOrigin.X {
+		t.Fatalf("cameraOrigin.x = %v, want %v", got, cameraOrigin.X)
+	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[84:88])); got != cameraOrigin.Y {
+		t.Fatalf("cameraOrigin.y = %v, want %v", got, cameraOrigin.Y)
+	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[88:92])); got != cameraOrigin.Z {
+		t.Fatalf("cameraOrigin.z = %v, want %v", got, cameraOrigin.Z)
+	}
 	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[92:96])); got != worldFogUniformDensity(fogDensity) {
 		t.Fatalf("fogDensity = %v, want %v", got, worldFogUniformDensity(fogDensity))
+	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[96:100])); got != fogColor.X {
+		t.Fatalf("fogColor.x = %v, want %v", got, fogColor.X)
+	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[100:104])); got != fogColor.Y {
+		t.Fatalf("fogColor.y = %v, want %v", got, fogColor.Y)
+	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[104:108])); got != fogColor.Z {
+		t.Fatalf("fogColor.z = %v, want %v", got, fogColor.Z)
 	}
 }

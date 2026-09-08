@@ -10,6 +10,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/qc/dap"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type qcmodTarget struct {
@@ -45,12 +46,11 @@ func (t *qcmodTarget) GetEdictString(entNum, offset int) string {
 	return t.world.vm.String(sidx)
 }
 
-func (t *qcmodTarget) GetEdictVector(entNum, offset int) [3]float32 {
-	if t.world == nil || t.world.vm == nil || entNum < 0 || entNum >= t.world.vm.NumEdicts {
-		return [3]float32{}
+func (t *qcmodTarget) GetEdictVector(entNum, offset int) types.Vec3 {
+	if t == nil || t.world == nil || t.world.vm == nil || entNum < 0 || entNum >= t.world.vm.NumEdicts {
+		return types.Vec3{}
 	}
-	v := t.world.vm.EVector(entNum, offset)
-	return [3]float32{v.X, v.Y, v.Z}
+	return t.world.vm.EVector(entNum, offset)
 }
 
 func (t *qcmodTarget) GetEdictClassName(entNum int) string {

@@ -32,7 +32,7 @@ func PutFloat32s(dst []byte, values []float32) {
 
 // AppendAliasSceneUniformBytes appends one alias scene uniform block to dst,
 // growing/positioning to targetOffset with worldUniformAlign alignment.
-func AppendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor types.Vec3, fogDensity float32) []byte {
+func AppendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin types.Vec3, alpha float32, fogColor types.Vec3, fogDensity float32) []byte {
 	requiredLen := int(targetOffset) + int(WorldUniformAlign)
 	if cap(dst) < requiredLen {
 		newCap := requiredLen * 2
@@ -45,7 +45,7 @@ func AppendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4
 	data := dst[targetOffset : targetOffset+AliasSceneUniformBufferSize]
 	matrixBytes := types.Mat4ToBytes(vp)
 	copy(data[:64], matrixBytes[:])
-	PutFloat32s(data[64:76], cameraOrigin[:])
+	PutFloat32s(data[64:76], cameraOrigin.Slice())
 	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldimpl.FogUniformDensity(fogDensity)))
 	PutFloat32s(data[80:92], fogColor.Slice())
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))

@@ -46,7 +46,7 @@ func (s *System) AddMark(mark MarkEntity, lifetimeSeconds, timeNow float32) {
 	if s == nil || lifetimeSeconds <= 0 {
 		return
 	}
-	if mark == nil || mark.DecalSize() <= 0 || clamp01(mark.DecalAlpha()) <= 0 {
+	if mark == nil || mark.DecalSize() <= 0 || types.Clamp(mark.DecalAlpha(), 0, 1) <= 0 {
 		return
 	}
 	s.marks = append(s.marks, timedMark{mark: mark, dieAt: timeNow + lifetimeSeconds})
@@ -147,7 +147,7 @@ func AtlasData() []byte {
 
 // Smoothstep performs clamped smooth interpolation between two edges.
 func Smoothstep(edge0, edge1, x float32) float32 {
-	t := clamp01((x - edge0) / (edge1 - edge0))
+	t := types.Clamp((x-edge0)/(edge1-edge0), 0, 1)
 	return t * t * (3.0 - 2.0*t)
 }
 
@@ -172,12 +172,12 @@ func PrepareDraws(marks []MarkEntity, cameraOrigin types.Vec3) []Draw {
 		if mark.DecalNormal() == (types.Vec3{}) {
 			mark = newNormalMark(mark, types.Vec3{X: 0, Y: 0, Z: 1})
 		}
-		alpha := clamp01(mark.DecalAlpha())
+		alpha := types.Clamp(mark.DecalAlpha(), 0, 1)
 		if alpha <= 0 {
 			continue
 		}
 		variant := NormalizeVariant(mark.DecalVariant())
-		draws = append(draws, Draw{Mark: normalizedMark{mark, alpha, variant}, DistanceSq: DistanceSq(mark.DecalOrigin(), cameraOrigin)})
+		draws = append(draws, Draw{Mark: normalizedMark{mark, alpha, variant}, DistanceSq: mark.DecalOrigin().DistanceSq(cameraOrigin)})
 	}
 
 	sort.SliceStable(draws, func(i, j int) bool {
@@ -231,18 +231,12 @@ func NormalizeVariant(variant int) int {
 	}
 }
 
-// DistanceSq returns the squared distance between two points.
-func DistanceSq(origin, camera types.Vec3) float32 {
-	d := origin.Sub(camera)
-	return d.X*d.X + d.Y*d.Y + d.Z*d.Z
-}
-
 // BuildQuad computes the four corners of a projected mark quad in world
 // space. The quad is centered 0.05 units in front of the surface along the
 // normal, oriented by the mark rotation.
 func BuildQuad(mark MarkEntity) ([4]types.Vec3, bool) {
 	var corners [4]types.Vec3
-	normal, ok := Normalize3(mark.DecalNormal())
+	normal, ok := mark.DecalNormal().NormalizeSafe()
 	if !ok {
 		return corners, false
 	}
@@ -271,7 +265,7 @@ func BuildBasis(normal types.Vec3, rotation float32) (tangent types.Vec3, bitang
 		up = types.Vec3{X: 0, Y: 1, Z: 0}
 	}
 
-	tangent, _ = Normalize3(up.Cross(normal))
+	tangent, _ = up.Cross(normal).NormalizeSafe()
 	bitangent = normal.Cross(tangent)
 
 	if rotation != 0 {
@@ -279,43 +273,8 @@ func BuildBasis(normal types.Vec3, rotation float32) (tangent types.Vec3, bitang
 		s := float32(math.Sin(float64(rotation)))
 		rotT := tangent.Scale(c).Add(bitangent.Scale(s))
 		rotB := bitangent.Scale(c).Add(tangent.Scale(-s))
-		tangent, _ = Normalize3(rotT)
-		bitangent, _ = Normalize3(rotB)
+		tangent, _ = rotT.NormalizeSafe()
+		bitangent, _ = rotB.NormalizeSafe()
 	}
 	return tangent, bitangent
-}
-
-// Add3 returns the element-wise sum of two 3-vectors.
-func Add3(a, b types.Vec3) types.Vec3 {
-	return a.Add(b)
-}
-
-// Scale3 scales a 3-vector by a scalar.
-func Scale3(a types.Vec3, s float32) types.Vec3 {
-	return a.Scale(s)
-}
-
-// Cross3 returns the cross product of two 3-vectors.
-func Cross3(a, b types.Vec3) types.Vec3 {
-	return a.Cross(b)
-}
-
-// Normalize3 normalizes a 3-vector, reporting false for null vectors.
-func Normalize3(v types.Vec3) (types.Vec3, bool) {
-	lengthSq := v.X*v.X + v.Y*v.Y + v.Z*v.Z
-	if lengthSq <= 1e-12 {
-		return types.Vec3{}, false
-	}
-	invLen := float32(1.0 / math.Sqrt(float64(lengthSq)))
-	return types.Vec3{X: v.X * invLen, Y: v.Y * invLen, Z: v.Z * invLen}, true
-}
-
-func clamp01(v float32) float32 {
-	if v < 0 {
-		return 0
-	}
-	if v > 1 {
-		return 1
-	}
-	return v
 }

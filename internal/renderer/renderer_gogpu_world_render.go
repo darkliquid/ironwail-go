@@ -612,9 +612,8 @@ func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor types.Vec3, fog
 		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 	var uniformBytes [worldUniformBufferSize]byte
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
-	fillWorldSceneUniformBytesWithExternalSkyWind(uniformBytes[:], vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, externalSkyWind, externalSkyWindLoaded)
+	fillWorldSceneUniformBytesWithExternalSkyWind(uniformBytes[:], vpMatrix, camera.Origin, fogColor, skyFogDensity, camera.Time, externalSkyWind, externalSkyWindLoaded)
 	if err := queue.WriteBuffer(uniformBuffer, 0, uniformBytes[:]); err != nil {
 		slog.Warn("external world sky overlay: failed to upload uniforms", "error", err)
 		_ = renderPass.End()
@@ -691,11 +690,11 @@ func (r *Renderer) storeGoGPUWorldBatchCacheEntry(leaf int, liquidAlpha worldLiq
 	entry.liquid = append(entry.liquid[:0], opaqueLiquidBatches...)
 }
 
-func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor types.Vec3, fogDensity float32, time float32, alpha float32, litWater float32) {
+func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin types.Vec3, fogColor types.Vec3, fogDensity float32, time float32, alpha float32, litWater float32) {
 	clear(dst[:worldUniformBufferSize])
 	matrixBytes := matrixToBytes(vp)
 	copy(dst[:64], matrixBytes)
-	putFloat32s(dst[64:76], cameraOrigin[:])
+	putFloat32s(dst[64:76], cameraOrigin.Slice())
 	binary.LittleEndian.PutUint32(dst[76:80], math.Float32bits(fogDensity))
 	putFloat32s(dst[80:92], fogColor.Slice())
 	binary.LittleEndian.PutUint32(dst[92:96], math.Float32bits(time))
@@ -703,7 +702,7 @@ func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float
 	binary.LittleEndian.PutUint32(dst[100:104], math.Float32bits(litWater))
 }
 
-func fillWorldSceneUniformBytesWithExternalSkyWind(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor types.Vec3, fogDensity float32, timeValue float32, wind externalSkyboxWind, windLoaded bool) {
+func fillWorldSceneUniformBytesWithExternalSkyWind(dst []byte, vp types.Mat4, cameraOrigin types.Vec3, fogColor types.Vec3, fogDensity float32, timeValue float32, wind externalSkyboxWind, windLoaded bool) {
 	fillWorldSceneUniformBytes(dst, vp, cameraOrigin, fogColor, fogDensity, timeValue, 1, 0)
 	if !windLoaded || wind.Dist == 0 {
 		return
@@ -739,9 +738,8 @@ func clampExternalSkyWindDist(dist float32) float32 {
 	return dist
 }
 
-func gogpuWorldUniformInputs(state *RenderFrameState, camera CameraState) ([3]float32, float32, float32) {
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	return cameraOrigin, state.FogDensity, camera.Time
+func gogpuWorldUniformInputs(state *RenderFrameState, camera CameraState) (types.Vec3, float32, float32) {
+	return camera.Origin, state.FogDensity, camera.Time
 }
 
 func gogpuWorldClearColor(clear [4]float32) gputypes.Color {

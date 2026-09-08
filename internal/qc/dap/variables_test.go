@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 type mockTarget struct {
@@ -38,20 +39,20 @@ func (m *mockTarget) GetEdictString(entNum, offset int) string {
 	}
 	return ""
 }
-func (m *mockTarget) GetEdictVector(entNum, offset int) [3]float32 {
+func (m *mockTarget) GetEdictVector(entNum, offset int) types.Vec3 {
 	if entNum < 0 || entNum >= m.EdictCount() {
-		return [3]float32{}
+		return types.Vec3{}
 	}
 	if offset == qc.EntFieldOrigin {
-		return [3]float32{10, 20, 30}
+		return types.Vec3{X: 10, Y: 20, Z: 30}
 	}
 	if offset == qc.EntFieldAngles {
-		return [3]float32{0, 90, 0}
+		return types.Vec3{X: 0, Y: 90, Z: 0}
 	}
 	if offset == qc.EntFieldVelocity {
-		return [3]float32{100, 0, 0}
+		return types.Vec3{X: 100, Y: 0, Z: 0}
 	}
-	return [3]float32{}
+	return types.Vec3{}
 }
 func (m *mockTarget) GetEdictClassName(entNum int) string {
 	return m.GetEdictString(entNum, qc.EntFieldClassName)

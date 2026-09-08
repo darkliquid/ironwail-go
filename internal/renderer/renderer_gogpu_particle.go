@@ -352,12 +352,12 @@ func particleVertexBytes(vertices []ParticleVertex) []byte {
 	return out
 }
 
-func particleUniformBytes(vp types.Mat4, projScale [2]float32, uvScale float32, cameraOrigin [3]float32, fogColor types.Vec3, fogDensity float32) []byte {
+func particleUniformBytes(vp types.Mat4, projScale [2]float32, uvScale float32, cameraOrigin types.Vec3, fogColor types.Vec3, fogDensity float32) []byte {
 	data := make([]byte, particleUniformBufferSize)
 	copy(data[:64], matrixToBytes(vp))
 	putFloat32s(data[64:72], projScale[:])
 	binary.LittleEndian.PutUint32(data[72:76], math.Float32bits(uvScale))
-	putFloat32s(data[80:92], cameraOrigin[:])
+	putFloat32s(data[80:92], cameraOrigin.Slice())
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(worldFogUniformDensity(fogDensity)))
 	putFloat32s(data[96:108], fogColor.Slice())
 	return data
@@ -415,8 +415,7 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 	projectionMatrix := r.ProjectionMatrix()
 	uvScale, textureScaleFactor := ParticleTexture(mode)
 	scaleX, scaleY := ParticleProjection(textureScaleFactor, projectionMatrix)
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	if err := queue.WriteBuffer(uniformBuffer, 0, particleUniformBytes(vpMatrix, [2]float32{scaleX, scaleY}, uvScale, cameraOrigin, state.FogColor, state.FogDensity)); err != nil {
+	if err := queue.WriteBuffer(uniformBuffer, 0, particleUniformBytes(vpMatrix, [2]float32{scaleX, scaleY}, uvScale, camera.Origin, state.FogColor, state.FogDensity)); err != nil {
 		slog.Warn("failed to update particle uniform buffer", "error", err)
 		return
 	}

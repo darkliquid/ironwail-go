@@ -57,7 +57,7 @@ func TestAppendIndexBytesPacksLittleEndian(t *testing.T) {
 
 func TestAppendAliasSceneUniformBytesLayout(t *testing.T) {
 	vp := types.IdentityMatrix()
-	origin := [3]float32{1, 2, 3}
+	origin := types.Vec3{X: 1, Y: 2, Z: 3}
 	// Use a fog density of 0 so FogUniformDensity is identity-ish; the
 	// encoding rounds through the world helper, so just verify offsets.
 	dst := AppendAliasSceneUniformBytes([]byte{}, 0, vp, origin, 0.5, types.Vec3{X: 0.1, Y: 0.2, Z: 0.3}, 0)
@@ -74,9 +74,25 @@ func TestAppendAliasSceneUniformBytesLayout(t *testing.T) {
 	if v := math.Float32frombits(binary.LittleEndian.Uint32(dst[64:68])); v != 1 {
 		t.Fatalf("origin[0] = %v, want 1", v)
 	}
+	if v := math.Float32frombits(binary.LittleEndian.Uint32(dst[68:72])); v != 2 {
+		t.Fatalf("origin[1] = %v, want 2", v)
+	}
+	if v := math.Float32frombits(binary.LittleEndian.Uint32(dst[72:76])); v != 3 {
+		t.Fatalf("origin[2] = %v, want 3", v)
+	}
 	// Fog density at 76:80 (0 -> 0 via FogUniformDensity).
 	if v := math.Float32frombits(binary.LittleEndian.Uint32(dst[76:80])); v != 0 {
 		t.Fatalf("fogDensity uniform = %v, want 0", v)
+	}
+	// Fog color at 80:92.
+	if v := math.Float32frombits(binary.LittleEndian.Uint32(dst[80:84])); v != 0.1 {
+		t.Fatalf("fogColor[0] = %v, want 0.1", v)
+	}
+	if v := math.Float32frombits(binary.LittleEndian.Uint32(dst[84:88])); v != 0.2 {
+		t.Fatalf("fogColor[1] = %v, want 0.2", v)
+	}
+	if v := math.Float32frombits(binary.LittleEndian.Uint32(dst[88:92])); v != 0.3 {
+		t.Fatalf("fogColor[2] = %v, want 0.3", v)
 	}
 	// Alpha at 92:96.
 	if v := math.Float32frombits(binary.LittleEndian.Uint32(dst[92:96])); v != 0.5 {

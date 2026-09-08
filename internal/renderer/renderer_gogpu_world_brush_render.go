@@ -192,7 +192,6 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	}
 
 	vpMatrix := r.ViewProjectionMatrix()
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	var materialBindState gogpuWorldMaterialBindState
 	for _, preparedDraw := range scratch.classifiedPrepared {
 		draw := scratch.classifiedDraws[preparedDraw.drawIndex]
@@ -224,7 +223,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.opaqueIndexOffset)
 			for _, face := range draw.opaqueFaces {
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
-				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), camera.Time, draw.alpha, 0)
+				fillWorldSceneUniformBytes(uData, vpMatrix, camera.Origin, fogColor, worldFogUniformDensity(fogDensity), camera.Time, draw.alpha, 0)
 
 				renderPass.SetBindGroup(0, frameUniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
@@ -267,7 +266,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.alphaTestIndexOffset)
 			for _, face := range draw.alphaTestFaces {
 				offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
-				fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), camera.Time, draw.alpha, 0)
+				fillWorldSceneUniformBytes(uData, vpMatrix, camera.Origin, fogColor, worldFogUniformDensity(fogDensity), camera.Time, draw.alpha, 0)
 
 				renderPass.SetBindGroup(0, frameUniformBindGroup, []uint32{offset})
 				textureBindGroup := whiteTextureBindGroup
@@ -438,7 +437,6 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	}
 
 	vpMatrix := r.ViewProjectionMatrix()
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	buffers := make([]*wgpu.Buffer, 0, len(draws)*2)
 	for _, draw := range draws {
 		vertexData := worldgogpu.VertexBytes(draw.vertices)
@@ -468,9 +466,9 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		buffers = append(buffers, vertexBuffer, indexBuffer)
 		offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
 		if useExternalSky {
-			fillWorldSceneUniformBytesWithExternalSkyWind(uData, vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, externalSkyWind, externalSkyWindLoaded)
+			fillWorldSceneUniformBytesWithExternalSkyWind(uData, vpMatrix, camera.Origin, fogColor, skyFogDensity, camera.Time, externalSkyWind, externalSkyWindLoaded)
 		} else {
-			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, 1, 0)
+			fillWorldSceneUniformBytes(uData, vpMatrix, camera.Origin, fogColor, skyFogDensity, camera.Time, 1, 0)
 		}
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{offset})
 		renderPass.SetVertexBuffer(0, vertexBuffer, 0)
@@ -701,7 +699,6 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	}
 
 	vpMatrix := r.ViewProjectionMatrix()
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	var materialBindState gogpuWorldMaterialBindState
 	for _, preparedDraw := range scratch.opaquePrepared {
 		draw := scratch.opaqueDraws[preparedDraw.drawIndex]
@@ -731,7 +728,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			}
 			lightmapBindGroup, litWater := gogpuWorldLightmapArrayBindGroupForFace(face, draw.lightmapArray, whiteLightmapBindGroup, preparedDraw.hasLitWater)
 			offset, uData := r.allocateUniformBuffer(worldUniformBufferSize)
-			fillWorldSceneUniformBytes(uData, vpMatrix, cameraOrigin, fogColor, worldFogUniformDensity(fogDensity), camera.Time, draw.alpha, litWater)
+			fillWorldSceneUniformBytes(uData, vpMatrix, camera.Origin, fogColor, worldFogUniformDensity(fogDensity), camera.Time, draw.alpha, litWater)
 
 			renderPass.SetBindGroup(0, frameUniformBindGroup, []uint32{offset})
 			fullbrightBindGroup := transparentBindGroup

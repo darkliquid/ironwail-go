@@ -84,8 +84,8 @@ func TestServerDAPTargetInspection(t *testing.T) {
 	}
 
 	s.QCVM.SetEVector(0, qc.EntFieldOrigin, qtypes.Vec3{X: 1, Y: 2, Z: 3})
-	if got := s.GetEdictVector(0, qc.EntFieldOrigin); got != [3]float32{1, 2, 3} {
-		t.Fatalf("GetEdictVector(0, Origin) = %v, want [1, 2, 3]", got)
+	if got := s.GetEdictVector(0, qc.EntFieldOrigin); got != (qtypes.Vec3{X: 1, Y: 2, Z: 3}) {
+		t.Fatalf("GetEdictVector(0, Origin) = %v, want (1, 2, 3)", got)
 	}
 
 	// Out-of-bounds checks
@@ -101,10 +101,10 @@ func TestServerDAPTargetInspection(t *testing.T) {
 	if got := s.GetEdictString(10, qc.EntFieldClassName); got != "" {
 		t.Fatalf("GetEdictString(10) = %q, want empty", got)
 	}
-	if got := s.GetEdictVector(-1, qc.EntFieldOrigin); got != [3]float32{} {
+	if got := s.GetEdictVector(-1, qc.EntFieldOrigin); got != (qtypes.Vec3{}) {
 		t.Fatalf("GetEdictVector(-1) = %v, want zero vector", got)
 	}
-	if got := s.GetEdictVector(10, qc.EntFieldOrigin); got != [3]float32{} {
+	if got := s.GetEdictVector(10, qc.EntFieldOrigin); got != (qtypes.Vec3{}) {
 		t.Fatalf("GetEdictVector(10) = %v, want zero vector", got)
 	}
 
@@ -115,7 +115,7 @@ func TestServerDAPTargetInspection(t *testing.T) {
 	if got := nilServer.GetEdictString(0, 0); got != "" {
 		t.Fatalf("nilServer.GetEdictString = %q, want empty", got)
 	}
-	if got := nilServer.GetEdictVector(0, 0); got != [3]float32{} {
+	if got := nilServer.GetEdictVector(0, 0); got != (qtypes.Vec3{}) {
 		t.Fatalf("nilServer.GetEdictVector = %v, want zero vector", got)
 	}
 

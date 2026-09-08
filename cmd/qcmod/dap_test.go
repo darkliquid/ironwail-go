@@ -114,8 +114,8 @@ func TestQCModTarget(t *testing.T) {
 	}
 
 	w.vm.SetEVector(0, qc.EntFieldOrigin, qtypes.Vec3{X: 10, Y: 20, Z: 30})
-	if got := dTarget.GetEdictVector(0, qc.EntFieldOrigin); got != [3]float32{10, 20, 30} {
-		t.Fatalf("GetEdictVector = %v, want [10, 20, 30]", got)
+	if got := dTarget.GetEdictVector(0, qc.EntFieldOrigin); got != (qtypes.Vec3{X: 10, Y: 20, Z: 30}) {
+		t.Fatalf("GetEdictVector = %v, want (10, 20, 30)", got)
 	}
 
 	// Bounds checks
@@ -131,10 +131,10 @@ func TestQCModTarget(t *testing.T) {
 	if got := dTarget.GetEdictString(9999, qc.EntFieldClassName); got != "" {
 		t.Fatalf("GetEdictString(9999) = %q, want empty", got)
 	}
-	if got := dTarget.GetEdictVector(-1, qc.EntFieldOrigin); got != [3]float32{} {
+	if got := dTarget.GetEdictVector(-1, qc.EntFieldOrigin); got != (qtypes.Vec3{}) {
 		t.Fatalf("GetEdictVector(-1) = %v, want zero vector", got)
 	}
-	if got := dTarget.GetEdictVector(9999, qc.EntFieldOrigin); got != [3]float32{} {
+	if got := dTarget.GetEdictVector(9999, qc.EntFieldOrigin); got != (qtypes.Vec3{}) {
 		t.Fatalf("GetEdictVector(9999) = %v, want zero vector", got)
 	}
 
@@ -152,7 +152,7 @@ func TestQCModTarget(t *testing.T) {
 	if nilTarget.GetEdictString(0, 0) != "" {
 		t.Error("expected empty string for nil target")
 	}
-	if nilTarget.GetEdictVector(0, 0) != [3]float32{} {
+	if nilTarget.GetEdictVector(0, 0) != (qtypes.Vec3{}) {
 		t.Error("expected zero vector for nil target")
 	}
 }

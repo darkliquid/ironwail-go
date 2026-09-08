@@ -6,6 +6,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/qc/dap"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 var (
@@ -61,12 +62,11 @@ func (s *Server) GetEdictString(entNum, offset int) string {
 }
 
 // GetEdictVector returns a vector field from an edict.
-func (s *Server) GetEdictVector(entNum, offset int) [3]float32 {
+func (s *Server) GetEdictVector(entNum, offset int) types.Vec3 {
 	if s == nil || s.QCVM == nil || entNum < 0 || entNum >= s.NumEdicts {
-		return [3]float32{}
+		return types.Vec3{}
 	}
-	v := s.QCVM.EVector(entNum, offset)
-	return [3]float32{v.X, v.Y, v.Z}
+	return s.QCVM.EVector(entNum, offset)
 }
 
 // GetEdictClassName returns the classname of an edict.
