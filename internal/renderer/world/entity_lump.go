@@ -1,8 +1,9 @@
 package world
 
 import (
-	"strconv"
 	"strings"
+
+	"github.com/darkliquid/ironwail-go/pkg/bsp"
 )
 
 // ReadAlphaCvar reads a clamped alpha cvar value with a fallback default.
@@ -19,61 +20,25 @@ func ReadAlphaCvar(name string, fallback float32) float32 {
 
 // ParseEntityAlphaField parses a floating-point alpha value from an entity key-value field.
 func ParseEntityAlphaField(fields map[string]string, key string) (float32, bool) {
-	value, ok := fields[key]
-	if !ok {
-		value, ok = fields["_"+key]
-		if !ok {
-			return 0, false
-		}
-	}
-	f, err := strconv.ParseFloat(value, 32)
-	if err != nil {
-		return 0, false
-	}
-	return float32(f), true
+	return bsp.Entity(fields).FloatVal(key)
 }
 
 // ParseEntityBoolField parses a boolean entity field using Quake's convention.
 func ParseEntityBoolField(fields map[string]string, key string) (bool, bool) {
-	value, ok := fields[key]
-	if !ok {
-		value, ok = fields["_"+key]
-		if !ok {
-			return false, false
-		}
-	}
-	value = strings.TrimSpace(strings.ToLower(value))
-	switch value {
-	case "1", "true", "yes", "on":
-		return true, true
-	case "0", "false", "no", "off":
-		return false, true
-	}
-	f, err := strconv.ParseFloat(value, 32)
-	if err != nil {
-		return false, false
-	}
-	return f != 0, true
+	return bsp.Entity(fields).BoolVal(key)
 }
 
 // ParseEntityFields parses key-value pairs from a Quake entity definition string into a map.
 func ParseEntityFields(data string) map[string]string {
-	fields := make(map[string]string)
-	pos := 0
-	for {
-		key, next, ok := nextQuotedEntityToken(data, pos)
-		if !ok {
-			break
-		}
-		value, nextValue, ok := nextQuotedEntityToken(data, next)
-		if !ok {
-			break
-		}
-		key = strings.TrimPrefix(key, "_")
-		fields[strings.ToLower(key)] = value
-		pos = nextValue
+	clean := strings.TrimSpace(data)
+	if !strings.HasPrefix(clean, "{") {
+		clean = "{\n" + clean + "\n}"
 	}
-	return fields
+	ents, err := bsp.ParseEntities(clean)
+	if err == nil && len(ents) > 0 {
+		return ents[0]
+	}
+	return make(map[string]string)
 }
 
 // FirstEntityLumpObject extracts the first entity block (the worldspawn) from the BSP entity lump.
@@ -87,19 +52,4 @@ func FirstEntityLumpObject(data string) (string, bool) {
 		return "", false
 	}
 	return data[start+1 : start+1+end], true
-}
-
-// nextQuotedEntityToken extracts the next double-quoted string token from Quake entity lump data.
-func nextQuotedEntityToken(data string, pos int) (string, int, bool) {
-	start := strings.IndexByte(data[pos:], '"')
-	if start < 0 {
-		return "", pos, false
-	}
-	start += pos
-	end := strings.IndexByte(data[start+1:], '"')
-	if end < 0 {
-		return "", pos, false
-	}
-	end += start + 1
-	return data[start+1 : end], end + 1, true
 }

@@ -103,30 +103,29 @@ func ParseWorldspawnLiquidAlphaOverrides(entities []byte) LiquidAlphaOverrides {
 		return LiquidAlphaOverrides{}
 	}
 
-	entity, ok := FirstEntityLumpObject(string(entities))
+	ent, ok := bsp.ParseFirstEntity(string(entities))
 	if !ok {
 		return LiquidAlphaOverrides{}
 	}
 
-	fields := ParseEntityFields(entity)
-	if !strings.EqualFold(fields["classname"], "worldspawn") {
+	if !strings.EqualFold(ent.String("classname"), "worldspawn") {
 		return LiquidAlphaOverrides{}
 	}
 
 	var overrides LiquidAlphaOverrides
-	if value, ok := ParseEntityAlphaField(fields, "wateralpha"); ok {
+	if value, ok := ent.FloatVal("wateralpha"); ok {
 		overrides.HasWater = true
 		overrides.Water = value
 	}
-	if value, ok := ParseEntityAlphaField(fields, "lavaalpha"); ok {
+	if value, ok := ent.FloatVal("lavaalpha"); ok {
 		overrides.HasLava = true
 		overrides.Lava = value
 	}
-	if value, ok := ParseEntityAlphaField(fields, "slimealpha"); ok {
+	if value, ok := ent.FloatVal("slimealpha"); ok {
 		overrides.HasSlime = true
 		overrides.Slime = value
 	}
-	if value, ok := ParseEntityAlphaField(fields, "telealpha"); ok {
+	if value, ok := ent.FloatVal("telealpha"); ok {
 		overrides.HasTele = true
 		overrides.Tele = value
 	}
@@ -148,16 +147,15 @@ func MapVisTransparentWaterSafe(tree *bsp.Tree) bool {
 }
 
 func worldspawnTransparentWaterOverride(entities []byte) (bool, bool) {
-	entity, ok := FirstEntityLumpObject(string(entities))
+	ent, ok := bsp.ParseFirstEntity(string(entities))
 	if !ok {
 		return false, false
 	}
-	fields := ParseEntityFields(entity)
-	if !strings.EqualFold(fields["classname"], "worldspawn") {
+	if !strings.EqualFold(ent.String("classname"), "worldspawn") {
 		return false, false
 	}
 	for _, key := range []string{"transwater", "watervis"} {
-		if value, ok := ParseEntityBoolField(fields, key); ok {
+		if value, ok := ent.BoolVal(key); ok {
 			return value, true
 		}
 	}

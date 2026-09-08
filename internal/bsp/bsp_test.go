@@ -200,7 +200,7 @@ func TestLoadBSP2FileLumpStrides(t *testing.T) {
 
 		f := &File{Version: BSP2Version_BSP2, IsBSP2: true}
 		f.Header.Lumps[LumpNodes] = Lump{FileLength: int32(len(data))}
-		if err := f.loadNodes(NewReader(bytes.NewReader(data)), nil); err != nil {
+		if err := loadNodes(f, NewReader(bytes.NewReader(data)), nil); err != nil {
 			t.Fatalf("loadNodes: %v", err)
 		}
 		nodes, ok := f.Nodes.([]DL2Node)
@@ -234,7 +234,7 @@ func TestLoadBSP2FileLumpStrides(t *testing.T) {
 
 		f := &File{Version: BSP2Version_BSP2, IsBSP2: true}
 		f.Header.Lumps[LumpLeafs] = Lump{FileLength: int32(len(data))}
-		if err := f.loadLeafs(NewReader(bytes.NewReader(data)), nil); err != nil {
+		if err := loadLeafs(f, NewReader(bytes.NewReader(data)), nil); err != nil {
 			t.Fatalf("loadLeafs: %v", err)
 		}
 		leafs, ok := f.Leafs.([]DL2Leaf)
@@ -273,7 +273,7 @@ func TestLoadBSP2FileLumpStrides(t *testing.T) {
 
 		f := &File{}
 		f.Header.Lumps[LumpModels] = Lump{FileLength: int32(len(data))}
-		if err := f.loadModels(NewReader(bytes.NewReader(data)), nil); err != nil {
+		if err := loadModels(f, NewReader(bytes.NewReader(data)), nil); err != nil {
 			t.Fatalf("loadModels: %v", err)
 		}
 		if len(f.Models) != 2 {
@@ -296,19 +296,19 @@ func TestLoadFileRejectsMisalignedLumps(t *testing.T) {
 		data []byte
 		load func(*File, *Reader, *arena.Arena) error
 	}{
-		{name: "planes", lump: LumpPlanes, data: make([]byte, dPlaneSize+1), load: (*File).loadPlanes},
-		{name: "vertexes", lump: LumpVertexes, data: make([]byte, dVertexSize+1), load: (*File).loadVertexes},
-		{name: "texinfo", lump: LumpTexinfo, data: make([]byte, 41), load: (*File).loadTexinfo},
-		{name: "faces standard", lump: LumpFaces, data: make([]byte, dsFaceSize+1), load: (*File).loadFaces},
-		{name: "faces bsp2", lump: LumpFaces, bsp2: true, data: make([]byte, dlFaceSize+1), load: (*File).loadFaces},
-		{name: "clipnodes standard", lump: LumpClipnodes, data: make([]byte, 9), load: (*File).loadClipnodes},
-		{name: "clipnodes bsp2", lump: LumpClipnodes, bsp2: true, data: make([]byte, 13), load: (*File).loadClipnodes},
-		{name: "leafs standard", lump: LumpLeafs, data: make([]byte, dsLeafSize+1), load: (*File).loadLeafs},
-		{name: "marksurfaces standard", lump: LumpMarksurfaces, data: make([]byte, uint16Size+1), load: (*File).loadMarkSurfaces},
-		{name: "marksurfaces bsp2", lump: LumpMarksurfaces, bsp2: true, data: make([]byte, uint32Size+1), load: (*File).loadMarkSurfaces},
-		{name: "edges standard", lump: LumpEdges, data: make([]byte, dsEdgeSize+1), load: (*File).loadEdges},
-		{name: "edges bsp2", lump: LumpEdges, bsp2: true, data: make([]byte, dlEdgeSize+1), load: (*File).loadEdges},
-		{name: "surfedges", lump: LumpSurfedges, data: make([]byte, int32Size+1), load: (*File).loadSurfedges},
+		{name: "planes", lump: LumpPlanes, data: make([]byte, dPlaneSize+1), load: loadPlanes},
+		{name: "vertexes", lump: LumpVertexes, data: make([]byte, dVertexSize+1), load: loadVertexes},
+		{name: "texinfo", lump: LumpTexinfo, data: make([]byte, 41), load: loadTexinfo},
+		{name: "faces standard", lump: LumpFaces, data: make([]byte, dsFaceSize+1), load: loadFaces},
+		{name: "faces bsp2", lump: LumpFaces, bsp2: true, data: make([]byte, dlFaceSize+1), load: loadFaces},
+		{name: "clipnodes standard", lump: LumpClipnodes, data: make([]byte, 9), load: loadClipnodes},
+		{name: "clipnodes bsp2", lump: LumpClipnodes, bsp2: true, data: make([]byte, 13), load: loadClipnodes},
+		{name: "leafs standard", lump: LumpLeafs, data: make([]byte, dsLeafSize+1), load: loadLeafs},
+		{name: "marksurfaces standard", lump: LumpMarksurfaces, data: make([]byte, uint16Size+1), load: loadMarkSurfaces},
+		{name: "marksurfaces bsp2", lump: LumpMarksurfaces, bsp2: true, data: make([]byte, uint32Size+1), load: loadMarkSurfaces},
+		{name: "edges standard", lump: LumpEdges, data: make([]byte, dsEdgeSize+1), load: loadEdges},
+		{name: "edges bsp2", lump: LumpEdges, bsp2: true, data: make([]byte, dlEdgeSize+1), load: loadEdges},
+		{name: "surfedges", lump: LumpSurfedges, data: make([]byte, int32Size+1), load: loadSurfedges},
 	}
 
 	for _, tc := range tests {
@@ -334,7 +334,7 @@ func TestLoadStandardClipnodesSupportsUnsignedHighNodeIndexes(t *testing.T) {
 
 	f := &File{}
 	f.Header.Lumps[LumpClipnodes] = Lump{FileLength: int32(len(data))}
-	if err := f.loadClipnodes(NewReader(bytes.NewReader(data)), nil); err != nil {
+	if err := loadClipnodes(f, NewReader(bytes.NewReader(data)), nil); err != nil {
 		t.Fatalf("loadClipnodes: %v", err)
 	}
 	clipnodes, ok := f.Clipnodes.([]DSClipNode)
@@ -369,7 +369,7 @@ func TestLoadTree2PSBNodeStride(t *testing.T) {
 		Leafs:   []TreeLeaf{{}},
 	}
 	tree.Header.Lumps[LumpNodes] = Lump{FileLength: int32(len(data))}
-	if err := tree.loadNodes(NewReader(bytes.NewReader(data))); err != nil {
+	if err := tree.LoadNodes(NewReader(bytes.NewReader(data))); err != nil {
 		t.Fatalf("loadNodes: %v", err)
 	}
 	if len(tree.Nodes) != 1 {

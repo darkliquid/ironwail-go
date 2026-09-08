@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
@@ -499,53 +498,7 @@ func writeBSP(lumps [][]byte, lay bspLayout) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func ReadBSPLumps(r io.ReaderAt) (int32, [][]byte, error) {
-	var version int32
-	if err := binary.Read(io.NewSectionReader(r, 0, 4), binary.LittleEndian, &version); err != nil {
-		return 0, nil, err
-	}
-	var entries [15][8]byte
-	raw := make([]byte, 15*8)
-	if _, err := io.ReadFull(io.NewSectionReader(r, 4, 15*8), raw); err != nil {
-		return 0, nil, err
-	}
-	for i := range entries {
-		copy(entries[i][:], raw[i*8:])
-	}
-	lumps := make([][]byte, 15)
-	for i := range lumps {
-		ofs := int32(binary.LittleEndian.Uint32(entries[i][0:]))
-		ln := int32(binary.LittleEndian.Uint32(entries[i][4:]))
-		if ln <= 0 {
-			continue
-		}
-		buf := make([]byte, ln)
-		if _, err := r.ReadAt(buf, int64(ofs)); err != nil {
-			return 0, nil, err
-		}
-		lumps[i] = buf
-	}
-	return version, lumps, nil
-}
-
-// WriteBSP assembles one file image from raw lumps with the given version.
-func WriteBSP(lumps [][]byte, version int32) ([]byte, error) {
-	if len(lumps) != 15 {
-		return nil, fmt.Errorf("expected 15 lumps, got %d", len(lumps))
-	}
-	const headerSize = 4 + 15*8
-	var b bytes.Buffer
-	var header [headerSize]byte
-	binary.LittleEndian.PutUint32(header[0:], uint32(version))
-	offset := uint32(headerSize)
-	for i, lump := range lumps {
-		binary.LittleEndian.PutUint32(header[4+i*8:], offset)
-		binary.LittleEndian.PutUint32(header[8+i*8:], uint32(len(lump)))
-		offset += uint32(len(lump))
-	}
-	b.Write(header[:])
-	for _, lump := range lumps {
-		b.Write(lump)
-	}
-	return b.Bytes(), nil
-}
+var (
+	ReadBSPLumps = bsp.ReadLumps
+	WriteBSP     = bsp.WriteBSP
+)

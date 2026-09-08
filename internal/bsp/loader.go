@@ -10,6 +10,25 @@ import (
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
+const (
+	dPlaneSize  = 20
+	dVertexSize = 12
+	dsEdgeSize  = 4
+	dlEdgeSize  = 8
+	dsFaceSize  = 20
+	dlFaceSize  = 28
+	dsLeafSize  = 28
+	dl1LeafSize = 32
+	dl2LeafSize = 44
+	dsNodeSize  = 24
+	dl1NodeSize = 32
+	dl2NodeSize = 44
+	dModelSize  = 64
+	int32Size   = 4
+	uint16Size  = 2
+	uint32Size  = 4
+)
+
 func validateLumpRecordSize(context string, data []byte, recordSize int) error {
 	if len(data)%recordSize != 0 {
 		return fmt.Errorf("%s: funny lump size %d", context, len(data))
@@ -43,56 +62,56 @@ func LoadWithArena(r io.ReadSeeker, ar *arena.Arena) (*File, error) {
 		IsQuake64: IsQuake64(header.Version),
 	}
 
-	if err := file.loadEntities(reader); err != nil {
+	if err := loadEntities(file, reader); err != nil {
 		return nil, fmt.Errorf("failed to load entities: %w", err)
 	}
-	if err := file.loadPlanes(reader, ar); err != nil {
+	if err := loadPlanes(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load planes: %w", err)
 	}
-	if err := file.loadVertexes(reader, ar); err != nil {
+	if err := loadVertexes(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load vertexes: %w", err)
 	}
-	if err := file.loadVisibility(reader); err != nil {
+	if err := loadVisibility(file, reader); err != nil {
 		return nil, fmt.Errorf("failed to load visibility: %w", err)
 	}
-	if err := file.loadNodes(reader, ar); err != nil {
+	if err := loadNodes(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load nodes: %w", err)
 	}
-	if err := file.loadTexinfo(reader, ar); err != nil {
+	if err := loadTexinfo(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load texinfo: %w", err)
 	}
-	if err := file.loadFaces(reader, ar); err != nil {
+	if err := loadFaces(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load faces: %w", err)
 	}
-	if err := file.loadLighting(reader); err != nil {
+	if err := loadLighting(file, reader); err != nil {
 		return nil, fmt.Errorf("failed to load lighting: %w", err)
 	}
-	if err := file.loadClipnodes(reader, ar); err != nil {
+	if err := loadClipnodes(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load clipnodes: %w", err)
 	}
-	if err := file.loadLeafs(reader, ar); err != nil {
+	if err := loadLeafs(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load leafs: %w", err)
 	}
-	if err := file.loadMarkSurfaces(reader, ar); err != nil {
+	if err := loadMarkSurfaces(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load marksurfaces: %w", err)
 	}
-	if err := file.loadEdges(reader, ar); err != nil {
+	if err := loadEdges(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load edges: %w", err)
 	}
-	if err := file.loadSurfedges(reader, ar); err != nil {
+	if err := loadSurfedges(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load surfedges: %w", err)
 	}
-	if err := file.loadModels(reader, ar); err != nil {
+	if err := loadModels(file, reader, ar); err != nil {
 		return nil, fmt.Errorf("failed to load models: %w", err)
 	}
-	if err := file.loadTextures(reader); err != nil {
+	if err := loadTextures(file, reader); err != nil {
 		return nil, fmt.Errorf("failed to load textures: %w", err)
 	}
 
 	return file, nil
 }
 
-func (f *File) loadEntities(r *Reader) error {
+func loadEntities(f *File, r *Reader) error {
 	data, err := r.ReadLump(&f.Header.Lumps[LumpEntities])
 	if err != nil {
 		return err
@@ -101,7 +120,7 @@ func (f *File) loadEntities(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadPlanes(r *Reader, ar *arena.Arena) error {
+func loadPlanes(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpPlanes]
 	if lump.FileLength == 0 {
 		return nil
@@ -133,7 +152,7 @@ func (f *File) loadPlanes(r *Reader, ar *arena.Arena) error {
 	return nil
 }
 
-func (f *File) loadVertexes(r *Reader, ar *arena.Arena) error {
+func loadVertexes(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpVertexes]
 	if lump.FileLength == 0 {
 		return nil
@@ -163,7 +182,7 @@ func (f *File) loadVertexes(r *Reader, ar *arena.Arena) error {
 	return nil
 }
 
-func (f *File) loadVisibility(r *Reader) error {
+func loadVisibility(f *File, r *Reader) error {
 	data, err := r.ReadLump(&f.Header.Lumps[LumpVisibility])
 	if err != nil {
 		return err
@@ -172,7 +191,7 @@ func (f *File) loadVisibility(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadNodes(r *Reader, ar *arena.Arena) error {
+func loadNodes(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpNodes]
 	if lump.FileLength == 0 {
 		return nil
@@ -276,7 +295,7 @@ func (f *File) loadNodes(r *Reader, ar *arena.Arena) error {
 	return nil
 }
 
-func (f *File) loadTexinfo(r *Reader, ar *arena.Arena) error {
+func loadTexinfo(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpTexinfo]
 	if lump.FileLength == 0 {
 		return nil
@@ -295,20 +314,23 @@ func (f *File) loadTexinfo(r *Reader, ar *arena.Arena) error {
 
 	for i := 0; i < count; i++ {
 		offset := i * 40
-		var ti Texinfo
+		var texinfo Texinfo
+
 		for j := 0; j < 2; j++ {
 			for k := 0; k < 4; k++ {
-				ti.Vecs[j][k] = Float32frombits(binary.LittleEndian.Uint32(data[offset+j*16+k*4:]))
+				texinfo.Vecs[j][k] = Float32frombits(binary.LittleEndian.Uint32(data[offset+j*16+k*4:]))
 			}
 		}
-		ti.Miptex = int32(binary.LittleEndian.Uint32(data[offset+32:]))
-		ti.Flags = int32(binary.LittleEndian.Uint32(data[offset+36:]))
-		f.Texinfo[i] = ti
+
+		texinfo.Miptex = int32(binary.LittleEndian.Uint32(data[offset+32:]))
+		texinfo.Flags = int32(binary.LittleEndian.Uint32(data[offset+36:]))
+
+		f.Texinfo[i] = texinfo
 	}
 	return nil
 }
 
-func (f *File) loadFaces(r *Reader, ar *arena.Arena) error {
+func loadFaces(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpFaces]
 	if lump.FileLength == 0 {
 		return nil
@@ -361,7 +383,7 @@ func (f *File) loadFaces(r *Reader, ar *arena.Arena) error {
 	return nil
 }
 
-func (f *File) loadLighting(r *Reader) error {
+func loadLighting(f *File, r *Reader) error {
 	data, err := r.ReadLump(&f.Header.Lumps[LumpLighting])
 	if err != nil {
 		return err
@@ -370,7 +392,7 @@ func (f *File) loadLighting(r *Reader) error {
 	return nil
 }
 
-func (f *File) loadClipnodes(r *Reader, ar *arena.Arena) error {
+func loadClipnodes(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpClipnodes]
 	if lump.FileLength == 0 {
 		return nil
@@ -418,7 +440,7 @@ func (f *File) loadClipnodes(r *Reader, ar *arena.Arena) error {
 	return nil
 }
 
-func (f *File) loadLeafs(r *Reader, ar *arena.Arena) error {
+func loadLeafs(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpLeafs]
 	if lump.FileLength == 0 {
 		return nil
@@ -516,7 +538,7 @@ func (f *File) loadLeafs(r *Reader, ar *arena.Arena) error {
 	return nil
 }
 
-func (f *File) loadMarkSurfaces(r *Reader, ar *arena.Arena) error {
+func loadMarkSurfaces(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpMarksurfaces]
 	if lump.FileLength == 0 {
 		return nil
@@ -551,7 +573,7 @@ func (f *File) loadMarkSurfaces(r *Reader, ar *arena.Arena) error {
 	return nil
 }
 
-func (f *File) loadEdges(r *Reader, ar *arena.Arena) error {
+func loadEdges(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpEdges]
 	if lump.FileLength == 0 {
 		return nil
@@ -598,7 +620,7 @@ func (f *File) loadEdges(r *Reader, ar *arena.Arena) error {
 	return nil
 }
 
-func (f *File) loadSurfedges(r *Reader, ar *arena.Arena) error {
+func loadSurfedges(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpSurfedges]
 	if lump.FileLength == 0 {
 		return nil
@@ -628,7 +650,7 @@ func standardClipnodeChild(raw uint16, clipnodeCount int) int32 {
 	return int32(child)
 }
 
-func (f *File) loadModels(r *Reader, ar *arena.Arena) error {
+func loadModels(f *File, r *Reader, ar *arena.Arena) error {
 	lump := &f.Header.Lumps[LumpModels]
 	if lump.FileLength == 0 {
 		return nil
@@ -675,7 +697,7 @@ func (f *File) loadModels(r *Reader, ar *arena.Arena) error {
 	return nil
 }
 
-func (f *File) loadTextures(r *Reader) error {
+func loadTextures(f *File, r *Reader) error {
 	lump := &f.Header.Lumps[LumpTextures]
 	if lump.FileLength == 0 {
 		return nil

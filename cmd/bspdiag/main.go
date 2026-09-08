@@ -443,26 +443,6 @@ func runInfo(tree *bsp.Tree, mapPath, gamedir string) {
 	}
 }
 
-func parseEntityObjects(data string) []string {
-	var objects []string
-	pos := 0
-	for {
-		start := strings.IndexByte(data[pos:], '{')
-		if start < 0 {
-			break
-		}
-		start += pos
-		end := strings.IndexByte(data[start+1:], '}')
-		if end < 0 {
-			break
-		}
-		end += start + 1
-		objects = append(objects, data[start+1:end])
-		pos = end + 1
-	}
-	return objects
-}
-
 func runEntities(tree *bsp.Tree, classFilter string) {
 	entStr := string(tree.Entities)
 	if strings.TrimSpace(entStr) == "" {
@@ -470,13 +450,17 @@ func runEntities(tree *bsp.Tree, classFilter string) {
 		return
 	}
 
+	entities, err := bsp.ParseEntities(entStr)
+	if err != nil {
+		fmt.Printf("Error parsing entities: %v\n", err)
+		return
+	}
+
 	classFilter = strings.ToLower(classFilter)
-	entityBlocks := parseEntityObjects(entStr)
-	fmt.Printf("=== BSP Entities (%d total) ===\n", len(entityBlocks))
+	fmt.Printf("=== BSP Entities (%d total) ===\n", len(entities))
 	matched := 0
 
-	for i, entBlock := range entityBlocks {
-		fields := worldimpl.ParseEntityFields(entBlock)
+	for i, fields := range entities {
 		classname := fields["classname"]
 		if classFilter != "" && !strings.Contains(strings.ToLower(classname), classFilter) {
 			continue

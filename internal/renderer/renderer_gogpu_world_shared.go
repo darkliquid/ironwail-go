@@ -358,17 +358,16 @@ func parseWorldspawnSkyFogOverride(entities []byte) worldSkyFogOverride {
 		return worldSkyFogOverride{}
 	}
 
-	entity, ok := worldimpl.FirstEntityLumpObject(string(entities))
+	ent, ok := bsp.ParseFirstEntity(string(entities))
 	if !ok {
 		return worldSkyFogOverride{}
 	}
 
-	fields := worldimpl.ParseEntityFields(entity)
-	if !strings.EqualFold(fields["classname"], "worldspawn") {
+	if !strings.EqualFold(ent.String("classname"), "worldspawn") {
 		return worldSkyFogOverride{}
 	}
 
-	value, ok := worldimpl.ParseEntityAlphaField(fields, "skyfog")
+	value, ok := ent.FloatVal("skyfog")
 	if !ok {
 		return worldSkyFogOverride{}
 	}
