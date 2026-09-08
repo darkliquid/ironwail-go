@@ -169,9 +169,11 @@ qcmod wad -type miptex -palette mygame/palette.lmp -o t.wad stone.png
 - Palette source: `-palette <palette.lmp>` (768 bytes) or the built-in
   Quake palette by default.
 
-`cmd/wadgen` remains available: with no images it emits the legacy
-placeholder WAD; with images it performs the same conversion (deprecated in
-favour of `qcmod wad`).
+To generate a minimal placeholder WAD with default test/dummy lumps, pass `--placeholder`:
+
+```sh
+qcmod wad -o dummy.wad --placeholder
+```
 
 ## Roadmap hooks (SPEC-006 §11, SPEC-007 §11)
 
