@@ -50,76 +50,28 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+
+	"github.com/darkliquid/ironwail-go/pkg/pak"
 )
 
 // Quake filesystem path limits and well-known filenames.
-//
-// MaxQPath is the maximum length of a path stored inside a PAK directory entry
-// (56 bytes for the name field, but Quake historically enforced a 64-char
-// limit on "Quake-path" strings passed through the engine).
-//
-// MaxOSPath is a generous upper bound for native OS path strings and is used
-// for buffer sizing when constructing on-disk paths.
-//
-// EnginePakName is the filename of the engine-provided resource archive that
-// ships alongside the executable. It supplies built-in assets (e.g. default
-// configs, charset textures) and is loaded after id1/ but before any mod
-// directory so that mods can still override engine defaults.
 const (
-	MaxQPath      = 64
-	MaxOSPath     = 1024
-	EnginePakName = "ironwail.pak"
+	MaxQPath      = pak.MaxQPath
+	MaxOSPath     = pak.MaxOSPath
+	EnginePakName = pak.EnginePakName
 )
 
 // PackFile represents a single file entry inside a PAK archive.
-//
-// Name is the original path as stored in the PAK directory (e.g.
-// "maps/e1m1.bsp"). Lookup is the case-folded, slash-normalised variant used
-// for case-insensitive matching — Quake's original filesystem was
-// case-insensitive on DOS/Windows, and we preserve that behaviour. FilePos and
-// FileLen describe the byte range within the PAK's data section.
-type PackFile struct {
-	Name    string
-	Lookup  string
-	FilePos int32
-	FileLen int32
-}
+type PackFile = pak.Entry
 
 // ReadSeekerCloserHandle represents an open byte source for PAK files.
-// Both *os.File and in-memory byte readers satisfy this interface.
-type ReadSeekerCloserHandle interface {
-	io.Reader
-	io.Seeker
-	io.ReaderAt
-	io.Closer
-}
+type ReadSeekerCloserHandle = pak.ReadSeekerCloserHandle
 
 // Pack represents an open PAK archive.
-type Pack struct {
-	Filename string
-	Handle   ReadSeekerCloserHandle
-	Files    []PackFile
-	mu       sync.Mutex
-}
+type Pack = pak.Reader
 
 // SearchResult describes where a requested file was found within the VFS.
-//
-// If IsPack is false the file lives on disk and SourceFS + Name can be used
-// with the standard io/fs package to read it (Path gives the full OS path).
-// If IsPack is true the file lives inside a PAK archive: Pack identifies the
-// archive, and FilePos/FileLen give the byte window to read from the Pack's
-// open Handle.
-type SearchResult struct {
-	Path     string
-	Name     string
-	SourceFS iofs.FS
-	IsPack   bool
-	Pack     *Pack
-	FilePos  int32
-	FileLen  int32
-	Priority int
-}
+type SearchResult = pak.SearchResult
 
 type readSeekNopCloser struct {
 	io.Reader
@@ -128,13 +80,8 @@ type readSeekNopCloser struct {
 
 func (readSeekNopCloser) Close() error { return nil }
 
-// SearchPathEntry is a snapshot of one mounted VFS search path entry in
-// lookup order, suitable for debug/introspection commands such as `path`.
-type SearchPathEntry struct {
-	Path      string
-	IsPack    bool
-	FileCount int
-}
+// SearchPathEntry is a snapshot of one mounted VFS search path entry.
+type SearchPathEntry = pak.SearchPathEntry
 
 // FileSystem is the central Quake VFS manager.
 //

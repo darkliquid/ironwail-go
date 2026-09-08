@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/pkg/pak"
 )
 
 // writeTestTree creates a small mod-like directory tree in base.
@@ -220,9 +220,9 @@ func TestPakBacksTheScaffoldRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read pak: %v", err)
 	}
-	pack, err := fs.LoadPackFromBytes(pakPath, data)
+	pack, err := pak.OpenBytes(pakPath, data)
 	if err != nil {
-		t.Fatalf("LoadPackFromBytes: %v", err)
+		t.Fatalf("pak.OpenBytes: %v", err)
 	}
 	if len(pack.Files) != 7 { // go.mod, main.go, gameconfig.go, progs/progs.go, game_test.go, Makefile, README.md
 		t.Errorf("pack holds %d files, want 7", len(pack.Files))

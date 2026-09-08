@@ -4,11 +4,7 @@
 package fs
 
 import (
-	"bytes"
-	"encoding/binary"
-
 	"fmt"
-	"io"
 	iofs "io/fs"
 	"log/slog"
 	"os"
@@ -17,6 +13,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/darkliquid/ironwail-go/pkg/pak"
 )
 
 // addEnginePak locates and loads the engine-provided PAK archive
@@ -128,86 +126,13 @@ func (fs *FileSystem) MountPack(pack *Pack) {
 //
 // The underlying os.File is intentionally kept open (stored in Pack.Handle)
 // so that file data can be read on demand later without reopening the archive.
-type byteReaderHandle struct {
-	*bytes.Reader
-}
-
-func (b byteReaderHandle) Close() error { return nil }
-
 // LoadPackFromBytes parses a PAK archive from an in-memory byte slice.
 func LoadPackFromBytes(filename string, data []byte) (*Pack, error) {
-	reader := &byteReaderHandle{Reader: bytes.NewReader(data)}
-	return loadPackFromHandle(filename, reader)
+	return pak.OpenBytes(filename, data)
 }
 
 func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("open pack %q: %w", filename, err)
-	}
-	return loadPackFromHandle(filename, file)
-}
-
-func loadPackFromHandle(filename string, handle ReadSeekerCloserHandle) (*Pack, error) {
-	var header struct {
-		ID     [4]byte
-		DirOfs int32
-		DirLen int32
-	}
-
-	if err := binary.Read(handle, binary.LittleEndian, &header); err != nil {
-		if closeErr := handle.Close(); closeErr != nil {
-			slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr)
-		}
-		return nil, fmt.Errorf("read pack %q header: %w", filename, err)
-	}
-
-	if string(header.ID[:]) != "PACK" {
-		if closeErr := handle.Close(); closeErr != nil {
-			slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr)
-		}
-		return nil, fmt.Errorf("pack %q is not a valid pack file", filename)
-	}
-
-	numFiles := int(header.DirLen / 64)
-
-	if _, err := handle.Seek(int64(header.DirOfs), io.SeekStart); err != nil {
-		if closeErr := handle.Close(); closeErr != nil {
-			slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr)
-		}
-		return nil, fmt.Errorf("seek pack %q directory: %w", filename, err)
-	}
-
-	files := make([]PackFile, numFiles)
-	for i := 0; i < numFiles; i++ {
-		var entry struct {
-			Name    [56]byte
-			FilePos int32
-			FileLen int32
-		}
-		if err := binary.Read(handle, binary.LittleEndian, &entry); err != nil {
-			if closeErr := handle.Close(); closeErr != nil {
-				slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr)
-			}
-			return nil, fmt.Errorf("read pack %q directory entry %d: %w", filename, i, err)
-		}
-		idx := 0
-		for idx < len(entry.Name) && entry.Name[idx] != 0 {
-			idx++
-		}
-		files[i] = PackFile{
-			Name:    string(entry.Name[:idx]),
-			Lookup:  canonicalPackLookup(string(entry.Name[:idx])),
-			FilePos: entry.FilePos,
-			FileLen: entry.FileLen,
-		}
-	}
-
-	return &Pack{
-		Filename: filename,
-		Handle:   handle,
-		Files:    files,
-	}, nil
+	return pak.Open(filename)
 }
 
 // FindFile searches the VFS for the given filename and returns a SearchResult
@@ -383,5 +308,5 @@ func discoverPakFiles(dir string) ([]string, error) {
 // "maps/e1m1.bsp" produce the same lookup key, matching the behaviour of
 // Quake's original DOS filesystem which was case-insensitive.
 func canonicalPackLookup(name string) string {
-	return strings.ToLower(strings.ReplaceAll(name, "\\", "/"))
+	return pak.CanonicalLookup(name)
 }

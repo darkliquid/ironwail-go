@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/pkg/pak"
 )
 
 // runPak implements `qcmod pak <verb> [flags]` — creating, extracting,
@@ -77,7 +77,7 @@ func runPakPack(args []string, stdout, stderr io.Writer) int {
 	}
 	srcDir := pos[0]
 
-	var entries []fs.PakEntry
+	var entries []pak.FileEntry
 	err := filepath.WalkDir(srcDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -90,14 +90,14 @@ func runPakPack(args []string, stdout, stderr io.Writer) int {
 			return err
 		}
 		name := filepath.ToSlash(rel)
-		if err := fs.ValidPakName(name); err != nil {
+		if err := pak.ValidName(name); err != nil {
 			return fmt.Errorf("%s: %w", name, err)
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		entries = append(entries, fs.PakEntry{Name: name, Data: data})
+		entries = append(entries, pak.FileEntry{Name: name, Data: data})
 		return nil
 	})
 	if err != nil {
@@ -114,7 +114,7 @@ func runPakPack(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "qcmod pak pack: create %s: %v\n", out, err)
 		return 1
 	}
-	if err := fs.WritePack(f, entries); err != nil {
+	if err := pak.WritePack(f, entries); err != nil {
 		_ = f.Close()
 		_, _ = fmt.Fprintf(stderr, "qcmod pak pack: %v\n", err)
 		return 1
@@ -151,21 +151,20 @@ func runPakUnpack(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "qcmod pak unpack: read %s: %v\n", pakPath, err)
 		return 1
 	}
-	pack, err := fs.LoadPackFromBytes(pakPath, data)
+	pack, err := pak.OpenBytes(pakPath, data)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "qcmod pak unpack: %v\n", err)
 		return 1
 	}
-	pakFS := fs.NewPakFS(pack)
 
 	for _, f := range pack.Files {
 		// Defense in depth: archives from third parties may violate the
 		// name rules even though our writer refuses to create them.
-		if err := fs.ValidPakName(f.Name); err != nil {
+		if err := pak.ValidName(f.Name); err != nil {
 			_, _ = fmt.Fprintf(stderr, "qcmod pak unpack: refusing %q: %v\n", f.Name, err)
 			return 1
 		}
-		content, err := pakFS.ReadFile(f.Name)
+		content, err := pack.ReadFile(f.Name)
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "qcmod pak unpack: read %q: %v\n", f.Name, err)
 			return 1
@@ -197,7 +196,8 @@ func runPakList(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "qcmod pak list: %v\n", err)
 		return 1
 	}
-	entries := append([]fs.PackFile(nil), pack.Files...)
+	defer func() { _ = pack.Close() }()
+	entries := append([]pak.Entry(nil), pack.Files...)
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Lookup < entries[j].Lookup })
 	for _, f := range entries {
 		_, _ = fmt.Fprintf(stdout, "%9d  %s\n", f.FileLen, f.Name)
@@ -256,14 +256,14 @@ func runPakCheck(args []string, stdout, stderr io.Writer) int {
 		dataEnd = len(data)
 	}
 
-	var pack *fs.Pack
-	pack, err = fs.LoadPackFromBytes(pakPath, data)
+	var pack *pak.Reader
+	pack, err = pak.OpenBytes(pakPath, data)
 	if err != nil {
 		report("directory table unreadable: %v", err)
 	} else {
 		seen := make(map[string]struct{}, len(pack.Files))
 		for _, f := range pack.Files {
-			if err := fs.ValidPakName(f.Name); err != nil {
+			if err := pak.ValidName(f.Name); err != nil {
 				report("invalid entry name %q: %v", f.Name, err)
 			}
 			if _, dup := seen[f.Lookup]; dup {
@@ -292,10 +292,6 @@ func runPakCheck(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func loadPackFile(pakPath string) (*fs.Pack, error) {
-	data, err := os.ReadFile(pakPath)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", pakPath, err)
-	}
-	return fs.LoadPackFromBytes(pakPath, data)
+func loadPackFile(pakPath string) (*pak.Reader, error) {
+	return pak.Open(pakPath)
 }
