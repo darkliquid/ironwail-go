@@ -3,14 +3,14 @@ package renderer
 import (
 	"log/slog"
 
-	"github.com/darkliquid/ironwail-go/internal/draw"
 	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/pkg/wad"
 	"github.com/gogpu/gogpu"
 )
 
 func (r *Renderer) effectivePalette() []byte {
 	if r == nil {
-		return draw.DefaultQuakePalette()
+		return wad.DefaultQuakePalette()
 	}
 	// Lock-free snapshot. Callers may already hold r.mu (e.g. alias skin
 	// creation runs under the renderer write lock during a browser draw), so
@@ -23,7 +23,7 @@ func (r *Renderer) effectivePalette() []byte {
 			return pal
 		}
 	}
-	return draw.DefaultQuakePalette()
+	return wad.DefaultQuakePalette()
 }
 
 func isAllZeros(b []byte) bool {

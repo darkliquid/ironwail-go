@@ -7,22 +7,22 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/draw"
 	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/pkg/wad"
 )
 
 // runWad implements `qcmod wad -o out.wad <images...>`: converts PNG/TGA
 // images into a Quake WAD. Each image becomes one lump: a QPic (HUD/menu
-// art, parsed by image.ParseQPic) unless it is a texture-sized image and
-// -type miptex is chosen (parseable via image.ParseMipTex / MipTex.MipLevel).
+// art, parsed by wad.ParseQPic) unless it is a texture-sized image and
+// -type miptex is chosen (parseable via wad.ParseMipTex / MipTex.MipLevel).
 //
 // Palette sourcing order: -palette file, then the built-in Quake palette
-// (draw.DefaultQuakePalette). See cmd/wadgen for the historical
-// placeholder-only generator this subcommand supersedes.
+// (wad.DefaultQuakePalette). Passing --placeholder generates a minimal valid WAD.
 func runWad(args []string, stdout, stderr io.Writer) int {
 	out := "out.wad"
 	lumpType := "auto" // auto | qpic | miptex
 	palettePath := ""
+	placeholder := false
 	var images []string
 
 	for i := 0; i < len(args); i++ {
@@ -53,6 +53,10 @@ func runWad(args []string, stdout, stderr io.Writer) int {
 			}
 			palettePath = args[i+1]
 			i++
+		case strings.HasPrefix(a, "-palette="):
+			palettePath = strings.TrimPrefix(a, "-palette=")
+		case a == "--placeholder" || a == "-placeholder":
+			placeholder = true
 		case strings.HasPrefix(a, "-"):
 			_, _ = fmt.Fprintf(stderr, "qcmod wad: unknown flag %q\n", a)
 			return 2
@@ -61,8 +65,27 @@ func runWad(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	if placeholder {
+		f, err := os.Create(out)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "qcmod wad: create %s: %v\n", out, err)
+			return 1
+		}
+		if err := wad.WritePlaceholderWad(f); err != nil {
+			_ = f.Close()
+			_, _ = fmt.Fprintf(stderr, "qcmod wad: %v\n", err)
+			return 1
+		}
+		if err := f.Close(); err != nil {
+			_, _ = fmt.Fprintf(stderr, "qcmod wad: close %s: %v\n", out, err)
+			return 1
+		}
+		_, _ = fmt.Fprintf(stdout, "Wrote placeholder WAD -> %s\n", out)
+		return 0
+	}
+
 	if len(images) == 0 {
-		_, _ = fmt.Fprintln(stderr, "qcmod wad: at least one image is required")
+		_, _ = fmt.Fprintln(stderr, "qcmod wad: at least one image is required (or pass --placeholder)")
 		return 2
 	}
 	switch lumpType {
@@ -78,7 +101,7 @@ func runWad(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	lumps := make([]image.WadLump, 0, len(images))
+	lumps := make([]wad.WadLump, 0, len(images))
 	for _, path := range images {
 		lump, err := buildWadLump(path, lumpType, pal)
 		if err != nil {
@@ -93,7 +116,7 @@ func runWad(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "qcmod wad: create %s: %v\n", out, err)
 		return 1
 	}
-	if err := image.WriteWad(f, lumps); err != nil {
+	if err := wad.WriteWad(f, lumps); err != nil {
 		_ = f.Close()
 		_, _ = fmt.Fprintf(stderr, "qcmod wad: %v\n", err)
 		return 1
@@ -112,21 +135,17 @@ func runWad(args []string, stdout, stderr io.Writer) int {
 
 // loadWadPalette resolves the palette for lump encoding: an explicit
 // palette.lmp path wins, otherwise the built-in Quake palette.
-func loadWadPalette(path string) (image.Palette, error) {
+func loadWadPalette(path string) (wad.Palette, error) {
 	if path == "" {
-		pal, err := image.LoadPaletteLmp(draw.DefaultQuakePalette())
-		if err != nil {
-			return image.Palette{}, fmt.Errorf("built-in palette: %w", err)
-		}
-		return pal, nil
+		return wad.DefaultPalette(), nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return image.Palette{}, fmt.Errorf("read palette %s: %w", path, err)
+		return wad.Palette{}, fmt.Errorf("read palette %s: %w", path, err)
 	}
-	pal, err := image.LoadPaletteLmp(data)
+	pal, err := wad.LoadPaletteBytes(data)
 	if err != nil {
-		return image.Palette{}, fmt.Errorf("palette %s: %w", path, err)
+		return wad.Palette{}, fmt.Errorf("palette %s: %w", path, err)
 	}
 	return pal, nil
 }
@@ -135,13 +154,13 @@ func loadWadPalette(path string) (image.Palette, error) {
 // named after the file (cleaned, extension stripped). -type auto picks
 // miptex for multiples-of-16 sizes (Quake's texture constraint) and qpic
 // otherwise.
-func buildWadLump(path, lumpType string, pal image.Palette) (image.WadLump, error) {
+func buildWadLump(path, lumpType string, pal wad.Palette) (wad.WadLump, error) {
 	img, err := image.DecodeQuakeImage(path)
 	if err != nil {
-		return image.WadLump{}, err
+		return wad.WadLump{}, err
 	}
 	rgba, w, h := image.RGBAFromImage(img)
-	name := image.CleanupName(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
+	name := wad.CleanupName(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
 
 	if lumpType == "auto" {
 		if w%16 == 0 && h%16 == 0 {
@@ -153,17 +172,17 @@ func buildWadLump(path, lumpType string, pal image.Palette) (image.WadLump, erro
 
 	switch lumpType {
 	case "qpic":
-		lumpData, err := image.WriteQPicLump(rgba, w, h, pal)
+		lumpData, err := wad.WriteQPicLump(rgba, w, h, pal)
 		if err != nil {
-			return image.WadLump{}, fmt.Errorf("%s: %w", path, err)
+			return wad.WadLump{}, fmt.Errorf("%s: %w", path, err)
 		}
-		return image.WadLump{Name: name, Type: image.TypQPic, Data: lumpData}, nil
+		return wad.WadLump{Name: name, Type: wad.TypQPic, Data: lumpData}, nil
 	case "miptex":
-		lumpData, err := image.WriteMipTexLump(name, rgba, w, h, pal)
+		lumpData, err := wad.WriteMipTexLump(name, rgba, w, h, pal)
 		if err != nil {
-			return image.WadLump{}, fmt.Errorf("%s: %w", path, err)
+			return wad.WadLump{}, fmt.Errorf("%s: %w", path, err)
 		}
-		return image.WadLump{Name: name, Type: image.TypMipTex, Data: lumpData}, nil
+		return wad.WadLump{Name: name, Type: wad.TypMipTex, Data: lumpData}, nil
 	}
-	return image.WadLump{}, fmt.Errorf("unreachable lump type %q", lumpType)
+	return wad.WadLump{}, fmt.Errorf("unreachable lump type %q", lumpType)
 }

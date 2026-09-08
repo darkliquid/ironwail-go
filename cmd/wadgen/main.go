@@ -1,43 +1,18 @@
 // Command wadgen generates Quake WAD files.
 //
-// With only an output path it emits the historical placeholder WAD (dummy
-// QPic lumps + grayscale palette), useful for tests and tooling that need a
-// valid WAD without shipping game assets.
-//
-// With image arguments it converts PNG/TGA images into QPic/MipTex lumps
-// (the same conversion as `qcmod wad`). This legacy entry point is
-// superseded by qcmod wad — prefer that command for new work.
+// Deprecated: wadgen is superseded by `qcmod wad` — prefer that command for new work.
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/draw"
 	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/pkg/wad"
 )
-
-// WAD Header
-type wadHeader struct {
-	Magic     [4]byte
-	NumLumps  uint32
-	DirOffset uint32
-}
-
-// WAD Directory Entry
-type wadDirEntry struct {
-	Offset uint32
-	Size   uint32
-	Size2  uint32 // Usually same as Size, uncompressed size
-	Type   uint8
-	Comp   uint8
-	Pad    uint16
-	Name   [16]byte
-}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -109,7 +84,7 @@ func writeImageWad(outPath string, images []string, lumpType, palettePath string
 		return err
 	}
 
-	lumps := make([]image.WadLump, 0, len(images))
+	lumps := make([]wad.WadLump, 0, len(images))
 	for _, path := range images {
 		img, err := image.DecodeQuakeImage(path)
 		if err != nil {
@@ -124,20 +99,20 @@ func writeImageWad(outPath string, images []string, lumpType, palettePath string
 				kind = "qpic"
 			}
 		}
-		name := image.CleanupName(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
+		name := wad.CleanupName(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)))
 		switch kind {
 		case "qpic":
-			data, err := image.WriteQPicLump(rgba, w, h, pal)
+			data, err := wad.WriteQPicLump(rgba, w, h, pal)
 			if err != nil {
 				return fmt.Errorf("%s: %w", path, err)
 			}
-			lumps = append(lumps, image.WadLump{Name: name, Type: image.TypQPic, Data: data})
+			lumps = append(lumps, wad.WadLump{Name: name, Type: wad.TypQPic, Data: data})
 		case "miptex":
-			data, err := image.WriteMipTexLump(name, rgba, w, h, pal)
+			data, err := wad.WriteMipTexLump(name, rgba, w, h, pal)
 			if err != nil {
 				return fmt.Errorf("%s: %w", path, err)
 			}
-			lumps = append(lumps, image.WadLump{Name: name, Type: image.TypMipTex, Data: data})
+			lumps = append(lumps, wad.WadLump{Name: name, Type: wad.TypMipTex, Data: data})
 		}
 	}
 
@@ -146,7 +121,7 @@ func writeImageWad(outPath string, images []string, lumpType, palettePath string
 		return fmt.Errorf("create %s: %w", outPath, err)
 	}
 	defer func() { _ = f.Close() }()
-	if err := image.WriteWad(f, lumps); err != nil {
+	if err := wad.WriteWad(f, lumps); err != nil {
 		return err
 	}
 	fmt.Printf("Wrote %d lump(s) -> %s\n", len(lumps), outPath)
@@ -155,53 +130,19 @@ func writeImageWad(outPath string, images []string, lumpType, palettePath string
 
 // wadPalette resolves the encoding palette: an explicit palette.lmp path
 // wins, otherwise the built-in Quake palette.
-func wadPalette(palettePath string) (image.Palette, error) {
+func wadPalette(palettePath string) (wad.Palette, error) {
 	if palettePath == "" {
-		pal, err := image.LoadPaletteLmp(draw.DefaultQuakePalette())
-		if err != nil {
-			return image.Palette{}, err
-		}
-		return pal, nil
+		return wad.DefaultPalette(), nil
 	}
 	data, err := os.ReadFile(palettePath)
 	if err != nil {
-		return image.Palette{}, fmt.Errorf("read palette %s: %w", palettePath, err)
+		return wad.Palette{}, fmt.Errorf("read palette %s: %w", palettePath, err)
 	}
-	pal, err := image.LoadPaletteLmp(data)
-	if err != nil {
-		return image.Palette{}, fmt.Errorf("palette %s: %w", palettePath, err)
-	}
-	return pal, nil
+	return wad.LoadPaletteBytes(data)
 }
 
-// writePlaceholderWad preserves the original wadgen behaviour: a minimal
-// WAD with a grayscale palette and dummy QPic lumps, for tests and tooling
-// that need a valid WAD without game assets.
+// writePlaceholderWad emits a minimal WAD with placeholder lumps for tests and tooling.
 func writePlaceholderWad(outPath string) {
-	palette := make([]byte, 768)
-	for i := 0; i < 256; i++ {
-		palette[i*3+0] = byte(i) // R
-		palette[i*3+1] = byte(i) // G
-		palette[i*3+2] = byte(i) // B
-	}
-
-	createQPic := func(width, height uint32, color byte) []byte {
-		data := make([]byte, 8+width*height)
-		binary.LittleEndian.PutUint32(data[0:4], width)
-		binary.LittleEndian.PutUint32(data[4:8], height)
-		for i := uint32(0); i < width*height; i++ {
-			data[8+i] = color
-		}
-		return data
-	}
-
-	lumps := map[string][]byte{
-		"palette.lmp":      palette,
-		"gfx/qplaque.lmp":  createQPic(320, 20, 50),   // Dark gray banner
-		"gfx/mainmenu.lmp": createQPic(320, 180, 100), // Mid gray menu
-		"gfx/m_surfs.lmp":  createQPic(24, 20, 200),   // Light gray cursor
-	}
-
 	f, err := os.Create(outPath)
 	if err != nil {
 		log.Fatalf("create %s: %v", outPath, err)
@@ -212,60 +153,8 @@ func writePlaceholderWad(outPath string) {
 		}
 	}()
 
-	// Write dummy header first
-	hdr := wadHeader{
-		Magic:    [4]byte{'W', 'A', 'D', '2'},
-		NumLumps: uint32(len(lumps)),
+	if err := wad.WritePlaceholderWad(f); err != nil {
+		log.Fatalf("write placeholder wad %s: %v", outPath, err)
 	}
-	if err := binary.Write(f, binary.LittleEndian, &hdr); err != nil {
-		log.Fatalf("write header: %v", err)
-	}
-
-	// Write lump data and collect directory entries
-	entries := make([]wadDirEntry, 0, len(lumps))
-	for name, data := range lumps {
-		offset, err := f.Seek(0, 1)
-		if err != nil {
-			log.Fatalf("seek: %v", err)
-		}
-
-		entry := wadDirEntry{
-			Offset: uint32(offset),
-			Size:   uint32(len(data)),
-			Size2:  uint32(len(data)),
-			Type:   69, // QPic type used in Ironwail
-			Comp:   0,
-		}
-		if name == "palette.lmp" {
-			entry.Type = 64 // Color palette
-		}
-		copy(entry.Name[:], name)
-		entries = append(entries, entry)
-
-		if _, err := f.Write(data); err != nil {
-			log.Fatalf("write lump %s: %v", name, err)
-		}
-	}
-
-	// Write directory
-	dirOffset, err := f.Seek(0, 1)
-	if err != nil {
-		log.Fatalf("seek dir: %v", err)
-	}
-	for _, entry := range entries {
-		if err := binary.Write(f, binary.LittleEndian, &entry); err != nil {
-			log.Fatalf("write dir entry: %v", err)
-		}
-	}
-
-	// Update header with correct dir offset
-	if _, err := f.Seek(0, 0); err != nil {
-		log.Fatalf("seek header: %v", err)
-	}
-	hdr.DirOffset = uint32(dirOffset)
-	if err := binary.Write(f, binary.LittleEndian, &hdr); err != nil {
-		log.Fatalf("rewrite header: %v", err)
-	}
-
-	fmt.Printf("Successfully created %s with %d lumps\n", outPath, len(lumps))
+	fmt.Printf("Successfully created %s with placeholder lumps\n", outPath)
 }

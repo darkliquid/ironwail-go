@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/pkg/wad"
 )
 
 // writeTestImageFile writes a PNG fixture (or TGA when ext is .tga) with
@@ -56,17 +56,17 @@ func runWadForTest(t *testing.T, args ...string) (string, int) {
 	return stdout.String(), code
 }
 
-func loadWadFile(t *testing.T, path string) *image.Wad {
+func loadWadFile(t *testing.T, path string) *wad.Wad {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read wad: %v", err)
 	}
-	wad, err := image.LoadWad(bytes.NewReader(data))
+	archive, err := wad.OpenBytes(data)
 	if err != nil {
-		t.Fatalf("LoadWad: %v", err)
+		t.Fatalf("OpenBytes: %v", err)
 	}
-	return wad
+	return archive
 }
 
 func TestWadQPicFromPNG(t *testing.T) {
@@ -79,15 +79,15 @@ func TestWadQPicFromPNG(t *testing.T) {
 		t.Fatalf("wad exit = %d (%s)", code, got)
 	}
 
-	wad := loadWadFile(t, out)
-	lump, ok := wad.Lumps["menu_pic"]
+	archive := loadWadFile(t, out)
+	lump, ok := archive.Lumps["menu_pic"]
 	if !ok {
 		t.Fatal("wad missing lump menu_pic")
 	}
-	if lump.Type != image.TypQPic {
+	if lump.Type != wad.TypQPic {
 		t.Errorf("lump type = %v, want TypQPic", lump.Type)
 	}
-	pic, err := image.ParseQPic(lump.Data)
+	pic, err := wad.ParseQPic(lump.Data)
 	if err != nil {
 		t.Fatalf("ParseQPic: %v", err)
 	}
@@ -114,12 +114,12 @@ func TestWadMipTexAutoAndForced(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("wad exit = %d (%s)", code, got)
 	}
-	wad := loadWadFile(t, out)
-	lump := wad.Lumps["wall_brick"]
-	if lump.Type != image.TypMipTex {
+	archive := loadWadFile(t, out)
+	lump := archive.Lumps["wall_brick"]
+	if lump.Type != wad.TypMipTex {
 		t.Fatalf("auto lump type = %v, want TypMipTex", lump.Type)
 	}
-	mt, err := image.ParseMipTex(lump.Data)
+	mt, err := wad.ParseMipTex(lump.Data)
 	if err != nil {
 		t.Fatalf("ParseMipTex: %v", err)
 	}
@@ -146,13 +146,13 @@ func TestWadTGAInput(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("wad exit = %d (%s)", code, got)
 	}
-	wad := loadWadFile(t, out)
-	lump, ok := wad.Lumps["icon"]
+	archive := loadWadFile(t, out)
+	lump, ok := archive.Lumps["icon"]
 	if !ok {
 		t.Fatal("wad missing tga-derived lump icon")
 	}
 	// 10x10 is not a texture size -> auto picks qpic.
-	if lump.Type != image.TypQPic {
+	if lump.Type != wad.TypQPic {
 		t.Errorf("lump type = %v, want TypQPic", lump.Type)
 	}
 }
@@ -173,8 +173,8 @@ func TestWadPaletteFlag(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("wad exit = %d (%s)", code, got)
 	}
-	wad := loadWadFile(t, out)
-	pic, err := image.ParseQPic(wad.Lumps["logo"].Data)
+	archive := loadWadFile(t, out)
+	pic, err := wad.ParseQPic(archive.Lumps["logo"].Data)
 	if err != nil {
 		t.Fatalf("ParseQPic: %v", err)
 	}
@@ -209,5 +209,22 @@ func TestWadErrors(t *testing.T) {
 	// Bad -type.
 	if _, code := runWadForTest(t, "-o", filepath.Join(dir, "x.wad"), "-type", "gif", png); code != 2 {
 		t.Errorf("bad type: exit = %d, want 2", code)
+	}
+}
+
+func TestWadPlaceholder(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "dummy.wad")
+	got, code := runWadForTest(t, "-o", out, "--placeholder")
+	if code != 0 {
+		t.Fatalf("qcmod wad --placeholder exit = %d (%s)", code, got)
+	}
+
+	archive := loadWadFile(t, out)
+	expectedLumps := []string{"palette.lmp", "gfx/qplaque.lmp", "gfx/mainmenu.lmp", "gfx/m_surfs.lmp"}
+	for _, name := range expectedLumps {
+		if _, ok := archive.Get(name); !ok {
+			t.Errorf("missing lump %s", name)
+		}
 	}
 }
