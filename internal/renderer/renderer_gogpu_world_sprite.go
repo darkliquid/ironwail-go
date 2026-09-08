@@ -396,7 +396,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor type
 	maxVertexBytes := uint64(44 * 6)
 	r := dc.renderer
 	r.mu.Lock()
-	if err := r.ensureAliasScratchBufferLocked(device, maxVertexBytes); err != nil {
+	if err := r.ensureSpriteScratchBufferLocked(device, maxVertexBytes); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure sprite scratch buffer", "error", err)
 		return
@@ -405,7 +405,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor type
 	depthOffsetPipeline := r.spriteDepthOffsetPipeline
 	uniformBuffer := r.spriteUniformBuffer
 	uniformBindGroup := r.spriteUniformBindGroup
-	scratchBuffer := r.aliasScratchBuffer
+	scratchBuffer := r.spriteScratchBuffer
 	depthView := r.resources.WorldDepthTextureView
 	camera := r.cameraState
 	r.mu.Unlock()

@@ -636,11 +636,10 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		return
 	}
 
-	// Quick check: are there any valid draws? The full vertex build happens
-	// in the single pass below (model-space vertices + GPU model matrix).
+	// Quick check: are there any valid draws?
 	hasValidDraw := false
 	for _, draw := range draws {
-		if draw.skin != nil && draw.skin.bindGroup != nil && len(draw.alias.refs) > 0 {
+		if draw.skin != nil && draw.skin.bindGroup != nil && draw.alias != nil && len(draw.alias.refs) > 0 {
 			hasValidDraw = true
 			break
 		}
@@ -649,65 +648,24 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		return
 	}
 
+	if !dc.frameGraphActive() {
+		defer dc.resetAliasBuffers()
+	}
+
 	r := dc.renderer
 	vpMatrix := r.ViewProjectionMatrix()
 	r.mu.Lock()
 	camera := r.cameraState
 	r.mu.Unlock()
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 
-	// Reset persistent scratch buffers on DrawContext
-	dc.aliasPreparedScratch = dc.aliasPreparedScratch[:0]
-	dc.aliasVertexScratch = dc.aliasVertexScratch[:0]
-	dc.aliasBulkVertexData = dc.aliasBulkVertexData[:0]
-	dc.aliasBulkUniformData = dc.aliasBulkUniformData[:0]
-	dc.aliasVertexOffsets = dc.aliasVertexOffsets[:0]
-	dc.aliasVertexCounts = dc.aliasVertexCounts[:0]
-	dc.aliasUniformOffsets = dc.aliasUniformOffsets[:0]
-
-	// Single pass over draws: interpolate vertices ONCE and pack bulk buffers directly
-	currentVertexOffset := uint64(0)
-	for _, draw := range draws {
-		if draw.skin == nil || draw.skin.bindGroup == nil {
-			continue
-		}
-
-		dc.aliasVertexScratch = buildAliasVerticesInterpolatedInto(
-			dc.aliasVertexScratch[:0],
-			draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend,
-			draw.origin, draw.angles, draw.scale, draw.full,
-		)
-		if len(dc.aliasVertexScratch) == 0 {
-			continue
-		}
-
-		vertexCount := uint32(len(dc.aliasVertexScratch))
-		uOffset := uint32(len(dc.aliasPreparedScratch)) * worldUniformAlign
-
-		dc.aliasPreparedScratch = append(dc.aliasPreparedScratch, gpuPreparedAliasDraw{
-			draw:        draw,
-			skin:        draw.skin,
-			alpha:       draw.alpha,
-			vertexCount: vertexCount,
-		})
-		dc.aliasUniformOffsets = append(dc.aliasUniformOffsets, uOffset)
-		dc.aliasVertexOffsets = append(dc.aliasVertexOffsets, currentVertexOffset)
-		dc.aliasVertexCounts = append(dc.aliasVertexCounts, vertexCount)
-
-		// Pack uniform data directly into bulk buffer
-		dc.aliasBulkUniformData = appendAliasSceneUniformBytes(dc.aliasBulkUniformData, uOffset, vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)
-
-		// Pack vertex data directly into bulk buffer
-		dc.aliasBulkVertexData = appendAliasVertexBytes(dc.aliasBulkVertexData, dc.aliasVertexScratch)
-		currentVertexOffset += uint64(len(dc.aliasVertexScratch) * aliasVertexStride)
-	}
-
-	if len(dc.aliasPreparedScratch) == 0 {
+	startDrawIndex := dc.prepareAliasDraws(draws, vpMatrix, camera.Origin, fogColor, fogDensity)
+	if len(dc.aliasPreparedScratch) == startDrawIndex {
 		return
 	}
 
+	totalVertexBytes := uint64(len(dc.aliasBulkVertexData))
 	r.mu.Lock()
-	if err := r.ensureAliasScratchBufferLocked(device, currentVertexOffset); err != nil {
+	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure alias scratch buffer", "error", err)
 		return
@@ -775,7 +733,8 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		renderPass.SetScissorRect(gputypes.ScissorRect{X: 0, Y: 0, Width: uint32(width), Height: uint32(height)})
 	}
 
-	for i, pd := range dc.aliasPreparedScratch {
+	for i := startDrawIndex; i < len(dc.aliasPreparedScratch); i++ {
+		pd := dc.aliasPreparedScratch[i]
 		renderPass.SetVertexBuffer(0, scratchBuffer, dc.aliasVertexOffsets[i])
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{dc.aliasUniformOffsets[i]})
 		renderPass.SetBindGroup(1, pd.skin.bindGroup, nil)
@@ -788,7 +747,56 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	dc.frameSubmit(queue, encoder, encoderOwned, "Alias Render Encoder")
 }
 
-func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor types.Vec3, fogDensity float32) []byte {
+// prepareAliasDraws interpolates vertices and packs uniforms for the given alias
+// draws into dc's persistent scratch buffers, appending to any previously prepared
+// draws in the current frame. It returns the index of the first draw prepared in
+// this call.
+func (dc *DrawContext) prepareAliasDraws(draws []gpuAliasDraw, vpMatrix types.Mat4, cameraOrigin types.Vec3, fogColor types.Vec3, fogDensity float32) int {
+	if dc == nil {
+		return 0
+	}
+	startDrawIndex := len(dc.aliasPreparedScratch)
+	currentVertexOffset := uint64(len(dc.aliasBulkVertexData))
+
+	for _, draw := range draws {
+		if draw.skin == nil || draw.skin.bindGroup == nil {
+			continue
+		}
+
+		dc.aliasVertexScratch = buildAliasVerticesInterpolatedInto(
+			dc.aliasVertexScratch[:0],
+			draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend,
+			draw.origin, draw.angles, draw.scale, draw.full,
+		)
+		if len(dc.aliasVertexScratch) == 0 {
+			continue
+		}
+
+		vertexCount := uint32(len(dc.aliasVertexScratch))
+		uOffset := uint32(len(dc.aliasPreparedScratch)) * worldUniformAlign
+
+		dc.aliasPreparedScratch = append(dc.aliasPreparedScratch, gpuPreparedAliasDraw{
+			draw:        draw,
+			skin:        draw.skin,
+			alpha:       draw.alpha,
+			vertexCount: vertexCount,
+		})
+		dc.aliasUniformOffsets = append(dc.aliasUniformOffsets, uOffset)
+		dc.aliasVertexOffsets = append(dc.aliasVertexOffsets, currentVertexOffset)
+		dc.aliasVertexCounts = append(dc.aliasVertexCounts, vertexCount)
+
+		// Pack uniform data directly into bulk buffer
+		dc.aliasBulkUniformData = appendAliasSceneUniformBytes(dc.aliasBulkUniformData, uOffset, vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)
+
+		// Pack vertex data directly into bulk buffer
+		dc.aliasBulkVertexData = appendAliasVertexBytes(dc.aliasBulkVertexData, dc.aliasVertexScratch)
+		currentVertexOffset += uint64(len(dc.aliasVertexScratch) * aliasVertexStride)
+	}
+
+	return startDrawIndex
+}
+
+func appendAliasSceneUniformBytes(dst []byte, targetOffset uint32, vp types.Mat4, cameraOrigin types.Vec3, alpha float32, fogColor types.Vec3, fogDensity float32) []byte {
 	return worldgogpu.AppendAliasSceneUniformBytes(dst, targetOffset, vp, cameraOrigin, alpha, fogColor, fogDensity)
 }
 

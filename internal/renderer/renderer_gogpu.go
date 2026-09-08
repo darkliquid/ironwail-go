@@ -70,6 +70,22 @@ type gpuPreparedAliasDraw struct {
 	vertexCount uint32
 }
 
+// resetAliasBuffers resets the DrawContext's persistent alias model scratch slices.
+// Called at the start of each frame so alias draw calls accumulate across passes
+// (e.g. world alias entities and viewmodel) without clobbering one another.
+func (dc *DrawContext) resetAliasBuffers() {
+	if dc == nil {
+		return
+	}
+	dc.aliasPreparedScratch = dc.aliasPreparedScratch[:0]
+	dc.aliasVertexScratch = dc.aliasVertexScratch[:0]
+	dc.aliasBulkVertexData = dc.aliasBulkVertexData[:0]
+	dc.aliasBulkUniformData = dc.aliasBulkUniformData[:0]
+	dc.aliasVertexOffsets = dc.aliasVertexOffsets[:0]
+	dc.aliasVertexCounts = dc.aliasVertexCounts[:0]
+	dc.aliasUniformOffsets = dc.aliasUniformOffsets[:0]
+}
+
 func validatedGoGPURenderPipeline(device *wgpu.Device, desc *wgpu.RenderPipelineDescriptor) (*wgpu.RenderPipeline, error) {
 	if device == nil {
 		return nil, fmt.Errorf("nil device")

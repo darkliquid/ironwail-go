@@ -269,12 +269,12 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		totalVertexBytes += uint64(len(prepared.VertexBytes))
 	}
 
-	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
+	if err := r.ensureDecalScratchBufferLocked(device, totalVertexBytes); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure decal scratch buffer", "error", err)
 		return
 	}
-	scratchBuffer := r.aliasScratchBuffer
+	scratchBuffer := r.decalScratchBuffer
 	r.mu.Unlock()
 
 	if len(draws) == 0 || totalVertexBytes == 0 || pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || bindGroup == nil || scratchBuffer == nil {

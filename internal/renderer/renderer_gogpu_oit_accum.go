@@ -325,55 +325,15 @@ func (dc *DrawContext) recordOITTranslucentAliasModels(renderPass *wgpu.RenderPa
 	r := dc.renderer
 	vpMatrix := r.ViewProjectionMatrix()
 	camera := r.cameraState
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 
-	dc.aliasPreparedScratch = dc.aliasPreparedScratch[:0]
-	dc.aliasVertexScratch = dc.aliasVertexScratch[:0]
-	dc.aliasBulkVertexData = dc.aliasBulkVertexData[:0]
-	dc.aliasBulkUniformData = dc.aliasBulkUniformData[:0]
-	dc.aliasVertexOffsets = dc.aliasVertexOffsets[:0]
-	dc.aliasVertexCounts = dc.aliasVertexCounts[:0]
-	dc.aliasUniformOffsets = dc.aliasUniformOffsets[:0]
-
-	currentVertexOffset := uint64(0)
-	for _, draw := range draws {
-		if draw.skin == nil || draw.skin.bindGroup == nil {
-			continue
-		}
-
-		dc.aliasVertexScratch = buildAliasVerticesInterpolatedInto(
-			dc.aliasVertexScratch[:0],
-			draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend,
-			draw.origin, draw.angles, draw.scale, draw.full,
-		)
-		if len(dc.aliasVertexScratch) == 0 {
-			continue
-		}
-
-		vertexCount := uint32(len(dc.aliasVertexScratch))
-		uOffset := uint32(len(dc.aliasPreparedScratch)) * worldUniformAlign
-
-		dc.aliasPreparedScratch = append(dc.aliasPreparedScratch, gpuPreparedAliasDraw{
-			draw:        draw,
-			skin:        draw.skin,
-			alpha:       draw.alpha,
-			vertexCount: vertexCount,
-		})
-		dc.aliasUniformOffsets = append(dc.aliasUniformOffsets, uOffset)
-		dc.aliasVertexOffsets = append(dc.aliasVertexOffsets, currentVertexOffset)
-		dc.aliasVertexCounts = append(dc.aliasVertexCounts, vertexCount)
-
-		dc.aliasBulkUniformData = appendAliasSceneUniformBytes(dc.aliasBulkUniformData, uOffset, vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)
-		dc.aliasBulkVertexData = appendAliasVertexBytes(dc.aliasBulkVertexData, dc.aliasVertexScratch)
-		currentVertexOffset += uint64(len(dc.aliasVertexScratch) * aliasVertexStride)
-	}
-
-	if len(dc.aliasPreparedScratch) == 0 {
+	startDrawIndex := dc.prepareAliasDraws(draws, vpMatrix, camera.Origin, fogColor, fogDensity)
+	if len(dc.aliasPreparedScratch) == startDrawIndex {
 		return
 	}
 
+	totalVertexBytes := uint64(len(dc.aliasBulkVertexData))
 	r.mu.Lock()
-	if err := r.ensureAliasScratchBufferLocked(device, currentVertexOffset); err != nil {
+	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure alias scratch buffer", "error", err)
 		return
@@ -407,7 +367,8 @@ func (dc *DrawContext) recordOITTranslucentAliasModels(renderPass *wgpu.RenderPa
 	}
 
 	renderPass.SetPipeline(pipelineObj)
-	for i, pd := range dc.aliasPreparedScratch {
+	for i := startDrawIndex; i < len(dc.aliasPreparedScratch); i++ {
+		pd := dc.aliasPreparedScratch[i]
 		renderPass.SetVertexBuffer(0, scratchBuffer, dc.aliasVertexOffsets[i])
 		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{dc.aliasUniformOffsets[i]})
 		renderPass.SetBindGroup(1, pd.skin.bindGroup, nil)
@@ -625,8 +586,7 @@ func (dc *DrawContext) recordOITParticles(renderPass *wgpu.RenderPassEncoder, qu
 	projectionMatrix := r.ProjectionMatrix()
 	uvScale, textureScaleFactor := ParticleTexture(mode)
 	scaleX, scaleY := ParticleProjection(textureScaleFactor, projectionMatrix)
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	uData := particleUniformBytes(vpMatrix, [2]float32{scaleX, scaleY}, uvScale, cameraOrigin, state.FogColor, state.FogDensity)
+	uData := particleUniformBytes(vpMatrix, [2]float32{scaleX, scaleY}, uvScale, camera.Origin, state.FogColor, state.FogDensity)
 	if err := queue.WriteBuffer(uniformBuffer, 0, uData); err != nil {
 		slog.Warn("failed to upload particle uniforms", "error", err)
 		return
