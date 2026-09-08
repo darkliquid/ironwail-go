@@ -254,6 +254,30 @@ run = "go build -o bin/bspdiag ./cmd/bspdiag"
 description = "Build the standalone test BSP generator tool"
 run = "go build -o bin/bspgen ./cmd/bspgen"
 
+[tasks.build-bspdec]
+description = "Build the bspdec BSP-to-map decompiler CLI"
+run = "go build -o bin/bspdec ./cmd/bspdec"
+
+[tasks.bspdec-data]
+description = "Provision the bspdec corpus (stub until the M0-eval plan lands)"
+run = "echo 'bspdec-data: not implemented yet'"
+
+[tasks.bspdec-train]
+description = "Train bspdec ML routes (stub until M2)"
+run = "echo 'bspdec-train: not implemented yet'"
+
+[tasks.bspdec-eval]
+description = "Run bspdec eval tiers 1+2 (stub until the M0-eval plan lands)"
+run = "echo 'bspdec-eval: not implemented yet'"
+
+[tasks.bspdec-report]
+description = "Summarize bspdec eval results (stub until the M0-eval plan lands)"
+run = "echo 'bspdec-report: not implemented yet'"
+
+[tasks.bspdec-models]
+description = "Provision bspdec model artifacts (stub until M2)"
+run = "echo 'bspdec-models: not implemented yet'"
+
 [tasks.generate-test-map]
 description = "Generate test_transparency.bsp in game data dirs"
 depends = ["build-bspgen"]

@@ -1,8 +1,6 @@
 package qbsp
 
 import (
-	"math"
-
 	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
@@ -67,22 +65,4 @@ type plane = types.Plane64
 // faces.
 func planeFromPoints(p0, p1, p2 vec3) (plane, float64) {
 	return types.PlaneFromPoints(p0, p1, p2)
-}
-
-// planeEqual reports whether two planes are the same within the ericw
-// DIST_EPSILON (0.0001) used for duplicate-plane detection and brush
-// pruning.
-func planeEqual(a, b plane) bool {
-	return types.PlaneEqual(a, b, 0.0001)
-}
-
-// PlaneRoundNearInt rounds values within ZERO_EPSILON (0.0001) of an
-// integer to that integer, mirroring the DarkPlaces-workaround rounding
-// ericw applies to computed texture vectors.
-func planeRoundNearInt(v float64) float64 {
-	r := math.Round(v)
-	if math.Abs(v-r) < 0.0001 {
-		return r
-	}
-	return v
 }

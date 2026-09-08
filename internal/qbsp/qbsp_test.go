@@ -72,7 +72,7 @@ func TestCompileBoxRoundTrip(t *testing.T) {
 	for i, se := range tree.Surfedges {
 		e := int(se)
 		if e < 0 {
-			e = -e - 1
+			e = -e
 		}
 		if e >= len(tree.Edges) {
 			t.Errorf("surfedge %d -> edge %d out of bounds", i, e)

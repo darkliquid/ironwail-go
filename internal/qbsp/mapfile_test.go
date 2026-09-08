@@ -5,6 +5,8 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	mapfile "github.com/darkliquid/ironwail-go/pkg/map"
 )
 
 func parseMapString(t *testing.T, src string) *Map {
@@ -355,7 +357,7 @@ func TestQuakeEdAxisAllNormals(t *testing.T) {
 		{normalizedVec3(t, v3(1, 1, 0)), v3(0, 1, 0), v3(0, 0, -1)},
 	}
 	for _, c := range cases {
-		xv, yv := quakeEdAxis(c.normal)
+		xv, yv := mapfile.QuakeEdAxis(c.normal)
 		vecNear(t, xv, c.xv, "axis xv")
 		vecNear(t, yv, c.yv, "axis yv")
 	}

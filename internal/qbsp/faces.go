@@ -78,7 +78,7 @@ func edgeTables(faces []outFace) (vertexes []vec3, edges [][2]int32, surfedges [
 			if va < vb {
 				surfedges = append(surfedges, e)
 			} else {
-				surfedges = append(surfedges, -e-1)
+				surfedges = append(surfedges, -e)
 			}
 		}
 	}

@@ -315,7 +315,7 @@ func facePolygons(tree *bsp.Tree) [][]types.Vec3 {
 			se := tree.Surfedges[int(f.FirstEdge)+k]
 			e := int(se)
 			if e < 0 {
-				e = -e - 1
+				e = -e
 			}
 			ed := tree.Edges[e]
 			v := ed.V[0]

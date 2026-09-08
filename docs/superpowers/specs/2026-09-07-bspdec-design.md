@@ -82,7 +82,7 @@ New and reused packages:
 ```
 cmd/bspdec                      CLI entry point (flags, slog, exit codes)
 internal/bsp                    EXISTING — BSP29 loader (LoadTree/Load, all lumps)
-internal/map                    NEW (extracted from internal/qbsp/mapfile.go) —
+pkg/map                    NEW (extracted from internal/qbsp/mapfile.go) —
                                 package mapfile: .map reader + writer
 internal/bspdec/
   decompile.go                  orchestrator: pipeline state machine, Options, Stats
@@ -119,7 +119,7 @@ Repo accelerators that shape the design (verified 2026-09-07):
   in-repo qbsp the pinned corpus/eval toolchain — no external ericw-tools
   subprocess needed (ericw becomes cross-validation only).
 - `internal/qbsp/mapfile.go` is an ericw-faithful QuakeEd + Valve-220 .map
-  parser; `internal/map` reuses it by extraction, with type aliases left in
+  parser; `pkg/map` reuses it by extraction, with type aliases left in
   `internal/qbsp` so the compiler and its parity tests are untouched.
 - `cmd/qbsp`, `cmd/vis`, `cmd/light`, `cmd/bspdiag`, `cmd/bspgen`,
   `tools/parity_screenshots` + `testdata/parity/` are existing patterns/oracles.
@@ -175,7 +175,7 @@ citing C lineage inline per repo convention:
 recompile-diff and structural metrics; zero panics corpus-wide; `--json`
 reports per-map brush counts.
 
-## 6. `.map` package (`internal/map`, package name `mapfile`)
+## 6. `.map` package (`pkg/map`, package name `mapfile`)
 
 - Quake `.map` (id1/vanilla-conforming): worldspawn block, then brush
   entities; brushes as ordered face lines.
@@ -258,7 +258,7 @@ provenance log.
   (`{pkg_id, source_url, sha256, license_note, map_files[], bsp_files[],
   flags{brushlist, toolchain_guess, era}}`).
 - **P2 fetch + validate**: download by sha256, verify, extract `.map`/`.bsp`;
-  validate BSPs with `cmd/bspdiag`, maps with the `internal/map` reader.
+  validate BSPs with `cmd/bspdiag`, maps with the `pkg/map` reader.
 - **P3 canonicalize**: pair `.map`↔`.bsp`; map-only entries compiled with the
   pinned in-repo qbsp twice (plain + BRUSHLIST, which our compiler always
   emits) → `dataset/bspdec/paired/<map_id>/`; bsp-only entries feed the
@@ -325,7 +325,7 @@ C is the only heavy lift (transformer, days on GPU, PyTorch primary).
 
 | Ms | Beads | Scope | Exit criterion |
 | --- | --- | --- | --- |
-| M0 | xxy.1–.4 | `internal/map`, treewalk core, `cmd/bspdec`, eval suite + corpus | meets-or-beats bsputil on corpus; `mise run verify` green |
+| M0 | xxy.1–.4 | `pkg/map`, treewalk core, `cmd/bspdec`, eval suite + corpus | meets-or-beats bsputil on corpus; `mise run verify` green |
 | M1 | xxy.5, .11 | BRUSHLIST path + synthetic generator + headroom study | quantified recovery ceiling → ML go/no-go gate |
 | M2 | xxy.6, .7, .12 | Routes A+B + training pipeline + Go inference | seam/group accuracy > baselines on held-out corpus |
 | M3 | xxy.8, .9 | Routes C+D research | valid .map program output on synthetic suite; compile+parity pass |

@@ -33,7 +33,7 @@ func (c *compiler) collectAllBrushes(m *Map, omitDetail bool) ([]brushGroup, err
 		if len(ent.Brushes) == 0 {
 			continue
 		}
-		if omitDetail && ent.isDetail() {
+		if omitDetail && isDetail(ent) {
 			continue
 		}
 		solid := false
@@ -179,7 +179,7 @@ func (c *compiler) bspBrushList(g *brushGroup) []*bspBrush {
 
 // isDetail reports whether the entity is a func_detail* brush entity
 // (omitted entirely with -omitdetail).
-func (e *Entity) isDetail() bool {
+func isDetail(e Entity) bool {
 	cn, _ := e.Value("classname")
 	return strings.HasPrefix(cn, "func_detail")
 }
