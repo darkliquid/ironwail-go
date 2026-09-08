@@ -2,6 +2,8 @@ package light
 
 import (
 	"math"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // BakeOpts extends Bake with optional features (supersampling, sun,
@@ -26,12 +28,12 @@ type BakeOpts struct {
 // Quake formula: intensity = value/dist^2 * cos(theta), clamped to 255,
 // with a shadow trace against the BSP tree. Samples are 16 units apart in
 // S/T space; the Lighting lump holds one W*H block per face style.
-func Bake(faces []Face, lights []Light, trace func(from, to [3]float64) bool) Result {
+func Bake(faces []Face, lights []Light, trace func(from, to types.Vec3d) bool) Result {
 	return bakeInternal(faces, lights, trace, BakeOpts{})
 }
 
 // BakeWithOpts is Bake with sun/bounce options.
-func BakeWithOpts(faces []Face, lights []Light, trace func(from, to [3]float64) bool, opts BakeOpts) Result {
+func BakeWithOpts(faces []Face, lights []Light, trace func(from, to types.Vec3d) bool, opts BakeOpts) Result {
 	if opts.Phong > 0 {
 		BuildPhongNormals(faces, opts.Phong)
 	}
@@ -44,7 +46,7 @@ func BakeWithOpts(faces []Face, lights []Light, trace func(from, to [3]float64) 
 
 // bakeInternal does the core per-face per-style light accumulation, the
 // optional sun term, and optional luxel supersampling.
-func bakeInternal(faces []Face, lights []Light, trace func(from, to [3]float64) bool, opts BakeOpts) Result {
+func bakeInternal(faces []Face, lights []Light, trace func(from, to types.Vec3d) bool, opts BakeOpts) Result {
 	extra := opts.Extra
 	if extra < 1 {
 		extra = 1
@@ -117,8 +119,8 @@ func bakeInternal(faces []Face, lights []Light, trace func(from, to [3]float64) 
 
 // surfel is one baked style-0 lightmap sample used as a radiosity emitter.
 type surfel struct {
-	p    [3]float64
-	n    [3]float64
+	p    types.Vec3d
+	n    types.Vec3d
 	flux float64 // albedo-weighted radiance
 }
 
@@ -126,7 +128,7 @@ type surfel struct {
 // lit surfaces onto their neighbours: every lit style-0 surfel re-emits
 // its radiance toward other samples, attenuated by 1/dist^2 * cos (both
 // emitters and receivers), shadow-traced, and clamped to 255.
-func applyBounce(res Result, faces []Face, bounces int, trace func(from, to [3]float64) bool) Result {
+func applyBounce(res Result, faces []Face, bounces int, trace func(from, to types.Vec3d) bool) Result {
 	// Gather style-0 surfels with world-space positions.
 	var surfels []surfel
 	for fi := range faces {
@@ -158,7 +160,7 @@ func applyBounce(res Result, faces []Face, bounces int, trace func(from, to [3]f
 			}
 			surfels = append(surfels, surfel{
 				p:    p,
-				n:    [3]float64{f.Normal[0], f.Normal[1], f.Normal[2]},
+				n:    f.Normal,
 				flux: v * albedo,
 			})
 		}
@@ -192,16 +194,14 @@ func applyBounce(res Result, faces []Face, bounces int, trace func(from, to [3]f
 					s := ec.Mins[0] + (float64(i%ec.W)+0.5)*16
 					t := ec.Mins[1] + (float64(i/ec.W)+0.5)*16
 					p := samplePoint(f, s, t)
-					dx := p[0] - em.p[0]
-					dy := p[1] - em.p[1]
-					dz := p[2] - em.p[2]
-					dist2 := dx*dx + dy*dy + dz*dz
+					delta := p.Sub(em.p)
+					dist2 := delta.Dot(delta)
 					if dist2 < 1e-4 {
 						continue
 					}
 					dist := math.Sqrt(dist2)
-					cosE := (em.n[0]*dx + em.n[1]*dy + em.n[2]*dz) / dist
-					cosR := (f.Normal[0]*(-dx) + f.Normal[1]*(-dy) + f.Normal[2]*(-dz)) / dist
+					cosE := em.n.Dot(delta) / dist
+					cosR := f.Normal.Dot(delta.Neg()) / dist
 					if cosE <= 0 || cosR <= 0 {
 						continue
 					}
@@ -254,16 +254,16 @@ func applyBounce(res Result, faces []Face, bounces int, trace func(from, to [3]f
 
 // samplePoint maps a (s,t) texture coordinate to a world point on the face
 // plane.
-func samplePoint(f *Face, s, t float64) [3]float64 {
+func samplePoint(f *Face, s, t float64) types.Vec3d {
 	n := f.Normal
 	d := 0.0
 	if len(f.Poly) > 0 {
-		d = n[0]*f.Poly[0][0] + n[1]*f.Poly[0][1] + n[2]*f.Poly[0][2]
+		d = n.Dot(f.Poly[0])
 	}
-	o := [3]float64{n[0] * d, n[1] * d, n[2] * d}
-	return [3]float64{
-		o[0] + s*f.Vecs[0][0] + t*f.Vecs[1][0],
-		o[1] + s*f.Vecs[0][1] + t*f.Vecs[1][1],
-		o[2] + s*f.Vecs[0][2] + t*f.Vecs[1][2],
+	o := n.Scale(d)
+	return types.Vec3d{
+		X: o.X + s*f.Vecs[0][0] + t*f.Vecs[1][0],
+		Y: o.Y + s*f.Vecs[0][1] + t*f.Vecs[1][1],
+		Z: o.Z + s*f.Vecs[0][2] + t*f.Vecs[1][2],
 	}
 }

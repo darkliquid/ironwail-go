@@ -80,10 +80,12 @@ func serializeBSPXBrushes(groups []brushGroup) []byte {
 
 func writeBSPXBrush(b *bytes.Buffer, wb *worldBrush) {
 	var tmp [28]byte
-	for i := 0; i < 3; i++ {
-		binary.LittleEndian.PutUint32(tmp[i*4:], math.Float32bits(float32(wb.bounds[0][i])))
-		binary.LittleEndian.PutUint32(tmp[12+i*4:], math.Float32bits(float32(wb.bounds[1][i])))
-	}
+	binary.LittleEndian.PutUint32(tmp[0:], math.Float32bits(float32(wb.bounds[0].X)))
+	binary.LittleEndian.PutUint32(tmp[4:], math.Float32bits(float32(wb.bounds[0].Y)))
+	binary.LittleEndian.PutUint32(tmp[8:], math.Float32bits(float32(wb.bounds[0].Z)))
+	binary.LittleEndian.PutUint32(tmp[12:], math.Float32bits(float32(wb.bounds[1].X)))
+	binary.LittleEndian.PutUint32(tmp[16:], math.Float32bits(float32(wb.bounds[1].Y)))
+	binary.LittleEndian.PutUint32(tmp[20:], math.Float32bits(float32(wb.bounds[1].Z)))
 	b.Write(tmp[:])
 	var cn [4]byte
 	binary.LittleEndian.PutUint16(cn[0:], uint16(int16(wb.content)))
@@ -92,9 +94,9 @@ func writeBSPXBrush(b *bytes.Buffer, wb *worldBrush) {
 	for _, f := range wb.orig.Faces {
 		p := f.Plane()
 		var pf [16]byte
-		for i := 0; i < 3; i++ {
-			binary.LittleEndian.PutUint32(pf[i*4:], math.Float32bits(float32(p.Normal[i])))
-		}
+		binary.LittleEndian.PutUint32(pf[0:], math.Float32bits(float32(p.Normal.X)))
+		binary.LittleEndian.PutUint32(pf[4:], math.Float32bits(float32(p.Normal.Y)))
+		binary.LittleEndian.PutUint32(pf[8:], math.Float32bits(float32(p.Normal.Z)))
 		binary.LittleEndian.PutUint32(pf[12:], math.Float32bits(float32(p.Dist)))
 		b.Write(pf[:])
 	}

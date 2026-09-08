@@ -92,9 +92,9 @@ func (c *compiler) serializePlanes() []byte {
 	for _, p := range c.planes {
 		typ := int32(classifyPlane(p.Normal))
 		var rec [20]byte
-		binary.LittleEndian.PutUint32(rec[0:], math.Float32bits(float32(p.Normal[0])))
-		binary.LittleEndian.PutUint32(rec[4:], math.Float32bits(float32(p.Normal[1])))
-		binary.LittleEndian.PutUint32(rec[8:], math.Float32bits(float32(p.Normal[2])))
+		binary.LittleEndian.PutUint32(rec[0:], math.Float32bits(float32(p.Normal.X)))
+		binary.LittleEndian.PutUint32(rec[4:], math.Float32bits(float32(p.Normal.Y)))
+		binary.LittleEndian.PutUint32(rec[8:], math.Float32bits(float32(p.Normal.Z)))
 		binary.LittleEndian.PutUint32(rec[12:], math.Float32bits(float32(p.Dist)))
 		binary.LittleEndian.PutUint32(rec[16:], uint32(typ))
 		b.Write(rec[:])
@@ -229,10 +229,12 @@ func serializeNodes(nodes []outNode, lay bspLayout) []byte {
 			for i := 0; i < 2; i++ {
 				binary.LittleEndian.PutUint32(rec[4+i*4:], uint32(int32(childBytes(n.children[i], true))))
 			}
-			for i := 0; i < 3; i++ {
-				binary.LittleEndian.PutUint32(rec[12+i*4:], math.Float32bits(float32(n.bounds[0][i])))
-				binary.LittleEndian.PutUint32(rec[24+i*4:], math.Float32bits(float32(n.bounds[1][i])))
-			}
+			binary.LittleEndian.PutUint32(rec[12:], math.Float32bits(float32(n.bounds[0].X)))
+			binary.LittleEndian.PutUint32(rec[16:], math.Float32bits(float32(n.bounds[0].Y)))
+			binary.LittleEndian.PutUint32(rec[20:], math.Float32bits(float32(n.bounds[0].Z)))
+			binary.LittleEndian.PutUint32(rec[24:], math.Float32bits(float32(n.bounds[1].X)))
+			binary.LittleEndian.PutUint32(rec[28:], math.Float32bits(float32(n.bounds[1].Y)))
+			binary.LittleEndian.PutUint32(rec[32:], math.Float32bits(float32(n.bounds[1].Z)))
 			binary.LittleEndian.PutUint32(rec[36:], uint32(n.firstface))
 			binary.LittleEndian.PutUint32(rec[40:], uint32(n.numfaces))
 			b.Write(rec[:])
@@ -247,10 +249,12 @@ func serializeNodes(nodes []outNode, lay bspLayout) []byte {
 			for i := 0; i < 2; i++ {
 				binary.LittleEndian.PutUint32(rec[4+i*4:], uint32(int32(childBytes(n.children[i], true))))
 			}
-			for i := 0; i < 3; i++ {
-				binary.LittleEndian.PutUint16(rec[12+i*2:], uint16(int16(clamp16(n.bounds[0][i]))))
-				binary.LittleEndian.PutUint16(rec[18+i*2:], uint16(int16(clamp16(n.bounds[1][i]))))
-			}
+			binary.LittleEndian.PutUint16(rec[12:], uint16(int16(clamp16(n.bounds[0].X))))
+			binary.LittleEndian.PutUint16(rec[14:], uint16(int16(clamp16(n.bounds[0].Y))))
+			binary.LittleEndian.PutUint16(rec[16:], uint16(int16(clamp16(n.bounds[0].Z))))
+			binary.LittleEndian.PutUint16(rec[18:], uint16(int16(clamp16(n.bounds[1].X))))
+			binary.LittleEndian.PutUint16(rec[20:], uint16(int16(clamp16(n.bounds[1].Y))))
+			binary.LittleEndian.PutUint16(rec[22:], uint16(int16(clamp16(n.bounds[1].Z))))
 			binary.LittleEndian.PutUint32(rec[24:], uint32(n.firstface))
 			binary.LittleEndian.PutUint32(rec[28:], uint32(n.numfaces))
 			b.Write(rec[:])
@@ -263,10 +267,12 @@ func serializeNodes(nodes []outNode, lay bspLayout) []byte {
 		for i := 0; i < 2; i++ {
 			binary.LittleEndian.PutUint16(rec[4+i*2:], uint16(int16(childBytes(n.children[i], false))))
 		}
-		for i := 0; i < 3; i++ {
-			binary.LittleEndian.PutUint16(rec[8+i*2:], uint16(int16(clamp16(n.bounds[0][i]))))
-			binary.LittleEndian.PutUint16(rec[14+i*2:], uint16(int16(clamp16(n.bounds[1][i]))))
-		}
+		binary.LittleEndian.PutUint16(rec[8:], uint16(int16(clamp16(n.bounds[0].X))))
+		binary.LittleEndian.PutUint16(rec[10:], uint16(int16(clamp16(n.bounds[0].Y))))
+		binary.LittleEndian.PutUint16(rec[12:], uint16(int16(clamp16(n.bounds[0].Z))))
+		binary.LittleEndian.PutUint16(rec[14:], uint16(int16(clamp16(n.bounds[1].X))))
+		binary.LittleEndian.PutUint16(rec[16:], uint16(int16(clamp16(n.bounds[1].Y))))
+		binary.LittleEndian.PutUint16(rec[18:], uint16(int16(clamp16(n.bounds[1].Z))))
 		binary.LittleEndian.PutUint16(rec[20:], uint16(n.firstface))
 		binary.LittleEndian.PutUint16(rec[22:], uint16(n.numfaces))
 		b.Write(rec[:])
@@ -297,8 +303,8 @@ func serializeLeafs(leafs []outLeaf, lay bspLayout) ([]byte, []byte) {
 			binary.LittleEndian.PutUint32(rec[0:], uint32(l.content))
 			binary.LittleEndian.PutUint32(rec[4:], uint32(visofs))
 			for j := 0; j < 3; j++ {
-				binary.LittleEndian.PutUint32(rec[8+j*4:], math.Float32bits(float32(l.mins[j])))
-				binary.LittleEndian.PutUint32(rec[20+j*4:], math.Float32bits(float32(l.maxs[j])))
+				binary.LittleEndian.PutUint32(rec[8+j*4:], math.Float32bits(float32(getAxis(l.mins, j))))
+				binary.LittleEndian.PutUint32(rec[20+j*4:], math.Float32bits(float32(getAxis(l.maxs, j))))
 			}
 			binary.LittleEndian.PutUint32(rec[32:], uint32(marksPos))
 			binary.LittleEndian.PutUint32(rec[36:], uint32(len(l.marksurface)))
@@ -310,8 +316,8 @@ func serializeLeafs(leafs []outLeaf, lay bspLayout) ([]byte, []byte) {
 			binary.LittleEndian.PutUint32(rec[0:], uint32(l.content))
 			binary.LittleEndian.PutUint32(rec[4:], uint32(visofs))
 			for j := 0; j < 3; j++ {
-				binary.LittleEndian.PutUint16(rec[8+j*2:], uint16(int16(clamp16(l.mins[j]))))
-				binary.LittleEndian.PutUint16(rec[14+j*2:], uint16(int16(clamp16(l.maxs[j]))))
+				binary.LittleEndian.PutUint16(rec[8+j*2:], uint16(int16(clamp16(getAxis(l.mins, j)))))
+				binary.LittleEndian.PutUint16(rec[14+j*2:], uint16(int16(clamp16(getAxis(l.maxs, j)))))
 			}
 			binary.LittleEndian.PutUint32(rec[20:], uint32(marksPos))
 			binary.LittleEndian.PutUint32(rec[24:], uint32(len(l.marksurface)))
@@ -321,8 +327,8 @@ func serializeLeafs(leafs []outLeaf, lay bspLayout) ([]byte, []byte) {
 			binary.LittleEndian.PutUint32(rec[0:], uint32(l.content))
 			binary.LittleEndian.PutUint32(rec[4:], uint32(visofs))
 			for j := 0; j < 3; j++ {
-				binary.LittleEndian.PutUint16(rec[8+j*2:], uint16(int16(clamp16(l.mins[j]))))
-				binary.LittleEndian.PutUint16(rec[14+j*2:], uint16(int16(clamp16(l.maxs[j]))))
+				binary.LittleEndian.PutUint16(rec[8+j*2:], uint16(int16(clamp16(getAxis(l.mins, j)))))
+				binary.LittleEndian.PutUint16(rec[14+j*2:], uint16(int16(clamp16(getAxis(l.maxs, j)))))
 			}
 			binary.LittleEndian.PutUint16(rec[20:], uint16(marksPos))
 			binary.LittleEndian.PutUint16(rec[22:], uint16(len(l.marksurface)))
@@ -430,9 +436,9 @@ func vertexBytes(vertexes []vec3) []byte {
 	var b bytes.Buffer
 	for _, v := range vertexes {
 		var rec [12]byte
-		binary.LittleEndian.PutUint32(rec[0:], math.Float32bits(float32(v[0])))
-		binary.LittleEndian.PutUint32(rec[4:], math.Float32bits(float32(v[1])))
-		binary.LittleEndian.PutUint32(rec[8:], math.Float32bits(float32(v[2])))
+		binary.LittleEndian.PutUint32(rec[0:], math.Float32bits(float32(v.X)))
+		binary.LittleEndian.PutUint32(rec[4:], math.Float32bits(float32(v.Y)))
+		binary.LittleEndian.PutUint32(rec[8:], math.Float32bits(float32(v.Z)))
 		b.Write(rec[:])
 	}
 	return b.Bytes()
@@ -447,9 +453,9 @@ func serializeModels(models []modelOut, bsp2 bool) []byte {
 	for _, mo := range models {
 		var rec [64]byte
 		for i := 0; i < 3; i++ {
-			binary.LittleEndian.PutUint32(rec[i*4:], math.Float32bits(float32(mo.mins[i])))
-			binary.LittleEndian.PutUint32(rec[12+i*4:], math.Float32bits(float32(mo.maxs[i])))
-			binary.LittleEndian.PutUint32(rec[24+i*4:], math.Float32bits(float32(mo.origin[i])))
+			binary.LittleEndian.PutUint32(rec[i*4:], math.Float32bits(float32(getAxis(mo.mins, i))))
+			binary.LittleEndian.PutUint32(rec[12+i*4:], math.Float32bits(float32(getAxis(mo.maxs, i))))
+			binary.LittleEndian.PutUint32(rec[24+i*4:], math.Float32bits(float32(getAxis(mo.origin, i))))
 		}
 		head := int32(0)
 		if !mo.root.isLeaf {

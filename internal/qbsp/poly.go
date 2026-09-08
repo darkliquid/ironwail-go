@@ -65,12 +65,8 @@ func clipWinding(w winding, p plane) (winding, bool) {
 		}
 		if side[i]*side[j] < 0 {
 			// Edge crosses the plane; intersect.
-			t := (p.Dist - v3Dot(p.Normal, w[i])) / v3Dot(p.Normal, v3Sub(w[j], w[i]))
-			inter := vec3{
-				w[i][0] + t*(w[j][0]-w[i][0]),
-				w[i][1] + t*(w[j][1]-w[i][1]),
-				w[i][2] + t*(w[j][2]-w[i][2]),
-			}
+			t := (p.Dist - p.Normal.Dot(w[i])) / p.Normal.Dot(w[j].Sub(w[i]))
+			inter := w[i].Lerp(w[j], t)
 			out = append(out, inter)
 		}
 	}
@@ -88,27 +84,29 @@ func clipWinding(w winding, p plane) (winding, bool) {
 // Quake polylib approach and yields the exact intersection polygon.
 func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 	bestAxis := 0
-	bestDot := 0.0
-	for i := 0; i < 3; i++ {
-		if math.Abs(p.Normal[i]) > bestDot {
-			bestDot = math.Abs(p.Normal[i])
-			bestAxis = i
-		}
+	bestDot := math.Abs(p.Normal.X)
+	if math.Abs(p.Normal.Y) > bestDot {
+		bestDot = math.Abs(p.Normal.Y)
+		bestAxis = 1
+	}
+	if math.Abs(p.Normal.Z) > bestDot {
+		bestDot = math.Abs(p.Normal.Z)
+		bestAxis = 2
 	}
 	if bestDot < 1e-9 {
 		return nil
 	}
-	coord := p.Dist / p.Normal[bestAxis]
-	if coord < mins[bestAxis] {
-		coord = mins[bestAxis]
+	pn := getAxis(p.Normal, bestAxis)
+	coord := p.Dist / pn
+	if coord < getAxis(mins, bestAxis) {
+		coord = getAxis(mins, bestAxis)
 	}
-	if coord > maxs[bestAxis] {
-		coord = maxs[bestAxis]
+	if coord > getAxis(maxs, bestAxis) {
+		coord = getAxis(maxs, bestAxis)
 	}
 
 	u := (bestAxis + 1) % 3
 	v := (bestAxis + 2) % 3
-	pn := p.Normal[bestAxis]
 
 	// Four corners on the plane-spanning quad; ordered so the area vector
 	// points along the plane normal's dominant component.
@@ -116,14 +114,16 @@ func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 	corners := [4][2]int{
 		{0, 0}, {0, 1}, {1, 1}, {1, 0},
 	}
+	minsU, maxsU := getAxis(mins, u), getAxis(maxs, u)
+	minsV, maxsV := getAxis(mins, v), getAxis(maxs, v)
 	for _, c := range corners {
-		pt := vec3{0, 0, 0}
-		pt[bestAxis] = coord
-		pt[u] = mins[u] + float64(c[0])*(maxs[u]-mins[u])
+		var pt vec3
+		setAxis(&pt, bestAxis, coord)
+		setAxis(&pt, u, minsU+float64(c[0])*(maxsU-minsU))
 		if pn > 0 {
-			pt[v] = mins[v] + float64(c[1])*(maxs[v]-mins[v])
+			setAxis(&pt, v, minsV+float64(c[1])*(maxsV-minsV))
 		} else {
-			pt[v] = mins[v] + float64(1-c[1])*(maxs[v]-mins[v])
+			setAxis(&pt, v, minsV+float64(1-c[1])*(maxsV-minsV))
 		}
 		seed = append(seed, pt)
 	}
@@ -136,7 +136,7 @@ func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 	for i, bp := range box {
 		cp := bp
 		if i%2 == 0 {
-			cp = plane{Normal: v3(-bp.Normal[0], -bp.Normal[1], -bp.Normal[2]), Dist: -bp.Dist}
+			cp = plane{Normal: bp.Normal.Neg(), Dist: -bp.Dist}
 		}
 		clipped, ok := clipWinding(seed, cp)
 		if !ok {
@@ -156,12 +156,12 @@ func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 //	(and likewise for y, z)
 func boxPlanes(mins, maxs vec3) [6]plane {
 	return [6]plane{
-		{Normal: v3(1, 0, 0), Dist: maxs[0]},
-		{Normal: v3(1, 0, 0), Dist: mins[0]},
-		{Normal: v3(0, 1, 0), Dist: maxs[1]},
-		{Normal: v3(0, 1, 0), Dist: mins[1]},
-		{Normal: v3(0, 0, 1), Dist: maxs[2]},
-		{Normal: v3(0, 0, 1), Dist: mins[2]},
+		{Normal: v3(1, 0, 0), Dist: maxs.X},
+		{Normal: v3(1, 0, 0), Dist: mins.X},
+		{Normal: v3(0, 1, 0), Dist: maxs.Y},
+		{Normal: v3(0, 1, 0), Dist: mins.Y},
+		{Normal: v3(0, 0, 1), Dist: maxs.Z},
+		{Normal: v3(0, 0, 1), Dist: mins.Z},
 	}
 }
 
@@ -172,13 +172,23 @@ func windingBounds(w winding) (vec3, vec3) {
 	}
 	mins, maxs := w[0], w[0]
 	for _, p := range w[1:] {
-		for i := 0; i < 3; i++ {
-			if p[i] < mins[i] {
-				mins[i] = p[i]
-			}
-			if p[i] > maxs[i] {
-				maxs[i] = p[i]
-			}
+		if p.X < mins.X {
+			mins.X = p.X
+		}
+		if p.X > maxs.X {
+			maxs.X = p.X
+		}
+		if p.Y < mins.Y {
+			mins.Y = p.Y
+		}
+		if p.Y > maxs.Y {
+			maxs.Y = p.Y
+		}
+		if p.Z < mins.Z {
+			mins.Z = p.Z
+		}
+		if p.Z > maxs.Z {
+			maxs.Z = p.Z
 		}
 	}
 	return mins, maxs
@@ -196,10 +206,10 @@ func windingRemoveColinear(w winding) winding {
 		prev := w[(i-1+n)%n]
 		cur := w[i]
 		next := w[(i+1)%n]
-		v1 := v3Sub(prev, cur)
-		v2 := v3Sub(next, cur)
-		prodLen := v3Length(v1) * v3Length(v2)
-		if prodLen > 0 && math.Abs(v3Dot(v1, v2)) >= (1-1e-6)*prodLen {
+		v1 := prev.Sub(cur)
+		v2 := next.Sub(cur)
+		prodLen := v1.Len() * v2.Len()
+		if prodLen > 0 && math.Abs(v1.Dot(v2)) >= (1-1e-6)*prodLen {
 			continue // collinear
 		}
 		out = append(out, cur)
@@ -217,12 +227,10 @@ func windingOrientTo(w winding, n vec3) winding {
 	for i := 0; i < len(w); i++ {
 		a := w[i]
 		b := w[(i+1)%len(w)]
-		cr := v3Cross(a, b)
-		sum[0] += cr[0]
-		sum[1] += cr[1]
-		sum[2] += cr[2]
+		cr := a.Cross(b)
+		sum = sum.Add(cr)
 	}
-	if v3Dot(sum, n) < 0 {
+	if sum.Dot(n) < 0 {
 		// reverse
 		out := make(winding, len(w))
 		for i := range out {

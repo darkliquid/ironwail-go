@@ -7,6 +7,8 @@ package light
 
 import (
 	"math"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // Extents are the face's S/T texture-coordinate bounds, which size the
@@ -20,12 +22,12 @@ type Extents struct {
 // texinfo vectors, mirroring qbsp's CalcSurfaceExtents: for each vertex,
 // s = dot(v, vecs[0]) + vecs[0][3] and t = dot(v, vecs[1]) + vecs[1][3];
 // the lightmap size is (max-min)/16 + 1 per axis.
-func CalcExtents(poly [][3]float64, vecs [2][4]float64) Extents {
+func CalcExtents(poly []types.Vec3d, vecs [2][4]float64) Extents {
 	var e Extents
 	first := true
 	for _, v := range poly {
-		s := v[0]*vecs[0][0] + v[1]*vecs[0][1] + v[2]*vecs[0][2] + vecs[0][3]
-		t := v[0]*vecs[1][0] + v[1]*vecs[1][1] + v[2]*vecs[1][2] + vecs[1][3]
+		s := v.X*vecs[0][0] + v.Y*vecs[0][1] + v.Z*vecs[0][2] + vecs[0][3]
+		t := v.X*vecs[1][0] + v.Y*vecs[1][1] + v.Z*vecs[1][2] + vecs[1][3]
 		if first {
 			e.Mins = [2]float64{s, t}
 			e.Maxs = [2]float64{s, t}

@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"encoding/binary"
-
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/light"
 	"github.com/darkliquid/ironwail-go/internal/qbsp"
@@ -227,23 +225,7 @@ func TestParityEricwCompilesAndReadsOurBSP(t *testing.T) {
 // patchLightBSP applies the light result to a BSP image (mirrors cmd/light).
 func patchLightBSP(t *testing.T, data []byte, res light.Result) []byte {
 	t.Helper()
-	version, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-	facesLump := append([]byte(nil), lumps[7]...)
-	for i, ofs := range res.LightOfs {
-		if ofs < 0 {
-			continue
-		}
-		off := i*20 + 16
-		if off+4 <= len(facesLump) {
-			binary.LittleEndian.PutUint32(facesLump[off:], uint32(ofs))
-		}
-	}
-	lumps[7] = facesLump
-	lumps[8] = res.Lighting
-	out, err := qbsp.WriteBSP(lumps, version)
+	out, err := light.PatchBSP(data, res)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,9 +25,9 @@ func near(t *testing.T, got, want float64, what string) {
 
 func vecNear(t *testing.T, got, want vec3, what string) {
 	t.Helper()
-	for i := 0; i < 3; i++ {
-		near(t, got[i], want[i], what)
-	}
+	near(t, got.X, want.X, what+".X")
+	near(t, got.Y, want.Y, what+".Y")
+	near(t, got.Z, want.Z, what+".Z")
 }
 
 // slabBrush renders one axis-aligned box brush (a solid volume, with

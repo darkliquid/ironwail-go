@@ -77,7 +77,7 @@ func (r *leafRegion) facets(bounds [2]vec3) []facetGeom {
 // addFront returns the child region on the FRONT side of split plane p
 // (dot(p.Normal, x) >= p.Dist), i.e. bounded by the negated plane.
 func (r *leafRegion) addFront(pn int, p plane) leafRegion {
-	np := v3(-p.Normal[0], -p.Normal[1], -p.Normal[2])
+	np := p.Normal.Neg()
 	out := leafRegion{bs: make([]boundPlane, 0, len(r.bs)+1)}
 	out.bs = append(out.bs, r.bs...)
 	out.bs = append(out.bs, boundPlane{pi: pn, p: plane{Normal: np, Dist: -p.Dist}})
@@ -95,12 +95,12 @@ func (r *leafRegion) addBack(pn int, p plane) leafRegion {
 // rootRegion builds the initial region: the six root AABB faces (empty pi).
 func rootRegion(bounds [2]vec3) leafRegion {
 	return leafRegion{bs: []boundPlane{
-		{pi: -1, p: plane{Normal: v3(1, 0, 0), Dist: bounds[1][0]}},   // x <= max
-		{pi: -1, p: plane{Normal: v3(-1, 0, 0), Dist: -bounds[0][0]}}, // x >= min
-		{pi: -1, p: plane{Normal: v3(0, 1, 0), Dist: bounds[1][1]}},
-		{pi: -1, p: plane{Normal: v3(0, -1, 0), Dist: -bounds[0][1]}},
-		{pi: -1, p: plane{Normal: v3(0, 0, 1), Dist: bounds[1][2]}},
-		{pi: -1, p: plane{Normal: v3(0, 0, -1), Dist: -bounds[0][2]}},
+		{pi: -1, p: plane{Normal: v3(1, 0, 0), Dist: bounds[1].X}},   // x <= max
+		{pi: -1, p: plane{Normal: v3(-1, 0, 0), Dist: -bounds[0].X}}, // x >= min
+		{pi: -1, p: plane{Normal: v3(0, 1, 0), Dist: bounds[1].Y}},
+		{pi: -1, p: plane{Normal: v3(0, -1, 0), Dist: -bounds[0].Y}},
+		{pi: -1, p: plane{Normal: v3(0, 0, 1), Dist: bounds[1].Z}},
+		{pi: -1, p: plane{Normal: v3(0, 0, -1), Dist: -bounds[0].Z}},
 	}}
 }
 
@@ -167,11 +167,11 @@ func planeSplitsBounds(bounds [2]vec3, p plane) bool {
 	minD, maxD := math.Inf(1), math.Inf(-1)
 	for i := 0; i < 8; i++ {
 		pt := vec3{
-			bounds[i&1][0],
-			bounds[(i>>1)&1][1],
-			bounds[(i>>2)&1][2],
+			X: bounds[i&1].X,
+			Y: bounds[(i>>1)&1].Y,
+			Z: bounds[(i>>2)&1].Z,
 		}
-		d := v3Dot(p.Normal, pt) - p.Dist
+		d := p.Normal.Dot(pt) - p.Dist
 		if d < minD {
 			minD = d
 		}
@@ -258,7 +258,7 @@ func absInt(v int) int {
 }
 
 func isAxial(n vec3) bool {
-	return (n[0] == 1 || n[0] == -1) || (n[1] == 1 || n[1] == -1) || (n[2] == 1 || n[2] == -1)
+	return (n.X == 1 || n.X == -1) || (n.Y == 1 || n.Y == -1) || (n.Z == 1 || n.Z == -1)
 }
 
 // splitBrushList partitions brushes by plane p, splitting those that
@@ -289,20 +289,32 @@ func splitBrushList(brushes []*bspBrush, pn int, p plane) ([]*bspBrush, []*bspBr
 // childBounds refines the region AABB for an axial split plane (classic
 // qbsp: clamp the axis; non-axial keeps the parent bounds).
 func childBounds(bounds [2]vec3, p plane) ([2]vec3, [2]vec3) {
-	for i := 0; i < 3; i++ {
-		if p.Normal[i] == 1 {
-			fb, bb := bounds, bounds
-			fb[0][i] = p.Dist
-			bb[1][i] = p.Dist
-			return fb, bb
-		}
-		if p.Normal[i] == -1 {
-			fb, bb := bounds, bounds
-			// front side: dot(-axis, x) >= d  =>  x <= -d
-			fb[1][i] = -p.Dist
-			bb[0][i] = -p.Dist
-			return fb, bb
-		}
+	fb, bb := bounds, bounds
+	switch {
+	case p.Normal.X == 1:
+		fb[0].X = p.Dist
+		bb[1].X = p.Dist
+		return fb, bb
+	case p.Normal.X == -1:
+		fb[1].X = -p.Dist
+		bb[0].X = -p.Dist
+		return fb, bb
+	case p.Normal.Y == 1:
+		fb[0].Y = p.Dist
+		bb[1].Y = p.Dist
+		return fb, bb
+	case p.Normal.Y == -1:
+		fb[1].Y = -p.Dist
+		bb[0].Y = -p.Dist
+		return fb, bb
+	case p.Normal.Z == 1:
+		fb[0].Z = p.Dist
+		bb[1].Z = p.Dist
+		return fb, bb
+	case p.Normal.Z == -1:
+		fb[1].Z = -p.Dist
+		bb[0].Z = -p.Dist
+		return fb, bb
 	}
 	return bounds, bounds
 }
@@ -352,13 +364,23 @@ func (t *treeBuild) finalize(rootBounds [2]vec3) {
 				first = false
 				continue
 			}
-			for k := 0; k < 3; k++ {
-				if m[k] < mins[k] {
-					mins[k] = m[k]
-				}
-				if x[k] > maxs[k] {
-					maxs[k] = x[k]
-				}
+			if m.X < mins.X {
+				mins.X = m.X
+			}
+			if x.X > maxs.X {
+				maxs.X = x.X
+			}
+			if m.Y < mins.Y {
+				mins.Y = m.Y
+			}
+			if x.Y > maxs.Y {
+				maxs.Y = x.Y
+			}
+			if m.Z < mins.Z {
+				mins.Z = m.Z
+			}
+			if x.Z > maxs.Z {
+				maxs.Z = x.Z
 			}
 		}
 		if !first {

@@ -29,7 +29,7 @@ func (s *bspSide) sidePlane() plane { return plane{Normal: s.n, Dist: s.d} }
 
 // negPlane flips an oriented plane.
 func negPlane(p plane) plane {
-	return plane{Normal: v3(-p.Normal[0], -p.Normal[1], -p.Normal[2]), Dist: -p.Dist}
+	return plane{Normal: p.Normal.Neg(), Dist: -p.Dist}
 }
 
 // planeEqualOriented reports whether two oriented planes are the same
@@ -98,17 +98,27 @@ func brushBoundsOf(b *bspBrush) [2]vec3 {
 			first = false
 			continue
 		}
-		for i := 0; i < 3; i++ {
-			if m[i] < mins[i] {
-				mins[i] = m[i]
-			}
-			if x[i] > maxs[i] {
-				maxs[i] = x[i]
-			}
+		if m.X < mins.X {
+			mins.X = m.X
+		}
+		if x.X > maxs.X {
+			maxs.X = x.X
+		}
+		if m.Y < mins.Y {
+			mins.Y = m.Y
+		}
+		if x.Y > maxs.Y {
+			maxs.Y = x.Y
+		}
+		if m.Z < mins.Z {
+			mins.Z = m.Z
+		}
+		if x.Z > maxs.Z {
+			maxs.Z = x.Z
 		}
 	}
 	if first {
-		return [2]vec3{{0, 0, 0}, {0, 0, 0}}
+		return [2]vec3{{}, {}}
 	}
 	return [2]vec3{mins, maxs}
 }
@@ -168,7 +178,7 @@ func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
 	if len(fs) >= 3 {
 		// Front child region: dot(p.Normal, x) >= p.Dist; its boundary at
 		// the split plane has outward normal -p.Normal.
-		np := v3(-p.Normal[0], -p.Normal[1], -p.Normal[2])
+		np := p.Normal.Neg()
 		capF := windingOrientTo(cap, np)
 		front = &bspBrush{
 			sides:   append(fs, bspSide{planenum: pn, n: np, d: -p.Dist, w: capF}),
@@ -243,19 +253,19 @@ func subtractBrush(a, b *bspBrush) []*bspBrush {
 // brushDegenerate reports whether a brush has no real volume (a
 // zero-thickness cap sliver from splitting exactly on a face plane).
 func brushDegenerate(b *bspBrush) bool {
-	v := (b.bounds[1][0] - b.bounds[0][0]) *
-		(b.bounds[1][1] - b.bounds[0][1]) *
-		(b.bounds[1][2] - b.bounds[0][2])
+	v := (b.bounds[1].X - b.bounds[0].X) *
+		(b.bounds[1].Y - b.bounds[0].Y) *
+		(b.bounds[1].Z - b.bounds[0].Z)
 	return v < 0.01
 }
 
 // brushesDisjoint reports whether a and b definitely do not intersect
 // (AABB disjoint or opposing planes).
 func brushesDisjoint(a, b *bspBrush) bool {
-	for i := 0; i < 3; i++ {
-		if a.bounds[1][i] < b.bounds[0][i] || b.bounds[1][i] < a.bounds[0][i] {
-			return true
-		}
+	if a.bounds[1].X < b.bounds[0].X || b.bounds[1].X < a.bounds[0].X ||
+		a.bounds[1].Y < b.bounds[0].Y || b.bounds[1].Y < a.bounds[0].Y ||
+		a.bounds[1].Z < b.bounds[0].Z || b.bounds[1].Z < a.bounds[0].Z {
+		return true
 	}
 	for _, as := range a.sides {
 		for _, bs := range b.sides {

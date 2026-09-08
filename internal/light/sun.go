@@ -6,7 +6,8 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/darkliquid/ironwail-go/internal/qbsp"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // Sun is a directional sky light: a `sun` entity or worldspawn sunlight/
@@ -14,7 +15,7 @@ import (
 // the sun's source; non-sky faces accumulate sun intensity scaled by the
 // cosine of the face normal vs the sun direction.
 type Sun struct {
-	Dir   [3]float64 // direction the light travels (from the sky)
+	Dir   types.Vec3d // direction the light travels (from the sky)
 	Value float64
 	Color [3]float64
 }
@@ -23,11 +24,11 @@ type Sun struct {
 // (sunlight, sun_mangle, sunlight_color) or a `sun` entity (light,
 // angles). Returns nil when no sun is defined.
 func ParseSun(bspData []byte) (*Sun, error) {
-	_, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(bspData))
+	_, lumps, err := bsp.ReadLumps(bytes.NewReader(bspData))
 	if err != nil {
 		return nil, err
 	}
-	ents := parseEntities(lumps[0])
+	ents := parseEntities(lumps[bsp.LumpEntities])
 	if len(ents) == 0 {
 		return nil, nil
 	}
@@ -47,7 +48,7 @@ func ParseSun(bspData []byte) (*Sun, error) {
 	if err != nil || value <= 0 {
 		return nil, nil
 	}
-	sun := &Sun{Value: value, Color: [3]float64{255, 255, 255}, Dir: [3]float64{0, 0, -1}}
+	sun := &Sun{Value: value, Color: [3]float64{255, 255, 255}, Dir: types.Vec3d{X: 0, Y: 0, Z: -1}}
 	if v, ok := world[angleKey]; ok {
 		if yaw, pitch, err := parseMangle(v); err == nil {
 			sun.Dir = mangleToDir(yaw, pitch)
@@ -73,20 +74,20 @@ func parseMangle(s string) (yaw, pitch float64, err error) {
 
 // mangleToDir converts sun_mangle yaw/pitch (degrees, pointing INTO the
 // world) to a direction vector.
-func mangleToDir(yaw, pitch float64) [3]float64 {
+func mangleToDir(yaw, pitch float64) types.Vec3d {
 	yr := yaw * math.Pi / 180
 	pr := pitch * math.Pi / 180
-	return [3]float64{
-		math.Cos(yr) * math.Cos(pr),
-		math.Sin(yr) * math.Cos(pr),
-		math.Sin(pr),
+	return types.Vec3d{
+		X: math.Cos(yr) * math.Cos(pr),
+		Y: math.Sin(yr) * math.Cos(pr),
+		Z: math.Sin(pr),
 	}
 }
 
 // SunLight computes the direct sun contribution at a sample point on a
 // face: intensity * max(dot(normal, -sun.Dir), 0) * color.
-func (s *Sun) SunLight(f *Face, n [3]float64, p [3]float64) (float64, float64, float64) {
-	cos := -(n[0]*s.Dir[0] + n[1]*s.Dir[1] + n[2]*s.Dir[2])
+func (s *Sun) SunLight(f *Face, n types.Vec3d, p types.Vec3d) (float64, float64, float64) {
+	cos := -n.Dot(s.Dir)
 	if cos <= 0 {
 		return 0, 0, 0
 	}

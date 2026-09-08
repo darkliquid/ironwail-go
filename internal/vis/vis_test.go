@@ -229,3 +229,39 @@ func decompressRow(in []byte, rowLen int) []byte {
 	}
 	return out
 }
+
+func TestVISRunWithPortalFileDirect(t *testing.T) {
+	m, err := qbsp.ParseMap(strings.NewReader(corridorPlusSealed()))
+	if err != nil {
+		t.Fatalf("ParseMap: %v", err)
+	}
+	res, err := qbsp.Compile(m, qbsp.Options{})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	if res.PortalFile == nil {
+		t.Fatalf("res.PortalFile is nil")
+	}
+
+	// 1. Run using serialized PRT1 bytes
+	outSerialized, err := Run(res.Data, res.PortalFile.Serialize())
+	if err != nil {
+		t.Fatalf("Run(serialized): %v", err)
+	}
+
+	// 2. Run directly with in-memory *bsp.PortalFile
+	outDirect, err := RunWithPortalFile(res.Data, res.PortalFile)
+	if err != nil {
+		t.Fatalf("RunWithPortalFile(direct): %v", err)
+	}
+
+	if !bytes.Equal(outSerialized, outDirect) {
+		t.Errorf("RunWithPortalFile produced different bytes than Run with serialized PRT")
+	}
+
+	// 3. Error case: nil portal file
+	_, err = RunWithPortalFile(res.Data, nil)
+	if err == nil {
+		t.Errorf("expected error when passing nil PortalFile, got nil")
+	}
+}

@@ -13,7 +13,7 @@ import (
 // TestSolidBSPBrushSplit verifies SplitBrush preserves convex geometry and
 // the correct interior-halfspace convention on both pieces.
 func TestSolidBSPBrushSplit(t *testing.T) {
-	box := [2]vec3{{0, 0, 0}, {64, 64, 8}}
+	box := [2]vec3{v3(0, 0, 0), v3(64, 64, 8)}
 	faces := []brushFace{
 		{p: plane{Normal: v3(1, 0, 0), Dist: 64}},
 		{p: plane{Normal: v3(-1, 0, 0), Dist: 0}},
@@ -30,8 +30,8 @@ func TestSolidBSPBrushSplit(t *testing.T) {
 	if front == nil || back == nil {
 		t.Fatalf("split produced nil: front=%v back=%v", front != nil, back != nil)
 	}
-	wantFB := [2]vec3{{0, 56, 0}, {64, 64, 8}}
-	wantBK := [2]vec3{{0, 0, 0}, {64, 56, 8}}
+	wantFB := [2]vec3{v3(0, 56, 0), v3(64, 64, 8)}
+	wantBK := [2]vec3{v3(0, 0, 0), v3(64, 56, 8)}
 	if front.bounds != wantFB {
 		t.Errorf("front bounds = %v, want %v", front.bounds, wantFB)
 	}
@@ -42,7 +42,7 @@ func TestSolidBSPBrushSplit(t *testing.T) {
 	// the brush centroid.
 	centroidOf := func(br *bspBrush) vec3 {
 		m, x := br.bounds[0], br.bounds[1]
-		return vec3{(m[0] + x[0]) / 2, (m[1] + x[1]) / 2, (m[2] + x[2]) / 2}
+		return m.Add(x).Scale(0.5)
 	}
 	for _, br := range []*bspBrush{front, back} {
 		c := centroidOf(br)
@@ -333,7 +333,7 @@ func facePolygons(tree *bsp.Tree) [][]types.Vec3 {
 }
 
 // vec3From converts a types.Vec3 to the compiler's vec3.
-func vec3From(v types.Vec3) vec3 { return vec3{float64(v.X), float64(v.Y), float64(v.Z)} }
+func vec3From(v types.Vec3) vec3 { return v.Vec3d() }
 
 // TestBSPXBrushList verifies the appended BRUSHLIST lump: per-model brush
 // counts round-trip, the file still loads through the engine loader, and

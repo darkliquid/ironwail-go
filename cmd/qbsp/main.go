@@ -95,7 +95,7 @@ func main() {
 func writePTS(path string, trail []qbsp.Point) error {
 	var b strings.Builder
 	for _, p := range trail {
-		fmt.Fprintf(&b, "%.1f %.1f %.1f\n", p[0], p[1], p[2])
+		fmt.Fprintf(&b, "%.1f %.1f %.1f\n", p.X, p.Y, p.Z)
 	}
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }

@@ -41,13 +41,13 @@ func edgeTables(faces []outFace) (vertexes []vec3, edges [][2]int32, surfedges [
 	edgeIdx := map[[2]int32]int32{}
 
 	vIndex := func(v vec3) int32 {
-		key := [3]float32{float32(v[0]), float32(v[1]), float32(v[2])}
+		key := [3]float32{float32(v.X), float32(v.Y), float32(v.Z)}
 		if i, ok := vIdx[key]; ok {
 			return i
 		}
 		i := int32(len(vertexes))
 		vIdx[key] = i
-		vertexes = append(vertexes, vec3{float64(key[0]), float64(key[1]), float64(key[2])})
+		vertexes = append(vertexes, vec3{X: float64(key[0]), Y: float64(key[1]), Z: float64(key[2])})
 		return i
 	}
 	eIndex := func(a, b int32) int32 {

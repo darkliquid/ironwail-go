@@ -4,32 +4,18 @@ import (
 	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
-
-// planeType mirrors the Quake plane classification (PlaneX/Y/Z for axial
-// planes; PlaneNonAxial otherwise), used to speed up point-vs-plane tests
-// and required by the BSP plane lump entries.
-type planeType int8
 
 const (
-	planeX        = planeType(0)
-	planeY        = planeType(1)
-	planeZ        = planeType(2)
-	planeNonAxial = planeType(3)
+	planeX = types.PlaneX
+	planeY = types.PlaneY
+	planeZ = types.PlaneZ
 )
 
-// classifyPlane returns the axial type of n, or non-axial.
-func classifyPlane(n vec3) planeType {
-	if n[0] == 1 || n[0] == -1 {
-		return planeX
-	}
-	if n[1] == 1 || n[1] == -1 {
-		return planeY
-	}
-	if n[2] == 1 || n[2] == -1 {
-		return planeZ
-	}
-	return planeNonAxial
+// classifyPlane returns the axial type of n, or non-axial dominant axis.
+func classifyPlane(n vec3) int32 {
+	return types.ClassifyPlaneType64(n)
 }
 
 // normalizePlane flips axial planes to POSITIVE normals, the Quake BSP
@@ -41,17 +27,17 @@ func classifyPlane(n vec3) planeType {
 func normalizePlane(p plane) plane {
 	switch classifyPlane(p.Normal) {
 	case planeX:
-		if p.Normal[0] < 0 {
+		if p.Normal.X < 0 {
 			p.Normal = v3(1, 0, 0)
 			p.Dist = -p.Dist
 		}
 	case planeY:
-		if p.Normal[1] < 0 {
+		if p.Normal.Y < 0 {
 			p.Normal = v3(0, 1, 0)
 			p.Dist = -p.Dist
 		}
 	case planeZ:
-		if p.Normal[2] < 0 {
+		if p.Normal.Z < 0 {
 			p.Normal = v3(0, 0, 1)
 			p.Dist = -p.Dist
 		}
@@ -69,17 +55,18 @@ func snapPlaneDist(d float64) float64 {
 	}
 	return d
 }
+
 // planeEqualNear reports planewise equality within the qbsp tolerance used
 // for merging coincident planes (tighter than the duplicate-face check,
 // because the compiler depends on exact dedup).
 func planeEqualNear(a, b plane) bool {
-	if math.Abs(v3Dot(a.Normal, b.Normal)) < 1-1e-4 {
+	if math.Abs(a.Normal.Dot(b.Normal)) < 1-1e-4 {
 		return false
 	}
 	// Compare distances under the same normal direction; if normals are
 	// opposite, the distance sign flips.
 	d := a.Dist - b.Dist
-	if v3Dot(a.Normal, b.Normal) < 0 {
+	if a.Normal.Dot(b.Normal) < 0 {
 		d = a.Dist + b.Dist
 	}
 	return math.Abs(d) < 0.01

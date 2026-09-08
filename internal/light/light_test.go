@@ -9,20 +9,23 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/qbsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
+
+func v3(x, y, z float64) types.Vec3d { return types.Vec3d{X: x, Y: y, Z: z} }
 
 // floorFace is a 64x64 floor at z=0 with identity texinfo vectors.
 func floorFace() Face {
 	return Face{
 		Index: 0,
-		Poly: [][3]float64{
-			{0, 0, 0}, {64, 0, 0}, {64, 64, 0}, {0, 64, 0},
+		Poly: []types.Vec3d{
+			v3(0, 0, 0), v3(64, 0, 0), v3(64, 64, 0), v3(0, 64, 0),
 		},
 		Vecs: [2][4]float64{
 			{1, 0, 0, 0},
 			{0, 1, 0, 0},
 		},
-		Normal: [3]float64{0, 0, 1},
+		Normal: v3(0, 0, 1),
 	}
 }
 
@@ -39,7 +42,7 @@ func TestCalcExtents(t *testing.T) {
 func TestDirectLightFalloff(t *testing.T) {
 	face := floorFace()
 	// Light directly above the centre luxel (s=40, t=40), 8 units up.
-	lights := []Light{{Origin: [3]float64{40, 40, 8}, Value: 1000}}
+	lights := []Light{{Origin: v3(40, 40, 8), Value: 1000}}
 	res := Bake([]Face{face}, lights, nil)
 	if res.LightOfs[0] < 0 {
 		t.Fatal("face not lit")
@@ -59,9 +62,9 @@ func TestDirectLightFalloff(t *testing.T) {
 
 func TestShadowBlocksLight(t *testing.T) {
 	face := floorFace()
-	lights := []Light{{Origin: [3]float64{40, 40, 8}, Value: 1000}}
+	lights := []Light{{Origin: v3(40, 40, 8), Value: 1000}}
 	// Shadow everything: a trace that always reports blocked.
-	blocked := Bake([]Face{face}, lights, func(from, to [3]float64) bool { return true })
+	blocked := Bake([]Face{face}, lights, func(from, to types.Vec3d) bool { return true })
 	if blocked.LightOfs[0] < 0 {
 		t.Fatal("face not lit")
 	}
@@ -74,7 +77,7 @@ func TestShadowBlocksLight(t *testing.T) {
 
 func TestWriteLitRoundTrip(t *testing.T) {
 	face := floorFace()
-	lights := []Light{{Origin: [3]float64{40, 40, 8}, Value: 1000}}
+	lights := []Light{{Origin: v3(40, 40, 8), Value: 1000}}
 	res := Bake([]Face{face}, lights, nil)
 	lit := WriteLit(&res)
 
@@ -94,7 +97,7 @@ func TestWriteLitRoundTrip(t *testing.T) {
 func TestSkyFaceUnlit(t *testing.T) {
 	face := floorFace()
 	face.Sky = true
-	res := Bake([]Face{face}, []Light{{Origin: [3]float64{40, 40, 8}, Value: 1000}}, nil)
+	res := Bake([]Face{face}, []Light{{Origin: v3(40, 40, 8), Value: 1000}}, nil)
 	if res.LightOfs[0] != -1 {
 		t.Error("sky face should have no lightmap offset")
 	}
@@ -220,8 +223,8 @@ func TestBSPIntegrationBake(t *testing.T) {
 // affecting block 1.
 func TestStyleRouting(t *testing.T) {
 	face := floorFace()
-	l0 := Light{Origin: [3]float64{40, 40, 8}, Value: 1000, Style: 0}
-	l3 := Light{Origin: [3]float64{24, 24, 8}, Value: 1000, Style: 3}
+	l0 := Light{Origin: v3(40, 40, 8), Value: 1000, Style: 0}
+	l3 := Light{Origin: v3(24, 24, 8), Value: 1000, Style: 3}
 	res := Bake([]Face{face}, []Light{l0, l3}, nil)
 	if res.LightOfs[0] < 0 {
 		t.Fatal("face not lit")
@@ -253,8 +256,8 @@ func TestStyleRouting(t *testing.T) {
 func TestStyleLitSidecar(t *testing.T) {
 	face := floorFace()
 	res := Bake([]Face{face}, []Light{
-		{Origin: [3]float64{40, 40, 8}, Value: 1000, Style: 0},
-		{Origin: [3]float64{24, 24, 8}, Value: 1000, Style: 3},
+		{Origin: v3(40, 40, 8), Value: 1000, Style: 0},
+		{Origin: v3(24, 24, 8), Value: 1000, Style: 3},
 	}, nil)
 	lit := WriteLit(&res)
 	// 5x5 = 25 style-0 samples.
@@ -269,19 +272,19 @@ func TestStyleLitSidecar(t *testing.T) {
 // TestSunLightTopFaces verifies sun direction cosine: a floor face is
 // brightly lit from a straight-down sun, a vertical wall face is dark.
 func TestSunLightTopFaces(t *testing.T) {
-	sun := &Sun{Dir: [3]float64{0, 0, -1}, Value: 1000, Color: [3]float64{255, 255, 255}}
+	sun := &Sun{Dir: v3(0, 0, -1), Value: 1000, Color: [3]float64{255, 255, 255}}
 	floor := floorFace()
 	wall := Face{
 		Index:  1,
-		Poly:   [][3]float64{{0, 0, 0}, {0, 64, 0}, {0, 64, 64}, {0, 0, 64}},
+		Poly:   []types.Vec3d{v3(0, 0, 0), v3(0, 64, 0), v3(0, 64, 64), v3(0, 0, 64)},
 		Vecs:   [2][4]float64{{0, 1, 0, 0}, {0, 0, 1, 0}},
-		Normal: [3]float64{-1, 0, 0},
+		Normal: v3(-1, 0, 0),
 	}
-	r, _, _ := sun.SunLight(&floor, floor.Normal, [3]float64{32, 32, 0})
+	r, _, _ := sun.SunLight(&floor, floor.Normal, v3(32, 32, 0))
 	if r <= 0 {
 		t.Error("sun should light a floor facing up")
 	}
-	r2, _, _ := sun.SunLight(&wall, wall.Normal, [3]float64{0, 32, 32})
+	r2, _, _ := sun.SunLight(&wall, wall.Normal, v3(0, 32, 32))
 	if r2 > r*0.01 {
 		t.Errorf("wall normal away from sun got %v, want ~0", r2)
 	}
@@ -294,15 +297,15 @@ func TestBounceLightReachesShadowedWall(t *testing.T) {
 	floor := floorFace()
 	wall := Face{
 		Index:  1,
-		Poly:   [][3]float64{{0, 0, 0}, {0, 64, 0}, {0, 64, 64}, {0, 0, 64}},
+		Poly:   []types.Vec3d{v3(0, 0, 0), v3(0, 64, 0), v3(0, 64, 64), v3(0, 0, 64)},
 		Vecs:   [2][4]float64{{0, 1, 0, 0}, {0, 0, 1, 0}},
-		Normal: [3]float64{1, 0, 0}, // +x, facing the lit floor
+		Normal: v3(1, 0, 0), // +x, facing the lit floor
 	}
-	lights := []Light{{Origin: [3]float64{32, 32, 8}, Value: 20000}}
+	lights := []Light{{Origin: v3(32, 32, 8), Value: 20000}}
 	// Occlude rays FROM the light (z=8) TO the wall (x=0); floor-light rays
 	// and floor->wall radiosity rays pass.
-	trace := func(from, to [3]float64) bool {
-		return to[0] < 8 && from[2] > 2
+	trace := func(from, to types.Vec3d) bool {
+		return to.X < 8 && from.Z > 2
 	}
 	direct := Bake([]Face{floor, wall}, lights, trace)
 	if direct.LightOfs[1] < 0 {
@@ -323,7 +326,7 @@ func TestBounceLightReachesShadowedWall(t *testing.T) {
 // (same sample count) while changing the baked values.
 func TestSupersamplingKeepsGrid(t *testing.T) {
 	face := floorFace()
-	lights := []Light{{Origin: [3]float64{40, 40, 8}, Value: 4000}}
+	lights := []Light{{Origin: v3(40, 40, 8), Value: 4000}}
 	base := Bake([]Face{face}, lights, nil)
 	sup := BakeWithOpts([]Face{face}, lights, nil, BakeOpts{Extra: 4})
 	if len(base.Lighting) != len(sup.Lighting) {
@@ -376,9 +379,9 @@ func TestPhongNormalsBlendSharedVertices(t *testing.T) {
 	a := floorFace()
 	b := Face{
 		Index:  1,
-		Poly:   [][3]float64{{0, 0, 0}, {64, 0, 0}, {64, 0, 64}, {0, 0, 64}},
+		Poly:   []types.Vec3d{v3(0, 0, 0), v3(64, 0, 0), v3(64, 0, 64), v3(0, 0, 64)},
 		Vecs:   [2][4]float64{{1, 0, 0, 0}, {0, 0, 1, 0}},
-		Normal: [3]float64{0, -1, 0},
+		Normal: v3(0, -1, 0),
 	}
 	// b's normal is 90° from a's (+z vs -y): with a 120° threshold they
 	// blend.
@@ -389,7 +392,7 @@ func TestPhongNormalsBlendSharedVertices(t *testing.T) {
 	}
 	// Shared vertex (0,0,0) normal averages (+z, -y).
 	v := faces[0].VNormals[0]
-	if v[2] < 0.5 || v[1] > -0.5 {
+	if v.Z < 0.5 || v.Y > -0.5 {
 		t.Errorf("blended normal = %v, want roughly (0,-0.7,0.7)", v)
 	}
 	// With a tight threshold (0°), no blending.

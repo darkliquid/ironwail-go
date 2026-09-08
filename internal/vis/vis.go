@@ -12,26 +12,33 @@ import (
 	"io"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	"github.com/darkliquid/ironwail-go/internal/qbsp"
 )
 
 // Run computes PVS for the map's leaves and returns a new BSP image with
 // the visibility lump filled. bspData must be a BSP produced by our qbsp
 // (non-solid leaves numbered first; model visleafs = non-solid count).
 func Run(bspData, prtData []byte) ([]byte, error) {
-	version, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(bspData))
+	pf, err := bsp.ParsePortalFile(bytes.NewReader(prtData))
+	if err != nil {
+		return nil, fmt.Errorf("vis: %w", err)
+	}
+	return RunWithPortalFile(bspData, pf)
+}
+
+// RunWithPortalFile computes PVS directly from an in-memory *bsp.PortalFile,
+// avoiding text serialization when running in an integrated compiler pipeline.
+func RunWithPortalFile(bspData []byte, pf *bsp.PortalFile) ([]byte, error) {
+	if pf == nil {
+		return nil, fmt.Errorf("vis: nil portal file")
+	}
+	version, lumps, err := bsp.ReadLumps(bytes.NewReader(bspData))
 	if err != nil {
 		return nil, fmt.Errorf("vis: read bsp: %w", err)
 	}
 	bsp2 := version == bsp.BSP2Version_BSP2 || version == bsp.BSP2Version_2PSB
 
-	pf, err := loadPrtFile(bytes.NewReader(prtData))
-	if err != nil {
-		return nil, err
-	}
-
 	// Leaf parameters from the raw leafs lump.
-	leafLump := lumps[10]
+	leafLump := lumps[bsp.LumpLeafs]
 	leafSize := 28
 	if bsp2 {
 		leafSize = 44
@@ -75,15 +82,15 @@ func Run(bspData, prtData []byte) ([]byte, error) {
 
 	// Patch the world model's visleafs (DModel offset 52) so the engine
 	// sizes PVS rows correctly.
-	if len(lumps[14]) >= 56 {
-		models := append([]byte(nil), lumps[14]...)
+	if len(lumps[bsp.LumpModels]) >= 56 {
+		models := append([]byte(nil), lumps[bsp.LumpModels]...)
 		binary.LittleEndian.PutUint32(models[52:], uint32(visLeafs))
-		lumps[14] = models
+		lumps[bsp.LumpModels] = models
 	}
 
-	lumps[4] = visLump
-	lumps[10] = newLeafs
-	return qbsp.WriteBSP(lumps, version)
+	lumps[bsp.LumpVisibility] = visLump
+	lumps[bsp.LumpLeafs] = newLeafs
+	return bsp.WriteBSP(lumps, version)
 }
 
 // compressRow RLE-compresses one uncompressed PVS row for the engine's

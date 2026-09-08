@@ -1,12 +1,15 @@
 package light
 
 import (
+	"encoding/binary"
 	"math"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // Light is a point light entity.
 type Light struct {
-	Origin [3]float64
+	Origin types.Vec3d
 	Value  float64 // classic "light" key (intensity at unit distance)
 	// Style is the classic Quake light style (0..31): separate lightmaps
 	// per style, animated by matching lightstyle cvars.
@@ -20,9 +23,9 @@ type Light struct {
 // vectors (s/t axes + offsets), the plane normal, and its index.
 type Face struct {
 	Index  int
-	Poly   [][3]float64
+	Poly   []types.Vec3d
 	Vecs   [2][4]float64
-	Normal [3]float64
+	Normal types.Vec3d
 	Sky    bool // sky faces receive no direct light
 	NoDraw bool // skip (no lightmap)
 	// Albedo is the face's mid-gray material brightness (0..1) used by the
@@ -31,7 +34,7 @@ type Face struct {
 	Albedo float64
 	// VNormals holds per-polygon-vertex phong-blended normals (nil = flat
 	// shaded); see BuildPhongNormals.
-	VNormals [][3]float64
+	VNormals []types.Vec3d
 	// Styles is filled by Bake with the face's distinct light styles.
 	Styles [4]byte
 }
@@ -96,21 +99,19 @@ type Result struct {
 // at the sample point, using the per-sample normal n (flat face normal or
 // phong-interpolated), returning the RGB contribution (equally weighted
 // from the light's color, mono when uncolored).
-func directLight(f *Face, n [3]float64, p [3]float64, lights []Light, style int, trace func([3]float64, [3]float64) bool) (float64, float64, float64) {
+func directLight(f *Face, n types.Vec3d, p types.Vec3d, lights []Light, style int, trace func(types.Vec3d, types.Vec3d) bool) (float64, float64, float64) {
 	var r, g, b float64
 	for _, l := range lights {
 		if l.Style != style {
 			continue
 		}
-		dx := l.Origin[0] - p[0]
-		dy := l.Origin[1] - p[1]
-		dz := l.Origin[2] - p[2]
-		dist2 := dx*dx + dy*dy + dz*dz
+		delta := l.Origin.Sub(p)
+		dist2 := delta.Dot(delta)
 		if dist2 < 1e-6 {
 			dist2 = 1e-6
 		}
 		dist := math.Sqrt(dist2)
-		cos := (n[0]*dx + n[1]*dy + n[2]*dz) / dist
+		cos := n.Dot(delta) / dist
 		if cos <= 0 {
 			continue // light behind the face
 		}
@@ -140,14 +141,7 @@ func WriteLit(res *Result) []byte {
 	}
 	out := make([]byte, 8+len(res.Lit))
 	copy(out[0:4], "QLIT")
-	binary_LittleEndianPutUint32(out[4:8], 1)
+	binary.LittleEndian.PutUint32(out[4:8], 1)
 	copy(out[8:], res.Lit)
 	return out
-}
-
-func binary_LittleEndianPutUint32(b []byte, v uint32) {
-	b[0] = byte(v)
-	b[1] = byte(v >> 8)
-	b[2] = byte(v >> 16)
-	b[3] = byte(v >> 24)
 }

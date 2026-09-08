@@ -111,7 +111,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 						seenPortal[key] = true
 						pf.Portals = append(pf.Portals, Portal{
 							Leafs:  [2]int{li, pc.leaf},
-							Points: []Point(windingRemoveColinear(pc.w)),
+							Points: windingRemoveColinear(pc.w),
 						})
 					}
 					adj[li] = append(adj[li], pc.leaf)
@@ -245,16 +245,14 @@ func (c *compiler) leafCentroid(bounds [2]vec3, L *outLeaf) vec3 {
 	count := 0
 	for _, f := range L.region.facets(bounds) {
 		for _, p := range f.w {
-			sum[0] += p[0]
-			sum[1] += p[1]
-			sum[2] += p[2]
+			sum = sum.Add(p)
 			count++
 		}
 	}
 	if count == 0 {
-		return vec3{(L.mins[0] + L.maxs[0]) / 2, (L.mins[1] + L.maxs[1]) / 2, (L.mins[2] + L.maxs[2]) / 2}
+		return L.mins.Add(L.maxs).Scale(0.5)
 	}
-	return vec3{sum[0] / float64(count), sum[1] / float64(count), sum[2] / float64(count)}
+	return sum.Scale(1.0 / float64(count))
 }
 
 // sideBit is 1 when the face normal opposes the table plane's normal.

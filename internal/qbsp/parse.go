@@ -36,13 +36,13 @@ func scanVec3(s string, v *vec3) (int, error) {
 		n++
 	}
 	if n >= 1 {
-		v[0] = vals[0]
+		v.X = vals[0]
 	}
 	if n >= 2 {
-		v[1] = vals[1]
+		v.Y = vals[1]
 	}
 	if n >= 3 {
-		v[2] = vals[2]
+		v.Z = vals[2]
 	}
 	return n, nil
 }

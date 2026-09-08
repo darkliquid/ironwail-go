@@ -33,9 +33,9 @@ func tjuncGroup(faces []outFace, members []int) {
 	cell := 4.0
 	keyOf := func(p vec3) key {
 		return key{
-			int32(math.Floor(p[0] / cell)),
-			int32(math.Floor(p[1] / cell)),
-			int32(math.Floor(p[2] / cell)),
+			int32(math.Floor(p.X / cell)),
+			int32(math.Floor(p.Y / cell)),
+			int32(math.Floor(p.Z / cell)),
 		}
 	}
 	verts := map[key][]vec3{}
@@ -59,22 +59,22 @@ func tjuncGroup(faces []outFace, members []int) {
 			a := poly[k]
 			b := poly[(k+1)%n]
 			// AABB of the edge expanded by the tolerance.
-			mins := vec3{math.Min(a[0], b[0]) - tjEps, math.Min(a[1], b[1]) - tjEps, math.Min(a[2], b[2]) - tjEps}
-			maxs := vec3{math.Max(a[0], b[0]) + tjEps, math.Max(a[1], b[1]) + tjEps, math.Max(a[2], b[2]) + tjEps}
+			mins := vec3{X: math.Min(a.X, b.X) - tjEps, Y: math.Min(a.Y, b.Y) - tjEps, Z: math.Min(a.Z, b.Z) - tjEps}
+			maxs := vec3{X: math.Max(a.X, b.X) + tjEps, Y: math.Max(a.Y, b.Y) + tjEps, Z: math.Max(a.Z, b.Z) + tjEps}
 			k0, k1 := keyOf(mins), keyOf(maxs)
 			cand := map[[3]float32]bool{}
 			for cx := k0.x; cx <= k1.x; cx++ {
 				for cy := k0.y; cy <= k1.y; cy++ {
 					for cz := k0.z; cz <= k1.z; cz++ {
 						for _, v := range verts[key{cx, cy, cz}] {
-							cand[[3]float32{float32(v[0]), float32(v[1]), float32(v[2])}] = true
+							cand[[3]float32{float32(v.X), float32(v.Y), float32(v.Z)}] = true
 						}
 					}
 				}
 			}
 			var ins []vec3
 			for ck := range cand {
-				v := vec3{float64(ck[0]), float64(ck[1]), float64(ck[2])}
+				v := vec3{X: float64(ck[0]), Y: float64(ck[1]), Z: float64(ck[2])}
 				if pointOnSegment(v, a, b) {
 					ins = append(ins, v)
 				}
@@ -160,6 +160,5 @@ func windingDedupe(w winding) winding {
 
 // v3Dist returns the Euclidean distance between two points.
 func v3Dist(a, b vec3) float64 {
-	d := v3Sub(a, b)
-	return math.Sqrt(v3Dot(d, d))
+	return a.Dist(b)
 }

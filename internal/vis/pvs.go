@@ -2,6 +2,8 @@ package vis
 
 import (
 	"math"
+
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // bitCount is the number of PVS leaves (bits per row). Leaves are numbered
@@ -99,18 +101,18 @@ func computePVS(bitCount int, portals []Portal) [][]byte {
 
 // portalPoly is a convex portal polygon for clipping tests.
 type portalPoly struct {
-	pts [][3]float64
+	pts []types.Vec3d
 }
 
 // normal computes the (unnormalised) facet normal of the polygon.
-func (w portalPoly) normal() [3]float64 {
-	n := [3]float64{}
+func (w portalPoly) normal() types.Vec3d {
+	n := types.Vec3d{}
 	for i := range w.pts {
 		a := w.pts[i]
 		b := w.pts[(i+1)%len(w.pts)]
-		n[0] += (a[1] - b[1]) * (a[2] + b[2])
-		n[1] += (a[2] - b[2]) * (a[0] + b[0])
-		n[2] += (a[0] - b[0]) * (a[1] + b[1])
+		n.X += (a.Y - b.Y) * (a.Z + b.Z)
+		n.Y += (a.Z - b.Z) * (a.X + b.X)
+		n.Z += (a.X - b.X) * (a.Y + b.Y)
 	}
 	return n
 }
@@ -119,22 +121,37 @@ func (w portalPoly) normal() [3]float64 {
 // polygon: the target is orthogonally projected onto the window's plane and
 // clipped against the window's 2D footprint (Sutherland-Hodgman). This is
 // the classic portal-to-portal visibility test.
-func windowSees(w portalPoly, target [][3]float64) bool {
+func windowSees(w portalPoly, target []types.Vec3d) bool {
 	if len(w.pts) < 3 || len(target) < 3 {
 		return false
 	}
 	// 2D projection basis: dominant axis of the window normal.
 	n := w.normal()
 	dom := 0
-	if math.Abs(n[1]) > math.Abs(n[dom]) {
+	absX := math.Abs(n.X)
+	absY := math.Abs(n.Y)
+	absZ := math.Abs(n.Z)
+	if absY > absX {
 		dom = 1
 	}
-	if math.Abs(n[2]) > math.Abs(n[dom]) {
+	if dom == 0 && absZ > absX {
+		dom = 2
+	} else if dom == 1 && absZ > absY {
 		dom = 2
 	}
 	u := (dom + 1) % 3
 	v := (dom + 2) % 3
-	to2 := func(p [3]float64) [2]float64 { return [2]float64{p[u], p[v]} }
+	axisVal := func(p types.Vec3d, axis int) float64 {
+		switch axis {
+		case 0:
+			return p.X
+		case 1:
+			return p.Y
+		default:
+			return p.Z
+		}
+	}
+	to2 := func(p types.Vec3d) [2]float64 { return [2]float64{axisVal(p, u), axisVal(p, v)} }
 
 	// Window polygon in 2D, wound counter-clockwise (portal windings from
 	// the arrangement are arbitrary; the clip test requires a consistent

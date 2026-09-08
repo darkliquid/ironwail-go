@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	"github.com/darkliquid/ironwail-go/internal/qbsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // ParseFaces decodes the BSP's face geometry (BSP29 and BSP2) into
@@ -17,18 +17,18 @@ import (
 // texinfo vectors, and plane normal. Sky faces are marked; TEX_SPECIAL
 // faces are skipped.
 func ParseFaces(bspData []byte) ([]Face, error) {
-	version, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(bspData))
+	version, lumps, err := bsp.ReadLumps(bytes.NewReader(bspData))
 	if err != nil {
 		return nil, err
 	}
 	bsp2 := bsp.IsBSP2(version)
-	planes := parsePlanes(lumps[1])
-	vertexes := parseVertexes(lumps[3])
-	texinfos := parseTexinfos(lumps[6])
-	faces := parseFacesLump(lumps[7], bsp2)
-	edges := parseEdges(lumps[12], bsp2)
-	surfedges := parseSurfedges(lumps[13])
-	textures := lumps[2]
+	planes := parsePlanes(lumps[bsp.LumpPlanes])
+	vertexes := parseVertexes(lumps[bsp.LumpVertexes])
+	texinfos := parseTexinfos(lumps[bsp.LumpTexinfo])
+	faces := parseFacesLump(lumps[bsp.LumpFaces], bsp2)
+	edges := parseEdges(lumps[bsp.LumpEdges], bsp2)
+	surfedges := parseSurfedges(lumps[bsp.LumpSurfedges])
+	textures := lumps[bsp.LumpTextures]
 
 	out := make([]Face, 0, len(faces))
 	for fi, f := range faces {
@@ -44,7 +44,7 @@ func ParseFaces(bspData []byte) ([]Face, error) {
 		noDraw := ti.Flags&bsp.TexSpecial != 0
 		albedo := textureBrightness(textures, int(ti.Miptex))
 
-		var poly [][3]float64
+		var poly []types.Vec3d
 		ok := true
 		for e := 0; e < int(f.NumEdges); e++ {
 			se := surfedges[int(f.FirstEdge)+e]
@@ -76,7 +76,7 @@ func ParseFaces(bspData []byte) ([]Face, error) {
 		pl := planes[f.Planenum]
 		normal := pl.Normal
 		if f.Side != 0 {
-			normal = [3]float64{-normal[0], -normal[1], -normal[2]}
+			normal = normal.Neg()
 		}
 
 		out = append(out, Face{
@@ -93,7 +93,7 @@ func ParseFaces(bspData []byte) ([]Face, error) {
 }
 
 type bspPlane struct {
-	Normal [3]float64
+	Normal types.Vec3d
 	Dist   float64
 }
 
@@ -117,10 +117,10 @@ func parsePlanes(lump []byte) []bspPlane {
 	var out []bspPlane
 	for i := 0; i+20 <= len(lump); i += 20 {
 		out = append(out, bspPlane{
-			Normal: [3]float64{
-				float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i:]))),
-				float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i+4:]))),
-				float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i+8:]))),
+			Normal: types.Vec3d{
+				X: float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i:]))),
+				Y: float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i+4:]))),
+				Z: float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i+8:]))),
 			},
 			Dist: float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i+12:]))),
 		})
@@ -128,13 +128,13 @@ func parsePlanes(lump []byte) []bspPlane {
 	return out
 }
 
-func parseVertexes(lump []byte) [][3]float64 {
-	var out [][3]float64
+func parseVertexes(lump []byte) []types.Vec3d {
+	var out []types.Vec3d
 	for i := 0; i+12 <= len(lump); i += 12 {
-		out = append(out, [3]float64{
-			float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i:]))),
-			float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i+4:]))),
-			float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i+8:]))),
+		out = append(out, types.Vec3d{
+			X: float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i:]))),
+			Y: float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i+4:]))),
+			Z: float64(math.Float32frombits(binary.LittleEndian.Uint32(lump[i+8:]))),
 		})
 	}
 	return out
@@ -272,12 +272,12 @@ func textureName(lump []byte, idx int) string {
 
 // ParseLights extracts point light entities from the BSP's entity lump.
 func ParseLights(bspData []byte) ([]Light, error) {
-	_, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(bspData))
+	_, lumps, err := bsp.ReadLumps(bytes.NewReader(bspData))
 	if err != nil {
 		return nil, err
 	}
 	var lights []Light
-	for _, e := range parseEntities(lumps[0]) {
+	for _, e := range parseEntities(lumps[bsp.LumpEntities]) {
 		if e["classname"] != "light" {
 			continue
 		}
@@ -285,8 +285,8 @@ func ParseLights(bspData []byte) ([]Light, error) {
 		if !ok {
 			continue
 		}
-		var o [3]float64
-		if _, err := fmt.Sscanf(origin, "%f %f %f", &o[0], &o[1], &o[2]); err != nil {
+		var o types.Vec3d
+		if _, err := fmt.Sscanf(origin, "%f %f %f", &o.X, &o.Y, &o.Z); err != nil {
 			continue
 		}
 		value := 300.0
@@ -390,11 +390,11 @@ func tokenizeEntities(lump []byte) []string {
 // 28-byte face records, detected from the file version) and the Lighting
 // lump is replaced.
 func PatchBSP(bspData []byte, res Result) ([]byte, error) {
-	version, lumps, err := qbsp.ReadBSPLumps(bytes.NewReader(bspData))
+	version, lumps, err := bsp.ReadLumps(bytes.NewReader(bspData))
 	if err != nil {
 		return nil, err
 	}
-	facesLump := append([]byte(nil), lumps[7]...)
+	facesLump := append([]byte(nil), lumps[bsp.LumpFaces]...)
 	rec, stylesOfs, lightOfs := 20, 12, 16
 	if bsp.IsBSP2(version) {
 		rec, stylesOfs, lightOfs = 28, 20, 24
@@ -416,7 +416,7 @@ func PatchBSP(bspData []byte, res Result) ([]byte, error) {
 		}
 		binary.LittleEndian.PutUint32(facesLump[off:], uint32(ofs))
 	}
-	lumps[7] = facesLump
-	lumps[8] = res.Lighting
-	return qbsp.WriteBSP(lumps, version)
+	lumps[bsp.LumpFaces] = facesLump
+	lumps[bsp.LumpLighting] = res.Lighting
+	return bsp.WriteBSP(lumps, version)
 }

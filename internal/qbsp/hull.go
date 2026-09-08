@@ -18,8 +18,8 @@ type outClipNode struct {
 // against (FirstClipNode=0 in modelbuild.go, with box offsets driving
 // larger entity sizes). Hull 2 is the large box (±32x±32x(-24..64)) used
 // for submodel clip trees (the engine uses HeadNode[1]/[2] for those).
-var hull1Extents = [2]vec3{{16, 16, 24}, {16, 16, 32}}
-var hull2Extents = [2]vec3{{32, 32, 24}, {32, 32, 64}}
+var hull1Extents = [2]vec3{{X: 16, Y: 16, Z: 24}, {X: 16, Y: 16, Z: 32}}
+var hull2Extents = [2]vec3{{X: 32, Y: 32, Z: 24}, {X: 32, Y: 32, Z: 64}}
 
 // expandSolidBrushes builds the clip-hull brush list: every solid world
 // brush with its planes shifted outward by the hull extents projection
@@ -40,12 +40,20 @@ func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3, ext [2]
 			// x/y faces would inflate walls by the player height).
 			n := s.n
 			shift := 0.0
-			for i := 0; i < 3; i++ {
-				if n[i] > 0 {
-					shift += ext[1][i]
-				} else if n[i] < 0 {
-					shift += ext[0][i]
-				}
+			if n.X > 0 {
+				shift += ext[1].X
+			} else if n.X < 0 {
+				shift += ext[0].X
+			}
+			if n.Y > 0 {
+				shift += ext[1].Y
+			} else if n.Y < 0 {
+				shift += ext[0].Y
+			}
+			if n.Z > 0 {
+				shift += ext[1].Z
+			} else if n.Z < 0 {
+				shift += ext[0].Z
 			}
 			p := plane{Normal: n, Dist: snapPlaneDist(s.d + shift)}
 			faces = append(faces, brushFace{p: p, pn: c.addPlaneIndex(p)})

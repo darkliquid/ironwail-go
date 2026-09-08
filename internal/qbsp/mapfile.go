@@ -365,7 +365,7 @@ func (p *mapParser) parseBrush() (MapBrush, error) {
 // hasDuplicatePlane reports whether face duplicates any existing brush face
 // plane (in either orientation), matching ericw's epsilonEqual check.
 func (b *MapBrush) hasDuplicatePlane(face MapFace) bool {
-	flipped := plane{Normal: v3(-face.Normal[0], -face.Normal[1], -face.Normal[2]), Dist: -face.Dist}
+	flipped := plane{Normal: face.Normal.Neg(), Dist: -face.Dist}
 	for _, existing := range b.Faces {
 		if planeEqual(face.Plane(), existing.Plane()) || planeEqual(flipped, existing.Plane()) {
 			return true
@@ -398,7 +398,7 @@ func (p *mapParser) parseBrushFace(first string) (MapFace, bool, error) {
 			if err != nil {
 				return f, false, err
 			}
-			f.Points[i][j] = v
+			setAxis(&f.Points[i], j, v)
 		}
 		tok, err := p.next(parseSameLine)
 		if err != nil || tok != ")" {
@@ -478,7 +478,7 @@ func (p *mapParser) parseValve220() (TexDef, error) {
 			if err != nil {
 				return tex, err
 			}
-			tex.Axis[i][j] = v
+			setAxis(&tex.Axis[i], j, v)
 		}
 		shift, err := parseNumber(p, parseSameLine, "valve offset")
 		if err != nil {
@@ -543,8 +543,8 @@ func (f *MapFace) computeVecs() {
 	if !tex.QuakeEd {
 		// Valve 220: axes are explicit.
 		for i := 0; i < 3; i++ {
-			f.Vecs[0][i] = tex.Axis[0][i] / sf(tex.ScaleX)
-			f.Vecs[1][i] = tex.Axis[1][i] / sf(tex.ScaleY)
+			f.Vecs[0][i] = getAxis(tex.Axis[0], i) / sf(tex.ScaleX)
+			f.Vecs[1][i] = getAxis(tex.Axis[1], i) / sf(tex.ScaleY)
 		}
 		f.Vecs[0][3] = tex.ShiftX
 		f.Vecs[1][3] = tex.ShiftY
@@ -556,31 +556,31 @@ func (f *MapFace) computeVecs() {
 		sinv, cosv := math.Sin(ang), math.Cos(ang)
 
 		sv := 0
-		if vectors[0][0] == 0 && vectors[0][1] == 0 {
+		if vectors[0].X == 0 && vectors[0].Y == 0 {
 			sv = 2
-		} else if vectors[0][0] == 0 {
+		} else if vectors[0].X == 0 {
 			sv = 1
 		}
 		// tv: non-zero component of vectors[1]
 		tv := 2
 		for i := 0; i < 3; i++ {
-			if vectors[1][i] != 0 {
+			if getAxis(vectors[1], i) != 0 {
 				tv = i
 				break
 			}
 		}
 
 		for i := 0; i < 2; i++ {
-			ns := cosv*vectors[i][sv] - sinv*vectors[i][tv]
-			nt := sinv*vectors[i][sv] + cosv*vectors[i][tv]
-			vectors[i][sv] = ns
-			vectors[i][tv] = nt
+			ns := cosv*getAxis(vectors[i], sv) - sinv*getAxis(vectors[i], tv)
+			nt := sinv*getAxis(vectors[i], sv) + cosv*getAxis(vectors[i], tv)
+			setAxis(&vectors[i], sv, ns)
+			setAxis(&vectors[i], tv, nt)
 		}
 
 		scale := [2]float64{sf(tex.ScaleX), sf(tex.ScaleY)}
 		for i := 0; i < 2; i++ {
 			for j := 0; j < 3; j++ {
-				f.Vecs[i][j] = vectors[i][j] / scale[i]
+				f.Vecs[i][j] = getAxis(vectors[i], j) / scale[i]
 			}
 		}
 		f.Vecs[0][3] = tex.ShiftX

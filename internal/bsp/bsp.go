@@ -138,9 +138,11 @@ type (
 	DSLeaf       = bsp.DSLeaf
 	DL1Leaf      = bsp.DL1Leaf
 	DL2Leaf      = bsp.DL2Leaf
-	File         = bsp.File
-	Reader       = bsp.Reader
-	Entity       = bsp.Entity
+	File             = bsp.File
+	Reader           = bsp.Reader
+	Entity           = bsp.Entity
+	Portal           = bsp.Portal
+	PortalFile       = bsp.PortalFile
 )
 
 var (
@@ -154,4 +156,5 @@ var (
 	PatchLump        = bsp.PatchLump
 	ParseEntities    = bsp.ParseEntities
 	ParseFirstEntity = bsp.ParseFirstEntity
+	ParsePortalFile  = bsp.ParsePortalFile
 )

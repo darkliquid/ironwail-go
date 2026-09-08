@@ -95,13 +95,23 @@ func (c *compiler) collectBrushesInto(brushList []MapBrush, g *brushGroup) ([]br
 		if len(g.brushes) == 0 {
 			g.bounds = wb.bounds
 		} else {
-			for i := 0; i < 3; i++ {
-				if wm[i] < g.bounds[0][i] {
-					g.bounds[0][i] = wm[i]
-				}
-				if wx[i] > g.bounds[1][i] {
-					g.bounds[1][i] = wx[i]
-				}
+			if wm.X < g.bounds[0].X {
+				g.bounds[0].X = wm.X
+			}
+			if wx.X > g.bounds[1].X {
+				g.bounds[1].X = wx.X
+			}
+			if wm.Y < g.bounds[0].Y {
+				g.bounds[0].Y = wm.Y
+			}
+			if wx.Y > g.bounds[1].Y {
+				g.bounds[1].Y = wx.Y
+			}
+			if wm.Z < g.bounds[0].Z {
+				g.bounds[0].Z = wm.Z
+			}
+			if wx.Z > g.bounds[1].Z {
+				g.bounds[1].Z = wx.Z
 			}
 		}
 		g.brushes = append(g.brushes, wb)
@@ -140,7 +150,7 @@ func (wb *worldBrush) OutwardPlanes() []plane {
 // bounds (degenerate groups fall back to a unit box).
 func worldBoundsOf(g *brushGroup) [2]vec3 {
 	if len(g.brushes) == 0 {
-		return [2]vec3{{-1, -1, -1}, {1, 1, 1}}
+		return [2]vec3{{X: -1, Y: -1, Z: -1}, {X: 1, Y: 1, Z: 1}}
 	}
 	return g.bounds
 }

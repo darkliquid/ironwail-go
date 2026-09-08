@@ -166,7 +166,7 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 			dmy := outNode{
 				planenum: 0,
 				splitN:   v3(1, 0, 0),
-				splitD:   bounds[1][0],
+				splitD:   bounds[1].X,
 				bounds:   bounds,
 				parent:   -1,
 				side:     -1,
@@ -206,10 +206,12 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		}
 		if !world {
 			// Q1 shrunken submodel bounds (the engine compensates).
-			for i := 0; i < 3; i++ {
-				mo.mins[i] += 1
-				mo.maxs[i] -= 1
-			}
+			mo.mins.X += 1
+			mo.mins.Y += 1
+			mo.mins.Z += 1
+			mo.maxs.X -= 1
+			mo.maxs.Y -= 1
+			mo.maxs.Z -= 1
 		}
 		models = append(models, mo)
 		allFaces = append(allFaces, faces...)
@@ -324,13 +326,23 @@ func brushBounds(brush MapBrush) (vec3, vec3, error) {
 	}
 	mins, maxs := verts[0], verts[0]
 	for _, v := range verts[1:] {
-		for i := 0; i < 3; i++ {
-			if v[i] < mins[i] {
-				mins[i] = v[i]
-			}
-			if v[i] > maxs[i] {
-				maxs[i] = v[i]
-			}
+		if v.X < mins.X {
+			mins.X = v.X
+		}
+		if v.X > maxs.X {
+			maxs.X = v.X
+		}
+		if v.Y < mins.Y {
+			mins.Y = v.Y
+		}
+		if v.Y > maxs.Y {
+			maxs.Y = v.Y
+		}
+		if v.Z < mins.Z {
+			mins.Z = v.Z
+		}
+		if v.Z > maxs.Z {
+			maxs.Z = v.Z
 		}
 	}
 	return mins, maxs, nil
@@ -356,7 +368,7 @@ func brushVerts(brush MapBrush) []vec3 {
 				}
 				dup := false
 				for _, e := range out {
-					if math.Abs(e[0]-v[0]) < 0.01 && math.Abs(e[1]-v[1]) < 0.01 && math.Abs(e[2]-v[2]) < 0.01 {
+					if math.Abs(e.X-v.X) < 0.01 && math.Abs(e.Y-v.Y) < 0.01 && math.Abs(e.Z-v.Z) < 0.01 {
 						dup = true
 						break
 					}
@@ -373,9 +385,9 @@ func brushVerts(brush MapBrush) []vec3 {
 // planeTriplePoint solves the 3x3 system n_i . x = d_i for three planes.
 func planeTriplePoint(a, b, c plane) (vec3, bool) {
 	m := [3][3]float64{
-		{a.Normal[0], a.Normal[1], a.Normal[2]},
-		{b.Normal[0], b.Normal[1], b.Normal[2]},
-		{c.Normal[0], c.Normal[1], c.Normal[2]},
+		{a.Normal.X, a.Normal.Y, a.Normal.Z},
+		{b.Normal.X, b.Normal.Y, b.Normal.Z},
+		{c.Normal.X, c.Normal.Y, c.Normal.Z},
 	}
 	det := m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1]) -
 		m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0]) +
@@ -395,12 +407,12 @@ func planeTriplePoint(a, b, c plane) (vec3, bool) {
 			t[0][1]*(t[1][0]*t[2][2]-t[1][2]*t[2][0]) +
 			t[0][2]*(t[1][0]*t[2][1]-t[1][1]*t[2][0])) / det
 	}
-	return vec3{solve(0), solve(1), solve(2)}, true
+	return vec3{X: solve(0), Y: solve(1), Z: solve(2)}, true
 }
 
 func inBrush(p vec3, planes []plane) bool {
 	for _, pl := range planes {
-		if v3Dot(pl.Normal, p)-pl.Dist > 0.01 {
+		if pl.Normal.Dot(p)-pl.Dist > 0.01 {
 			return false
 		}
 	}
