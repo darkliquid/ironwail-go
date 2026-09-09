@@ -41,11 +41,6 @@ func LabelCells(tree *bsp.Tree, orig *mapfile.Map, opts Options) ([]CellLabel, [
 	originalBrushes := originalWorldBrushes(orig)
 	origPlanes := brushPlaneSets(originalBrushes)
 
-	// Seams are the loci of hidden original-brush boundaries on merged
-	// coplanar faces, which only exist before the texture-boundary split
-	// breaks the face apart.
-	seams := SeamEdges(d, cells, origPlanes)
-
 	var split []*Brush
 	for _, b := range cells {
 		split = append(split, d.splitDifferentTextures(b)...)
@@ -55,6 +50,11 @@ func LabelCells(tree *bsp.Tree, orig *mapfile.Map, opts Options) ([]CellLabel, [
 		cells = mergeConvex(cells)
 	}
 	canonicalizeBrush(cells)
+
+	// Seams are the loci of hidden original-brush boundaries on merged
+	// coplanar faces, derived from original-brush plane truth; they are
+	// computed on the final cells so SideBrush indices match CellLabel.Cell.
+	seams := SeamTruth(d, cells, origPlanes)
 
 	labels := make([]CellLabel, len(cells))
 	for ci, c := range cells {
@@ -115,38 +115,44 @@ func nearestBrush(p mapfile.Vec3, planeSets [][]mapfile.Plane, maxD float64) int
 	return best
 }
 
-// SeamEdges finds the loci where hidden original-brush boundaries cross a
-// merged coplanar face: on each side, every pair of matched faces with
-// different texinfo abuts along a boundary segment (the merged-face seam).
-// The shared edge line of one face clipped inside the other is the seam.
-// M2 Route A consumes these as classification targets.
-func SeamEdges(d *decompiler, cells []*Brush, planeSets [][]mapfile.Plane) []SeamLabel {
-	faces := d.collectFaces()
-	_ = planeSets // reserved: M2 re-scores by original-brush membership
+// SeamTruth derives Route A supervision from the original brush planes
+// (spec 9.4 step 2): on each pre-split cell side, an edge of one coplanar
+// original brush face lying inside another's face is a hidden brush seam —
+// the locus where a merged coplanar face hides an original brush join. The
+// earlier texture-transient proxy found nothing because the CSG erases
+// coincident coplanar faces (every corpus labels.json carries seams:null
+// today). M2 Route A consumes these as classification targets.
+func SeamTruth(d *decompiler, cells []*Brush, planeSets [][]mapfile.Plane) []SeamLabel {
 	var seams []SeamLabel
 	for ci, c := range cells {
 		for _, s := range c.Sides {
-			var matches []texturedFace
-			for _, f := range faces {
-				if !planesMatch(s.Plane, f.plane) {
+			if s.Winding == nil || len(s.Winding.Points) < 3 {
+				continue
+			}
+			// original brush faces coplanar with this side, clipped to the
+			// cell: they partition (or overlap on) the merged face
+			var polys []*Winding
+			for _, ps := range planeSets {
+				if !planeSetHas(ps, s.Plane) {
 					continue
 				}
-				w := clipToBrush(f.winding, c, s.Plane)
+				w := clipToBrush(faceOf(ps, s.Plane), c, s.Plane)
 				if w == nil || len(w.Points) < 3 {
 					continue
 				}
-				matches = append(matches, texturedFace{plane: f.plane, winding: w, texName: f.texName})
+				polys = append(polys, w)
 			}
-			for i := range matches {
-				for j := i + 1; j < len(matches); j++ {
-					if matches[i].texName == matches[j].texName {
-						continue
-					}
-					a, b := matches[i].winding, matches[j].winding
-					for e := range a.Points {
-						p0 := a.Points[e]
-						p1 := a.Points[(e+1)%len(a.Points)]
-						if seg := segInside(p0, p1, b, s.Plane); seg != nil {
+			if len(polys) < 2 {
+				continue // single-face side: nothing hidden
+			}
+			// an edge of one original face lying inside another's is the
+			// shared join the merged face hides
+			for i := 0; i < len(polys); i++ {
+				for j := i + 1; j < len(polys); j++ {
+					for e := range polys[i].Points {
+						p0 := polys[i].Points[e]
+						p1 := polys[i].Points[(e+1)%len(polys[i].Points)]
+						if seg := segInside(p0, p1, polys[j], s.Plane); seg != nil {
 							seams = append(seams, SeamLabel{SideBrush: ci, Edge: *seg, Seam: true})
 						}
 					}
@@ -155,6 +161,33 @@ func SeamEdges(d *decompiler, cells []*Brush, planeSets [][]mapfile.Plane) []Sea
 		}
 	}
 	return seams
+}
+
+// planeSetHas reports whether the original brush's planes include p (same
+// direction, matching the decompiled side's outward orientation).
+func planeSetHas(ps []mapfile.Plane, p mapfile.Plane) bool {
+	for _, q := range ps {
+		if planesMatch(q, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// faceOf returns an original brush's face polygon on plane p: the base
+// winding clipped by the brush's other halfspaces.
+func faceOf(ps []mapfile.Plane, p mapfile.Plane) *Winding {
+	w := BaseWinding(p)
+	for _, o := range ps {
+		if planesMatch(o, p) || planesOpposite(o, p) {
+			continue
+		}
+		w = w.Clip(negatePlane(o))
+		if w == nil {
+			return nil
+		}
+	}
+	return w
 }
 
 // segInside clips segment p0-p1 to the inside of convex winding w (lying on

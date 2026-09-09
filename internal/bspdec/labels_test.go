@@ -63,14 +63,14 @@ func TestLabelCellsRoomAssignment(t *testing.T) {
 }
 
 func TestLabelCellsSeamAtSlabBoundary(t *testing.T) {
-	tree := twoTextureTopTree()
+	tree, _ := compileFixture(t, twoSlabWorldMap())
 	orig := mustParseMapString(t, twoSlabWorldMap())
-	// seams live on the merged coplanar face, i.e. the pre-split brush: the
-	// top side (z=64) carries faces of both slabs meeting at x=32
+	// seams live on the merged coplanar face: the top side (z=64) carries
+	// the original faces of both slabs meeting at x=32
 	d := newDecompiler(tree, Options{MergeConvex: true, GridSnap: 8, TextureFallback: "nearest"})
 	b := boxBrush(vc(0, 0, 0), vc(64, 64, 64))
-	d.textureBrush(b)
-	seams := SeamEdges(d, []*Brush{b}, brushPlaneSets(originalWorldBrushes(orig)))
+	rebuildWindings(b)
+	seams := SeamTruth(d, []*Brush{b}, brushPlaneSets(originalWorldBrushes(orig)))
 	found := false
 	for _, s := range seams {
 		if !s.Seam {
@@ -82,6 +82,86 @@ func TestLabelCellsSeamAtSlabBoundary(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("no seam edge on x=32; got %d seam labels", len(seams))
+	}
+}
+
+func TestSeamTruthSingleSlabNoSeam(t *testing.T) {
+	src := "{\n\"classname\" \"worldspawn\"\n" +
+		slabBox(0, 0, 0, 64, 64, 64, "brick") +
+		"}\n"
+	tree, _ := compileFixture(t, src)
+	orig := mustParseMapString(t, src)
+	d := newDecompiler(tree, Options{MergeConvex: true, GridSnap: 8, TextureFallback: "nearest"})
+	b := boxBrush(vc(0, 0, 0), vc(64, 64, 64))
+	rebuildWindings(b)
+	seams := SeamTruth(d, []*Brush{b}, brushPlaneSets(originalWorldBrushes(orig)))
+	if len(seams) != 0 {
+		t.Fatalf("single slab produced %d seams, want 0", len(seams))
+	}
+}
+
+func TestSeamTruthThreeSlabRowJunctions(t *testing.T) {
+	src := "{\n\"classname\" \"worldspawn\"\n" +
+		slabBox(0, 0, 0, 32, 64, 64, "brick") +
+		slabBox(32, 0, 0, 64, 64, 64, "brick") +
+		slabBox(64, 0, 0, 96, 64, 64, "brick") +
+		"}\n"
+	tree, _ := compileFixture(t, src)
+	orig := mustParseMapString(t, src)
+	d := newDecompiler(tree, Options{MergeConvex: true, GridSnap: 8, TextureFallback: "nearest"})
+	b := boxBrush(vc(0, 0, 0), vc(96, 64, 64))
+	rebuildWindings(b)
+	seams := SeamTruth(d, []*Brush{b}, brushPlaneSets(originalWorldBrushes(orig)))
+	for _, want := range []float64{32, 64} {
+		found := false
+		for _, s := range seams {
+			if nearX(s.Edge[0], want) && nearX(s.Edge[1], want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("no seam on x=%v; seams: %+v", want, seams)
+		}
+	}
+}
+
+func TestLabelCellsSeamsNonEmptyOnSeamRichWorld(t *testing.T) {
+	// A sealed room whose floor is two coplanar-adjacent slabs (hidden
+	// brush join at x=32 on the floor top) with an 8x8 trim box sitting on
+	// it (its outline is another hidden join on the z=8 plane). Through the
+	// full LabelCells pipeline, original-brush truth must produce seams.
+	src := "{\n\"classname\" \"worldspawn\"\n" +
+		slabBox(0, 0, 0, 32, 64, 8, "mt_floor") + // floor A
+		slabBox(32, 0, 0, 64, 64, 8, "mt_floor") + // floor B (coplanar top z=8)
+		slabBox(8, 8, 8, 16, 16, 16, "mt_rock") + // trim on the floor top
+		slabBox(0, 0, 8, 64, 8, 64, "mt_wall") + // north wall
+		slabBox(0, 56, 8, 64, 64, 64, "mt_wall") + // south wall
+		slabBox(0, 0, 8, 8, 64, 64, "mt_wall") + // west wall
+		slabBox(56, 0, 8, 64, 64, 64, "mt_wall") + // east wall
+		slabBox(0, 0, 56, 64, 64, 64, "mt_floor") + // ceiling
+		"}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"32 32 32\"\n}\n"
+	tree, _ := compileFixture(t, src)
+	orig := mustParseMapString(t, src)
+	_, seams, err := LabelCells(tree, orig, Options{MergeConvex: true, GridSnap: 8, TextureFallback: "nearest"})
+	if err != nil {
+		t.Fatalf("LabelCells: %v", err)
+	}
+	if len(seams) == 0 {
+		t.Fatal("no seams derived from seam-rich world")
+	}
+	for i, s := range seams {
+		if !s.Seam {
+			t.Fatalf("edge %d unlabeled", i)
+		}
+	}
+	foundJunction := false
+	for _, s := range seams {
+		if nearX(s.Edge[0], 32) && nearX(s.Edge[1], 32) {
+			foundJunction = true
+		}
+	}
+	if !foundJunction {
+		t.Fatalf("missing seam at the floor-slab junction x=32: %d seams", len(seams))
 	}
 }
 
