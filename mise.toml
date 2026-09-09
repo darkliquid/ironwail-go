@@ -266,8 +266,8 @@ description = "Provision the bspdec corpus (enumerate, canonicalize, labels, spl
 run = "go run ./tools/bspdec_corpus enumerate && go run ./tools/bspdec_corpus canonicalize && go run ./tools/bspdec_corpus labels && go run ./tools/bspdec_corpus splits"
 
 [tasks.bspdec-train]
-description = "Train bspdec ML routes (stub until M2)"
-run = "echo 'bspdec-train: not implemented yet'"
+description = "Train bspdec ML routes (M2 pipeline)"
+run = "go run ./tools/bspdec_train -data dataset/bspdec"
 
 [tasks.bspdec-eval]
 description = "Run bspdec eval tiers 1+2 over the corpus"
