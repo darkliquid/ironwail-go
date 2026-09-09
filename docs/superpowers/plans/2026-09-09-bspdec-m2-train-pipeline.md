@@ -80,12 +80,13 @@ Steps:
 
 ### Task 2: `tools/bspdec_train` skeleton + cache keys
 
-- [ ] CLI flags `-data`, `-route a|all`, `-seed`, `-out` (default `models/bspdec`).
-- [ ] Corpus scan: read `raw/manifest.jsonl` + `labeled/*/*.labels.json` +
-      `splits.json`; package-level train/val/test like `stageSplits`.
-- [ ] Dataset SHA (sha256 of sorted labeled record bytes) + config hash
+- [x] CLI flags `-data`, `-route a|all`, `-seed`, `-out` (default `models/bspdec`).
+- [x] Corpus scan: read `raw/manifest.jsonl` + `labeled/*/*.labels.json` +
+      `splits.json`; package-level train/val/test like `stageSplits` (52 maps,
+      42/2/8, 46,586 seam samples on the real corpus).
+- [x] Dataset SHA (sha256 of sorted labeled record bytes) + config hash
       (seed, route, feature schema version) — the cache keys for every step.
-- [ ] Unit test: corpus scan + split consistency; cache keys stable.
+- [x] Unit test: corpus scan + split consistency; cache keys stable.
 
 ### Task 3: Route A feature extraction
 
