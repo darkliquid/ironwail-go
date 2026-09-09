@@ -70,6 +70,16 @@ func Decompile(data []byte, opts Options) (*mapfile.Map, []ModelStats, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	// M1 BRUSHLIST shortcut (spec section 5 step 9): when the appended
+	// BRUSHLIST lump is present and not explicitly disabled, emit the
+	// original brushes directly instead of the leaf-derived treewalk. The
+	// treewalk stays the fallback for lumps that are absent or unparsable,
+	// and hull decompile keeps its dedicated path.
+	if !opts.NoBrushlist && opts.DecompileHull == 0 {
+		if ls, err := BrushListFromBSP(data); err == nil && len(ls) > 0 {
+			return decompileFromBrushList(ents, tree, ls, opts)
+		}
+	}
 	perModel := make([][]*Brush, len(tree.Models))
 	stats := make([]ModelStats, 0, len(tree.Models))
 	if opts.DecompileHull > 0 {

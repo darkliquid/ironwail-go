@@ -22,7 +22,7 @@ type Brush struct {
 
 // Options controls a Decompile run. ML flags are CLI-rejected in M0.
 type Options struct {
-	NoBrushlist     bool   // reserved for M1; M0 has no BRUSHLIST path
+	NoBrushlist     bool   // ignore an appended BRUSHLIST lump; the treewalk fallback runs instead
 	DecompileHull   int    // 0 = render hull; 1-3 = collision hull (replaces hull 0 output)
 	MergeConvex     bool   // merge same-contents coplanar-adjacent convex cells
 	GridSnap        int    // quantize emitted plane points to this lattice (0 = off)
