@@ -1,6 +1,7 @@
 package bspdec
 
 import (
+	"math"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
@@ -32,6 +33,28 @@ func TestMergeConvexJoinsAdjacentBoxes(t *testing.T) {
 			t.Fatal("merged brush has nil winding")
 		}
 	}
+	// the union must span both input bounds: a buggy merge that drops one
+	// side of the shared pair clips the union to a sliver along the junction
+	mn, mx := brushBounds(out[0])
+	if mn.X != 0 || mx.X != 64 || mn.Y != 0 || mx.Y != 64 || mn.Z != 0 || mx.Z != 64 {
+		t.Fatalf("merged bounds = (%v)-(%v), want (0,0,0)-(64,64,64)", mn, mx)
+	}
+}
+
+// brushBounds returns the winding-point bounds of a brush.
+func brushBounds(b *Brush) (mapfile.Vec3, mapfile.Vec3) {
+	mn := mapfile.Vec3{X: math.Inf(1), Y: math.Inf(1), Z: math.Inf(1)}
+	mx := mapfile.Vec3{X: math.Inf(-1), Y: math.Inf(-1), Z: math.Inf(-1)}
+	for _, s := range b.Sides {
+		if s.Winding == nil {
+			continue
+		}
+		for _, p := range s.Winding.Points {
+			mn = mapfile.Vec3{X: math.Min(mn.X, p.X), Y: math.Min(mn.Y, p.Y), Z: math.Min(mn.Z, p.Z)}
+			mx = mapfile.Vec3{X: math.Max(mx.X, p.X), Y: math.Max(mx.Y, p.Y), Z: math.Max(mx.Z, p.Z)}
+		}
+	}
+	return mn, mx
 }
 
 func TestMergeConvexRejectsDifferentContents(t *testing.T) {

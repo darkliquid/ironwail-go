@@ -1,5 +1,7 @@
 package bspdec
 
+import mapfile "github.com/darkliquid/ironwail-go/pkg/map"
+
 // mergeConvex greedily merges same-contents brush pairs whose union is
 // convex, until no more pairs merge. O(n^2) per pass is fine for M0 map
 // sizes; revisit only if corpus timings say so.
@@ -55,15 +57,32 @@ func tryMerge(a, b *Brush) *Brush {
 	if shared != 1 {
 		return nil
 	}
+	// The shared opposite-coplanar pair's windings must coincide: a brush
+	// sitting on a sliver of a larger coplanar face (a trim on a floor)
+	// would otherwise merge into a polyhedron with overlapping faces that
+	// recompiles with a hole (leak). Mutual containment is required.
+	var sa, sb *Side
+	for _, x := range a.Sides {
+		for _, y := range b.Sides {
+			if planesOpposite(x.Plane, y.Plane) {
+				sa, sb = x, y
+			}
+		}
+	}
+	if !facesCoincide(a, b, sa, sb) {
+		return nil
+	}
 	if brushCuts(a, b) || brushCuts(b, a) {
 		return nil
 	}
 	cand := &Brush{Contents: a.Contents}
+	var sharedPlane mapfile.Plane // the interior face removed by the union
 	for _, s := range a.Sides {
 		sharedSide := false
 		for _, sb := range b.Sides {
 			if planesOpposite(s.Plane, sb.Plane) {
 				sharedSide = true
+				sharedPlane = s.Plane
 				break
 			}
 		}
@@ -72,6 +91,12 @@ func tryMerge(a, b *Brush) *Brush {
 		}
 	}
 	for _, s := range b.Sides {
+		// the shared pair's complement is the same interior face (a's half
+		// was skipped above); leaving it in would add a redundant plane
+		// that clips the union to a sliver along the junction.
+		if planesMatch(s.Plane, sharedPlane) || planesOpposite(s.Plane, sharedPlane) {
+			continue
+		}
 		dupe := false
 		for _, o := range cand.Sides {
 			if planesMatch(s.Plane, o.Plane) || planesOpposite(s.Plane, o.Plane) {
@@ -147,4 +172,31 @@ func isSharedPlane(sa *Side, b *Brush) bool {
 		}
 	}
 	return false
+}
+
+// facesCoincide reports whether the shared opposite-coplanar face pair of a
+// and b covers each other: each side's winding lies entirely inside the
+// other brush's halfspaces. Coplanar contact without coverage (e.g. a small
+// trim sitting on a large floor slab) yields an overlapping-face union that
+// recompiles with a hole, so it must not merge.
+func facesCoincide(a, b *Brush, sharedA, sharedB *Side) bool {
+	return windingContained(sharedA, b, sharedB.Plane) && windingContained(sharedB, a, sharedA.Plane)
+}
+
+func windingContained(s *Side, other *Brush, skip mapfile.Plane) bool {
+	w := s.Winding
+	if w == nil || len(w.Points) < 3 {
+		return false
+	}
+	for _, o := range other.Sides {
+		if planesMatch(o.Plane, skip) || planesOpposite(o.Plane, skip) {
+			continue
+		}
+		for _, p := range w.Points {
+			if v3Dot(p, o.Plane.Normal)-o.Plane.Dist > onEpsilon {
+				return false
+			}
+		}
+	}
+	return true
 }
