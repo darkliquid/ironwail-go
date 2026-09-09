@@ -115,9 +115,9 @@ func TestNearestBrushFallback(t *testing.T) {
 	// outside the first (float-drift case) must snap to it, not the far one.
 	box := func(x0 float64) []mapfile.Plane {
 		return []mapfile.Plane{
-			{Normal: vc(1, 0, 0), Dist: x0 + 1},  {Normal: vc(-1, 0, 0), Dist: -x0},
-			{Normal: vc(0, 1, 0), Dist: 1},      {Normal: vc(0, -1, 0), Dist: 0},
-			{Normal: vc(0, 0, 1), Dist: 1},      {Normal: vc(0, 0, -1), Dist: 0},
+			{Normal: vc(1, 0, 0), Dist: x0 + 1}, {Normal: vc(-1, 0, 0), Dist: -x0},
+			{Normal: vc(0, 1, 0), Dist: 1}, {Normal: vc(0, -1, 0), Dist: 0},
+			{Normal: vc(0, 0, 1), Dist: 1}, {Normal: vc(0, 0, -1), Dist: 0},
 		}
 	}
 	// unit box at the origin and a second shifted +16 x

@@ -14,15 +14,15 @@ import (
 
 // Mapper-convention lattice and slab sizes (all multiples of grid).
 const (
-	grid        = 8   // master lattice
-	blockoutMin = 64  // room walls/floors
-	blockoutMax = 32  // thick blockout slabs
-	detailK     = 16  // detail walls (pillars)
-	detailS     = 8   // thin detail
-	trimK       = 8   // baseboard thickness
-	trimS       = 8   // baseboard height (4 would leave the 8-unit lattice)
-	stairTread  = 16  // stair tread depth
-	stairRise   = 16  // stair rise per step
+	grid        = 8  // master lattice
+	blockoutMin = 64 // room walls/floors
+	blockoutMax = 32 // thick blockout slabs
+	detailK     = 16 // detail walls (pillars)
+	detailS     = 8  // thin detail
+	trimK       = 8  // baseboard thickness
+	trimS       = 8  // baseboard height (4 would leave the 8-unit lattice)
+	stairTread  = 16 // stair tread depth
+	stairRise   = 16 // stair rise per step
 )
 
 // Generator produces the n-th map of a seed's deterministic sequence. All
@@ -168,10 +168,10 @@ func vc(x, y, z float64) mapfile.Vec3 { return mapfile.Vec3{X: x, Y: y, Z: z} }
 func (g *Generator) shellFor(rm room, openWest, openEast bool) []mapfile.MapBrush {
 	t := rm.wallT
 	brushes := []mapfile.MapBrush{
-		g.room(rm.x0-t, rm.y0-t, rm.z0-t, rm.x1+t, rm.y1+t, rm.z0, "mt_floor"),           // floor
-		g.room(rm.x0-t, rm.y0-t, rm.z1, rm.x1+t, rm.y1+t, rm.z1+t, "mt_floor"),           // ceiling
-		g.room(rm.x0, rm.y0-t, rm.z0-t, rm.x1, rm.y0, rm.z1+t, "mt_rock"),                // north
-		g.room(rm.x0, rm.y1, rm.z0-t, rm.x1, rm.y1+t, rm.z1+t, "mt_rock"),                // south
+		g.room(rm.x0-t, rm.y0-t, rm.z0-t, rm.x1+t, rm.y1+t, rm.z0, "mt_floor"), // floor
+		g.room(rm.x0-t, rm.y0-t, rm.z1, rm.x1+t, rm.y1+t, rm.z1+t, "mt_floor"), // ceiling
+		g.room(rm.x0, rm.y0-t, rm.z0-t, rm.x1, rm.y0, rm.z1+t, "mt_rock"),      // north
+		g.room(rm.x0, rm.y1, rm.z0-t, rm.x1, rm.y1+t, rm.z1+t, "mt_rock"),      // south
 	}
 	if !openWest {
 		brushes = append(brushes, g.room(rm.x0-t, rm.y0-t, rm.z0-t, rm.x0, rm.y1+t, rm.z1+t, "mt_rock"))
@@ -197,9 +197,9 @@ func (g *Generator) connectRooms(a, b room) []mapfile.MapBrush {
 
 	// door-framed east wall of a
 	east := []mapfile.MapBrush{
-		g.room(a.x1, a.y0, a.z0-a.wallT, a.x1+a.wallT, a.y1, a.z0, "mt_rock"),                      // lower beam
-		g.room(a.x1, a.y0, z1c, a.x1+a.wallT, a.y1, a.z1+a.wallT, "mt_rock"),                       // upper beam
-		g.room(a.x1, doorY1, a.z0, a.x1+a.wallT, a.y1, z1c, "mt_rock"),                             // side stub
+		g.room(a.x1, a.y0, a.z0-a.wallT, a.x1+a.wallT, a.y1, a.z0, "mt_rock"), // lower beam
+		g.room(a.x1, a.y0, z1c, a.x1+a.wallT, a.y1, a.z1+a.wallT, "mt_rock"),  // upper beam
+		g.room(a.x1, doorY1, a.z0, a.x1+a.wallT, a.y1, z1c, "mt_rock"),        // side stub
 	}
 	// door-framed west wall of b
 	west := []mapfile.MapBrush{
@@ -210,10 +210,10 @@ func (g *Generator) connectRooms(a, b room) []mapfile.MapBrush {
 
 	// corridor tube between the two inner wall faces
 	tube := []mapfile.MapBrush{
-		g.room(a.x1, a.y0, a.z0-wt, b.x0, a.y0+dmin, a.z0, "mt_floor"),                     // floor
-		g.room(a.x1, a.y0, z1c, b.x0, a.y0+dmin, z1c+wt, "mt_floor"),                       // ceiling
-		g.room(a.x1, a.y0, a.z0-wt, b.x0, a.y0+wt, z1c+wt, "mt_rock"),                      // south side
-		g.room(a.x1, a.y0+dmin-wt, a.z0-wt, b.x0, a.y0+dmin, z1c+wt, "mt_rock"),            // north side
+		g.room(a.x1, a.y0, a.z0-wt, b.x0, a.y0+dmin, a.z0, "mt_floor"),          // floor
+		g.room(a.x1, a.y0, z1c, b.x0, a.y0+dmin, z1c+wt, "mt_floor"),            // ceiling
+		g.room(a.x1, a.y0, a.z0-wt, b.x0, a.y0+wt, z1c+wt, "mt_rock"),           // south side
+		g.room(a.x1, a.y0+dmin-wt, a.z0-wt, b.x0, a.y0+dmin, z1c+wt, "mt_rock"), // north side
 	}
 	out := make([]mapfile.MapBrush, 0, len(east)+len(west)+len(tube))
 	out = append(out, east...)
@@ -257,8 +257,8 @@ func (g *Generator) placeDetails(rm room) []mapfile.MapBrush {
 		return g.room(rm.x0+px, rm.y0+py, rm.z0, rm.x0+px+detailK, rm.y0+py+detailK, rm.z1, "mt_rock")
 	}
 	return []mapfile.MapBrush{
-		p(w/2-8, 16),       // mid-west pillar
-		p(16, d/2-8),       // mid-north pillar
+		p(w/2-8, 16), // mid-west pillar
+		p(16, d/2-8), // mid-north pillar
 	}
 }
 

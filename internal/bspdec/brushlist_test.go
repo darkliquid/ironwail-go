@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	mapfile "github.com/darkliquid/ironwail-go/pkg/map"
 	"github.com/darkliquid/ironwail-go/internal/qbsp"
+	mapfile "github.com/darkliquid/ironwail-go/pkg/map"
 )
 
 // prettyRoomSrc is the 6-slab sealed-room fixture (the prettyRoom layout from
