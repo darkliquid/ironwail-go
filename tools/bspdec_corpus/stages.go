@@ -15,6 +15,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bspdec"
 	"github.com/darkliquid/ironwail-go/internal/bspdec/eval"
 	mapfile "github.com/darkliquid/ironwail-go/pkg/map"
+	synth "github.com/darkliquid/ironwail-go/tools/bspdec_synth"
 )
 
 // cloneQuakeMapSource fetches the reference map-source repo when missing.
@@ -303,6 +304,73 @@ func stageEval(ctx *stageCtx) error {
 		return err
 	}
 	ctx.provenance("eval", len(results), "pairs")
+	return nil
+}
+
+// synthCompile compiles a generated map in-process. Real-world maps use the
+// subprocess-isolated ctx.compile (qbsp panics on some), but synthesized
+// maps are sealed by construction, so in-process compile is safe and keeps
+// the stage hermetic for tests.
+func synthCompile(mapPath, outDir string) (evalPair, error) {
+	p, err := eval.CompileMapPair(mapPath, outDir)
+	return evalPair{MapPath: p.MapPath, BSPPath: p.BSPPath}, err
+}
+
+// stageSynth generates the deterministic synthetic slice: room-grammar maps
+// compiled by the pinned qbsp (BRUSHLIST oracle), each with full-coverage
+// cell/seam labels (spec section 9.6 P6 + 9.4).
+func stageSynth(ctx *stageCtx) error {
+	const seed = 0x5EED
+	seedDir := filepath.Join(ctx.synthDir, fmt.Sprintf("%d", seed))
+	if err := os.MkdirAll(seedDir, 0o755); err != nil {
+		return err
+	}
+	g := synth.NewGenerator(seed, ctx.count)
+	var entries []eval.ManifestEntry
+	labeled := 0
+	for n := 0; n < ctx.count; n++ {
+		mapID := fmt.Sprintf("synth-%d-%d", seed, n)
+		m := g.GenMap(n)
+		var buf bytes.Buffer
+		if err := g.Emit(m, &buf); err != nil {
+			return err
+		}
+		mapPath := filepath.Join(seedDir, mapID+".map")
+		if err := os.WriteFile(mapPath, buf.Bytes(), 0o644); err != nil {
+			return err
+		}
+		p, err := synthCompile(mapPath, seedDir)
+		if err != nil {
+			slog.Warn("bspdec-corpus: synth compile failed", "map", mapID, "err", err)
+			continue
+		}
+		rel := func(p string) string {
+			return filepath.ToSlash(strings.TrimPrefix(p, ctx.dataDir+string(filepath.Separator)))
+		}
+		entries = append(entries, eval.ManifestEntry{
+			PkgID:       mapID,
+			LicenseNote: "synthetic",
+			MapFiles:    []string{rel(p.MapPath)},
+			BSPFiles:    []string{rel(p.BSPPath)},
+			Flags:       eval.Flags{Era: "synthetic", Brushlist: true},
+		})
+		res, err := deriveLabels(p.MapPath, p.BSPPath)
+		if err != nil {
+			return fmt.Errorf("synth labels %s: %w", mapID, err)
+		}
+		out := filepath.Join(ctx.labeledDir, mapID, mapID+".labels.json")
+		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+			return err
+		}
+		if err := writeJSON(out, res); err != nil {
+			return err
+		}
+		labeled++
+	}
+	if err := eval.AppendToManifest(ctx.manifestPath, entries); err != nil {
+		return err
+	}
+	ctx.provenance("synth", len(entries), "pairs", labeled, "labeled")
 	return nil
 }
 

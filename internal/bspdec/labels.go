@@ -67,10 +67,52 @@ func LabelCells(tree *bsp.Tree, orig *mapfile.Map, opts Options) ([]CellLabel, [
 				hit = bi
 			}
 		}
+		if hits == 0 {
+			// Intact geometry (synthetic maps, clean CSG) never leaves a
+			// cell centroid outside every original brush; only float drift
+			// at shared boundaries can. Recover deterministically by snapping
+			// to the nearest brush within one grid cell instead of emitting
+			// an unlabeled ("none") cell. Cracked real-world maps still fall
+			// through to "none" when no brush is within reach.
+			if nb := nearestBrush(cen, origPlanes, float64(opts.GridSnap)); nb >= 0 {
+				hit, hits = nb, 1
+			}
+		}
 		labels[ci] = CellLabel{Cell: ci, OriginalBrush: hit, Confidence: classifyHits(hits)}
 	}
 
 	return labels, seams, nil
+}
+
+// LabelCoverage returns the count of labeled cells (assigned or multi) out
+// of the total; synthetic pairs must reach total == labeled.
+func LabelCoverage(cells []CellLabel) (labeled, total int) {
+	total = len(cells)
+	for _, c := range cells {
+		if c.Confidence == "assigned" || c.Confidence == "multi" {
+			labeled++
+		}
+	}
+	return labeled, total
+}
+
+// nearestBrush returns the index of the brush whose halfspace intersection
+// is closest to p (minimal squared outward penetration), provided it is
+// within maxD units; -1 when every brush is farther.
+func nearestBrush(p mapfile.Vec3, planeSets [][]mapfile.Plane, maxD float64) int {
+	best, bestD := -1, maxD
+	for bi, ps := range planeSets {
+		d := 0.0
+		for _, q := range ps {
+			if v := v3Dot(p, q.Normal) - q.Dist; v > 0 {
+				d += v * v
+			}
+		}
+		if d < bestD*bestD {
+			best, bestD = bi, math.Sqrt(d)
+		}
+	}
+	return best
 }
 
 // SeamEdges finds the loci where hidden original-brush boundaries cross a

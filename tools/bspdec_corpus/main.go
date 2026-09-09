@@ -17,8 +17,10 @@ type stageCtx struct {
 	pairedDir     string
 	labeledDir    string
 	holdoutDir    string
+	synthDir      string
 	sourceDir     string // local package source (enumerate)
 	defaultSource string
+	count         int // maps per synth run
 	// compile compiles one map into outDir. Production uses subprocess
 	// isolation (qbsp panics on some real maps must not kill the pipeline);
 	// tests inject in-process eval.CompileMapPair so no test binary is ever
@@ -33,7 +35,9 @@ func newStageCtx(dataDir string) *stageCtx {
 		pairedDir:     filepath.Join(dataDir, "paired"),
 		labeledDir:    filepath.Join(dataDir, "labeled"),
 		holdoutDir:    filepath.Join(dataDir, "classic-holdout"),
+		synthDir:      filepath.Join(dataDir, "synth"),
 		defaultSource: filepath.Join(dataDir, "raw", "quake_map_source"),
+		count:         50,
 		compile:       subprocessCompile,
 	}
 }
@@ -62,6 +66,7 @@ var stageFuncs = map[string]func(*stageCtx) error{
 	"labels":       stageLabels,
 	"splits":       stageSplits,
 	"eval":         stageEval,
+	"synth":        stageSynth,
 }
 
 func main() {
@@ -86,13 +91,14 @@ func main() {
 	fs := flag.NewFlagSet("bspdec-corpus", flag.ExitOnError)
 	dataDir := fs.String("data", "dataset/bspdec", "dataset root")
 	srcDir := fs.String("source", "", "local source dir of map packages (default: <data>/raw/quake_map_source)")
+	count := fs.Int("count", 50, "maps to generate per synth run (synth stage)")
 	quaddicted := fs.Bool("quaddicted", false, "also enumerate the Quaddicted API (offline-first: degrades to a notice)")
 	_ = quaddicted
 	_ = fs.Parse(os.Args[1:])
 
 	if stage == "" {
 		fmt.Fprintln(os.Stderr, "usage: bspdec-corpus <stage> [-data dir] [-source dir]")
-		fmt.Fprintln(os.Stderr, "stages: enumerate canonicalize labels splits eval")
+		fmt.Fprintln(os.Stderr, "stages: enumerate canonicalize labels splits eval synth")
 		os.Exit(2)
 	}
 	fn, ok := stageFuncs[stage]
@@ -101,6 +107,7 @@ func main() {
 		os.Exit(2)
 	}
 	ctx := newStageCtx(*dataDir)
+	ctx.count = *count
 	ctx.sourceDir = ctx.defaultSource
 	if *srcDir != "" {
 		ctx.sourceDir = *srcDir

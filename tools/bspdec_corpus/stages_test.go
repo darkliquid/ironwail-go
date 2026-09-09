@@ -1,11 +1,18 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/bspdec"
 	"github.com/darkliquid/ironwail-go/internal/bspdec/eval"
+	mapfile "github.com/darkliquid/ironwail-go/pkg/map"
+	synth "github.com/darkliquid/ironwail-go/tools/bspdec_synth"
 )
 
 // seedFixtureSource creates a local "quake_map_source"-style dir with one
@@ -97,5 +104,105 @@ func TestPipelineOnFixture(t *testing.T) {
 	}
 	if len(entries2) != 1 {
 		t.Fatalf("manifest grew on re-run: %d", len(entries2))
+	}
+}
+// TestSynthLabelsFullCoverage: every world-model cell of a generated map
+// receives exactly one original-brush label (BRUSHLIST ground truth), and
+// every derived seam edge carries exact truth (intact synthetic geometry has
+// no cracks, so "none" labels are a labelling bug, not map reality).
+func TestSynthLabelsFullCoverage(t *testing.T) {
+	dir := t.TempDir()
+	g := synth.NewGenerator(7, 1)
+	m := g.GenMap(0)
+	var buf bytes.Buffer
+	if err := g.Emit(m, &buf); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(dir, "m.map")
+	if err := os.WriteFile(src, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := eval.CompileMapPair(src, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(p.BSPPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := bsp.LoadTree(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig, err := mapfile.Parse(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cells, seams, err := bspdec.LabelCells(tree, orig, bspdec.Options{GridSnap: 8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cells) == 0 {
+		t.Fatal("no labeled cells")
+	}
+	labeled, total := bspdec.LabelCoverage(cells)
+	if labeled != total {
+		t.Fatalf("label coverage = %d/%d, want 100%%", labeled, total)
+	}
+	for i, c := range cells {
+		if c.OriginalBrush < 0 || c.OriginalBrush >= len(orig.Entities[0].Brushes) {
+			t.Fatalf("cell %d labeled with out-of-range brush %d", i, c.OriginalBrush)
+		}
+	}
+	for i, s := range seams {
+		if !s.Seam {
+			t.Fatalf("edge %d unlabeled (expected exact seam truth on synthetic)", i)
+		}
+	}
+}
+
+// TestStageSynth exercises the synth corpus stage end-to-end with the
+// in-process compile injection: pairs emitted, label files written with
+// full coverage, manifest registered.
+func TestStageSynth(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "dataset")
+	ctx := newStageCtx(dataDir)
+	ctx.count = 3
+	ctx.compile = func(mapPath, outDir string) (evalPair, error) {
+		p, err := eval.CompileMapPair(mapPath, outDir)
+		return evalPair{MapPath: p.MapPath, BSPPath: p.BSPPath}, err
+	}
+	ctx.synthDir = filepath.Join(dataDir, "synth")
+	if err := stageSynth(ctx); err != nil {
+		t.Fatalf("synth: %v", err)
+	}
+	maps, err := filepath.Glob(filepath.Join(ctx.synthDir, "24301", "*.map"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(maps) != 3 {
+		t.Fatalf("synth maps = %d, want 3", len(maps))
+	}
+	for n := 0; n < 3; n++ {
+		id := fmt.Sprintf("synth-24301-%d", n)
+		b, err := os.ReadFile(filepath.Join(ctx.labeledDir, id, id+".labels.json"))
+		if err != nil {
+			t.Fatalf("labels %d: %v", n, err)
+		}
+		var rec labelRecord
+		if err := json.Unmarshal(b, &rec); err != nil {
+			t.Fatal(err)
+		}
+		covered := rec.Stats["label_assigned"] + rec.Stats["label_multi"]
+		if covered != rec.Stats["cells"] {
+			t.Fatalf("map %d label coverage %d/%d, want full", n, covered, rec.Stats["cells"])
+		}
+	}
+	entries, err := eval.LoadManifest(ctx.manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("manifest entries = %d, want 3", len(entries))
 	}
 }

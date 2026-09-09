@@ -98,3 +98,39 @@ func mustParseMapString(t *testing.T, src string) *mapfile.Map {
 	}
 	return m
 }
+func TestLabelCoverageCounts(t *testing.T) {
+	labels := []CellLabel{
+		{Confidence: "assigned"},
+		{Confidence: "multi"},
+		{Confidence: "none"},
+	}
+	labeled, total := LabelCoverage(labels)
+	if labeled != 2 || total != 3 {
+		t.Fatalf("coverage = %d/%d, want 2/3", labeled, total)
+	}
+}
+
+func TestNearestBrushFallback(t *testing.T) {
+	// one unit box at the origin and a second shifted +16 x; a point just
+	// outside the first (float-drift case) must snap to it, not the far one.
+	box := func(x0 float64) []mapfile.Plane {
+		return []mapfile.Plane{
+			{Normal: vc(1, 0, 0), Dist: x0 + 1},  {Normal: vc(-1, 0, 0), Dist: -x0},
+			{Normal: vc(0, 1, 0), Dist: 1},      {Normal: vc(0, -1, 0), Dist: 0},
+			{Normal: vc(0, 0, 1), Dist: 1},      {Normal: vc(0, 0, -1), Dist: 0},
+		}
+	}
+	// unit box at the origin and a second shifted +16 x
+	sets := [][]mapfile.Plane{box(0), box(16)}
+	if got := nearestBrush(vc(0.5, 0.5, 0.5), sets, 8); got != 0 {
+		t.Fatalf("inside point snapped to brush %d, want 0", got)
+	}
+	// just outside brush 0 (at x = 1.4): closer than brush 1 at 16
+	if got := nearestBrush(vc(1.4, 0.5, 0.5), sets, 8); got != 0 {
+		t.Fatalf("drift point snapped to brush %d, want 0", got)
+	}
+	// beyond the max-distance window: no brush
+	if got := nearestBrush(vc(40, 0.5, 0.5), sets, 8); got != -1 {
+		t.Fatalf("distant point snapped to brush %d, want -1", got)
+	}
+}
