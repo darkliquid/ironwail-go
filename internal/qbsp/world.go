@@ -335,7 +335,25 @@ func modelPaths(nodes []outNode, leafs []outLeaf, remap map[int]int) [][]pathSte
 // buildModelSurfaces computes faces and leaf marksurface attachment for a
 // brush-entity submodel tree (no portals, no leak flood: submodels are not
 // part of the world's visibility or leak topology in v1).
-func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []outNode, leafs []outLeaf, paths [][]pathStep) ([]outFace, [][]int) {
+//
+// The incoming children/leaf refs carry global node/leaf table offsets
+// (nodeBase/leafBase accumulated across models); siblingAtPlane and
+// splitByTree index the model-local slices, so a local copy with the bases
+// subtracted is used here. The world path is unaffected (bases are 0).
+func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []outNode, nodeBase, leafBase int, leafs []outLeaf, paths [][]pathStep) ([]outFace, [][]int) {
+	local := make([]outNode, len(nodes))
+	copy(local, nodes)
+	for i := range local {
+		for ch := 0; ch < 2; ch++ {
+			ref := &local[i].children[ch]
+			if ref.isLeaf {
+				ref.idx -= leafBase
+			} else {
+				ref.idx -= nodeBase
+			}
+		}
+	}
+	nodes = local
 	var faces []outFace
 	attach := make([][]int, len(leafs))
 	for li := range leafs {

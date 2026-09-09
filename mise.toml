@@ -2,6 +2,9 @@
 TIMEOUT = "5"
 CGO_ENABLED = "0"
 TMPDIR = "{{config_root}}/.tmp"
+# GC soft limit: keeps test suites and the corpus pipeline from ballooning
+# past physical memory (OOM-kills were observed in the bspdec_corpus tests).
+GOMEMLIMIT = "4GiB"
 [tools]
 deno = "latest"
 go = "1.26"
@@ -259,20 +262,20 @@ description = "Build the bspdec BSP-to-map decompiler CLI"
 run = "go build -o bin/bspdec ./cmd/bspdec"
 
 [tasks.bspdec-data]
-description = "Provision the bspdec corpus (stub until the M0-eval plan lands)"
-run = "echo 'bspdec-data: not implemented yet'"
+description = "Provision the bspdec corpus (enumerate, canonicalize, labels, splits)"
+run = "go run ./tools/bspdec_corpus enumerate && go run ./tools/bspdec_corpus canonicalize && go run ./tools/bspdec_corpus labels && go run ./tools/bspdec_corpus splits"
 
 [tasks.bspdec-train]
 description = "Train bspdec ML routes (stub until M2)"
 run = "echo 'bspdec-train: not implemented yet'"
 
 [tasks.bspdec-eval]
-description = "Run bspdec eval tiers 1+2 (stub until the M0-eval plan lands)"
-run = "echo 'bspdec-eval: not implemented yet'"
+description = "Run bspdec eval tiers 1+2 over the corpus"
+run = "go run ./tools/bspdec_corpus eval"
 
 [tasks.bspdec-report]
-description = "Summarize bspdec eval results (stub until the M0-eval plan lands)"
-run = "echo 'bspdec-report: not implemented yet'"
+description = "Summarize bspdec eval results"
+run = "go run ./tools/bspdec_report -data dataset/bspdec"
 
 [tasks.bspdec-models]
 description = "Provision bspdec model artifacts (stub until M2)"

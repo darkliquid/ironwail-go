@@ -124,6 +124,9 @@ func splitBrush(b *Brush, p mapfile.Plane) (front, back *Brush) {
 //
 // Where in C: Q1_CreateBrushesFromBSP + Q1_CreateBrushes_r in bspc map_q1.c.
 func (d *decompiler) decompileModel(modelIdx int) ([]*Brush, error) {
+	if modelIdx < 0 || modelIdx >= len(d.tree.Models) {
+		return nil, fmt.Errorf("model %d out of range (%d models)", modelIdx, len(d.tree.Models))
+	}
 	m := d.tree.Models[modelIdx]
 	mins := mapfile.Vec3{
 		X: float64(m.BoundsMin.X) - bboxGrow,

@@ -40,6 +40,7 @@ tasks/perf_gate_reference.csv
 !/testdata/
 !/testdata/parity/
 !/testdata/parity/*.json
+!/testdata/bspdec/
 !/tools/parity_generator/c_patch/
 !/tools/parity_generator/c_patch/*.patch
 
@@ -91,3 +92,6 @@ gha-creds-*.json
 
 # Beads / Dolt files (added by bd init)
 .beads/proxieddb/
+
+# Corpus bulk data (provisioned, never committed; contains an embedded git repo)
+dataset/

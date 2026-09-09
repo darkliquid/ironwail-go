@@ -3,10 +3,52 @@ package bspdec
 import (
 	"bytes"
 	"fmt"
+	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	mapfile "github.com/darkliquid/ironwail-go/pkg/map"
 )
+
+// minSliverArea is the smallest side a brush may keep: grid snap (default 8)
+// makes sub-unit slivers unemittable.
+const minSliverArea = 0.5
+
+// sideSurvivesGrid reports whether the side can be emitted: its winding must
+// stay non-degenerate after grid snapping (sub-grid geometry like 4-unit
+// plates collapses to zero thickness and the .map parser drops the face).
+func sideSurvivesGrid(s *Side, grid int) bool {
+	if s.Winding == nil || len(s.Winding.Points) < 3 {
+		return false
+	}
+	if grid <= 1 {
+		return s.Winding.Area() >= minSliverArea
+	}
+	step := float64(grid)
+	snap := func(v float64) float64 { return math.Round(v/step) * step }
+	distinct := make([]mapfile.Vec3, 0, len(s.Winding.Points))
+	seen := map[mapfile.Vec3]bool{}
+	for _, p := range s.Winding.Points {
+		q := mapfile.Vec3{X: snap(p.X), Y: snap(p.Y), Z: snap(p.Z)}
+		if !seen[q] {
+			seen[q] = true
+			distinct = append(distinct, q)
+		}
+	}
+	if len(distinct) < 3 {
+		return false
+	}
+	best := 0.0
+	for i := 0; i < len(distinct); i++ {
+		for j := i + 1; j < len(distinct); j++ {
+			for k := j + 1; k < len(distinct); k++ {
+				if a := v3Len(v3Cross(v3Sub(distinct[j], distinct[i]), v3Sub(distinct[k], distinct[i]))); a > best {
+					best = a
+				}
+			}
+		}
+	}
+	return best/2 >= minSliverArea
+}
 
 // Decompile runs the full pipeline over BSP file bytes and returns the map
 // plus per-model stats. Pipeline per model (spec section 4): treewalk (or
@@ -68,6 +110,27 @@ func Decompile(data []byte, opts Options) (*mapfile.Map, []ModelStats, error) {
 			if opts.MergeConvex {
 				brushes = mergeConvex(brushes)
 			}
+			// drop degenerate fragments (sides lost to pruning) so output
+			// brushes are always closed polyhedra. removeRedundantPlanes
+			// clears nil-winding sides first so the count is face-accurate.
+			alive := brushes[:0]
+			for _, b := range brushes {
+				dedupeCoplanarSides(b)
+				removeRedundantPlanes(b)
+				kept := b.Sides[:0]
+				for _, s := range b.Sides {
+					if sideSurvivesGrid(s, opts.GridSnap) {
+						kept = append(kept, s)
+					}
+				}
+				b.Sides = kept
+				if len(b.Sides) >= 4 {
+					alive = append(alive, b)
+				} else {
+					d.warnf("dropping degenerate brush with %d sides", len(b.Sides))
+				}
+			}
+			brushes = alive
 			canonicalizeBrush(brushes)
 			perModel[mi] = brushes
 			stats = append(stats, ModelStats{

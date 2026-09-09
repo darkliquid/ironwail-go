@@ -273,3 +273,53 @@ func TestCompileCorridor(t *testing.T) {
 		t.Errorf("faces = %d, want >= 12 (two rooms + door tube)", len(tree.Faces))
 	}
 }
+// TestSubmodelInteriorSplits guards the submodel surface builder against the
+// global-vs-local node index bug: a hollow brush entity (interior air leaf)
+// forces interface splits inside the submodel tree, which used to index
+// splitByTree with the global node table and panic on any multi-model map.
+
+// TestSubmodelInteriorSplits guards the submodel surface builder against the
+// global-vs-local node index bug: bmodel trees with interior splits (a
+// brush entity whose CSG forms an interface) used to index splitByTree with
+// the global node table and panic on any multi-model map with such entitbes.
+func TestSubmodelInteriorSplits(t *testing.T) {
+	world := "{\n\"classname\" \"worldspawn\"\n" +
+		slabBrush(-64, -64, -64, 0, 320, 256, "mt_wall") +
+		slabBrush(256, -64, -64, 320, 320, 256, "mt_wall") +
+		slabBrush(0, -64, -64, 256, 0, 256, "mt_wall") +
+		slabBrush(0, 256, -64, 256, 320, 256, "mt_wall") +
+		slabBrush(0, 0, -64, 256, 256, 0, "mt_wall") +
+		slabBrush(0, 0, 192, 256, 256, 256, "mt_wall") +
+		"}\n"
+	slab := "{\n\"classname\" \"func_wall\"\n\"model\" \"*2\"\n" +
+		slabBrush(96, 96, 16, 160, 160, 112, "mt_wall") +
+		"}\n"
+	crate := "{\n\"classname\" \"func_wall\"\n\"model\" \"*3\"\n" +
+		slabBrush(288, 96, 16, 344, 152, 112, "mt_wall") +
+		slabBrush(344, 96, 16, 400, 152, 112, "mt_wall") +
+		slabBrush(288, 96, 16, 400, 152, 112, "mt_wall") +
+		"}\n"
+	src := world + slab + crate +
+		"{\n\"classname\" \"info_player_start\"\n\"origin\" \"128 128 64\"\n}\n"
+	m, err := ParseMap(strings.NewReader(src))
+	if err != nil {
+		t.Fatalf("ParseMap: %v", err)
+	}
+	res, err := Compile(m, Options{})
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	if res.Leaked {
+		t.Fatal("map leaks")
+	}
+	if res.Models < 3 {
+		t.Fatalf("models = %d, want >= 3", res.Models)
+	}
+	counts, err := ReadBSPXBrushList(res.Data)
+	if err != nil {
+		t.Fatalf("ReadBSPXBrushList: %v", err)
+	}
+	if len(counts) != 3 || counts[1] == 0 || counts[2] == 0 {
+		t.Fatalf("brush list = %v, want 3 models with geometry", counts)
+	}
+}

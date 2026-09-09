@@ -37,6 +37,33 @@ func removeRedundantPlanes(b *Brush) {
 	rebuildWindings(b)
 }
 
+// dedupeCoplanarSides collapses same-plane sides (either orientation) to
+// the largest-area survivor. The map parser drops duplicate-plane faces when
+// re-reading emitted output, so emitting them would silently shrink brushes.
+func dedupeCoplanarSides(b *Brush) {
+	var kept []*Side
+	for _, s := range b.Sides {
+		if s.Winding == nil || len(s.Winding.Points) < 3 {
+			continue
+		}
+		merged := false
+		for i, k := range kept {
+			if planesMatch(s.Plane, k.Plane) || planesOpposite(s.Plane, k.Plane) {
+				if s.Winding.Area() > k.Winding.Area() {
+					kept[i] = s
+				}
+				merged = true
+				break
+			}
+		}
+		if !merged {
+			kept = append(kept, s)
+		}
+	}
+	b.Sides = kept
+	rebuildWindings(b)
+}
+
 // planeSetCount returns the number of distinct oriented planes across brushes
 // (the PlanesUsed stat).
 func planeSetCount(brushes []*Brush) int {

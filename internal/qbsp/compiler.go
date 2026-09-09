@@ -181,7 +181,7 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		if world {
 			faces, attach, pf, leakPath, leaked = c.buildWorldSurfaces(bounds, root, nodes, leafs, paths, m)
 		} else {
-			faces, attach = c.buildModelSurfaces(bounds, root, nodes, leafs, paths)
+			faces, attach = c.buildModelSurfaces(bounds, root, nodes, nodeBase, leafBase, leafs, paths)
 		}
 		for i := range leafs {
 			leafs[i].marksurface = attach[i]
