@@ -74,14 +74,12 @@ func clipWinding(w winding, p plane) (winding, bool) {
 }
 
 // windingFromBoxPlane computes the polygon of plane p intersecting the
-// axis-aligned box [mins,maxs]. The winding is generated from the box face
-// whose outward normal is closest to the plane normal, then clipped by the
-// other five box planes, producing up to 7 points.
-// windingFromBoxPlane computes the polygon of plane p intersecting the
-// axis-aligned box [mins,maxs]. The seed quad lies ON the plane at the
-// plane's intercept along its dominant axis, spanning the other two axes;
-// clipping by all six box faces trims it to the box. This is the classic
-// Quake polylib approach and yields the exact intersection polygon.
+// axis-aligned box [mins,maxs]. The seed quad is generated in the plane's
+// own tangent basis (classic polylib BaseWindingForPlane), so every seed
+// vertex lies exactly ON the plane; clipping by all six box faces trims it
+// to the box. Non-axial faces must not be seeded at a constant dominant
+// coordinate — that quad is off-plane and dies against the box or the
+// brush's other faces (bevel trim faces were being dropped entirely).
 func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 	bestAxis := 0
 	bestDot := math.Abs(p.Normal.X)
@@ -96,35 +94,93 @@ func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 	if bestDot < 1e-9 {
 		return nil
 	}
-	pn := getAxis(p.Normal, bestAxis)
-	coord := p.Dist / pn
-	if coord < getAxis(mins, bestAxis) {
-		coord = getAxis(mins, bestAxis)
-	}
-	if coord > getAxis(maxs, bestAxis) {
-		coord = getAxis(maxs, bestAxis)
-	}
 
-	u := (bestAxis + 1) % 3
-	v := (bestAxis + 2) % 3
-
-	// Four corners on the plane-spanning quad; ordered so the area vector
-	// points along the plane normal's dominant component.
-	var seed winding
-	corners := [4][2]int{
-		{0, 0}, {0, 1}, {1, 1}, {1, 0},
-	}
-	minsU, maxsU := getAxis(mins, u), getAxis(maxs, u)
-	minsV, maxsV := getAxis(mins, v), getAxis(maxs, v)
-	for _, c := range corners {
-		var pt vec3
-		setAxis(&pt, bestAxis, coord)
-		setAxis(&pt, u, minsU+float64(c[0])*(maxsU-minsU))
-		if pn > 0 {
-			setAxis(&pt, v, minsV+float64(c[1])*(maxsV-minsV))
-		} else {
-			setAxis(&pt, v, minsV+float64(1-c[1])*(maxsV-minsV))
+	if bestDot > 1-1e-9 {
+		// Exact axial path: constant dominant coordinate, corners at the
+		// box's own extents, no interpolation — bit-identical to the
+		// historical output so split tie-breaking stays stable.
+		pn := getAxis(p.Normal, bestAxis)
+		coord := p.Dist / pn
+		if coord < getAxis(mins, bestAxis) {
+			coord = getAxis(mins, bestAxis)
 		}
+		if coord > getAxis(maxs, bestAxis) {
+			coord = getAxis(maxs, bestAxis)
+		}
+		u := (bestAxis + 1) % 3
+		v := (bestAxis + 2) % 3
+		var seed winding
+		corners := [4][2]int{
+			{0, 0}, {0, 1}, {1, 1}, {1, 0},
+		}
+		minsU, maxsU := getAxis(mins, u), getAxis(maxs, u)
+		minsV, maxsV := getAxis(mins, v), getAxis(maxs, v)
+		for _, c := range corners {
+			var pt vec3
+			setAxis(&pt, bestAxis, coord)
+			setAxis(&pt, u, minsU+float64(c[0])*(maxsU-minsU))
+			if pn > 0 {
+				setAxis(&pt, v, minsV+float64(c[1])*(maxsV-minsV))
+			} else {
+				setAxis(&pt, v, minsV+float64(1-c[1])*(maxsV-minsV))
+			}
+			seed = append(seed, pt)
+		}
+		return seed
+	}
+
+	// Non-axial: tangent-square seed with every vertex exactly on the
+	// plane (a constant-dominant-coordinate seed is off-plane and dies
+	// against the box or the brush's other faces, silently dropping
+	// bevel/trim faces — which turned wedge trims into phantom boxes).
+	// A point on the plane (n . org == dist).
+	org := vec3{
+		X: p.Normal.X * p.Dist,
+		Y: p.Normal.Y * p.Dist,
+		Z: p.Normal.Z * p.Dist,
+	}
+
+	// Tangent axes spanning the other two world axes (classic vup / v).
+	var up, right vec3
+	switch bestAxis {
+	case 0, 1:
+		up = v3(0, 0, 1)
+	default:
+		up = v3(0, 1, 0)
+	}
+	right = p.Normal.Cross(up) // perpendicular to the plane
+	if rl := right.Len(); rl < 1e-9 {
+		up = v3(0, 0, 1)
+		right = p.Normal.Cross(up)
+		rl = right.Len()
+		if rl < 1e-9 {
+			return nil
+		}
+		right = right.Scale(1 / rl)
+	} else {
+		right = right.Scale(1 / rl)
+	}
+	up = right.Cross(p.Normal) // second tangent, perpendicular to both
+	if ul := up.Len(); ul < 1e-9 {
+		return nil
+	} else {
+		up = up.Scale(1 / ul)
+	}
+
+	// Seed radius: large enough that the box clip trims the quad to the
+	// exact intersection polygon wherever the plane crosses the box.
+	radius := math.Sqrt((maxs.X-mins.X)*(maxs.X-mins.X)+
+		(maxs.Y-mins.Y)*(maxs.Y-mins.Y)+
+		(maxs.Z-mins.Z)*(maxs.Z-mins.Z)) * 0.6
+	if radius < 1 {
+		radius = 1
+	}
+	corners := [4][2]float64{{-1, -1}, {-1, 1}, {1, 1}, {1, -1}}
+	seed := make(winding, 0, 4)
+	for _, c := range corners {
+		pt := org.
+			Add(right.Scale(c[0] * radius)).
+			Add(up.Scale(c[1] * radius))
 		seed = append(seed, pt)
 	}
 

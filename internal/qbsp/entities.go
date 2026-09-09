@@ -146,13 +146,30 @@ func (wb *worldBrush) OutwardPlanes() []plane {
 	return ps
 }
 
+// sidSpace is the padding added to every model's root bounds, mirroring
+// ericw-tools SIDESPACE (24). Without it, brush planes flush against the
+// exact brush AABB union fail the split-volume test (nothing lies on the
+// far side), so the sealing walls/floors/sky faces never become node
+// splits, interior leaves touch the root box, and the leak flood
+// misclassifies sealed maps as leaking to the void. The pad creates a
+// distinct void ring around the geometry and lets boundary planes split.
+const sidSpace = 24.0
+
 // worldBoundsOf resolves the compiler root bounds from a group's brush
-// bounds (degenerate groups fall back to a unit box).
+// bounds, padded by sidSpace (the headnode volume; degenerate groups fall
+// back to a unit box).
 func worldBoundsOf(g *brushGroup) [2]vec3 {
-	if len(g.brushes) == 0 {
-		return [2]vec3{{X: -1, Y: -1, Z: -1}, {X: 1, Y: 1, Z: 1}}
+	b := [2]vec3{{X: -1, Y: -1, Z: -1}, {X: 1, Y: 1, Z: 1}}
+	if len(g.brushes) > 0 {
+		b = g.bounds
 	}
-	return g.bounds
+	b[0].X -= sidSpace
+	b[0].Y -= sidSpace
+	b[0].Z -= sidSpace
+	b[1].X += sidSpace
+	b[1].Y += sidSpace
+	b[1].Z += sidSpace
+	return b
 }
 
 // bspBrushList converts a group's world brushes into solidbsp polyhedra

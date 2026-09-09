@@ -3,6 +3,7 @@ package qbsp
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -397,5 +398,65 @@ func TestCompileBSPRMQ(t *testing.T) {
 	l := tree.PointInLeaf(types.Vec3{X: 32, Y: 32, Z: 32})
 	if l.Contents == bsp.ContentsSolid {
 		t.Error("2psb interior resolved solid")
+	}
+}
+
+// TestBevelTrimFaceSurvives locks the non-axial winding-seed fix: a 45'
+// beveled trim brush (fzwoch/id-map style) must keep its diagonal face.
+// The old constant-coordinate seed produced an off-plane quad that died
+// against the other faces, the bevel face was silently dropped, and the
+// wedge became an overgrown box creating phantom-solid leaves and false
+// leaks.
+func TestBevelTrimFaceSurvives(t *testing.T) {
+	// Wedge x[16,32] y[16,32] z[-32,32] with the south-west corner cut by
+	// the 45 face x+y=48 (interior north-east of it).
+	faces := []brushFace{
+		{p: plane{Normal: v3(1, 0, 0), Dist: 32}},
+		{p: plane{Normal: v3(-1, 0, 0), Dist: 16}},
+		{p: plane{Normal: v3(0, 1, 0), Dist: 32}},
+		{p: plane{Normal: v3(0, -1, 0), Dist: 16}},
+		{p: plane{Normal: v3(0, 0, 1), Dist: 32}},
+		{p: plane{Normal: v3(0, 0, -1), Dist: 32}},
+		{p: plane{Normal: v3(-0.7071067811865476, -0.7071067811865476, 0), Dist: -33.94112549695428}},
+	}
+	b := buildBspBrushFaces(faces, [2]vec3{v3(-64, -64, -64), v3(64, 64, 64)})
+	if b == nil {
+		t.Fatal("bevel trim brush build failed")
+	}
+	// The bevel cuts the x=16 and y=16 faces away: the wedge is bounded by
+	// x=32, y=32, z=+/-32 and the diagonal (5 faces). Losing the diagonal
+	// would reopen the corner as a phantom box.
+	if len(b.sides) != 5 {
+		t.Fatalf("nsides = %d, want 5 (x=32, y=32, z faces, diagonal)", len(b.sides))
+	}
+	hasDiag := false
+	for _, s := range b.sides {
+		if math.Abs(s.sidePlane().Normal.X+0.7071067811865476) < 1e-6 &&
+			math.Abs(s.sidePlane().Normal.Y+0.7071067811865476) < 1e-6 {
+			hasDiag = true
+		}
+	}
+	if !hasDiag {
+		t.Fatal("diagonal bevel face missing from the brush")
+	}
+	// Interior point (24,24,0) must be inside; the cut-off corner (17,17,0)
+	// must be outside.
+	inside := true
+	for _, s := range b.sides {
+		if v3Dot(s.sidePlane().Normal, v3(24, 24, 0))-s.sidePlane().Dist > 1e-3 {
+			inside = false
+		}
+	}
+	if !inside {
+		t.Error("bevel trim does not contain its interior point (24,24,0)")
+	}
+	cut := true
+	for _, s := range b.sides {
+		if v3Dot(s.sidePlane().Normal, v3(17, 17, 0))-s.sidePlane().Dist > 1e-3 {
+			cut = false
+		}
+	}
+	if cut {
+		t.Error("bevel trim contains the cut-off corner (17,17,0); diagonal halfspace missing")
 	}
 }

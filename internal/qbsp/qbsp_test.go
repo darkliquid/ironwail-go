@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // compileMapString parses and compiles a map, failing the test on error.
@@ -273,6 +274,7 @@ func TestCompileCorridor(t *testing.T) {
 		t.Errorf("faces = %d, want >= 12 (two rooms + door tube)", len(tree.Faces))
 	}
 }
+
 // TestSubmodelInteriorSplits guards the submodel surface builder against the
 // global-vs-local node index bug: a hollow brush entity (interior air leaf)
 // forces interface splits inside the submodel tree, which used to index
@@ -321,5 +323,33 @@ func TestSubmodelInteriorSplits(t *testing.T) {
 	}
 	if len(counts) != 3 || counts[1] == 0 || counts[2] == 0 {
 		t.Fatalf("brush list = %v, want 3 models with geometry", counts)
+	}
+}
+
+// TestCompileSkyShellSeals locks the sky-opacity flood fix: ericw's
+// node_t::opaque() treats the hollow sky shell as blocking the leak
+// flood. A sealed map whose outer walls are sky-textured must NOT leak
+// (before the fix the flood walked straight through sky leaves).
+func TestCompileSkyShellSeals(t *testing.T) {
+	slab := func(mins, maxs [3]float64) string {
+		return boxBrush("sky", mins, maxs, "sky")
+	}
+	src := "{\n\"classname\" \"worldspawn\"\n" +
+		slab([3]float64{0, 0, 0}, [3]float64{96, 96, 8}) + // floor
+		slab([3]float64{0, 0, 88}, [3]float64{96, 96, 96}) + // ceiling
+		slab([3]float64{0, 0, 8}, [3]float64{8, 96, 88}) +
+		slab([3]float64{88, 0, 8}, [3]float64{96, 96, 88}) +
+		slab([3]float64{8, 0, 8}, [3]float64{88, 8, 88}) +
+		slab([3]float64{8, 88, 8}, [3]float64{88, 96, 88}) +
+		"}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"48 48 48\"\n}\n"
+
+	res := compileMapString(t, src)
+	if res.Leaked {
+		t.Fatal("sky-enclosed room leaked (flood crossed the sky shell)")
+	}
+	tree := loadTreeResult(t, res)
+	l := tree.PointInLeaf(types.Vec3{X: 48, Y: 48, Z: 48})
+	if l.Contents == bsp.ContentsSolid {
+		t.Error("interior resolved solid")
 	}
 }

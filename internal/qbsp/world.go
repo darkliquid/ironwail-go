@@ -61,6 +61,14 @@ func planeAtBoxFace(planes []plane, boxFace plane) int {
 	return -1
 }
 
+// floodOpaque reports whether a leaf content blocks the leak flood,
+// mirroring ericw's node_t::opaque(): solid and sky both stop the flood
+// (the hollow sky shell encloses the map but must not let the outside
+// reach the interior).
+func floodOpaque(content int32) bool {
+	return content == bsp.ContentsSolid || content == bsp.ContentsSky
+}
+
 // buildWorldSurfaces computes the world model's faces (per-leaf attachment),
 // the inter-leaf portals (PRT1), the leak flood state, and node face spans.
 //
@@ -104,7 +112,8 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 					continue
 				}
 				if leafs[pc.leaf].content != bsp.ContentsSolid {
-					// portal between two non-solid leaves.
+					// portal between two non-solid leaves (vis passability;
+					// sky leafs stay in the vis graph).
 					key := [2]int{li, pc.leaf}
 					keyInv := [2]int{pc.leaf, li}
 					if !seenPortal[key] && !seenPortal[keyInv] {
@@ -114,8 +123,13 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 							Points: windingRemoveColinear(pc.w),
 						})
 					}
-					adj[li] = append(adj[li], pc.leaf)
-					adj[pc.leaf] = append(adj[pc.leaf], li)
+					// Flood adjacency only crosses flood-passable leafs; the
+					// sky shell is opaque to the leak flood (as ericw's
+					// node_t::opaque() treats sky + solid).
+					if !floodOpaque(L.content) && !floodOpaque(leafs[pc.leaf].content) {
+						adj[li] = append(adj[li], pc.leaf)
+						adj[pc.leaf] = append(adj[pc.leaf], li)
+					}
 				}
 			}
 		}
@@ -178,10 +192,10 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 		}
 	}
 
-	// 3. Leak flood from the void ring over non-solid adjacency.
+	// 3. Leak flood from the void ring over flood-passable adjacency.
 	var queue []int
 	for li := range voidLeaf {
-		if voidLeaf[li] {
+		if voidLeaf[li] && !floodOpaque(leafs[li].content) {
 			floodParent[li] = -1
 			queue = append(queue, li)
 		}
@@ -207,6 +221,11 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 		}
 		origin, err := parseOrigin(originStr)
 		if err != nil {
+			continue
+		}
+		// Skip bmodels and origin-less entities whose origin is the
+		// default (0 0 0) point (ericw FindOccupiedLeafs skips these).
+		if origin.X == 0 && origin.Y == 0 && origin.Z == 0 {
 			continue
 		}
 		leafIdx, inside := pointInLeaf(nodes, root, origin)

@@ -217,7 +217,7 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 			if !planeSplitsBounds(bounds, p) {
 				continue
 			}
-			fronts, backs, splits := 0, 0, 0
+			fronts, backs, splits, facing := 0, 0, 0, 0
 			for _, b2 := range brushes {
 				bits := classifyBrush(b2, p)
 				if bits&psideFront != 0 {
@@ -229,8 +229,16 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 				if bits&psideFront != 0 && bits&psideBack != 0 {
 					splits++
 				}
+				if bits&psideFacing != 0 {
+					facing++
+				}
 			}
-			value := -5*splits - absInt(fronts-backs)
+			// ericw SelectSplitPlane metric: facing brushes (whose face lies on
+			// the candidate plane) are strongly preferred; without the facing
+			// bonus, boundary-sealing planes (wall faces, trim edges) lose to
+			// balanced mid-map planes, small brushes get swallowed into larger
+			// leaves, and phantom-solid leaves create false leaks.
+			value := 5*facing - 5*splits - absInt(fronts-backs)
 			if isAxial(s.n) {
 				value += 5
 			}
@@ -421,7 +429,7 @@ func pointInLeaf(nodes []outNode, root childRef, p vec3) (int, bool) {
 			return 0, false
 		}
 		nd := &nodes[ref.idx]
-		if v3Dot(nd.splitN, p)-nd.splitD >= 0 {
+		if v3Dot(nd.splitN, p)-nd.splitD > 0 {
 			ref = nd.children[0]
 		} else {
 			ref = nd.children[1]
