@@ -1,5 +1,10 @@
 # BSPDEC Implementation Plan
 
+> **Superseded further (2026-09-09):** by
+> `docs/superpowers/plans/2026-09-09-bspdec-m1-brushlist-path-and-synth.md`
+> and the M0/M1 plan series; M1 (BRUSHLIST direct path + synthetic corpus +
+> headroom gate) is complete. Kept for history.
+>
 > **Superseded (2026-09-07):** executable plans now live under
 > `docs/superpowers/plans/` (plan 1 = M0 deterministic decompiler,
 > `2026-09-07-bspdec-m0-deterministic-decompiler.md`), arguing from the

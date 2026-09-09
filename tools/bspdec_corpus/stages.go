@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -24,7 +25,7 @@ func cloneQuakeMapSource(ctx *stageCtx) error {
 	if _, err := os.Stat(ctx.sourceDir); err == nil {
 		return nil
 	}
-_ = os.MkdirAll(filepath.Dir(ctx.sourceDir), 0o755)
+	_ = os.MkdirAll(filepath.Dir(ctx.sourceDir), 0o755)
 	slog.Info("bspdec-corpus: cloning quake_map_source", "rev", quakeMapSourceRev)
 	cmd := exec.Command("git", "clone", "https://github.com/fzwoch/quake_map_source", ctx.sourceDir)
 	out, err := cmd.CombinedOutput()
@@ -115,7 +116,7 @@ func stageCanonicalize(ctx *stageCtx) error {
 	if err != nil {
 		return err
 	}
-_ = os.MkdirAll(ctx.pairedDir, 0o755)
+	_ = os.MkdirAll(ctx.pairedDir, 0o755)
 	_ = os.MkdirAll(ctx.holdoutDir, 0o755)
 	paired := 0
 	holdout := 0
@@ -255,10 +256,10 @@ func stageLabels(ctx *stageCtx) error {
 }
 
 type labelRecord struct {
-	MapID  string                 `json:"map_id"`
-	Cells  []bspdec.CellLabel     `json:"cells"`
-	Seams  []bspdec.SeamLabel     `json:"seams"`
-	Stats  map[string]int         `json:"stats"`
+	MapID string             `json:"map_id"`
+	Cells []bspdec.CellLabel `json:"cells"`
+	Seams []bspdec.SeamLabel `json:"seams"`
+	Stats map[string]int     `json:"stats"`
 }
 
 func deriveLabels(mapPath, bspPath string) (*labelRecord, error) {
@@ -300,6 +301,31 @@ func stageEval(ctx *stageCtx) error {
 	if err != nil {
 		return err
 	}
+	// synthetic pairs live under synth/<seed>/; evaluate them through the
+	// same EvaluatePair path so the report covers the whole corpus.
+	entries, err := eval.LoadManifest(ctx.manifestPath)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.Flags.Era != "synthetic" || len(e.MapFiles) == 0 {
+			continue
+		}
+		seed := strings.TrimPrefix(e.PkgID, "synth-")
+		seed = seed[:strings.Index(seed, "-")]
+		mapID := strings.TrimSuffix(filepath.Base(e.MapFiles[0]), filepath.Ext(e.MapFiles[0]))
+		r, err := eval.EvaluatePair(filepath.Join(ctx.synthDir, seed), e.PkgID, mapID)
+		if err != nil && r.Error == "" {
+			r.Error = err.Error()
+		}
+		results = append(results, r)
+	}
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].PkgID != results[j].PkgID {
+			return results[i].PkgID < results[j].PkgID
+		}
+		return results[i].MapID < results[j].MapID
+	})
 	if err := writeJSON(filepath.Join(ctx.dataDir, "eval.json"), results); err != nil {
 		return err
 	}
@@ -374,11 +400,13 @@ func stageSynth(ctx *stageCtx) error {
 	return nil
 }
 
-// stageSplits writes package-level train/val/test + the classic holdout set.
-func stageSplits(ctx *stageCtx) error {
-	entries, err := eval.LoadManifest(ctx.manifestPath)
+// runSplits computes package-level train/val/test + the classic holdout set
+// over the manifest's paired packages, folding in synthetic packages found
+// under synth/<seed>/ so the split always covers the generated slice.
+func runSplits(dataDir string) (train, val, test, holdout []string, err error) {
+	entries, err := eval.LoadManifest(filepath.Join(dataDir, "raw", "manifest.jsonl"))
 	if err != nil {
-		return err
+		return nil, nil, nil, nil, err
 	}
 	var pairedPkgs []string
 	var holdoutPkgs []string
@@ -389,7 +417,19 @@ func stageSplits(ctx *stageCtx) error {
 		}
 		pairedPkgs = append(pairedPkgs, e.PkgID)
 	}
-	var train, val, test []string
+	// synthetic packages exist on disk as sure as in the manifest; scan the
+	// synth dirs so a missing manifest entry cannot silently drop them
+	if dirs, derr := os.ReadDir(filepath.Join(dataDir, "synth")); derr == nil {
+		for _, d := range dirs {
+			if !d.IsDir() {
+				continue
+			}
+			pkg := "synth-" + d.Name()
+			if !slices.Contains(pairedPkgs, pkg) {
+				pairedPkgs = append(pairedPkgs, pkg)
+			}
+		}
+	}
 	for _, p := range pairedPkgs {
 		h := fnv.New32a()
 		h.Write([]byte(p))
@@ -406,16 +446,24 @@ func stageSplits(ctx *stageCtx) error {
 	sort.Strings(val)
 	sort.Strings(test)
 	sort.Strings(holdoutPkgs)
-	split := map[string]any{
-		"train":            train,
-		"val":              val,
-		"test":             test,
-		"classic_holdout":  holdoutPkgs,
+	if err := writeJSON(filepath.Join(dataDir, "splits.json"), map[string]any{
+		"train":           train,
+		"val":             val,
+		"test":            test,
+		"classic_holdout": holdoutPkgs,
+	}); err != nil {
+		return nil, nil, nil, nil, err
 	}
-	if err := writeJSON(filepath.Join(ctx.dataDir, "splits.json"), split); err != nil {
+	return train, val, test, holdoutPkgs, nil
+}
+
+// stageSplits writes package-level train/val/test + the classic holdout set.
+func stageSplits(ctx *stageCtx) error {
+	train, val, test, holdout, err := runSplits(ctx.dataDir)
+	if err != nil {
 		return err
 	}
-	ctx.provenance("splits", len(train), len(val), len(test), len(holdoutPkgs), "split")
+	ctx.provenance("splits", len(train), len(val), len(test), len(holdout), "split")
 	return nil
 }
 

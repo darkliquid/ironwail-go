@@ -1,11 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
@@ -106,6 +107,7 @@ func TestPipelineOnFixture(t *testing.T) {
 		t.Fatalf("manifest grew on re-run: %d", len(entries2))
 	}
 }
+
 // TestSynthLabelsFullCoverage: every world-model cell of a generated map
 // receives exactly one original-brush label (BRUSHLIST ground truth), and
 // every derived seam edge carries exact truth (intact synthetic geometry has
@@ -204,5 +206,46 @@ func TestStageSynth(t *testing.T) {
 	}
 	if len(entries) != 3 {
 		t.Fatalf("manifest entries = %d, want 3", len(entries))
+	}
+}
+
+// writeSynthFixture fabricates a synth/<seed>/ pair directory and a manifest
+// entry for a normal (non-synth) package, so "synth-0" can only reach the
+// split through the synth-dir scan, not the manifest fold.
+func writeSynthFixture(t *testing.T, dataDir string) {
+	t.Helper()
+	seedDir := filepath.Join(dataDir, "synth", "0")
+	if err := os.MkdirAll(seedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// a fake sealed pair; splits only scans directories so contents are moot
+	if err := os.WriteFile(filepath.Join(seedDir, "synth-0-0.map"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(seedDir, "synth-0-0.bsp"), []byte("dummy"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := eval.AppendToManifest(filepath.Join(dataDir, "raw", "manifest.jsonl"), []eval.ManifestEntry{
+		{PkgID: "real-pkg", LicenseNote: "unlicensed-local", MapFiles: []string{"maps/a.map"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestSplitsIncludeSynth: the split file must contain synth packages when
+// the synth corpus exists.
+func TestSplitsIncludeSynth(t *testing.T) {
+	dataDir := t.TempDir()
+	writeSynthFixture(t, dataDir)
+	if _, _, _, _, err := runSplits(dataDir); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dataDir, "splits.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	if !strings.Contains(s, "synth-0") {
+		t.Fatalf("splits.json missing synth packages:\n%s", s)
 	}
 }
