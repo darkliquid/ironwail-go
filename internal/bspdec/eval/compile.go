@@ -144,7 +144,9 @@ func CheckEricwToolsLeak(mapPath string) (ReferenceLeakCheckResult, error) {
 	out, _ := cmd.CombinedOutput()
 	outStr := string(out)
 
-	leaked := strings.Contains(outStr, "no filling performed") ||
+	ptsFile := filepath.Join(tmpDir, "out.pts")
+	_, ptsErr := os.Stat(ptsFile)
+	leaked := ptsErr == nil ||
 		strings.Contains(outStr, "Reached occupant") ||
 		strings.Contains(outStr, "Leak file written to")
 

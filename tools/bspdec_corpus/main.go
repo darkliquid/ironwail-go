@@ -117,7 +117,7 @@ func main() {
 	qdData := fs.String("quaddicted-data", "", "path to quaddicted-data repo")
 	outJSON := fs.String("out-json", "", "output path for audit JSON (default: <data>/audit.json)")
 	outMD := fs.String("out-md", "", "output path for audit Markdown (default: <data>/audit.md)")
-	gridSnap := fs.Int("grid-snap", 8, "grid snap lattice for decompilation in audit (default: 8)")
+	gridSnap := fs.Int("grid-snap", 0, "grid snap lattice for decompilation in audit (0 = off/exact, default: 0)")
 	_ = fs.Parse(os.Args[1:])
 
 	if stage == "" {

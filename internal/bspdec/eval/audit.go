@@ -86,8 +86,8 @@ func AuditMapPair(mapPath, bspPath, pkgID, mapID string, opts AuditOptions) (Aud
 	}
 
 	snap := opts.GridSnap
-	if snap <= 0 && !opts.SkipDecomp {
-		snap = 8
+	if snap < 0 {
+		snap = 0
 	}
 
 	// 1. Forward compile audit
