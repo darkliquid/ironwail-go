@@ -14,9 +14,9 @@ const routeAVersion = "0.1.0"
 
 // metrics are the recorded validation numbers carried in metadata.json.
 type metrics struct {
-	ValF1 float64 `json:"val_f1"`
-	ValP  float64 `json:"val_p"`
-	ValR  float64 `json:"val_r"`
+	ValAUC float64 `json:"val_auc"`
+	ValP   float64 `json:"val_p"`
+	ValR   float64 `json:"val_r"`
 }
 
 // modelArtifact is model.json: schema + weights + quantizer params, the

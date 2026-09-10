@@ -45,10 +45,17 @@ func validateModel(recs []mapRecord, modelDir string, datasetSHA string) error {
 		}
 		valSet = append(valSet, samples...)
 	}
+	return guardCheck(model, valSet, meta.Metrics.ValAUC)
+}
+
+// guardCheck is the guard core: val ROC AUC below the recorded best (minus
+// the tolerance) fires the regression; a constant (corrupted) predictor
+// scores 0.5 and can never clear a trained model's AUC.
+func guardCheck(model *bspdec.SeamModel, valSet []Sample, recorded float64) error {
 	m := &Model{Weights: model.Weights, Bias: model.Bias}
-	_, _, f := m.evaluate(valSet, model.Mean, model.Std)
-	if f < meta.Metrics.ValF1-regressionTol {
-		return fmt.Errorf("regression guard fired: val F1 %.3f < recorded %.3f (tol %.2f)", f, meta.Metrics.ValF1, regressionTol)
+	auc := m.auc(valSet, model.Mean, model.Std)
+	if auc < recorded-regressionTol {
+		return fmt.Errorf("regression guard fired: val AUC %.3f < recorded %.3f (tol %.2f)", auc, recorded, regressionTol)
 	}
 	return nil
 }

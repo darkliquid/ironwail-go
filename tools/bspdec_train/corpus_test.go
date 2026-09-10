@@ -125,25 +125,36 @@ func TestConfigHashDeterministicAndDistinct(t *testing.T) {
 }
 
 func TestValidateGuardFiresOnRegression(t *testing.T) {
-	// a minimal packaged model with a corrupt (zeroed) weight set must trip
-	// the dataset-drift and/or F1 guard, never pass silently
 	out := t.TempDir()
-	m := &Model{Weights: make([]float64, nFeatures), Bias: 0}
-	mean := make([]float64, nFeatures)
-	std := make([]float64, nFeatures)
-	for i := range std {
-		std[i] = 1
+	mk := func(n int, seam bool) []Sample {
+		var out []Sample
+		for i := 0; i < n; i++ {
+			f := make([]float64, nFeatures)
+			if seam {
+				f[0], f[4], f[5] = 8, 0.5, 2
+			} else {
+				f[0], f[4], f[5] = 1, 1.25, 0
+			}
+			out = append(out, Sample{Features: f, Seam: seam})
+		}
+		return out
 	}
-	if _, err := exportRouteA(out, m, mean, std, metrics{ValF1: 0.9}, "cafef00d", 0x5EED); err != nil {
+	train := append(mk(200, true), mk(200, false)...)
+	val := append(mk(80, true), mk(80, false)...)
+	mean, std := featureStats(train)
+	model := trainLogistic(train, mean, std)
+	if _, err := exportRouteA(out, model, mean, std, metrics{ValAUC: model.auc(val, mean, std)}, "cafef00d", 0x5EED); err != nil {
 		t.Fatal(err)
 	}
-	err := validateModel(nil, out, "cafef00d")
-	if err == nil {
-		t.Fatal("guard must fire for a model that cannot reach the recorded F1")
+	sm := &bspdec.SeamModel{Weights: model.Weights, Bias: model.Bias, Mean: mean, Std: std}
+	if err := guardCheck(sm, val, model.auc(val, mean, std)); err != nil {
+		t.Fatalf("guard must pass for the trained model: %v", err)
 	}
-	// dataset drift also fires
-	err = validateModel(nil, out, "deadbeef")
-	if err == nil {
+	bad := &bspdec.SeamModel{Weights: make([]float64, nFeatures), Bias: 0, Mean: mean, Std: std}
+	if err := guardCheck(bad, val, 1.0); err == nil {
+		t.Fatal("guard must fire on weight corruption (AUC collapses to 0.5)")
+	}
+	if err := validateModel(nil, out, "deadbeef"); err == nil {
 		t.Fatal("guard must fire on dataset SHA mismatch")
 	}
 }

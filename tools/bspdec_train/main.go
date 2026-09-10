@@ -99,14 +99,15 @@ func runRouteA(recs []mapRecord, cacheDir, out, datasetSHA string, seed int64) e
 	}
 	mean, std := featureStats(trainSet)
 	model := trainLogistic(trainSet, mean, std)
-	valP, valR, valF1 := model.evaluate(valSet, mean, std)
-	testP, testR, testF1 := model.evaluate(testSet, mean, std)
+	valAUC := model.auc(valSet, mean, std)
+	testAUC := model.auc(testSet, mean, std)
+	valP, valR, _ := model.evaluate(valSet, mean, std)
 	slog.Info("bspdec-train: route-a trained",
 		"train_samples", len(trainSet), "val_samples", len(valSet), "test_samples", len(testSet),
-		"val_f1", fmt.Sprintf("%.3f", valF1), "val_p/r", fmt.Sprintf("%.3f/%.3f", valP, valR),
-		"test_f1", fmt.Sprintf("%.3f", testF1), "test_p/r", fmt.Sprintf("%.3f/%.3f", testP, testR),
+		"val_auc", fmt.Sprintf("%.3f", valAUC), "val_p/r@0.5", fmt.Sprintf("%.3f/%.3f", valP, valR),
+		"test_auc", fmt.Sprintf("%.3f", testAUC),
 		"cache", cacheDir)
-	if _, err := exportRouteA(out, model, mean, std, metrics{ValF1: valF1, ValP: valP, ValR: valR}, datasetSHA, seed); err != nil {
+	if _, err := exportRouteA(out, model, mean, std, metrics{ValAUC: valAUC, ValP: valP, ValR: valR}, datasetSHA, seed); err != nil {
 		return err
 	}
 	slog.Info("bspdec-train: packaged", "dir", fmt.Sprintf("%s/route-a-v%s", out, routeAVersion))

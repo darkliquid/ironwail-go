@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/darkliquid/ironwail-go/internal/bspdec"
 	"github.com/darkliquid/ironwail-go/internal/qbsp"
 )
 
@@ -137,7 +138,7 @@ func TestRunExitCodes(t *testing.T) {
 	dir := t.TempDir()
 	bspPath := writeTestBSP(t, dir)
 	if code := run([]string{"-ml", "seams", bspPath}, &so, &se); code != 1 {
-		t.Fatalf("--ml exit = %d, want 1 (M0 has no ML)", code)
+		t.Fatalf("--ml exit = %d, want 1 (no provisioned model)", code)
 	}
 	if code := run([]string{"-texture-fallback", "bogus", bspPath}, &so, &se); code != 1 {
 		t.Fatalf("bad fallback exit = %d, want 1", code)
@@ -159,5 +160,47 @@ func TestHasBSPXBrushlist(t *testing.T) {
 	}
 	if hasBSPXBrushlist([]byte("no magic here")) {
 		t.Fatal("junk data reported as BRUSHLIST")
+	}
+}
+func TestRunMLSeams(t *testing.T) {
+	dir := t.TempDir()
+	bspPath := writeTestBSP(t, dir)
+	modelDir := filepath.Join(dir, "models", "route-a-v0.1.0")
+	if err := os.MkdirAll(modelDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	art := bspdec.SeamModel{
+		Schema:  "route-a-features-v1",
+		Weights: make([]float64, bspdec.SeamFeatureCount),
+		Bias:    0,
+		Mean:    make([]float64, bspdec.SeamFeatureCount),
+		Std:     make([]float64, bspdec.SeamFeatureCount),
+	}
+	for i := range art.Std {
+		art.Std[i] = 1
+	}
+	b, _ := json.Marshal(art)
+	if err := os.WriteFile(filepath.Join(modelDir, "model.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "out.map")
+	var so, se bytes.Buffer
+	code := run([]string{"-ml", "seams", "-model-dir", filepath.Join(dir, "models"), "-o", out, "-json", bspPath}, &so, &se)
+	if code != 0 {
+		t.Fatalf("--ml seams exit = %d, stderr: %s", code, se.String())
+	}
+	if _, err := os.Stat(out + ".seams.json"); err != nil {
+		t.Fatalf("sidecar missing: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(so.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	ml := doc["ml"].(map[string]any)
+	if ml["stage"] != "seams" || ml["model"] != "route-a-v0.1.0" {
+		t.Fatalf("ml = %v, want {seams, route-a-v0.1.0}", ml)
+	}
+	if doc["scored"].(float64) < 6 {
+		t.Fatalf("scored = %v, want >= 6 candidates", doc["scored"])
 	}
 }

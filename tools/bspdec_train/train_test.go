@@ -34,12 +34,12 @@ func TestTrainDeterministicAndSeparable(t *testing.T) {
 			t.Fatalf("training not deterministic: weight %d: %v vs %v", i, m1.Weights[i], m2.Weights[i])
 		}
 	}
-	p, r, f := m1.evaluate(val, mean, std)
-	if f < 0.99 {
-		t.Fatalf("val F1 = %v (p=%.2f r=%.2f), want ~1.0 on separable data", f, p, r)
+	if auc := m1.auc(val, mean, std); auc < 0.99 {
+		t.Fatalf("val AUC = %v, want ~1.0 on separable data", auc)
 	}
-	if math.IsNaN(f) {
-		t.Fatal("F1 is NaN")
+	bad := &Model{Weights: make([]float64, nFeatures), Bias: 0}
+	if auc := bad.auc(val, mean, std); math.Abs(auc-0.5) > 0.01 {
+		t.Fatalf("constant predictor AUC = %v, want 0.5", auc)
 	}
 }
 
@@ -48,10 +48,11 @@ func TestExportRouteAPackages(t *testing.T) {
 	m := &Model{Weights: []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7}, Bias: -0.25}
 	mean := []float64{1, 1, 1, 1, 1, 1, 1}
 	std := []float64{1, 1, 1, 1, 1, 1, 1}
-	dir, err := exportRouteA(out, m, mean, std, metrics{ValF1: 0.9, ValP: 0.91, ValR: 0.89}, "deadbeef", 0x5EED)
+	dir, err := exportRouteA(out, m, mean, std, metrics{ValAUC: 0.9, ValP: 0.91, ValR: 0.89}, "deadbeef", 0x5EED)
 	if err != nil {
 		t.Fatal(err)
 	}
+	_ = math.Abs
 	var art modelArtifact
 	b, err := os.ReadFile(filepath.Join(dir, "model.json"))
 	if err != nil {
@@ -71,7 +72,7 @@ func TestExportRouteAPackages(t *testing.T) {
 	if err := json.Unmarshal(b, &meta); err != nil {
 		t.Fatal(err)
 	}
-	if meta.Route != "a" || meta.DatasetSHA != "deadbeef" || meta.Metrics.ValF1 != 0.9 || len(meta.ClassLabels) != 2 {
+	if meta.Route != "a" || meta.DatasetSHA != "deadbeef" || meta.Metrics.ValAUC != 0.9 || len(meta.ClassLabels) != 2 {
 		t.Fatalf("metadata wrong: %+v", meta)
 	}
 	if meta.Quantizer != "z-score" {
