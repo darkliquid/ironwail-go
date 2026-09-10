@@ -2,7 +2,9 @@
 
 `bspdec` reconstructs Quake `.map` sources from compiled `.bsp` files,
 with a deterministic core, a BRUSHLIST direct path, optional ML stages,
-and a full corpus/training/tooling suite. Spec:
+and a full corpus/training/tooling suite. For a comprehensive walkthrough of
+the tools, concepts, and ML training pipeline, see the
+[bspdec Operations Manual](file:///home/darkliquid/Projects/ironwail-go/docs/BSPDEC_OPERATIONS_MANUAL.md). Spec:
 `docs/superpowers/specs/2026-09-07-bspdec-design.md`.
 
 ## CLI (`cmd/bspdec`)

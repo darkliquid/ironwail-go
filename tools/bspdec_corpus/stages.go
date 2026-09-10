@@ -123,6 +123,9 @@ func stageCanonicalize(ctx *stageCtx) error {
 	failures := 0
 	for i := range entries {
 		e := &entries[i]
+		if e.Flags.Era == "synthetic" {
+			continue
+		}
 		if len(e.MapFiles) == 0 && len(e.BSPFiles) > 0 {
 			e.Flags.ClassicHoldout = true
 			holdout++
@@ -174,14 +177,18 @@ func subprocessCompile(mapPath, outDir string) (evalPair, error) {
 		p, err := eval.CompileMapPair(mapPath, outDir)
 		return evalPair{MapPath: p.MapPath, BSPPath: p.BSPPath}, err
 	}
-	cmd := exec.Command(exe, "canonicalize-onemap", "-data", filepath.Dir(filepath.Dir(outDir)), "-pkg", filepath.Base(filepath.Dir(outDir)))
+	cmd := exec.Command(exe, "canonicalize-onemap", "-data", filepath.Dir(filepath.Dir(outDir)), "-pkg", filepath.Base(outDir))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return evalPair{}, fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
+	bspPath := filepath.Join(outDir, strings.TrimSuffix(filepath.Base(mapPath), ".map")+".bsp")
+	if _, err := os.Stat(bspPath); err != nil {
+		return evalPair{}, fmt.Errorf("canonicalize-onemap %s did not produce %s: %w", filepath.Base(outDir), bspPath, err)
+	}
 	return evalPair{
 		MapPath: mapPath,
-		BSPPath: filepath.Join(outDir, strings.TrimSuffix(filepath.Base(mapPath), ".map")+".bsp"),
+		BSPPath: bspPath,
 	}, nil
 }
 
