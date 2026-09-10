@@ -131,9 +131,9 @@ seeds/two runs identical; learned F1 > random on a separable fixture.
 
 ## Wrap-up
 
-- [ ] `mise run verify` green.
-- [ ] Beads: close `xxy.12` with the packaged-model evidence; update `xxy.6`
-      /`.7` notes that the pipeline + truth supervision exist.
+- [x] `mise run verify` green.
+- [x] Beads: `xxy.12` closed with the packaged-model evidence; `xxy.6`/`.7`
+      notes updated (pipeline + truth supervision exist).
 - [ ] Report: files changed, model metadata, regression-guard evidence,
       and the M2 expected-gains note (`gw8`).
 
