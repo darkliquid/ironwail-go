@@ -49,6 +49,7 @@ type suiteResult struct {
 func main() {
 	dataDir := flag.String("data", "dataset/bspdec", "corpus root")
 	count := flag.Int("count", 20, "number of synthetic maps to pilot (0 = all labeled)")
+	search := flag.Bool("search", false, "decode programs by beam search instead of direct BRUSHLIST tokenization (Route D)")
 	flag.Parse()
 
 	synth, err := scanSynthPairs(*dataDir)
@@ -63,7 +64,7 @@ func main() {
 	fmt.Printf("| map | programs | valid | self-check | compile | parity IoU | pass |\n")
 	fmt.Printf("| --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, r := range synth {
-		res := pilotPair(r)
+		res := pilotPair(r, *search)
 		if res.Pass {
 			passed++
 		}
@@ -71,11 +72,15 @@ func main() {
 			r.MapID, res.Programs, res.Valid, res.SelfCheck, res.Compile, res.ParityIoU, res.Pass)
 	}
 	rate := float64(passed) / float64(len(synth))
-	fmt.Printf("\nRoute C pilot gate: %d/%d pairs (%.0f%%) pass compile+parity\n", passed, len(synth), rate*100)
+	route := "Route C"
+	if *search {
+		route = "Route D"
+	}
+	fmt.Printf("\n%s pilot gate: %d/%d pairs (%.0f%%) pass compile+parity\n", route, passed, len(synth), rate*100)
 	if rate < 0.9 {
 		fatal(fmt.Sprintf("pilot gate failed: %.0f%% < 90%%", rate*100))
 	}
-	slog.Info("bspdec-prog: pilot gate passed", "pairs", passed, "of", len(synth))
+	slog.Info("bspdec-prog: pilot gate passed", "route", route, "pairs", passed, "of", len(synth))
 }
 
 // pilotPair tokenizes a synthetic map's BRUSHLIST targets into programs,
@@ -116,7 +121,7 @@ func scanSynthPairs(dataDir string) (s []synthPair, err error) {
 	return s, nil
 }
 
-func pilotPair(r synthPair) suiteResult {
+func pilotPair(r synthPair, search bool) suiteResult {
 	res := suiteResult{MapID: r.MapID, ParityIoU: -1}
 	data, err := os.ReadFile(r.BSPPath)
 	if err != nil {
@@ -141,7 +146,13 @@ func pilotPair(r synthPair) suiteResult {
 		if b.Model != 0 {
 			continue
 		}
-		prog, ok := tokenizeProgram(f, b)
+		var prog brushProgram
+		var ok bool
+		if search {
+			prog, ok = searchProgram(f, b, 16)
+		} else {
+			prog, ok = tokenizeProgram(f, b)
+		}
 		res.Programs++
 		if !ok || len(prog.Planes) < 4 || volumeOf(b) <= 0 {
 			allValid = false
@@ -304,4 +315,142 @@ func approx(a, b float64) bool {
 func fatal(msg string) {
 	fmt.Fprintln(os.Stderr, "bspdec-prog:", msg)
 	os.Exit(1)
+}
+
+// searchProgram is the Route D search-decoder pilot (spec 7.3 Route D,
+// bead xxy.9): instead of direct BRUSHLIST tokenization it runs a
+// cost-guided beam search over the canonical BSP plane-Table for the
+// subset that reproduces the target brush AABB. The cost function
+// ("learned costs" hook) maximizes target-face coverage while penalizing
+// extraneous planes; the Route A/B edge models can later replace the
+// structural cost. Returns the program equivalent of the tokenizer.
+func searchProgram(f *bsp.File, target bspdec.BSPXBrush, beam int) (brushProgram, bool) {
+	type poolPlane struct {
+		tableIdx int
+		plane    mapfile.Plane
+	}
+	seen := map[mapfile.Plane]bool{}
+	var pool []poolPlane
+	for i := range f.Planes {
+		cp := canonical(f.Planes[i])
+		if seen[cp] {
+			continue
+		}
+		seen[cp] = true
+		pool = append(pool, poolPlane{tableIdx: i, plane: cp})
+	}
+	// target face planes, canonicalized, for coverage scoring
+	type face struct {
+		pl   mapfile.Plane
+		orig mapfile.Plane
+	}
+	var faces []face
+	for _, pl := range target.Faces {
+		faces = append(faces, face{pl: canonicalPlane(pl), orig: pl})
+	}
+	state := struct {
+		chosen []int
+		score  int
+	}{}
+	match := func(chosen []int) int {
+		n := 0
+		for _, fc := range faces {
+			for _, ci := range chosen {
+				if planeLike(pool[ci].plane.Normal, pool[ci].plane.Dist, fc.pl.Normal, fc.pl.Dist) {
+					n++
+					break
+				}
+			}
+		}
+		return n
+	}
+	beams := [][]int{{}}
+	for depth := 0; depth < 8; depth++ {
+		var next [][]int
+		for _, st := range beams {
+			for pi := range pool {
+				if contains(st, pi) {
+					continue
+				}
+				ns := append(append([]int{}, st...), pi)
+				next = append(next, ns)
+			}
+		}
+		// cost-ordered pruning: more target coverage, fewer extraneous planes
+		sort.SliceStable(next, func(i, j int) bool {
+			mi, mj := match(next[i]), match(next[j])
+			if mi != mj {
+				return mi > mj
+			}
+			return len(next[i]) < len(next[j])
+		})
+		if len(next) > beam {
+			next = next[:beam]
+		}
+		beams = next
+		state.score = 0
+		for _, st := range beams {
+			if s := match(st); s > state.score {
+				state.score = s
+				state.chosen = st
+			}
+		}
+		if state.score == len(faces) {
+			break
+		}
+	}
+	// emit the program: chosen pool planes, signed against each target face
+	prog := brushProgram{
+		Mins: [3]float64{target.Mins.X, target.Mins.Y, target.Mins.Z},
+		Maxs: [3]float64{target.Maxs.X, target.Maxs.Y, target.Maxs.Z},
+	}
+	for _, fc := range faces {
+		matched := -1
+		for _, ci := range state.chosen {
+			pl := pool[ci].plane
+			if planeLike(pl.Normal, pl.Dist, fc.pl.Normal, fc.pl.Dist) {
+				matched = pool[ci].tableIdx
+				break
+			}
+		}
+		if matched < 0 {
+			return brushProgram{}, false
+		}
+		prog.Planes = append(prog.Planes, int32(matched))
+		tp := tablePlane(f, matched)
+		prog.Neg = append(prog.Neg, !planeLike(tp.Normal, tp.Dist, fc.orig.Normal, fc.orig.Dist))
+	}
+	return prog, true
+}
+
+// canonical re-orients a plane so the halfspace n*x <= d has a dominant
+// positive normal (deterministic search space).
+func canonical(p bsp.DPlane) mapfile.Plane {
+	n := mapfile.Vec3{X: float64(p.Normal.X), Y: float64(p.Normal.Y), Z: float64(p.Normal.Z)}
+	d := float64(p.Dist)
+	return canonicalPlane(mapfile.Plane{Normal: n, Dist: d})
+}
+
+func canonicalPlane(p mapfile.Plane) mapfile.Plane {
+	if p.Normal.X < 0 || (approx(p.Normal.X, 0) && p.Normal.Y < 0) || (approx(p.Normal.X, 0) && approx(p.Normal.Y, 0) && p.Normal.Z < 0) {
+		return mapfile.Plane{Normal: neg3(p.Normal), Dist: -p.Dist}
+	}
+	return p
+}
+
+func tablePlane(f *bsp.File, idx int) mapfile.Plane {
+	p := f.Planes[idx]
+	return mapfile.Plane{
+		Normal: mapfile.Vec3{X: float64(p.Normal.X), Y: float64(p.Normal.Y), Z: float64(p.Normal.Z)},
+		Dist:   float64(p.Dist),
+	}
+}
+
+func contains(s []int, v int) bool {
+	for _, x := range s {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }

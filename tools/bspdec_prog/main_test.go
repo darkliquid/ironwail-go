@@ -36,7 +36,7 @@ func buildFixtureSynthPair(t *testing.T) synthPair {
 
 func TestPilotPairCompileParity(t *testing.T) {
 	r := buildFixtureSynthPair(t)
-	res := pilotPair(r)
+	res := pilotPair(r, false)
 	if res.Error != "" {
 		t.Fatalf("pilot error: %s", res.Error)
 	}
@@ -48,6 +48,48 @@ func TestPilotPairCompileParity(t *testing.T) {
 	}
 	if !res.Pass {
 		t.Fatalf("parity IoU = %v, want >= 0.95", res.ParityIoU)
+	}
+}
+
+func TestPilotPairBeamSearchParity(t *testing.T) {
+	r := buildFixtureSynthPair(t)
+	res := pilotPair(r, true)
+	if res.Error != "" {
+		t.Fatalf("search pilot error: %s", res.Error)
+	}
+	if res.Programs == 0 || res.Valid != res.Programs {
+		t.Fatalf("search programs valid %d/%d", res.Valid, res.Programs)
+	}
+	if !res.Pass {
+		t.Fatalf("search parity IoU = %v, want >= 0.95", res.ParityIoU)
+	}
+}
+
+func TestSearchProgramFindsPlanes(t *testing.T) {
+	r := buildFixtureSynthPair(t)
+	data, err := os.ReadFile(r.BSPPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := bsp.Load(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ls, err := bspdec.BrushListFromBSP(data)
+	if err != nil || len(ls) == 0 {
+		t.Fatalf("no BRUSHLIST: %v", err)
+	}
+	prog, ok := searchProgram(f, ls[0], 16)
+	if !ok || len(prog.Planes) != len(ls[0].Faces) {
+		t.Fatalf("search decode failed: ok=%v planes=%d faces=%d", ok, len(prog.Planes), len(ls[0].Faces))
+	}
+	// re-derive the AABB from the decoded brush and compare to the target
+	tb, err := brushFromTokens(f, prog, ls[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !approx(tb.Mins.X, ls[0].Mins.X) || !approx(tb.Maxs.X, ls[0].Maxs.X) {
+		t.Fatalf("decoded AABB x (%v,%v) != target (%v,%v)", tb.Mins.X, tb.Maxs.X, ls[0].Mins.X, ls[0].Maxs.X)
 	}
 }
 
