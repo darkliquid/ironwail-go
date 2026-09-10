@@ -285,6 +285,10 @@ run = "go run ./tools/bspdec_train -data dataset/bspdec -out models/bspdec"
 description = "bspdec ML regression guard against the recorded best"
 run = "go run ./tools/bspdec_train -validate -data dataset/bspdec -out models/bspdec"
 
+[tasks.bspdec-gate]
+description = "bspdec Route A held-out gate (ML F1 vs deterministic split heuristic)"
+run = "go run ./tools/bspdec_train -gate -data dataset/bspdec -out models/bspdec"
+
 [tasks.generate-test-map]
 description = "Generate test_transparency.bsp in game data dirs"
 depends = ["build-bspgen"]
