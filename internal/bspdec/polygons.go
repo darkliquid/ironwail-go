@@ -59,3 +59,48 @@ func (fg FaceGeom) Area() float64 {
 	w := &Winding{Points: fg.Ring}
 	return w.Area()
 }
+
+// CellAdjacency lists the coplanar-adjacent cell pairs of a decompiled
+// world (unmerged cells): two cells are adjacent when opposite-direction
+// coplanar faces overlap, and the returned area is that contact region
+// (Route B grouping task, spec section 7.2).
+func CellAdjacency(cellsGeom [][]FaceGeom) (pairs [][2]int, areas []float64, err error) {
+	cells := make([]*Brush, len(cellsGeom))
+	for ci, fgs := range cellsGeom {
+		b := &Brush{}
+		for _, fg := range fgs {
+			b.Sides = append(b.Sides, &Side{Plane: fg.Plane})
+		}
+		rebuildWindings(b)
+		cells[ci] = b
+	}
+	for i := range cells {
+		for j := i + 1; j < len(cells); j++ {
+			for _, fi := range cells[i].Sides {
+				if fi.Winding == nil {
+					continue
+				}
+				for _, fj := range cells[j].Sides {
+					if fj.Winding == nil {
+						continue
+					}
+					if !planesOpposite(fi.Plane, fj.Plane) {
+						continue
+					}
+					w := clipToBrush(fj.Winding, cells[i], fi.Plane)
+					if w == nil || len(w.Points) < 3 {
+						continue
+					}
+					a := w.Area()
+					if a < minSliverArea {
+						continue
+					}
+					pairs = append(pairs, [2]int{i, j})
+					areas = append(areas, a)
+					break
+				}
+			}
+		}
+	}
+	return pairs, areas, nil
+}

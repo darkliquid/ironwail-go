@@ -56,16 +56,16 @@ var qbspPin = func() string {
 	return "local"
 }()
 
-// exportRouteA packages a trained model under <out>/route-a-v<version>/ with
+// exportRoute packages a trained model under <out>/<route>-v<version>/ with
 // model.json + metadata.json and returns the artifact directory. Re-runs
 // overwrite in place (the corpus SHA in metadata distinguishes versions).
-func exportRouteA(out string, m *Model, mean, std []float64, met metrics, datasetSHA string, seed int64) (string, error) {
-	dir := filepath.Join(out, "route-a-v"+routeAVersion)
+func exportRoute(out, route, version, schema string, m *Model, mean, std []float64, met metrics, datasetSHA string, seed int64) (string, error) {
+	dir := filepath.Join(out, "route-"+route+"-v"+version)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
 	art := modelArtifact{
-		Schema:  featureSchema,
+		Schema:  schema,
 		Weights: m.Weights,
 		Bias:    m.Bias,
 		Mean:    mean,

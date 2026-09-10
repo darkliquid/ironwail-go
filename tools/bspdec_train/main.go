@@ -37,8 +37,8 @@ func main() {
 		return
 	}
 
-	if *route != "a" && *route != "all" {
-		fatal(fmt.Sprintf("unknown route %q (want a|all)", *route))
+	if *route != "a" && *route != "b" && *route != "all" {
+		fatal(fmt.Sprintf("unknown route %q (want a|b|all)", *route))
 	}
 
 	recs, datasetSHA, err := scanCorpus(*dataDir)
@@ -67,7 +67,8 @@ func main() {
 	if err := os.MkdirAll(*out, 0o755); err != nil {
 		fatal(err.Error())
 	}
-	if *route == "a" || *route == "all" {
+	switch {
+	case *route == "a" || *route == "all":
 		stats, err := runRouteA(recs, cacheDir, *out, datasetSHA, *seed)
 		if err != nil {
 			fatal(err.Error())
@@ -83,7 +84,97 @@ func main() {
 				fatal(gateNote(false))
 			}
 		}
+	case *route == "b":
+		stats, err := runRouteB(recs, *out, datasetSHA, *seed)
+		if err != nil {
+			fatal(err.Error())
+		}
+		if *gate {
+			passed := routeBGate(stats)
+			slog.Info("bspdec-train: route-b gate",
+				"ml_f1", fmt.Sprintf("%.3f", stats.MLF1),
+				"baseline_f1", fmt.Sprintf("%.3f", stats.BaselineF1),
+				"truth_edges", stats.TruthEdges,
+				"verdict", groupGateNote(passed))
+			if !passed {
+				fatal(groupGateNote(false))
+			}
+		}
 	}
+}
+
+// runRouteB trains the cell-grouping classifier (Route B, spec 7.2): pair
+// candidates from coplanar adjacency of the unmerged cells, trained on the
+// train split, evaluated as group-recovery edge F1 versus the
+// --merge-convex baseline on the held-out val split. Packages
+// route-b-v0.1.0 with metadata.
+func runRouteB(recs []mapRecord, out, datasetSHA string, seed int64) (*routeBStats, error) {
+	var trainPairs, valPairs []groupPair
+	for _, r := range recs {
+		// the gate evaluates on the held-out test split (route A uses it too)
+		if r.Split != "train" && r.Split != "test" {
+			continue
+		}
+		gc, err := groupSamplesForRecord(&r)
+		if err != nil {
+			slog.Warn("bspdec-train: route-b extraction failed", "map", r.PkgID+"/"+r.MapID, "err", err)
+			continue
+		}
+		slog.Info("bspdec-train: route-b pairs", "map", r.PkgID+"/"+r.MapID,
+			"pairs", len(gc.Pairs), "truth", gc.TruthEdges, "baseline", gc.BaselineEdges)
+		if r.Split == "train" {
+			trainPairs = append(trainPairs, gc.Pairs...)
+		} else {
+			valPairs = append(valPairs, gc.Pairs...)
+		}
+	}
+	if len(trainPairs) == 0 {
+		return nil, fmt.Errorf("no route-b training pairs")
+	}
+	samples := make([]Sample, len(trainPairs))
+	for i, p := range trainPairs {
+		samples[i] = Sample{Features: p.Features, Seam: p.Merge}
+	}
+	mean, std := featureStats(samples)
+	model := trainLogistic(samples, mean, std)
+	valSamples := make([]Sample, len(valPairs))
+	for i, p := range valPairs {
+		valSamples[i] = Sample{Features: p.Features, Seam: p.Merge}
+	}
+	// ML grouping = the --merge-convex baseline union the learned additions;
+	// score both against the same true-edge set at each threshold.
+	base := func(p groupPair) bool { return p.Features[4] == 1 }
+	mlAt := func(th float64) func(p groupPair) bool {
+		return func(p groupPair) bool {
+			return base(p) || model.predict(normalizeFeatures(p.Features, mean, std)) >= th
+		}
+	}
+	mlBest := 0.0
+	for th := 0.05; th <= 0.95; th += 0.05 {
+		_, _, f := edgeF1(valPairs, mlAt(th))
+		if f > mlBest {
+			mlBest = f
+		}
+	}
+	mlF1 := mlBest
+	_, _, baselineF1 := edgeF1(valPairs, base)
+	_, _, mlR := edgeF1(valPairs, mlAt(0.5))
+	_, _, baseR := edgeF1(valPairs, base)
+	truthTest := 0
+	for _, p := range valPairs {
+		if p.Merge {
+			truthTest++
+		}
+	}
+	if _, err := exportRoute(out, "b", "0.1.0", groupSchema, model, mean, std, metrics{ValAUC: model.auc(valSamples, mean, std)}, datasetSHA, seed); err != nil {
+		return nil, err
+	}
+	slog.Info("bspdec-train: route-b trained",
+		"train_pairs", len(trainPairs), "test_pairs", len(valPairs),
+		"ml_f1", fmt.Sprintf("%.3f", mlF1), "baseline_f1", fmt.Sprintf("%.3f", baselineF1),
+		"ml_recall@0.5", fmt.Sprintf("%.3f", mlR), "baseline_recall", fmt.Sprintf("%.3f", baseR))
+	slog.Info("bspdec-train: packaged", "dir", fmt.Sprintf("%s/route-b-v0.1.0", out))
+	return &routeBStats{MLF1: mlF1, BaselineF1: baselineF1, MLR: mlR, BaselineR: baseR, TruthEdges: truthTest, Inconclusive: truthTest < 10}, nil
 }
 
 // runRouteA extracts Route A features, trains the seam classifier on the
@@ -142,7 +233,7 @@ func runRouteA(recs []mapRecord, cacheDir, out, datasetSHA string, seed int64) (
 		"test_auc", fmt.Sprintf("%.3f", testAUC), "test_ml_f1", fmt.Sprintf("%.3f", mlF1),
 		"test_heuristic_f1", fmt.Sprintf("%.3f", heurF1),
 		"cache", cacheDir)
-	if _, err := exportRouteA(out, model, mean, std, metrics{ValAUC: valAUC, ValP: valP, ValR: valR}, datasetSHA, seed); err != nil {
+	if _, err := exportRoute(out, "a", routeAVersion, featureSchema, model, mean, std, metrics{ValAUC: valAUC, ValP: valP, ValR: valR}, datasetSHA, seed); err != nil {
 		return nil, err
 	}
 	slog.Info("bspdec-train: packaged", "dir", fmt.Sprintf("%s/route-a-v%s", out, routeAVersion))

@@ -21,18 +21,20 @@ const (
 )
 
 // featureStats returns per-feature mean and std over the samples (train
-// split only), used to normalize before training and at inference.
+// split only), used to normalize before training and at inference. The
+// feature count is taken from the samples.
 func featureStats(samples []Sample) (mean, std []float64) {
-	mean = make([]float64, nFeatures)
-	std = make([]float64, nFeatures)
-	n := float64(len(samples))
+	n := len(samples[0].Features)
+	mean = make([]float64, n)
+	std = make([]float64, n)
+	count := float64(len(samples))
 	for _, s := range samples {
 		for i, v := range s.Features {
 			mean[i] += v
 		}
 	}
 	for i := range mean {
-		mean[i] /= n
+		mean[i] /= count
 	}
 	for _, s := range samples {
 		for i, v := range s.Features {
@@ -41,7 +43,7 @@ func featureStats(samples []Sample) (mean, std []float64) {
 		}
 	}
 	for i := range std {
-		std[i] = math.Sqrt(std[i] / n)
+		std[i] = math.Sqrt(std[i] / count)
 		if std[i] < 1e-9 {
 			std[i] = 1
 		}
@@ -50,7 +52,7 @@ func featureStats(samples []Sample) (mean, std []float64) {
 }
 
 func normalizeFeatures(f []float64, mean, std []float64) []float64 {
-	x := make([]float64, nFeatures)
+	x := make([]float64, len(f))
 	for i := range f {
 		x[i] = (f[i] - mean[i]) / std[i]
 	}
@@ -60,8 +62,12 @@ func normalizeFeatures(f []float64, mean, std []float64) []float64 {
 // trainLogistic fits weights with batch gradient descent (deterministic:
 // zero init, fixed epochs and rate, no shuffling).
 func trainLogistic(samples []Sample, mean, std []float64) *Model {
+	nFeatures := len(samples[0].Features)
+	if nFeatures == 0 {
+		return &Model{Weights: []float64{}}
+	}
 	m := &Model{Weights: make([]float64, nFeatures)}
-	n := float64(len(samples))
+	nsamples := float64(len(samples))
 	for epoch := 0; epoch < trainEpochs; epoch++ {
 		g := make([]float64, nFeatures)
 		gb := 0.0
@@ -75,9 +81,9 @@ func trainLogistic(samples []Sample, mean, std []float64) *Model {
 			gb += e
 		}
 		for i := range m.Weights {
-			m.Weights[i] -= trainLearnRate * g[i] / n
+			m.Weights[i] -= trainLearnRate * g[i] / nsamples
 		}
-		m.Bias -= trainLearnRate * gb / n
+		m.Bias -= trainLearnRate * gb / nsamples
 	}
 	return m
 }

@@ -143,7 +143,7 @@ func TestValidateGuardFiresOnRegression(t *testing.T) {
 	val := append(mk(80, true), mk(80, false)...)
 	mean, std := featureStats(train)
 	model := trainLogistic(train, mean, std)
-	if _, err := exportRouteA(out, model, mean, std, metrics{ValAUC: model.auc(val, mean, std)}, "cafef00d", 0x5EED); err != nil {
+	if _, err := exportRoute(out, "a", routeAVersion, featureSchema, model, mean, std, metrics{ValAUC: model.auc(val, mean, std)}, "cafef00d", 0x5EED); err != nil {
 		t.Fatal(err)
 	}
 	sm := &bspdec.SeamModel{Weights: model.Weights, Bias: model.Bias, Mean: mean, Std: std}

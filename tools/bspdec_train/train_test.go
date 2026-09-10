@@ -49,7 +49,7 @@ func TestExportRouteAPackages(t *testing.T) {
 	m := &Model{Weights: []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7}, Bias: -0.25}
 	mean := []float64{1, 1, 1, 1, 1, 1, 1}
 	std := []float64{1, 1, 1, 1, 1, 1, 1}
-	dir, err := exportRouteA(out, m, mean, std, metrics{ValAUC: 0.9, ValP: 0.91, ValR: 0.89}, "deadbeef", 0x5EED)
+	dir, err := exportRoute(out, "a", routeAVersion, featureSchema, m, mean, std, metrics{ValAUC: 0.9, ValP: 0.91, ValR: 0.89}, "deadbeef", 0x5EED)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,4 +152,38 @@ func TestGateMLBeatsHeuristicOnCorpusDistribution(t *testing.T) {
 // newRand returns a deterministic rand source for synthetic fixtures.
 func newRand(seed int64) *rand.Rand {
 	return rand.New(rand.NewSource(seed))
+}
+
+func TestGroupFeaturesAndEdgeF1(t *testing.T) {
+	// adjacency-based fixture: the baseline (f4) edges are a subset of the
+	// truth; edgeF1 must reflect a better classifier beating it
+	pairs := []groupPair{
+		{Features: []float64{0.8, 0, 0, 0, 1, 0}, Merge: true},  // baseline merges, truth yes
+		{Features: []float64{0.9, 1, 1, 0, 0, 0}, Merge: true},  // ML-only catch (multi cells)
+		{Features: []float64{0.1, 0, 0, 1, 0, 0}, Merge: false}, // far-apart slivers
+		{Features: []float64{0.6, 0, 0, 0, 1, 0}, Merge: false}, // baseline false positive
+	}
+	pBase := func(p groupPair) bool { return p.Features[4] == 1 }
+	pML := func(p groupPair) bool { return p.Features[0] > 0.5 || p.Features[2] == 1 }
+	_, _, baseF := edgeF1(pairs, pBase)
+	_, _, mlF := edgeF1(pairs, pML)
+	if mlF <= baseF {
+		t.Fatalf("ML fixture F1 %v must beat baseline %v", mlF, baseF)
+	}
+	if !groupGateVerdict(mlF, baseF) {
+		t.Fatal("gate must pass")
+	}
+}
+
+func TestRouteBInconclusiveGuard(t *testing.T) {
+	// <10 residual truth edges on the held-out slice => inconclusive, which
+	// the gate treats as no demonstrated gain (never a vacuous pass)
+	stats := &routeBStats{MLF1: 0.107, BaselineF1: 0.0, TruthEdges: 2, Inconclusive: true}
+	if routeBGate(stats) {
+		t.Fatal("an inconclusive gate must fold into a conservative failure, not a vacuous pass")
+	}
+	real := &routeBStats{MLF1: 0.9, BaselineF1: 0.8, TruthEdges: 120}
+	if !routeBGate(real) {
+		t.Fatal("a genuine ML>baseline result with signal must pass")
+	}
 }

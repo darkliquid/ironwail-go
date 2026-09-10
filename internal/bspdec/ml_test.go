@@ -146,3 +146,28 @@ func TestLoadSeamModel(t *testing.T) {
 		t.Fatalf("score = %v, want sigmoid(0.5)", p)
 	}
 }
+
+func TestCellAdjacencyPairs(t *testing.T) {
+	// two adjacent box cells sharing a coplanar face at x=32, plus a third
+	// disjoint box; adjacency must return exactly the (0,1) pair
+	box := func(x0, x1 float64) []FaceGeom {
+		b := boxBrush(vc(x0, 0, 0), vc(x1, 64, 64))
+		rebuildWindings(b)
+		var fgs []FaceGeom
+		for _, s := range b.Sides {
+			fgs = append(fgs, FaceGeom{Plane: s.Plane, Ring: s.Winding.Points})
+		}
+		return fgs
+	}
+	cells := [][]FaceGeom{box(0, 32), box(32, 64), box(128, 160)}
+	pairs, areas, err := CellAdjacency(cells)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pairs) != 1 || pairs[0] != [2]int{0, 1} {
+		t.Fatalf("pairs = %v, want [[0 1]]", pairs)
+	}
+	if areas[0] < 64*64-1 {
+		t.Fatalf("contact area = %v, want ~4096", areas[0])
+	}
+}
