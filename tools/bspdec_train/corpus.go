@@ -30,6 +30,7 @@ type mapRecord struct {
 	PkgID   string
 	MapID   string
 	Split   string // train | val | test | holdout
+	Era     string // synthetic | classic | "" (distribution-shift slicing)
 	MapPath string
 	BSPPath string
 	Labels  *labelRecord
@@ -101,9 +102,15 @@ func scanCorpus(dataDir string) ([]mapRecord, string, error) {
 			if bspPath == "" {
 				bspPath = filepath.Join(dataDir, "paired", e.PkgID, stem+".bsp")
 			}
+			mapPath := filepath.Join(dataDir, filepath.FromSlash(mf))
+			if _, err := os.Stat(mapPath); err != nil {
+				// canonicalized pairs live under paired/<pkg>/even when the
+				// manifest path points at the source tree
+				mapPath = filepath.Join(dataDir, "paired", e.PkgID, stem+".map")
+			}
 			recs = append(recs, mapRecord{
-				PkgID: e.PkgID, MapID: stem, Split: split,
-				MapPath: filepath.Join(dataDir, filepath.FromSlash(mf)),
+				PkgID: e.PkgID, MapID: stem, Split: split, Era: e.Flags.Era,
+				MapPath: mapPath,
 				BSPPath: bspPath,
 				Labels:  &rec,
 			})

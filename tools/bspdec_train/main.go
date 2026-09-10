@@ -6,10 +6,12 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 )
 
 // featureSchema bumps whenever Route A's feature vector layout changes;
@@ -200,14 +202,21 @@ func gateNote(passed bool) string {
 }
 
 func runRouteA(recs []mapRecord, cacheDir, out, datasetSHA string, seed int64) (*routeAStats, error) {
-	var trainSet, valSet, testSet []Sample
+	var trainSet, valSet, testSet, classicSet []Sample
 	for _, r := range recs {
 		samples, err := samplesForMap(&r)
 		if err != nil {
 			slog.Warn("bspdec-train: feature extraction failed", "map", r.PkgID+"/"+r.MapID, "err", err)
 			continue
 		}
-		slog.Info("bspdec-train: features", "map", r.PkgID+"/"+r.MapID, "samples", len(samples))
+		slog.Info("bspdec-train: features", "map", r.PkgID+"/"+r.MapID,
+			"samples", len(samples), "era", r.Era, "split", r.Split)
+		// M4: classic (real-map) data stays OUT of the ML train distribution;
+		// it becomes the distribution-shift slice the model is scored against.
+		if r.Era != "synthetic" && r.Era != "" {
+			classicSet = append(classicSet, samples...)
+			continue
+		}
 		switch r.Split {
 		case "train":
 			trainSet = append(trainSet, samples...)
@@ -233,11 +242,34 @@ func runRouteA(recs []mapRecord, cacheDir, out, datasetSHA string, seed int64) (
 		"test_auc", fmt.Sprintf("%.3f", testAUC), "test_ml_f1", fmt.Sprintf("%.3f", mlF1),
 		"test_heuristic_f1", fmt.Sprintf("%.3f", heurF1),
 		"cache", cacheDir)
+	// distribution-shift slice: model trained purely on synthetic, scored
+	// against the classic maps held out of training (M4)
+	classicAUC := 0.5
+	if len(classicSet) > 0 {
+		classicAUC = model.auc(classicSet, mean, std)
+		_, rc, f := model.evaluate(classicSet, mean, std)
+		rep := shiftReport{Samples: len(classicSet), AUC: classicAUC, F1At05: f, RecallAt05: rc}
+		raw, _ := json.MarshalIndent(rep, "", "  ")
+		if err := os.WriteFile(filepath.Join(out, "route-a-v"+routeAVersion, "shift.json"), raw, 0o644); err != nil {
+			return nil, err
+		}
+		slog.Info("bspdec-train: distribution shift", "classic_samples", len(classicSet), "classic_auc", fmt.Sprintf("%.3f", classicAUC))
+	}
 	if _, err := exportRoute(out, "a", routeAVersion, featureSchema, model, mean, std, metrics{ValAUC: valAUC, ValP: valP, ValR: valR}, datasetSHA, seed); err != nil {
 		return nil, err
 	}
 	slog.Info("bspdec-train: packaged", "dir", fmt.Sprintf("%s/route-a-v%s", out, routeAVersion))
 	return &routeAStats{MLF1: mlF1, HeurF1: heurF1, TestAUC: testAUC}, nil
+}
+
+// shiftReport records the classic-map (out-of-distribution) evaluation:
+// how the synthetic-trained model transfers to vintage real maps, written
+// as shift.json next to the packaged model (M4 acceptance).
+type shiftReport struct {
+	Samples    int     `json:"samples"`
+	AUC        float64 `json:"auc"`
+	F1At05     float64 `json:"f1@0.5"`
+	RecallAt05 float64 `json:"recall@0.5"`
 }
 
 func fatal(msg string) {

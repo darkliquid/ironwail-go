@@ -38,8 +38,8 @@ func writeCorpusFixture(t *testing.T, dataDir string) {
 	mk("pkga", "a2")
 	mk("pkgb", "b1")
 	manifest := []byte(
-		`{"pkg_id":"pkga","license_note":"x","map_files":["maps/a1.map","maps/a2.map"]}` + "\n" +
-			`{"pkg_id":"pkgb","license_note":"x","map_files":["maps/b1.map"]}` + "\n")
+		`{"pkg_id":"pkga","license_note":"x","map_files":["maps/a1.map","maps/a2.map"],"flags":{"era":"synthetic"}}` + "\n" +
+			`{"pkg_id":"pkgb","license_note":"x","map_files":["maps/b1.map"],"flags":{"era":"synthetic"}}` + "\n")
 	if err := os.MkdirAll(filepath.Join(dataDir, "raw"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +74,11 @@ func TestScanCorpusAndSplits(t *testing.T) {
 	}
 	if byID["pkga-a1"] != "train" || byID["pkga-a2"] != "train" || byID["pkgb-b1"] != "test" {
 		t.Fatalf("split assignment wrong: %+v", byID)
+	}
+	for _, r := range recs {
+		if r.Era == "" {
+			t.Fatalf("era not propagated for %s", r.PkgID)
+		}
 	}
 	if len(sha1) != 64 {
 		t.Fatalf("dataset sha malformed: %q", sha1)
