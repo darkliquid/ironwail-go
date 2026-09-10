@@ -106,6 +106,17 @@ func stageEnumerate(ctx *stageCtx) error {
 	return nil
 }
 
+func resolveSourcePath(ctx *stageCtx, relPath string) string {
+	if filepath.IsAbs(relPath) {
+		return relPath
+	}
+	candidate := filepath.Join(ctx.dataDir, filepath.FromSlash(relPath))
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+	return filepath.Join(ctx.sourceDir, filepath.FromSlash(relPath))
+}
+
 // stageCanonicalize compiles map-only entries into paired/<pkg_id>/ and
 // copies pairs; bsp-only entries land in the classic holdout listing. Each
 // map is compiled in a subprocess (canonicalize-onemap) so a compiler
@@ -138,8 +149,13 @@ func stageCanonicalize(ctx *stageCtx) error {
 		if err := os.MkdirAll(outDir, 0o755); err != nil {
 			return err
 		}
+		for _, bf := range e.BSPFiles {
+			src := resolveSourcePath(ctx, bf)
+			dst := filepath.Join(outDir, filepath.Base(bf))
+			_ = copyFile(src, dst)
+		}
 		for _, mf := range e.MapFiles {
-			src := filepath.Join(ctx.sourceDir, filepath.FromSlash(mf))
+			src := resolveSourcePath(ctx, mf)
 			dst := filepath.Join(outDir, filepath.Base(mf))
 			if err := copyFile(src, dst); err != nil {
 				return fmt.Errorf("copy %s: %w", src, err)
@@ -205,8 +221,13 @@ func canonicalizeOneMap(ctx *stageCtx, pkgID string) error {
 		if e.PkgID != pkgID {
 			continue
 		}
+		for _, bf := range e.BSPFiles {
+			src := resolveSourcePath(ctx, bf)
+			dst := filepath.Join(outDir, filepath.Base(bf))
+			_ = copyFile(src, dst)
+		}
 		for _, mf := range e.MapFiles {
-			src := filepath.Join(ctx.sourceDir, filepath.FromSlash(mf))
+			src := resolveSourcePath(ctx, mf)
 			dst := filepath.Join(outDir, filepath.Base(mf))
 			if err := copyFile(src, dst); err != nil {
 				return err

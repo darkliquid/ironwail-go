@@ -75,3 +75,44 @@ func TestWriteGridSnap(t *testing.T) {
 		t.Fatalf("expected snapped points in output:\n%s", out)
 	}
 }
+
+func TestWriteBrushAdaptiveGridSnap(t *testing.T) {
+	// A 4-unit thin slab at z in [-24, -20] (like dm1's trim plates).
+	// Under a blind 8-unit snap, z=-20 rounds to -24, collapsing the brush
+	// thickness to 0, producing degenerate and duplicate planes.
+	// Under adaptive snapping, it should adapt down to grid 4 and preserve all 6 faces.
+	thinSlabSrc := `// entity 0
+{
+"classname" "worldspawn"
+{
+( 952 1448 -20 ) ( 952 1448 -24 ) ( 968 1448 -24 ) clip [ 0 0 0 0 ] [ 0 0 0 0 ] 0 1 1
+( 968 1448 -20 ) ( 968 1448 -24 ) ( 968 1384 -24 ) METAL1_3 [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( 968 1448 -24 ) ( 952 1448 -24 ) ( 952 1384 -24 ) METAL1_3 [ 0 0 0 0 ] [ 0 0 0 0 ] 0 1 1
+( 968 1384 -20 ) ( 968 1384 -24 ) ( 952 1384 -24 ) METAL1_3 [ 0 0 0 0 ] [ 0 0 0 0 ] 0 1 1
+( 952 1384 -20 ) ( 952 1384 -24 ) ( 952 1448 -24 ) METAL1_3 [ 0 0 0 0 ] [ 0 0 0 0 ] 0 1 1
+( 952 1448 -20 ) ( 968 1448 -20 ) ( 968 1384 -20 ) METAL1_3 [ 0 0 0 0 ] [ 0 0 0 0 ] 0 1 1
+}
+}
+`
+	m, err := Parse(strings.NewReader(thinSlabSrc))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := Write(&buf, m, WriteOptions{GridSnap: 8}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	reparsed, err := Parse(&buf)
+	if err != nil {
+		t.Fatalf("Parse written map: %v\nOutput was:\n%s", err, buf.String())
+	}
+	if len(reparsed.Entities) == 0 || len(reparsed.Entities[0].Brushes) == 0 {
+		t.Fatalf("expected brush to survive, got: %+v", reparsed)
+	}
+	b := reparsed.Entities[0].Brushes[0]
+	if len(b.Faces) != 6 {
+		t.Fatalf("expected 6 faces after adaptive snap, got %d faces (collapsed under grid snap)", len(b.Faces))
+	}
+}

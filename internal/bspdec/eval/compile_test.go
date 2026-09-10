@@ -38,3 +38,44 @@ func TestBrushCountsMissingLump(t *testing.T) {
 		t.Fatal("expected error or nil counts for garbage file")
 	}
 }
+
+func TestCheckEricwToolsLeak(t *testing.T) {
+	qbsp := FindEricwQBSP()
+	if qbsp == "" {
+		t.Skip("ericw-tools qbsp not available")
+	}
+
+	// 1. Sealed room test
+	sealedRes, err := CheckEricwToolsLeak(fixtureMapPath(t))
+	if err != nil {
+		t.Fatalf("CheckEricwToolsLeak sealed: %v", err)
+	}
+	if !sealedRes.Available {
+		t.Fatal("expected ericw-tools to be available")
+	}
+	if sealedRes.Leaked {
+		t.Errorf("expected sealed map to not leak in ericw-tools: %s", sealedRes.Output)
+	}
+
+	// 2. Leaky map test (box with missing ceiling so inside leaks to outside)
+	leakyMapContent := "{\n\"classname\" \"worldspawn\"\n" +
+		"{\n( 0 0 0 ) ( 0 256 0 ) ( 256 256 0 ) floor 0 0 0 1 1\n" +
+		"( 0 0 -16 ) ( 256 0 -16 ) ( 256 256 -16 ) floor 0 0 0 1 1\n" +
+		"( 0 0 0 ) ( 0 0 -16 ) ( 0 256 -16 ) floor 0 0 0 1 1\n" +
+		"( 256 0 0 ) ( 256 256 0 ) ( 256 256 -16 ) floor 0 0 0 1 1\n" +
+		"( 0 256 0 ) ( 0 256 -16 ) ( 256 256 -16 ) floor 0 0 0 1 1\n" +
+		"( 0 0 0 ) ( 256 0 0 ) ( 256 0 -16 ) floor 0 0 0 1 1\n}\n" +
+		"}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"128 128 64\"\n}\n"
+	tmpMap := filepath.Join(t.TempDir(), "leaky.map")
+	if err := os.WriteFile(tmpMap, []byte(leakyMapContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	leakyRes, err := CheckEricwToolsLeak(tmpMap)
+	if err != nil {
+		t.Fatalf("CheckEricwToolsLeak leaky: %v", err)
+	}
+	if !leakyRes.Leaked {
+		t.Errorf("expected leaky map to leak in ericw-tools: %s", leakyRes.Output)
+	}
+}

@@ -22,8 +22,8 @@ type BSPXBrush struct {
 }
 
 var (
-	brushListErr = fmt.Errorf("bspdec: BRUSHLIST parse")
-	errNoLump    = fmt.Errorf("%w: no BRUSHLIST lump", brushListErr)
+	errBrushList = fmt.Errorf("bspdec: BRUSHLIST parse")
+	errNoLump    = fmt.Errorf("%w: no BRUSHLIST lump", errBrushList)
 )
 
 // ParseBrushList parses the concatenated per-model BRUSHLIST records
@@ -40,11 +40,11 @@ func ParseBrushList(buf []byte) ([]BSPXBrush, error) {
 		nbrushes := int(binary.LittleEndian.Uint32(buf[off+8:]))
 		off += 16
 		if ver != 1 {
-			return nil, fmt.Errorf("%w: unsupported version %d", brushListErr, ver)
+			return nil, fmt.Errorf("%w: unsupported version %d", errBrushList, ver)
 		}
 		for i := 0; i < nbrushes; i++ {
 			if off+32 > len(buf) {
-				return nil, fmt.Errorf("%w: truncated brush", brushListErr)
+				return nil, fmt.Errorf("%w: truncated brush", errBrushList)
 			}
 			b := BSPXBrush{Model: model}
 			b.Mins.X = float64(math.Float32frombits(binary.LittleEndian.Uint32(buf[off:])))
@@ -61,7 +61,7 @@ func ParseBrushList(buf []byte) ([]BSPXBrush, error) {
 			off += 32
 			for j := 0; j < nfaces; j++ {
 				if off+16 > len(buf) {
-					return nil, fmt.Errorf("%w: truncated face", brushListErr)
+					return nil, fmt.Errorf("%w: truncated face", errBrushList)
 				}
 				pl := mapfile.Plane{
 					Normal: mapfile.Vec3{
@@ -90,7 +90,7 @@ func brushListPayload(bspData []byte) ([]byte, error) {
 		return nil, errNoLump
 	}
 	if idx+8 > len(bspData) {
-		return nil, fmt.Errorf("%w: truncated header", brushListErr)
+		return nil, fmt.Errorf("%w: truncated header", errBrushList)
 	}
 	numLumps := binary.LittleEndian.Uint32(bspData[idx+4:])
 	if numLumps == 0 {
@@ -98,7 +98,7 @@ func brushListPayload(bspData []byte) ([]byte, error) {
 	}
 	ent := idx + 8
 	if ent+32*int(numLumps) > len(bspData) {
-		return nil, fmt.Errorf("%w: truncated lump table", brushListErr)
+		return nil, fmt.Errorf("%w: truncated lump table", errBrushList)
 	}
 	for i := 0; i < int(numLumps); i++ {
 		e := ent + i*32
@@ -109,7 +109,7 @@ func brushListPayload(bspData []byte) ([]byte, error) {
 		ofs := binary.LittleEndian.Uint32(bspData[e+24:])
 		ln := binary.LittleEndian.Uint32(bspData[e+28:])
 		if int(ofs)+int(ln) > len(bspData) {
-			return nil, fmt.Errorf("%w: brush list out of range", brushListErr)
+			return nil, fmt.Errorf("%w: brush list out of range", errBrushList)
 		}
 		return bspData[ofs : ofs+ln], nil
 	}
@@ -171,7 +171,7 @@ func planePoints(p mapfile.Plane) [3]mapfile.Vec3 {
 // Valve-220 axes stay zeroed until the texture pass fills them.
 func BrushFromBSPX(b BSPXBrush) (mapfile.MapBrush, error) {
 	if len(b.Faces) < 4 {
-		return mapfile.MapBrush{}, fmt.Errorf("%w: model %d brush has %d faces", brushListErr, b.Model, len(b.Faces))
+		return mapfile.MapBrush{}, fmt.Errorf("%w: model %d brush has %d faces", errBrushList, b.Model, len(b.Faces))
 	}
 	var mb mapfile.MapBrush
 	for _, pl := range b.Faces {
@@ -252,9 +252,10 @@ func decompileFromBrushList(ents *mapfile.Map, tree *bsp.Tree, ls []BSPXBrush, o
 		for _, br := range brushes {
 			dedupeCoplanarSides(br)
 			removeRedundantPlanes(br)
+			g := brushGrid(br, opts.GridSnap)
 			kept := br.Sides[:0]
 			for _, s := range br.Sides {
-				if sideSurvivesGrid(s, opts.GridSnap) {
+				if sideSurvivesGrid(s, g) {
 					kept = append(kept, s)
 				}
 			}

@@ -21,6 +21,9 @@ type stageCtx struct {
 	sourceDir     string // local package source (enumerate)
 	defaultSource string
 	count         int // maps per synth run
+	quaddictedLimit int
+	quaddictedWorkers int
+	quaddictedData string
 	// compile compiles one map into outDir. Production uses subprocess
 	// isolation (qbsp panics on some real maps must not kill the pipeline);
 	// tests inject in-process eval.CompileMapPair so no test binary is ever
@@ -30,15 +33,16 @@ type stageCtx struct {
 
 func newStageCtx(dataDir string) *stageCtx {
 	return &stageCtx{
-		dataDir:       dataDir,
-		manifestPath:  filepath.Join(dataDir, "raw", "manifest.jsonl"),
-		pairedDir:     filepath.Join(dataDir, "paired"),
-		labeledDir:    filepath.Join(dataDir, "labeled"),
-		holdoutDir:    filepath.Join(dataDir, "classic-holdout"),
-		synthDir:      filepath.Join(dataDir, "synth"),
-		defaultSource: filepath.Join(dataDir, "raw", "quake_map_source"),
-		count:         50,
-		compile:       subprocessCompile,
+		dataDir:           dataDir,
+		manifestPath:      filepath.Join(dataDir, "raw", "manifest.jsonl"),
+		pairedDir:         filepath.Join(dataDir, "paired"),
+		labeledDir:        filepath.Join(dataDir, "labeled"),
+		holdoutDir:        filepath.Join(dataDir, "classic-holdout"),
+		synthDir:          filepath.Join(dataDir, "synth"),
+		defaultSource:     filepath.Join(dataDir, "raw", "quake_map_source"),
+		count:             50,
+		quaddictedWorkers: 4,
+		compile:           subprocessCompile,
 	}
 }
 
@@ -61,12 +65,22 @@ func (c *stageCtx) provenance(stage string, a ...any) {
 }
 
 var stageFuncs = map[string]func(*stageCtx) error{
-	"enumerate":    stageEnumerate,
-	"canonicalize": stageCanonicalize,
-	"labels":       stageLabels,
-	"splits":       stageSplits,
-	"eval":         stageEval,
-	"synth":        stageSynth,
+	"enumerate":        stageEnumerate,
+	"canonicalize":     stageCanonicalize,
+	"labels":           stageLabels,
+	"splits":           stageSplits,
+	"eval":             stageEval,
+	"synth":            stageSynth,
+	"fetch-quaddicted": stageFetchQuaddicted,
+}
+
+func stageFetchQuaddicted(ctx *stageCtx) error {
+	return FetchQuaddictedPackages(FetchQuaddictedOptions{
+		DataDir:           ctx.dataDir,
+		QuaddictedDataDir: ctx.quaddictedData,
+		Limit:             ctx.quaddictedLimit,
+		Workers:           ctx.quaddictedWorkers,
+	})
 }
 
 func main() {
@@ -92,13 +106,15 @@ func main() {
 	dataDir := fs.String("data", "dataset/bspdec", "dataset root")
 	srcDir := fs.String("source", "", "local source dir of map packages (default: <data>/raw/quake_map_source)")
 	count := fs.Int("count", 50, "maps to generate per synth run (synth stage)")
-	quaddicted := fs.Bool("quaddicted", false, "also enumerate the Quaddicted API (offline-first: degrades to a notice)")
-	_ = quaddicted
+	quaddicted := fs.Bool("quaddicted", false, "also enumerate the Quaddicted catalog (or fetch Quaddicted packages)")
+	limit := fs.Int("limit", 0, "limit packages to process (0 = all)")
+	workers := fs.Int("workers", 4, "parallel download workers for quaddicted fetch")
+	qdData := fs.String("quaddicted-data", "", "path to quaddicted-data repo")
 	_ = fs.Parse(os.Args[1:])
 
 	if stage == "" {
 		fmt.Fprintln(os.Stderr, "usage: bspdec-corpus <stage> [-data dir] [-source dir]")
-		fmt.Fprintln(os.Stderr, "stages: enumerate canonicalize labels splits eval synth")
+		fmt.Fprintln(os.Stderr, "stages: enumerate canonicalize labels splits eval synth fetch-quaddicted")
 		os.Exit(2)
 	}
 	fn, ok := stageFuncs[stage]
@@ -108,9 +124,18 @@ func main() {
 	}
 	ctx := newStageCtx(*dataDir)
 	ctx.count = *count
+	ctx.quaddictedLimit = *limit
+	ctx.quaddictedWorkers = *workers
+	ctx.quaddictedData = *qdData
 	ctx.sourceDir = ctx.defaultSource
 	if *srcDir != "" {
 		ctx.sourceDir = *srcDir
+	}
+	if *quaddicted && stage == "enumerate" {
+		// If -quaddicted passed with enumerate, ensure quaddicted packages are also fetched
+		if err := stageFetchQuaddicted(ctx); err != nil {
+			slog.Warn("bspdec-corpus: quaddicted fetch in enumerate", "err", err)
+		}
 	}
 	if err := fn(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "bspdec-corpus %s: %v\n", stage, err)

@@ -50,6 +50,81 @@ func sideSurvivesGrid(s *Side, grid int) bool {
 	return best/2 >= minSliverArea
 }
 
+// snapPoints quantizes a 3-point plane definition to grid multiples.
+func snapPoints(pts [3]mapfile.Vec3, grid int) [3]mapfile.Vec3 {
+	if grid <= 1 {
+		return pts
+	}
+	step := float64(grid)
+	snap := func(v float64) float64 { return math.Round(v/step) * step }
+	return [3]mapfile.Vec3{
+		{X: snap(pts[0].X), Y: snap(pts[0].Y), Z: snap(pts[0].Z)},
+		{X: snap(pts[1].X), Y: snap(pts[1].Y), Z: snap(pts[1].Z)},
+		{X: snap(pts[2].X), Y: snap(pts[2].Y), Z: snap(pts[2].Z)},
+	}
+}
+
+// brushGrid resolves the largest grid in [maxGrid, maxGrid/2, ..., 1, 0]
+// that preserves the brush: all sides survive with non-zero area, no planes
+// collapse into collinear points, and no opposite/duplicate planes are created.
+func brushGrid(b *Brush, maxGrid int) int {
+	if maxGrid <= 1 {
+		return maxGrid
+	}
+	for g := maxGrid; g >= 1; {
+		if brushSurvivesGrid(b, g) {
+			return g
+		}
+		if g == 1 {
+			break
+		}
+		g /= 2
+	}
+	return 0
+}
+
+func brushSurvivesGrid(b *Brush, g int) bool {
+	if len(b.Sides) < 4 {
+		return false
+	}
+	for _, s := range b.Sides {
+		if !sideSurvivesGrid(s, g) {
+			return false
+		}
+	}
+	if g <= 1 {
+		return true
+	}
+	planes := make([]mapfile.Plane, 0, len(b.Sides))
+	for _, s := range b.Sides {
+		if s.Winding == nil || len(s.Winding.Points) < 3 {
+			return false
+		}
+		pts := pick3Points(s.Winding)
+		if p, length := mapfile.PlaneFromPoints(pts[0], pts[1], pts[2]); length > 0.01 && v3Dot(p.Normal, s.Plane.Normal) < 0 {
+			pts[1], pts[2] = pts[2], pts[1]
+		}
+		pts = snapPoints(pts, g)
+		p, length := mapfile.PlaneFromPoints(pts[0], pts[1], pts[2])
+		if length < 0.000001 {
+			return false
+		}
+		if v3Dot(p.Normal, s.Plane.Normal) < 0.8 {
+			return false
+		}
+		planes = append(planes, p)
+	}
+	for i := 0; i < len(planes); i++ {
+		for j := i + 1; j < len(planes); j++ {
+			if planesMatch(planes[i], planes[j]) || planesOpposite(planes[i], planes[j]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+
 // Decompile runs the full pipeline over BSP file bytes and returns the map
 // plus per-model stats. Pipeline per model (spec section 4): treewalk (or
 // hull walk) -> redundant-plane removal -> texturing -> texture-boundary
@@ -127,9 +202,10 @@ func Decompile(data []byte, opts Options) (*mapfile.Map, []ModelStats, error) {
 			for _, b := range brushes {
 				dedupeCoplanarSides(b)
 				removeRedundantPlanes(b)
+				g := brushGrid(b, opts.GridSnap)
 				kept := b.Sides[:0]
 				for _, s := range b.Sides {
-					if sideSurvivesGrid(s, opts.GridSnap) {
+					if sideSurvivesGrid(s, g) {
 						kept = append(kept, s)
 					}
 				}

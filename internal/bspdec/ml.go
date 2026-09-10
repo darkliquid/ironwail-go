@@ -224,7 +224,6 @@ func seamFaceContextGeom(fgs []FaceGeom, end [2]mapfile.Vec3) (mapfile.Plane, ma
 }
 
 func seamSegsClose(a0, a1, b0, b1 mapfile.Vec3) bool {
-	const tol = 0.5
 	return seamNear(a0, b0) && seamNear(a1, b1) || seamNear(a0, b1) && seamNear(a1, b0)
 }
 

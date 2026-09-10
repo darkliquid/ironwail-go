@@ -177,3 +177,52 @@ func TestValidateBrushRejectsDegenerate(t *testing.T) {
 		t.Fatal("expected degenerate-plane rejection")
 	}
 }
+
+func roomWithThinTrimMap() string {
+	return "{\n\"classname\" \"worldspawn\"\n" +
+		slabBox(-64, -64, -64, 0, 320, 256, "wwall") +
+		slabBox(256, -64, -64, 320, 320, 256, "wwall") +
+		slabBox(0, -64, -64, 256, 0, 256, "wwall") +
+		slabBox(0, 256, -64, 256, 320, 256, "wwall") +
+		slabBox(0, 0, -64, 256, 256, -24, "ffloor") +
+		slabBox(64, 64, -24, 192, 192, -20, "ttrim") + // 4-unit thin trim on floor
+		slabBox(0, 0, 192, 256, 256, 256, "cceil") +
+		"}\n{\n\"classname\" \"info_player_start\"\n\"origin\" \"32 32 64\"\n}\n"
+}
+
+func TestThinTrimSurvival(t *testing.T) {
+	_, data := compileFixture(t, roomWithThinTrimMap())
+	out, stats, err := Decompile(data, Options{MergeConvex: true, GridSnap: 8, TextureFallback: "nearest"})
+	if err != nil {
+		t.Fatalf("Decompile: %v", err)
+	}
+	if err := SelfCheck(out); err != nil {
+		t.Fatalf("SelfCheck: %v", err)
+	}
+	// Verify that the thin trim brush survived decompilation (should be preserved
+	// on adaptive sub-grid instead of being pruned as a 2-sided degenerate fragment).
+	foundTrim := false
+	for _, b := range out.Entities[0].Brushes {
+		minZ, maxZ := 99999.0, -99999.0
+		for _, f := range b.Faces {
+			for _, p := range f.Points {
+				if p.Z < minZ {
+					minZ = p.Z
+				}
+				if p.Z > maxZ {
+					maxZ = p.Z
+				}
+			}
+		}
+		if minZ == -24 && maxZ == -20 {
+			foundTrim = true
+			if len(b.Faces) != 6 {
+				t.Fatalf("trim brush has %d faces, want 6", len(b.Faces))
+			}
+			break
+		}
+	}
+	if !foundTrim {
+		t.Fatalf("thin trim brush was dropped during decompilation (stats: %+v)", stats)
+	}
+}

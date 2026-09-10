@@ -52,14 +52,114 @@ func writeBrush(w io.Writer, b *MapBrush, opts WriteOptions) error {
 	if _, err := fmt.Fprintln(w, "{"); err != nil {
 		return err
 	}
+	snap := 0
+	if opts.GridSnap > 0 {
+		snap = mapBrushGridSnap(b, opts.GridSnap)
+	}
+	brushOpts := opts
+	brushOpts.GridSnap = snap
 	for i := range b.Faces {
-		if err := writeFace(w, &b.Faces[i], opts); err != nil {
+		if err := writeFace(w, &b.Faces[i], brushOpts); err != nil {
 			return err
 		}
 	}
 	_, err := fmt.Fprintln(w, "}")
 	return err
 }
+
+// mapBrushGridSnap chooses the largest power-of-two grid (down to 1, or 0 for off)
+// that preserves the brush's faces without collapsing thickness, creating duplicate
+// planes, or breaking convexity.
+func mapBrushGridSnap(b *MapBrush, maxGrid int) int {
+	if maxGrid <= 0 {
+		return 0
+	}
+	for g := maxGrid; g >= 1; {
+		if brushSurvivesSnap(b, g) {
+			return g
+		}
+		if g == 1 {
+			break
+		}
+		g /= 2
+	}
+	return 0
+}
+
+func brushSurvivesSnap(b *MapBrush, g int) bool {
+	if len(b.Faces) < 4 {
+		return false
+	}
+	origPlanes := make([]plane, len(b.Faces))
+	origConvex := true
+	for i, f := range b.Faces {
+		p, length := planeFromPoints(f.Points[0], f.Points[1], f.Points[2])
+		if length < 0.000001 {
+			return false
+		}
+		origPlanes[i] = p
+	}
+	const eps = 0.5
+	for i := range b.Faces {
+		for j := range origPlanes {
+			if i == j {
+				continue
+			}
+			for _, pt := range b.Faces[i].Points {
+				if v3Dot(pt, origPlanes[j].Normal)-origPlanes[j].Dist > eps {
+					origConvex = false
+					break
+				}
+			}
+			if !origConvex {
+				break
+			}
+		}
+		if !origConvex {
+			break
+		}
+	}
+
+	planes := make([]plane, len(b.Faces))
+	snappedPts := make([][3]Vec3, len(b.Faces))
+	for i, f := range b.Faces {
+		pts := snapPoints(f.Points, g)
+		p, length := planeFromPoints(pts[0], pts[1], pts[2])
+		if length < 0.000001 {
+			return false
+		}
+		if f.Normal != (Vec3{}) && v3Dot(p.Normal, f.Normal) < 0.8 {
+			return false
+		}
+		planes[i] = p
+		snappedPts[i] = pts
+	}
+	for i := 0; i < len(planes); i++ {
+		flipped := plane{Normal: planes[i].Normal.Neg(), Dist: -planes[i].Dist}
+		for j := i + 1; j < len(planes); j++ {
+			if planeEqual(planes[i], planes[j]) || planeEqual(flipped, planes[j]) {
+				return false
+			}
+		}
+	}
+	if origConvex {
+		for i := range b.Faces {
+			for j := range planes {
+				if i == j {
+					continue
+				}
+				for _, pt := range snappedPts[i] {
+					if v3Dot(pt, planes[j].Normal)-planes[j].Dist > eps {
+						return false
+					}
+				}
+			}
+		}
+	}
+	return true
+}
+
+
 
 // writeFace emits one Valve 220 face line:
 //
