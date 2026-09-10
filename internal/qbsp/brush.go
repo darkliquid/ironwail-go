@@ -54,6 +54,17 @@ type brushFace struct {
 // winding fails: the halfspace still bounds the brush in the CSG, and only
 // the face output is skipped. Brushes with fewer than 4 sides are dropped.
 func buildBspBrushFaces(faces []brushFace, box [2]vec3) *bspBrush {
+	return buildBspBrushFacesClamped(faces, box, box)
+}
+
+// buildBspBrushFacesClamped builds a solidbsp brush like
+// buildBspBrushFaces but clamps every surviving winding to the brush's OWN
+// map AABB (clampBox). Open brushes (a missing face, e.g. an id1 floor with
+// no bottom) leave the opposing faces unbounded in that direction; without
+// the clamp the world-box seed extends their windings across the map, and
+// the stray vertices misclassify far split planes, routing pieces to the
+// wrong leaves (the e1m1 mid-east floor slice loss, bead ironwail-go-aeh).
+func buildBspBrushFacesClamped(faces []brushFace, box, clampBox [2]vec3) *bspBrush {
 	b := &bspBrush{content: bsp.ContentsSolid}
 	for fi, o := range faces {
 		side := bspSide{planenum: o.pn, n: o.p.Normal, d: o.p.Dist}
@@ -75,6 +86,7 @@ func buildBspBrushFaces(faces []brushFace, box [2]vec3) *bspBrush {
 			if ok && len(w) >= 3 {
 				w = windingRemoveColinear(w)
 				if len(w) >= 3 {
+					w = windingClamp(w, clampBox)
 					side.w = windingOrientTo(w, o.p.Normal)
 				}
 			}
@@ -86,6 +98,32 @@ func buildBspBrushFaces(faces []brushFace, box [2]vec3) *bspBrush {
 	}
 	b.bounds = brushBoundsOf(b)
 	return b
+}
+
+// windingClamp clamps every vertex into the box (an open brush's windings
+// are only clipped on the sides the map author provided).
+func windingClamp(w winding, box [2]vec3) winding {
+	for i := range w {
+		if w[i].X < box[0].X {
+			w[i].X = box[0].X
+		}
+		if w[i].X > box[1].X {
+			w[i].X = box[1].X
+		}
+		if w[i].Y < box[0].Y {
+			w[i].Y = box[0].Y
+		}
+		if w[i].Y > box[1].Y {
+			w[i].Y = box[1].Y
+		}
+		if w[i].Z < box[0].Z {
+			w[i].Z = box[0].Z
+		}
+		if w[i].Z > box[1].Z {
+			w[i].Z = box[1].Z
+		}
+	}
+	return w
 }
 
 // brushBoundsOf computes the AABB of a brush from its side windings.
