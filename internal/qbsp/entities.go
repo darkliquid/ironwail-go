@@ -175,7 +175,6 @@ func worldBoundsOf(g *brushGroup) [2]vec3 {
 // bspBrushList converts a group's world brushes into solidbsp polyhedra
 // with table-registered planenums.
 func (c *compiler) bspBrushList(g *brushGroup) []*bspBrush {
-	bounds := worldBoundsOf(g)
 	var list []*bspBrush
 	for _, wb := range g.brushes {
 		ps := wb.OutwardPlanes()
@@ -183,7 +182,7 @@ func (c *compiler) bspBrushList(g *brushGroup) []*bspBrush {
 		for i, p := range ps {
 			faces[i] = brushFace{p: p, pn: c.addPlaneIndex(p)}
 		}
-		b := buildBspBrushFaces(faces, bounds)
+		b := buildBspBrushFaces(faces, worldBoundsOf(g))
 		if b == nil {
 			continue
 		}

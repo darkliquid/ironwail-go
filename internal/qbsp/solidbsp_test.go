@@ -423,18 +423,27 @@ func TestBevelTrimFaceSurvives(t *testing.T) {
 	if b == nil {
 		t.Fatal("bevel trim brush build failed")
 	}
-	// The bevel cuts the x=16 and y=16 faces away: the wedge is bounded by
-	// x=32, y=32, z=+/-32 and the diagonal (5 faces). Losing the diagonal
-	// would reopen the corner as a phantom box.
-	if len(b.sides) != 5 {
-		t.Fatalf("nsides = %d, want 5 (x=32, y=32, z faces, diagonal)", len(b.sides))
+	// Following ericw CreateBrushWindings, EVERY side keeps its plane even
+	// when the winding dies: the x=16/y=16 halfspaces still bound the brush
+	// in the CSG. Five sides carry live windings (x=32, y=32, z=+/-32 and
+	// the diagonal); losing the diagonal would reopen the corner as a
+	// phantom box.
+	if len(b.sides) != 7 {
+		t.Fatalf("nsides = %d, want 7 (all planes kept, reference semantics)", len(b.sides))
 	}
+	live := 0
 	hasDiag := false
 	for _, s := range b.sides {
+		if s.w != nil {
+			live++
+		}
 		if math.Abs(s.sidePlane().Normal.X+0.7071067811865476) < 1e-6 &&
 			math.Abs(s.sidePlane().Normal.Y+0.7071067811865476) < 1e-6 {
 			hasDiag = true
 		}
+	}
+	if live != 5 {
+		t.Fatalf("live windings = %d, want 5 (x=32, y=32, z faces, diagonal)", live)
 	}
 	if !hasDiag {
 		t.Fatal("diagonal bevel face missing from the brush")
@@ -458,5 +467,72 @@ func TestBevelTrimFaceSurvives(t *testing.T) {
 	}
 	if cut {
 		t.Error("bevel trim contains the cut-off corner (17,17,0); diagonal halfspace missing")
+	}
+}
+
+// TestSplitBrushPreservesOnTinyCap locks the ericw "brush isn't really
+// split" rule: a split plane that produces a degenerate cap must keep the
+// WHOLE brush on the farther-side, never drop it (dropping erodes the
+// solid and opens leaks on non-closed id1 brushes).
+func TestSplitBrushPreservesOnTinyCap(t *testing.T) {
+	// a thin tall box at x[0,64] y[100,104] z[0,256]; split near its +y end
+	faces := []brushFace{
+		{p: plane{Normal: v3(1, 0, 0), Dist: 64}},
+		{p: plane{Normal: v3(-1, 0, 0), Dist: 0}},
+		{p: plane{Normal: v3(0, 1, 0), Dist: 104}},
+		{p: plane{Normal: v3(0, -1, 0), Dist: 100}},
+		{p: plane{Normal: v3(0, 0, 1), Dist: 256}},
+		{p: plane{Normal: v3(0, 0, -1), Dist: 0}},
+	}
+	b := buildBspBrushFaces(faces, [2]vec3{v3(-8, 96, -8), v3(72, 108, 264)})
+	if b == nil {
+		t.Fatal("brush build failed")
+	}
+	front, back := splitBrush(b, 0, plane{Normal: v3(0, 1, 0), Dist: 104.5})
+	if front == nil && back == nil {
+		t.Fatal("splitBrush lost the whole brush on a grazing plane")
+	}
+	if front == nil || back == nil {
+		// exactly one side gets everything: preserved, not lost
+	}
+	got := 0
+	if front != nil {
+		got++
+	}
+	if back != nil {
+		got++
+	}
+	if got == 0 {
+		t.Fatal("both pieces nil: brush lost")
+	}
+}
+
+// TestClassifyPlanesideEpsilon locks the PLANESIDE eps (0.1, ericw): a
+// vertex within 0.1 of the split plane is on-plane and must not trigger a
+// phantom straddle.
+func TestClassifyPlanesideEpsilon(t *testing.T) {
+	faces := []brushFace{
+		{p: plane{Normal: v3(1, 0, 0), Dist: 64}},
+		{p: plane{Normal: v3(-1, 0, 0), Dist: 0}},
+		{p: plane{Normal: v3(0, 1, 0), Dist: 64}},
+		{p: plane{Normal: v3(0, -1, 0), Dist: 0}},
+		{p: plane{Normal: v3(0, 0, 1), Dist: 64}},
+		{p: plane{Normal: v3(0, 0, -1), Dist: 0}},
+	}
+	b := buildBspBrushFaces(faces, [2]vec3{v3(0, 0, 0), v3(64, 64, 64)})
+	if b == nil {
+		t.Fatal("brush build failed")
+	}
+	// plane at x=63.95 sits within eps of every +x vertex: those vertices
+	// are on-plane, so the brush reports no FRONT (no phantom straddle);
+	// the far -x vertices legitimately stay on the back.
+	bits := classifyBrush(b, plane{Normal: v3(1, 0, 0), Dist: 63.95})
+	if bits&psideFront != 0 {
+		t.Fatalf("near-plane vertices classified front: bits=%d", bits)
+	}
+	// plane at x=63.5 is a real split
+	bits = classifyBrush(b, plane{Normal: v3(1, 0, 0), Dist: 63.5})
+	if bits&psideFront == 0 || bits&psideBack == 0 {
+		t.Fatalf("mid-brush plane not a straddle: bits=%d", bits)
 	}
 }

@@ -56,7 +56,7 @@ func slabBrush(x0, y0, z0, x1, y1, z1 float64, tex string) string {
 // Quake maps actually enclose space. Wall thickness t (8).
 func hollowRoom(x0, y0, z0, x1, y1, z1 float64, t float64) string {
 	var b strings.Builder
-	b.WriteString(slabBrush(x0, y0, z0, x1, y1, z0+t, "mt_floor"))     // floor
+	b.WriteString(slabBrush(x0, y0, z0, x1, y1, z0+t, "mt_floor"))    // floor
 	b.WriteString(slabBrush(x0, y0, z1-t, x1, y1, z1, "mt_floor"))    // ceiling
 	b.WriteString(slabBrush(x0, y0, z0+t, x0+t, y1, z1-t, "mt_wall")) // west
 	b.WriteString(slabBrush(x1-t, y0, z0+t, x1, y1, z1-t, "mt_wall")) // east

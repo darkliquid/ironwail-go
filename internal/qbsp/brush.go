@@ -49,36 +49,37 @@ type brushFace struct {
 }
 
 // buildBspBrushFaces builds a solidbsp brush from outward (oriented) faces
-// with known plane-table indices, bounded by box.
+// with known plane-table indices, bounded by box. Following the reference
+// (ericw CreateBrushWindings), EVERY side keeps its plane even when the
+// winding fails: the halfspace still bounds the brush in the CSG, and only
+// the face output is skipped. Brushes with fewer than 4 sides are dropped.
 func buildBspBrushFaces(faces []brushFace, box [2]vec3) *bspBrush {
 	b := &bspBrush{content: bsp.ContentsSolid}
 	for fi, o := range faces {
+		side := bspSide{planenum: o.pn, n: o.p.Normal, d: o.p.Dist}
 		w := windingFromBoxPlane(o.p, box[0], box[1])
-		if w == nil {
-			continue
-		}
-		ok := true
-		for gi, g := range faces {
-			if fi == gi {
-				continue
+		if w != nil {
+			ok := true
+			for gi, g := range faces {
+				if fi == gi {
+					continue
+				}
+				// Interior of g: dot(g.n, x) <= g.d  <=>  front of -g.
+				clipped, cok := clipWindingKeepBack(w, g.p)
+				if !cok {
+					ok = false
+					break
+				}
+				w = clipped
 			}
-			// Interior of g: dot(g.n, x) <= g.d  <=>  front of -g.
-			clipped, cok := clipWindingKeepBack(w, g.p)
-			if !cok {
-				ok = false
-				break
+			if ok && len(w) >= 3 {
+				w = windingRemoveColinear(w)
+				if len(w) >= 3 {
+					side.w = windingOrientTo(w, o.p.Normal)
+				}
 			}
-			w = clipped
 		}
-		if !ok || len(w) < 3 {
-			continue
-		}
-		w = windingRemoveColinear(w)
-		if len(w) < 3 {
-			continue
-		}
-		w = windingOrientTo(w, o.p.Normal)
-		b.sides = append(b.sides, bspSide{planenum: o.pn, n: o.p.Normal, d: o.p.Dist, w: w})
+		b.sides = append(b.sides, side)
 	}
 	if len(b.sides) < 4 {
 		return nil
@@ -130,7 +131,10 @@ const (
 	psideFacing = 1 << 2
 )
 
-const splitEpsilon = 0.001
+// splitEpsilon mirrors ericw's PLANESIDE_EPSILON (brushbsp.c): vertices
+// within this distance of the split plane count as on-plane, so razor-thin
+// trims and boundary-coincident faces never trigger phantom straddles.
+const splitEpsilon = 0.1
 
 // classifyBrush returns the pside bits of the brush relative to plane p:
 // FRONT/BACK bits for vertices on either side, FACING when a side is
@@ -172,12 +176,20 @@ func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
 	// Cap polygon: the intersection of plane p with the brush volume.
 	cap := brushCrossSection(b, p)
 	if len(cap) < 3 {
-		return nil, nil
+		// ericw SplitBrush: the brush "isn't really split" — preserve it
+		// WHOLE on the side with the farthest vertex instead of losing the
+		// solid (which opens leaks on non-closed id1 brushes).
+		if brushMostlyOnSide(b, p) {
+			return b, nil
+		}
+		return nil, b
 	}
 	var front, back *bspBrush
-	if len(fs) >= 3 {
-		// Front child region: dot(p.Normal, x) >= p.Dist; its boundary at
-		// the split plane has outward normal -p.Normal.
+	// Each child keeps whatever side windings survive the clip plus the cap
+	// (ericw ClipBrushToFace): a wedge can legitimately have 1-2 side
+	// windings, so pieces are never dropped for having few sides. Only a
+	// zero-volume piece is discarded.
+	if len(fs) > 0 {
 		np := p.Normal.Neg()
 		capF := windingOrientTo(cap, np)
 		front = &bspBrush{
@@ -190,10 +202,7 @@ func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
 			front = nil
 		}
 	}
-	if len(bs) >= 3 && front != nil {
-		// Back child region: dot(p.Normal, x) <= p.Dist; boundary outward
-		// normal is +p.Normal. Skip when the front piece absorbed the whole
-		// brush (a cap sliver on the plane must not become a solid leaf).
+	if len(bs) > 0 {
 		capB := windingOrientTo(cap, p.Normal)
 		back = &bspBrush{
 			sides:   append(bs, bspSide{planenum: pn, n: p.Normal, d: p.Dist, w: capB}),
@@ -206,6 +215,24 @@ func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
 		}
 	}
 	return front, back
+}
+
+// brushMostlyOnSide mirrors ericw BrushMostlyOnSide: the side of the plane
+// holding the vertex farthest from it wins (magnitude comparison).
+func brushMostlyOnSide(b *bspBrush, p plane) bool {
+	max, front := 0.0, true
+	for _, s := range b.sides {
+		for _, v := range s.w {
+			d := v3Dot(v, p.Normal) - p.Dist
+			if d > max {
+				max, front = d, true
+			}
+			if -d > max {
+				max, front = -d, false
+			}
+		}
+	}
+	return front
 }
 
 // brushCrossSection returns the polygon of plane p inside the brush
@@ -350,4 +377,10 @@ func chopBrushes(list []*bspBrush) []*bspBrush {
 		}
 	}
 	return out
+}
+
+// diagCounts tallies CSG failures during a compile (leak debugging).
+var diagCounts struct {
+	badBrushes int
+	badFaces   int
 }

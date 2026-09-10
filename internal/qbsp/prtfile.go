@@ -11,4 +11,3 @@ type PortalFile = bsp.PortalFile
 
 // Portal is one shared facet between two non-solid leaves, aliased from pkg/bsp.
 type Portal = bsp.Portal
-
