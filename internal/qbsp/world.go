@@ -16,7 +16,7 @@ type piece struct {
 // yielding one piece per leaf it covers.
 func splitByTree(nodes []outNode, ref childRef, w winding) []piece {
 	if ref.isLeaf {
-		if len(w) < 3 {
+		if len(w) < 3 || windingIsTiny(w) || windingArea(w) < 0.1 {
 			return nil
 		}
 		return []piece{{leaf: ref.idx, w: w}}
@@ -136,6 +136,9 @@ func (c *compiler) floodLeakCheck(bounds [2]vec3, root childRef, nodes []outNode
 	leaked := false
 	occupiedCount := 0
 	for _, ent := range m.Entities[1:] {
+		if isWorldMergedEntity(ent) {
+			continue
+		}
 		originStr, ok := ent.Value("origin")
 		if !ok {
 			continue
@@ -165,6 +168,8 @@ func (c *compiler) floodLeakCheck(bounds [2]vec3, root childRef, nodes []outNode
 		cn, _ := ent.Value("classname")
 		for cur >= 0 {
 			trail = append([]vec3{c.leafCentroid(bounds, &leafs[cur])}, trail...)
+			c.logf("  trail leaf %d: content %d, mins %v, maxs %v, parent %d",
+				cur, leafs[cur].content, leafs[cur].mins, leafs[cur].maxs, floodParent[cur])
 			if floodParent[cur] < 0 {
 				c.logf("LEAK: entity %s at %v (leaf %d) reached from void leaf %d (mins %v maxs %v bounds %v)",
 					cn, origin, leafIdx, cur, leafs[cur].mins, leafs[cur].maxs, bounds)

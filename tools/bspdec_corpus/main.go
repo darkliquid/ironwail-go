@@ -98,9 +98,22 @@ func main() {
 		fs := flag.NewFlagSet("bspdec-corpus canonicalize-onemap", flag.ExitOnError)
 		dataDir := fs.String("data", "dataset/bspdec", "dataset root")
 		pkgID := fs.String("pkg", "", "package to canonicalize")
+		mapPath := fs.String("map", "", "single map to compile")
+		outDir := fs.String("out", "", "output directory for compiled pair")
 		_ = fs.Parse(os.Args[1:])
 		ctx := newStageCtx(*dataDir)
 		ctx.sourceDir = ctx.defaultSource
+		if *mapPath != "" {
+			targetOut := *outDir
+			if targetOut == "" {
+				targetOut = filepath.Dir(*mapPath)
+			}
+			if err := canonicalizeSingleMap(ctx, *mapPath, targetOut); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "bspdec-corpus canonicalize-onemap %s: %v\n", *mapPath, err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
 		if err := canonicalizeOneMap(ctx, *pkgID); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "bspdec-corpus canonicalize-onemap %s: %v\n", *pkgID, err)
 			os.Exit(1)

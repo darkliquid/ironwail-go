@@ -38,6 +38,12 @@ func CompileMapPair(mapPath, outDir string) (Pair, error) {
 	if err != nil {
 		return Pair{}, fmt.Errorf("compile %s: %w", mapPath, err)
 	}
+	stem := strings.TrimSuffix(filepath.Base(mapPath), filepath.Ext(mapPath))
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return Pair{}, err
+	}
+	logPath := filepath.Join(outDir, stem+".qbsp.log")
+	_ = os.WriteFile(logPath, []byte(strings.Join(logLines, "\n")+"\n"), 0o644)
 	if res.Leaked {
 		ref, refErr := CheckEricwToolsLeak(mapPath)
 		if refErr == nil && ref.Available {
@@ -48,16 +54,8 @@ func CompileMapPair(mapPath, outDir string) (Pair, error) {
 		}
 		return Pair{}, fmt.Errorf("compile %s: leaks to the void (trail %d points)", mapPath, len(res.LeakPath))
 	}
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return Pair{}, err
-	}
-	stem := strings.TrimSuffix(filepath.Base(mapPath), filepath.Ext(mapPath))
 	bspPath := filepath.Join(outDir, stem+".bsp")
 	if err := os.WriteFile(bspPath, res.Data, 0o644); err != nil {
-		return Pair{}, err
-	}
-	logPath := filepath.Join(outDir, stem+".qbsp.log")
-	if err := os.WriteFile(logPath, []byte(strings.Join(logLines, "\n")+"\n"), 0o644); err != nil {
 		return Pair{}, err
 	}
 	return Pair{MapPath: mapPath, BSPPath: bspPath}, nil

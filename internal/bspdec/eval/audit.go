@@ -319,11 +319,14 @@ func FormatAuditReport(results []AuditResult) string {
 		sb.WriteString("| Package | Map | Compiler Attribution | Go Trail | Ref Leaked | SelfCheck | Details |\n")
 		sb.WriteString("| --- | --- | :---: | :---: | :---: | :---: | --- |\n")
 		for _, r := range catCResults {
-			attr := "Both Compilers"
-			if r.Decomp.Verdict == DecompCategoryCGoOnly {
+			var attr string
+			switch r.Decomp.Verdict {
+			case DecompCategoryCGoOnly:
 				attr = "**Go qbsp Only**"
-			} else if r.Decomp.Verdict == DecompCategoryCRefOnly {
+			case DecompCategoryCRefOnly:
 				attr = "**Ericw Only**"
+			default:
+				attr = "Both Compilers"
 			}
 			scStatus := "Pass"
 			if r.Decomp.SelfCheckError != "" {

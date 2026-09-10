@@ -65,7 +65,7 @@ func (r *leafRegion) facets(bounds [2]vec3) []facetGeom {
 			continue
 		}
 		w = windingRemoveColinear(w)
-		if len(w) < 3 {
+		if len(w) < 3 || windingIsTiny(w) || windingArea(w) < 0.1 {
 			continue
 		}
 		w = windingOrientTo(w, b.p.Normal)
@@ -151,12 +151,46 @@ type treeBuild struct {
 }
 
 // contentsOf returns the leaf content of a (possibly empty) brush list:
-// the first brush's content, else empty.
+// highest precedence is solid, then liquid types, sky, or empty.
 func contentsOf(brushes []*bspBrush) int32 {
 	if len(brushes) == 0 {
 		return bsp.ContentsEmpty
 	}
-	return brushes[0].content
+	hasEmpty := false
+	hasWater := false
+	hasSlime := false
+	hasLava := false
+	hasSky := false
+	for _, b := range brushes {
+		switch b.content {
+		case bsp.ContentsSolid:
+			return bsp.ContentsSolid
+		case bsp.ContentsLava:
+			hasLava = true
+		case bsp.ContentsSlime:
+			hasSlime = true
+		case bsp.ContentsWater:
+			hasWater = true
+		case bsp.ContentsSky:
+			hasSky = true
+		default:
+			hasEmpty = true
+		}
+	}
+	switch {
+	case hasLava:
+		return bsp.ContentsLava
+	case hasSlime:
+		return bsp.ContentsSlime
+	case hasWater:
+		return bsp.ContentsWater
+	case hasSky:
+		return bsp.ContentsSky
+	case hasEmpty:
+		return bsp.ContentsEmpty
+	default:
+		return bsp.ContentsEmpty
+	}
 }
 
 // planeSplitsBounds reports whether the plane crosses the AABB (both sides

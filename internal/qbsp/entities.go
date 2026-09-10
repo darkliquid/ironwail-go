@@ -3,6 +3,8 @@ package qbsp
 import (
 	"fmt"
 	"strings"
+
+	"github.com/darkliquid/ironwail-go/internal/bsp"
 )
 
 // brushGroup is one model's brush set: the world (entity 0) or a single
@@ -22,18 +24,34 @@ type brushGroup struct {
 func (c *compiler) collectAllBrushes(m *Map, omitDetail bool) ([]brushGroup, error) {
 	var groups []brushGroup
 	worldGroup := brushGroup{entityIdx: 0, isWorld: true}
-	if _, err := c.collectBrushesInto(m.Entities[0].Brushes, &worldGroup); err != nil {
+	if _, err := c.collectBrushesInto(m.Entities[0].Brushes, &worldGroup, 0); err != nil {
 		return nil, err
 	}
 	groups = append(groups, worldGroup)
 
-	// Brush entities become submodels in encounter order.
+	// Merge func_group and func_detail* into the world model (groups[0]).
+	// Other brush entities become submodels in encounter order.
 	for ei := 1; ei < len(m.Entities); ei++ {
 		ent := m.Entities[ei]
 		if len(ent.Brushes) == 0 {
 			continue
 		}
-		if omitDetail && isDetail(ent) {
+		if isFuncGroup(ent) {
+			if _, err := c.collectBrushesInto(ent.Brushes, &groups[0], 0); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if isDetail(ent) {
+			if !omitDetail {
+				override := int32(0)
+				if isIllusionaryDetail(ent) {
+					override = bsp.ContentsEmpty
+				}
+				if _, err := c.collectBrushesInto(ent.Brushes, &groups[0], override); err != nil {
+					return nil, err
+				}
+			}
 			continue
 		}
 		solid := false
@@ -52,7 +70,7 @@ func (c *compiler) collectAllBrushes(m *Map, omitDetail bool) ([]brushGroup, err
 				g.origin = v
 			}
 		}
-		if _, err := c.collectBrushesInto(ent.Brushes, &g); err != nil {
+		if _, err := c.collectBrushesInto(ent.Brushes, &g, 0); err != nil {
 			return nil, err
 		}
 		groups = append(groups, g)
@@ -73,7 +91,7 @@ func (c *compiler) collectAllBrushes(m *Map, omitDetail bool) ([]brushGroup, err
 
 // collectBrushesInto registers a brush set's planes/texinfos and appends
 // worldBrush entries to the group.
-func (c *compiler) collectBrushesInto(brushList []MapBrush, g *brushGroup) ([]brushGroup, error) {
+func (c *compiler) collectBrushesInto(brushList []MapBrush, g *brushGroup, overrideContent int32) ([]brushGroup, error) {
 	addBrush := func(brush MapBrush, content int32, sortKey int64) error {
 		wb := worldBrush{orig: brush, content: content, sortKey: sortKey}
 		for _, face := range brush.Faces {
@@ -122,6 +140,9 @@ func (c *compiler) collectBrushesInto(brushList []MapBrush, g *brushGroup) ([]br
 		content, draw := contentsForBrush(brush.Faces)
 		if !draw {
 			continue
+		}
+		if overrideContent != 0 {
+			content = overrideContent
 		}
 		key := int64(g.entityIdx)<<32 | int64(brush.Line)
 		if err := addBrush(brush, content, key); err != nil {
@@ -198,4 +219,24 @@ func (c *compiler) bspBrushList(g *brushGroup) []*bspBrush {
 func isDetail(e Entity) bool {
 	cn, _ := e.Value("classname")
 	return strings.HasPrefix(cn, "func_detail")
+}
+
+// isFuncGroup reports whether the entity is a func_group editor grouping entity.
+// Brushes in func_group are merged into worldspawn.
+func isFuncGroup(e Entity) bool {
+	cn, _ := e.Value("classname")
+	return cn == "func_group"
+}
+
+// isWorldMergedEntity reports whether the entity's brushes are baked into
+// the world model and the entity itself stripped from the BSP entity lump.
+func isWorldMergedEntity(e Entity) bool {
+	return isDetail(e) || isFuncGroup(e)
+}
+
+// isIllusionaryDetail reports whether a func_detail entity is non-solid
+// (CONTENTS_EMPTY).
+func isIllusionaryDetail(e Entity) bool {
+	cn, _ := e.Value("classname")
+	return cn == "func_detail_illusionary"
 }

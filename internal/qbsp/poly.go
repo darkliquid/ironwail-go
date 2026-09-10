@@ -297,3 +297,38 @@ func windingOrientTo(w winding, n vec3) winding {
 	}
 	return w
 }
+
+// windingArea returns the surface area of the winding in 3D space.
+func windingArea(w winding) float64 {
+	if len(w) < 3 {
+		return 0
+	}
+	sum := vec3{}
+	for i := 0; i < len(w); i++ {
+		a := w[i]
+		b := w[(i+1)%len(w)]
+		sum = sum.Add(a.Cross(b))
+	}
+	return sum.Len() * 0.5
+}
+
+// windingIsTiny reports whether a winding is degenerate or too small to form a portal,
+// matching ericw-tools WindingIsTiny (where at least 3 edges must exceed length 0.2).
+func windingIsTiny(w winding) bool {
+	if len(w) < 3 {
+		return true
+	}
+	edges := 0
+	n := len(w)
+	const minEdgeLen = 0.2
+	for i := 0; i < n; i++ {
+		j := (i + 1) % n
+		if w[j].Sub(w[i]).Len() > minEdgeLen {
+			edges++
+			if edges == 3 {
+				return false
+			}
+		}
+	}
+	return true
+}

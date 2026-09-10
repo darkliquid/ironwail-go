@@ -161,7 +161,12 @@ func stageCanonicalize(ctx *stageCtx) error {
 			if err := copyFile(src, dst); err != nil {
 				return fmt.Errorf("copy %s: %w", src, err)
 			}
-			if _, err := os.Stat(strings.TrimSuffix(dst, ".map") + ".bsp"); err == nil {
+			stem := strings.TrimSuffix(dst, filepath.Ext(dst))
+			if _, err := os.Stat(stem + ".bsp"); err == nil {
+				paired++
+				continue
+			}
+			if _, err := os.Stat(stem + ".BSP"); err == nil {
 				paired++
 				continue
 			}
@@ -194,12 +199,19 @@ func subprocessCompile(mapPath, outDir string) (evalPair, error) {
 		p, err := eval.CompileMapPair(mapPath, outDir)
 		return evalPair{MapPath: p.MapPath, BSPPath: p.BSPPath}, err
 	}
-	cmd := exec.Command(exe, "canonicalize-onemap", "-data", filepath.Dir(filepath.Dir(outDir)), "-pkg", filepath.Base(outDir))
+	cmd := exec.Command(exe, "canonicalize-onemap", "-data", filepath.Dir(filepath.Dir(outDir)), "-map", mapPath, "-out", outDir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return evalPair{}, fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
-	bspPath := filepath.Join(outDir, strings.TrimSuffix(filepath.Base(mapPath), ".map")+".bsp")
+	stem := strings.TrimSuffix(filepath.Base(mapPath), filepath.Ext(mapPath))
+	bspPath := filepath.Join(outDir, stem+".bsp")
+	if _, err := os.Stat(bspPath); err != nil {
+		alt := filepath.Join(outDir, stem+".BSP")
+		if _, err2 := os.Stat(alt); err2 == nil {
+			bspPath = alt
+		}
+	}
 	if _, err := os.Stat(bspPath); err != nil {
 		return evalPair{}, fmt.Errorf("canonicalize-onemap %s did not produce %s: %w", filepath.Base(outDir), bspPath, err)
 	}
@@ -207,6 +219,26 @@ func subprocessCompile(mapPath, outDir string) (evalPair, error) {
 		MapPath: mapPath,
 		BSPPath: bspPath,
 	}, nil
+}
+
+// canonicalizeSingleMap compiles a single map file directly into outDir.
+func canonicalizeSingleMap(ctx *stageCtx, mapPath, outDir string) error {
+	_ = os.MkdirAll(outDir, 0o755)
+	dst := filepath.Join(outDir, filepath.Base(mapPath))
+	if mapPath != dst {
+		if err := copyFile(mapPath, dst); err != nil {
+			return err
+		}
+	}
+	stem := strings.TrimSuffix(dst, filepath.Ext(dst))
+	if _, err := os.Stat(stem + ".bsp"); err == nil {
+		return nil
+	}
+	if _, err := os.Stat(stem + ".BSP"); err == nil {
+		return nil
+	}
+	_, err := eval.CompileMapPair(dst, outDir)
+	return err
 }
 
 // canonicalizeOneMap compiles a single package's maps (subprocess-isolated
@@ -233,7 +265,11 @@ func canonicalizeOneMap(ctx *stageCtx, pkgID string) error {
 			if err := copyFile(src, dst); err != nil {
 				return err
 			}
-			if _, err := os.Stat(strings.TrimSuffix(dst, ".map") + ".bsp"); err == nil {
+			stem := strings.TrimSuffix(dst, filepath.Ext(dst))
+			if _, err := os.Stat(stem + ".bsp"); err == nil {
+				continue
+			}
+			if _, err := os.Stat(stem + ".BSP"); err == nil {
 				continue
 			}
 			if _, err := eval.CompileMapPair(dst, outDir); err != nil {

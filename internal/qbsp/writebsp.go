@@ -76,6 +76,9 @@ func (c *compiler) assemble(m *Map, models []modelOut, faces []outFace, nodes []
 func serializeEntities(m *Map) []byte {
 	var b bytes.Buffer
 	for _, ent := range m.Entities {
+		if isWorldMergedEntity(ent) {
+			continue
+		}
 		b.WriteString("{\n")
 		for _, e := range ent.Epairs {
 			fmt.Fprintf(&b, "\"%s\" \"%s\"\n", e.Key, e.Value)
