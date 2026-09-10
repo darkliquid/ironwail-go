@@ -18,6 +18,11 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "audit" {
+		os.Args = append(os.Args[:1], os.Args[2:]...)
+		runAudit()
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "headroom" {
 		os.Args = append(os.Args[:1], os.Args[2:]...)
 		runHeadroom()
@@ -176,4 +181,42 @@ func runHeadroom() {
 	if verdict == "go" {
 		fmt.Println("Routes A/B proceed: the BRUSHLIST ceiling clears the threshold and ML has room to approach it.")
 	}
+}
+
+func runAudit() {
+	fs := flag.NewFlagSet("bspdec-report audit", flag.ExitOnError)
+	dataDir := fs.String("data", "dataset/bspdec", "dataset root")
+	jsonOut := fs.Bool("json", false, "print raw results JSON")
+	outFile := fs.String("o", "", "output file path (default: stdout)")
+	_ = fs.Parse(os.Args[1:])
+
+	path := filepath.Join(*dataDir, "audit.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "bspdec-report audit: %v\n", err)
+		os.Exit(1)
+	}
+	var results []eval.AuditResult
+	if err := json.Unmarshal(data, &results); err != nil {
+		fmt.Fprintf(os.Stderr, "bspdec-report audit: bad audit.json: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		if err := enc.Encode(results); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
+	report := eval.FormatAuditReport(results)
+	if *outFile != "" {
+		if err := os.WriteFile(*outFile, []byte(report), 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "bspdec-report audit: write %s: %v\n", *outFile, err)
+			os.Exit(1)
+		}
+		return
+	}
+	fmt.Print(report)
 }

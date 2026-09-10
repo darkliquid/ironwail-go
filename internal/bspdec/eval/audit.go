@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/bspdec"
 	"github.com/darkliquid/ironwail-go/internal/qbsp"
@@ -220,4 +221,119 @@ func compileMapWithGoQBSP(mapPath string) (leaked bool, trailLen int, err error)
 		return false, 0, fmt.Errorf("compile: %w", err)
 	}
 	return res.Leaked, len(res.LeakPath), nil
+}
+
+// FormatAuditReport renders a GitHub markdown report summarizing the audit results.
+func FormatAuditReport(results []AuditResult) string {
+	var sb strings.Builder
+	var (
+		totalFwd, fwdClean, catA, catB, fwdFailed int
+		totalDec, decClean, catCBoth, catCGo, catCRef, decFailed int
+	)
+
+	var catAResults []AuditResult
+	var catBResults []AuditResult
+	var catCResults []AuditResult
+
+	for _, r := range results {
+		if r.Forward.Verdict != ForwardSkipped {
+			totalFwd++
+			switch r.Forward.Verdict {
+			case ForwardClean:
+				fwdClean++
+			case ForwardCategoryA:
+				catA++
+				catAResults = append(catAResults, r)
+			case ForwardCategoryB:
+				catB++
+				catBResults = append(catBResults, r)
+			case ForwardFailed:
+				fwdFailed++
+			}
+		}
+
+		if r.Decomp.Verdict != DecompSkipped {
+			totalDec++
+			switch r.Decomp.Verdict {
+			case DecompClean:
+				decClean++
+			case DecompCategoryCBoth:
+				catCBoth++
+				catCResults = append(catCResults, r)
+			case DecompCategoryCGoOnly:
+				catCGo++
+				catCResults = append(catCResults, r)
+			case DecompCategoryCRefOnly:
+				catCRef++
+				catCResults = append(catCResults, r)
+			case DecompFailed:
+				decFailed++
+			}
+		}
+	}
+
+	sb.WriteString("# BSPDec Dual-Compiler Void & Decompilation Audit Report\n\n")
+	sb.WriteString("## Summary\n\n")
+	fmt.Fprintf(&sb, "- **Total Map Pairs Audited**: %d\n", len(results))
+	fmt.Fprintf(&sb, "- **Forward Compiles**: %d (Clean: %d, Category A Voids: %d, Category B Go Disparities: %d, Failed: %d)\n",
+		totalFwd, fwdClean, catA, catB, fwdFailed)
+	fmt.Fprintf(&sb, "- **Decompilation Recompiles**: %d (Clean: %d, Cat C Both: %d, Cat C Go-Only: %d, Cat C Ref-Only: %d, Failed: %d)\n\n",
+		totalDec, decClean, catCBoth, catCGo, catCRef, decFailed)
+
+	// Category A Table
+	sb.WriteString("## Category A: Inherent Geometry Voids\n\n")
+	sb.WriteString("Maps where the original map geometry leaks to the void in the reference `ericw-tools` compiler (author geometry defects):\n\n")
+	if len(catAResults) == 0 {
+		sb.WriteString("*None found in this run.*\n\n")
+	} else {
+		sb.WriteString("| Package | Map | Go Leaked | Go Trail | Ref Leaked | Error / Details |\n")
+		sb.WriteString("| --- | --- | :---: | :---: | :---: | --- |\n")
+		for _, r := range catAResults {
+			fmt.Fprintf(&sb, "| `%s` | `%s` | %t | %d | %t | %s |\n",
+				r.PkgID, r.MapID, r.Forward.GoLeaked, r.Forward.GoTrailLen, r.Forward.RefLeaked, r.Forward.Error)
+		}
+		sb.WriteString("\n")
+	}
+
+	// Category B Table
+	sb.WriteString("## Category B: Go Compiler Disparities\n\n")
+	sb.WriteString("Maps where Go `qbsp` leaks to the void, but the reference `ericw-tools` compiler compiles completely **sealed** (Go compiler disparities):\n\n")
+	if len(catBResults) == 0 {
+		sb.WriteString("*None! Go qbsp matches ericw-tools on all tested forward maps.*\n\n")
+	} else {
+		sb.WriteString("| Package | Map | Go Trail | Ref Status | Error / Details |\n")
+		sb.WriteString("| --- | --- | :---: | :---: | --- |\n")
+		for _, r := range catBResults {
+			fmt.Fprintf(&sb, "| `%s` | `%s` | %d pts | Sealed | %s |\n",
+				r.PkgID, r.MapID, r.Forward.GoTrailLen, r.Forward.Error)
+		}
+		sb.WriteString("\n")
+	}
+
+	// Category C Table
+	sb.WriteString("## Category C: Decompiled Map Voids\n\n")
+	sb.WriteString("Maps where the decompiled geometry (`bspdec.Decompile`) recompiled with leaks to the void:\n\n")
+	if len(catCResults) == 0 {
+		sb.WriteString("*None! All decompiled maps recompiled sealed in both compilers.*\n\n")
+	} else {
+		sb.WriteString("| Package | Map | Compiler Attribution | Go Trail | Ref Leaked | SelfCheck | Details |\n")
+		sb.WriteString("| --- | --- | :---: | :---: | :---: | :---: | --- |\n")
+		for _, r := range catCResults {
+			attr := "Both Compilers"
+			if r.Decomp.Verdict == DecompCategoryCGoOnly {
+				attr = "**Go qbsp Only**"
+			} else if r.Decomp.Verdict == DecompCategoryCRefOnly {
+				attr = "**Ericw Only**"
+			}
+			scStatus := "Pass"
+			if r.Decomp.SelfCheckError != "" {
+				scStatus = "Fail: " + r.Decomp.SelfCheckError
+			}
+			fmt.Fprintf(&sb, "| `%s` | `%s` | %s | %d pts | %t | %s | %s |\n",
+				r.PkgID, r.MapID, attr, r.Decomp.GoTrailLen, r.Decomp.RefLeaked, scStatus, r.Decomp.Error)
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
 }

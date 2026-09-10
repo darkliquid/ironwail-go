@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/bspdec"
@@ -501,4 +502,112 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, data, 0o644)
+}
+
+// stageAudit runs dual-compiler forward and decompilation void analysis across the corpus.
+func stageAudit(ctx *stageCtx) error {
+	entries, err := eval.LoadManifest(ctx.manifestPath)
+	if err != nil {
+		return err
+	}
+	_ = os.MkdirAll(ctx.pairedDir, 0o755)
+
+	type auditTarget struct {
+		pkgID   string
+		mapID   string
+		mapPath string
+		bspPath string
+	}
+
+	var targets []auditTarget
+	for _, e := range entries {
+		if len(e.MapFiles) == 0 && len(e.BSPFiles) == 0 {
+			continue
+		}
+		for _, mf := range e.MapFiles {
+			mapID := strings.TrimSuffix(filepath.Base(mf), filepath.Ext(mf))
+			mapPath := resolveSourcePath(ctx, mf)
+			pairedBSP := filepath.Join(ctx.pairedDir, e.PkgID, mapID+".bsp")
+			var bspPath string
+			if _, err := os.Stat(pairedBSP); err == nil {
+				bspPath = pairedBSP
+			} else {
+				for _, bf := range e.BSPFiles {
+					if strings.TrimSuffix(filepath.Base(bf), filepath.Ext(bf)) == mapID {
+						candidate := resolveSourcePath(ctx, bf)
+						if _, err := os.Stat(candidate); err == nil {
+							bspPath = candidate
+							break
+						}
+					}
+				}
+			}
+			targets = append(targets, auditTarget{
+				pkgID:   e.PkgID,
+				mapID:   mapID,
+				mapPath: mapPath,
+				bspPath: bspPath,
+			})
+		}
+	}
+
+	if ctx.quaddictedLimit > 0 && ctx.quaddictedLimit < len(targets) {
+		targets = targets[:ctx.quaddictedLimit]
+	}
+
+	slog.Info("bspdec-corpus: running dual-compiler audit", "targets", len(targets), "workers", ctx.quaddictedWorkers)
+
+	opts := eval.AuditOptions{
+		GridSnap: ctx.gridSnap,
+	}
+
+	results := make([]eval.AuditResult, len(targets))
+	targetChan := make(chan int, len(targets))
+	for i := range targets {
+		targetChan <- i
+	}
+	close(targetChan)
+
+	var wg sync.WaitGroup
+	workers := ctx.quaddictedWorkers
+	if workers <= 0 {
+		workers = 4
+	}
+
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range targetChan {
+				t := targets[idx]
+				res, err := eval.AuditMapPair(t.mapPath, t.bspPath, t.pkgID, t.mapID, opts)
+				if err != nil && res.Forward.Error == "" {
+					res.Forward.Error = err.Error()
+				}
+				results[idx] = res
+			}
+		}()
+	}
+	wg.Wait()
+
+	jsonPath := ctx.outJSON
+	if jsonPath == "" {
+		jsonPath = filepath.Join(ctx.dataDir, "audit.json")
+	}
+	if err := writeJSON(jsonPath, results); err != nil {
+		return fmt.Errorf("write audit json: %w", err)
+	}
+
+	mdPath := ctx.outMD
+	if mdPath == "" {
+		mdPath = filepath.Join(ctx.dataDir, "audit.md")
+	}
+	report := eval.FormatAuditReport(results)
+	if err := os.WriteFile(mdPath, []byte(report), 0o644); err != nil {
+		return fmt.Errorf("write audit md: %w", err)
+	}
+
+	slog.Info("bspdec-corpus: audit complete", "json", jsonPath, "report", mdPath)
+	ctx.provenance("audit", len(results), "audited")
+	return nil
 }

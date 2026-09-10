@@ -24,6 +24,9 @@ type stageCtx struct {
 	quaddictedLimit int
 	quaddictedWorkers int
 	quaddictedData string
+	outJSON        string
+	outMD          string
+	gridSnap       int
 	// compile compiles one map into outDir. Production uses subprocess
 	// isolation (qbsp panics on some real maps must not kill the pipeline);
 	// tests inject in-process eval.CompileMapPair so no test binary is ever
@@ -42,6 +45,7 @@ func newStageCtx(dataDir string) *stageCtx {
 		defaultSource:     filepath.Join(dataDir, "raw", "quake_map_source"),
 		count:             50,
 		quaddictedWorkers: 4,
+		gridSnap:          8,
 		compile:           subprocessCompile,
 	}
 }
@@ -72,6 +76,7 @@ var stageFuncs = map[string]func(*stageCtx) error{
 	"eval":             stageEval,
 	"synth":            stageSynth,
 	"fetch-quaddicted": stageFetchQuaddicted,
+	"audit":            stageAudit,
 }
 
 func stageFetchQuaddicted(ctx *stageCtx) error {
@@ -110,11 +115,14 @@ func main() {
 	limit := fs.Int("limit", 0, "limit packages to process (0 = all)")
 	workers := fs.Int("workers", 4, "parallel download workers for quaddicted fetch")
 	qdData := fs.String("quaddicted-data", "", "path to quaddicted-data repo")
+	outJSON := fs.String("out-json", "", "output path for audit JSON (default: <data>/audit.json)")
+	outMD := fs.String("out-md", "", "output path for audit Markdown (default: <data>/audit.md)")
+	gridSnap := fs.Int("grid-snap", 8, "grid snap lattice for decompilation in audit (default: 8)")
 	_ = fs.Parse(os.Args[1:])
 
 	if stage == "" {
 		fmt.Fprintln(os.Stderr, "usage: bspdec-corpus <stage> [-data dir] [-source dir]")
-		fmt.Fprintln(os.Stderr, "stages: enumerate canonicalize labels splits eval synth fetch-quaddicted")
+		fmt.Fprintln(os.Stderr, "stages: enumerate canonicalize labels splits eval synth fetch-quaddicted audit")
 		os.Exit(2)
 	}
 	fn, ok := stageFuncs[stage]
@@ -127,6 +135,9 @@ func main() {
 	ctx.quaddictedLimit = *limit
 	ctx.quaddictedWorkers = *workers
 	ctx.quaddictedData = *qdData
+	ctx.outJSON = *outJSON
+	ctx.outMD = *outMD
+	ctx.gridSnap = *gridSnap
 	ctx.sourceDir = ctx.defaultSource
 	if *srcDir != "" {
 		ctx.sourceDir = *srcDir

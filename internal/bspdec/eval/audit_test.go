@@ -3,6 +3,7 @@ package eval
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -89,5 +90,50 @@ func TestAuditMapPair_Options(t *testing.T) {
 	}
 	if res2.Decomp.Verdict != DecompSkipped {
 		t.Errorf("expected DecompSkipped, got %s", res2.Decomp.Verdict)
+	}
+}
+
+func TestFormatAuditReport(t *testing.T) {
+	results := []AuditResult{
+		{
+			PkgID: "pkg1", MapID: "clean_map",
+			Forward: ForwardCompileStats{Verdict: ForwardClean},
+			Decomp:  DecompCompileStats{Verdict: DecompClean},
+		},
+		{
+			PkgID: "pkg2", MapID: "inherent_void",
+			Forward: ForwardCompileStats{Verdict: ForwardCategoryA, GoLeaked: true, RefAvailable: true, RefLeaked: true},
+			Decomp:  DecompCompileStats{Verdict: DecompSkipped},
+		},
+		{
+			PkgID: "pkg3", MapID: "compiler_disparity",
+			Forward: ForwardCompileStats{Verdict: ForwardCategoryB, GoLeaked: true, GoTrailLen: 8, RefAvailable: true, RefLeaked: false},
+			Decomp:  DecompCompileStats{Verdict: DecompSkipped},
+		},
+		{
+			PkgID: "pkg4", MapID: "decomp_void",
+			Forward: ForwardCompileStats{Verdict: ForwardClean},
+			Decomp:  DecompCompileStats{Verdict: DecompCategoryCBoth, GoLeaked: true, GoTrailLen: 5, RefAvailable: true, RefLeaked: true},
+		},
+	}
+
+	report := FormatAuditReport(results)
+	if !strings.Contains(report, "Category A: Inherent Geometry Voids") {
+		t.Errorf("missing Category A section")
+	}
+	if !strings.Contains(report, "Category B: Go Compiler Disparities") {
+		t.Errorf("missing Category B section")
+	}
+	if !strings.Contains(report, "Category C: Decompiled Map Voids") {
+		t.Errorf("missing Category C section")
+	}
+	if !strings.Contains(report, "inherent_void") {
+		t.Errorf("missing inherent_void in report")
+	}
+	if !strings.Contains(report, "compiler_disparity") {
+		t.Errorf("missing compiler_disparity in report")
+	}
+	if !strings.Contains(report, "decomp_void") {
+		t.Errorf("missing decomp_void in report")
 	}
 }
