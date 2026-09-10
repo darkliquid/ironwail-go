@@ -289,6 +289,10 @@ run = "go run ./tools/bspdec_train -validate -data dataset/bspdec -out models/bs
 description = "bspdec Route A held-out gate (ML F1 vs deterministic split heuristic)"
 run = "go run ./tools/bspdec_train -gate -data dataset/bspdec -out models/bspdec"
 
+[tasks.bspdec-prog]
+description = "bspdec Route C synthetic-first program pilot (tokens -> validity -> parity)"
+run = "go run ./tools/bspdec_prog -data dataset/bspdec -count 20"
+
 [tasks.generate-test-map]
 description = "Generate test_transparency.bsp in game data dirs"
 depends = ["build-bspgen"]
