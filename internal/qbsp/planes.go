@@ -45,12 +45,17 @@ func normalizePlane(p plane) plane {
 	return p
 }
 
-// snapPlaneDist rounds a plane distance to an integer when it is very close
-// to one, mirroring the classic qbsp behaviour that keeps coincident
-// geometry from creating micro-splits.
-func snapPlaneDist(d float64) float64 {
+// snapPlaneDist rounds an axial plane distance to an integer when it is within
+// 0.01 of one (avoiding micro-splits from float rounding on integer map grids),
+// while using a strict 1e-5 tolerance for non-axial planes to prevent irrational
+// diagonal plane distances (e.g. diagonal 45-degree trims) from being corrupted.
+func snapPlaneDist(n vec3, d float64) float64 {
+	tol := 1e-5
+	if isAxial(n) {
+		tol = 0.01
+	}
 	r := math.Round(d)
-	if math.Abs(d-r) < 0.01 {
+	if math.Abs(d-r) < tol {
 		return r
 	}
 	return d

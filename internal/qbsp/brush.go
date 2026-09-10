@@ -416,9 +416,3 @@ func chopBrushes(list []*bspBrush) []*bspBrush {
 	}
 	return out
 }
-
-// diagCounts tallies CSG failures during a compile (leak debugging).
-var diagCounts struct {
-	badBrushes int
-	badFaces   int
-}

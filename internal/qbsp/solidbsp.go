@@ -359,36 +359,53 @@ func (t *treeBuild) build(bounds [2]vec3, region leafRegion, parent, side int, b
 	return childRef{isLeaf: false, idx: idx}
 }
 
-// finalize computes each leaf's exact facets (and bounds) from its region.
-func (t *treeBuild) finalize(rootBounds [2]vec3) {
+// solidBrushDef defines a solid brush's bounding box and outward face planes
+// used for surface-based leaf solidity verification.
+type solidBrushDef struct {
+	bounds [2]vec3
+	planes []plane
+}
+
+// finalize computes each leaf's exact facets (and bounds) from its region,
+// and enforces surface-based leaf solidity: any leaf whose region is
+// geometrically contained within the volume of a solid brush is marked solid,
+// restoring solidity lost when open or degenerate brushes drop sliver pieces
+// during tree splitting.
+func (t *treeBuild) finalize(rootBounds [2]vec3, solidBrushes []solidBrushDef) {
 	for i := range t.leafs {
 		fs := t.leafs[i].region.facets(rootBounds)
 		mins, maxs := rootBounds[0], rootBounds[1]
 		first := true
+		var sum vec3
+		count := 0
 		for _, f := range fs {
 			m, x := windingBounds(f.w)
 			if first {
 				mins, maxs = m, x
 				first = false
-				continue
+			} else {
+				if m.X < mins.X {
+					mins.X = m.X
+				}
+				if x.X > maxs.X {
+					maxs.X = x.X
+				}
+				if m.Y < mins.Y {
+					mins.Y = m.Y
+				}
+				if x.Y > maxs.Y {
+					maxs.Y = x.Y
+				}
+				if m.Z < mins.Z {
+					mins.Z = m.Z
+				}
+				if x.Z > maxs.Z {
+					maxs.Z = x.Z
+				}
 			}
-			if m.X < mins.X {
-				mins.X = m.X
-			}
-			if x.X > maxs.X {
-				maxs.X = x.X
-			}
-			if m.Y < mins.Y {
-				mins.Y = m.Y
-			}
-			if x.Y > maxs.Y {
-				maxs.Y = x.Y
-			}
-			if m.Z < mins.Z {
-				mins.Z = m.Z
-			}
-			if x.Z > maxs.Z {
-				maxs.Z = x.Z
+			for _, v := range f.w {
+				sum = sum.Add(v)
+				count++
 			}
 		}
 		if !first {
@@ -396,7 +413,55 @@ func (t *treeBuild) finalize(rootBounds [2]vec3) {
 		} else {
 			t.leafs[i].mins, t.leafs[i].maxs = rootBounds[0], rootBounds[1]
 		}
-		_ = fs
+
+		if t.leafs[i].content != bsp.ContentsSolid && count > 0 && len(solidBrushes) > 0 {
+			for _, sb := range solidBrushes {
+				// Fast rejection: leaf must be contained within the brush's AABB (with epsilon tolerance).
+				const eps = 0.5
+				if t.leafs[i].mins.X < sb.bounds[0].X-eps || t.leafs[i].maxs.X > sb.bounds[1].X+eps ||
+					t.leafs[i].mins.Y < sb.bounds[0].Y-eps || t.leafs[i].maxs.Y > sb.bounds[1].Y+eps ||
+					t.leafs[i].mins.Z < sb.bounds[0].Z-eps || t.leafs[i].maxs.Z > sb.bounds[1].Z+eps {
+					continue
+				}
+
+				// Leaf centroid must be inside all brush planes.
+				centroid := sum.Scale(1.0 / float64(count))
+				centroidInside := true
+				for _, p := range sb.planes {
+					if p.Normal.Dot(centroid)-p.Dist > 0.01 {
+						centroidInside = false
+						break
+					}
+				}
+				if !centroidInside {
+					continue
+				}
+
+				// Leaf centroid is inside; verify all vertices of all leaf facets
+				// lie on or behind all planes of the brush.
+				allInside := true
+				for _, f := range fs {
+					for _, v := range f.w {
+						for _, p := range sb.planes {
+							if p.Normal.Dot(v)-p.Dist > 0.01 {
+								allInside = false
+								break
+							}
+						}
+						if !allInside {
+							break
+						}
+					}
+					if !allInside {
+						break
+					}
+				}
+				if allInside {
+					t.leafs[i].content = bsp.ContentsSolid
+					break
+				}
+			}
+		}
 	}
 }
 

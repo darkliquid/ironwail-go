@@ -140,7 +140,7 @@ func (wb *worldBrush) OutwardPlanes() []plane {
 		if v3Length(p.Normal) < 1e-9 {
 			continue
 		}
-		p.Dist = snapPlaneDist(p.Dist)
+		p.Dist = snapPlaneDist(p.Normal, p.Dist)
 		ps = append(ps, p)
 	}
 	return ps

@@ -135,7 +135,20 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		}
 		tb := &treeBuild{register: c.addPlaneIndex}
 		root := tb.build(bounds, rootRegion(bounds), -1, -1, list, policy)
-		tb.finalize(bounds)
+		var solidBrushes []solidBrushDef
+		for _, wb := range g.brushes {
+			if wb.content == bsp.ContentsSolid {
+				solidBrushes = append(solidBrushes, solidBrushDef{
+					bounds: wb.bounds,
+					planes: wb.OutwardPlanes(),
+				})
+			}
+		}
+		tb.finalize(bounds, solidBrushes)
+
+		if world {
+			leakPath, leaked = c.floodLeakCheck(bounds, root, tb.nodes, tb.leafs, m)
+		}
 
 		// Renumber leaves non-solid-first (per model) and offset into the
 		// shared node/leaf tables. Paths are computed on the local tree
@@ -179,7 +192,7 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		var faces []outFace
 		var attach [][]int
 		if world {
-			faces, attach, pf, leakPath, leaked = c.buildWorldSurfaces(bounds, root, nodes, leafs, paths, m)
+			faces, attach, pf = c.buildWorldSurfaces(bounds, nodes, leafs, paths)
 		} else {
 			faces, attach = c.buildModelSurfaces(bounds, root, nodes, nodeBase, leafBase, leafs, paths)
 		}
@@ -292,7 +305,7 @@ func offsetClipChild(ch int32, base int32) int32 {
 // planeIndexFor finds or creates the plane-table entry for a face.
 func (c *compiler) planeIndexFor(face MapFace) (int, bool) {
 	p := normalizePlane(face.Plane())
-	p.Dist = snapPlaneDist(p.Dist)
+	p.Dist = snapPlaneDist(p.Normal, p.Dist)
 	for i, existing := range c.planes {
 		if planeEqualNear(p, existing) {
 			return i, true
@@ -354,7 +367,7 @@ func brushVerts(brush MapBrush) []vec3 {
 	planes := make([]plane, 0, len(brush.Faces))
 	for _, face := range brush.Faces {
 		p := face.Plane()
-		p.Dist = snapPlaneDist(p.Dist)
+		p.Dist = snapPlaneDist(p.Normal, p.Dist)
 		planes = append(planes, p)
 	}
 	var out []vec3

@@ -69,36 +69,29 @@ func floodOpaque(content int32) bool {
 	return content == bsp.ContentsSolid || content == bsp.ContentsSky
 }
 
-// buildWorldSurfaces computes the world model's faces (per-leaf attachment),
-// the inter-leaf portals (PRT1), the leak flood state, and node face spans.
-//
-// Returned attach is indexed by leaf (post-renumber); the caller copies it
-// into leafs[].marksurface. Nodes gain firstface/numfaces spans (faces are
-// returned sorted by planenum for the span lookup).
-func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []outNode, leafs []outLeaf, paths [][]pathStep, m *Map) ([]outFace, [][]int, *PortalFile, []vec3, bool) {
-	var faces []outFace
-	attach := make([][]int, len(leafs))
-	pf := &PortalFile{LeafCount: len(leafs)}
-	seenPortal := map[[2]int]bool{}
-
-	// leak flood adjacency + BFS
+// floodLeakCheck performs the leak flood from the void boundary over
+// non-solid leaves and checks if any entity is reached by the flood (leak).
+func (c *compiler) floodLeakCheck(bounds [2]vec3, root childRef, nodes []outNode, leafs []outLeaf, m *Map) ([]vec3, bool) {
 	n := len(leafs)
+	paths := make([][]pathStep, n)
+	for li := range leafs {
+		paths[li] = pathToLeaf(nodes, leafs, li)
+	}
+
 	adj := make([][]int, n)
 	floodParent := make([]int, n)
 	for i := range floodParent {
 		floodParent[i] = -2 // unvisited
 	}
 
-	// 1. Per-leaf facet enumeration and surface/portal generation.
 	voidLeaf := make([]bool, n)
 	for li := range leafs {
 		L := &leafs[li]
 		if L.content == bsp.ContentsSolid {
-			continue // solid leaves: no portals, no flood seeds
+			continue
 		}
 		for _, f := range L.region.facets(bounds) {
 			if f.pi < 0 {
-				// void facet: this leaf touches the outside of the map.
 				voidLeaf[li] = true
 				continue
 			}
@@ -112,8 +105,113 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 					continue
 				}
 				if leafs[pc.leaf].content != bsp.ContentsSolid {
-					// portal between two non-solid leaves (vis passability;
-					// sky leafs stay in the vis graph).
+					if !floodOpaque(L.content) && !floodOpaque(leafs[pc.leaf].content) {
+						adj[li] = append(adj[li], pc.leaf)
+						adj[pc.leaf] = append(adj[pc.leaf], li)
+					}
+				}
+			}
+		}
+	}
+
+	var queue []int
+	for li := range voidLeaf {
+		if voidLeaf[li] && !floodOpaque(leafs[li].content) {
+			floodParent[li] = -1
+			queue = append(queue, li)
+		}
+	}
+	sort.Ints(queue)
+	for qi := 0; qi < len(queue); qi++ {
+		cur := queue[qi]
+		for _, nb := range adj[cur] {
+			if floodParent[nb] == -2 {
+				floodParent[nb] = cur
+				queue = append(queue, nb)
+			}
+		}
+	}
+
+	var leakPath []vec3
+	leaked := false
+	occupiedCount := 0
+	for _, ent := range m.Entities[1:] {
+		originStr, ok := ent.Value("origin")
+		if !ok {
+			continue
+		}
+		origin, err := parseOrigin(originStr)
+		if err != nil {
+			continue
+		}
+		if origin.X == 0 && origin.Y == 0 && origin.Z == 0 {
+			continue
+		}
+		leafIdx, inside := pointInLeaf(nodes, root, origin)
+		if !inside || leafIdx < 0 || leafIdx >= n {
+			return []vec3{origin}, true
+		}
+		if leafs[leafIdx].content == bsp.ContentsSolid {
+			// Matches ericw outside.cc MarkOccupiedLeafs:
+			// if (LeafSealsMap(leaf)) continue;
+			continue
+		}
+		occupiedCount++
+		if floodParent[leafIdx] == -2 {
+			continue
+		}
+		var trail []vec3
+		cur := leafIdx
+		cn, _ := ent.Value("classname")
+		for cur >= 0 {
+			trail = append([]vec3{c.leafCentroid(bounds, &leafs[cur])}, trail...)
+			if floodParent[cur] < 0 {
+				c.logf("LEAK: entity %s at %v (leaf %d) reached from void leaf %d (mins %v maxs %v bounds %v)",
+					cn, origin, leafIdx, cur, leafs[cur].mins, leafs[cur].maxs, bounds)
+				break
+			}
+			cur = floodParent[cur]
+		}
+		leaked = true
+		leakPath = trail
+		break
+	}
+
+	return leakPath, leaked
+}
+
+// buildWorldSurfaces computes the world model's faces (per-leaf attachment),
+// the inter-leaf portals (PRT1), and node face spans.
+//
+// Returned attach is indexed by leaf (post-renumber); the caller copies it
+// into leafs[].marksurface. Nodes gain firstface/numfaces spans (faces are
+// returned sorted by planenum for the span lookup).
+func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []outLeaf, paths [][]pathStep) ([]outFace, [][]int, *PortalFile) {
+	var faces []outFace
+	attach := make([][]int, len(leafs))
+	pf := &PortalFile{LeafCount: len(leafs)}
+	seenPortal := map[[2]int]bool{}
+
+	// 1. Per-leaf facet enumeration and portal generation.
+	for li := range leafs {
+		L := &leafs[li]
+		if L.content == bsp.ContentsSolid {
+			continue // solid leaves: no portals
+		}
+		for _, f := range L.region.facets(bounds) {
+			if f.pi < 0 {
+				continue
+			}
+			sib, ok := siblingAtPlane(nodes, paths[li], f.pi)
+			if !ok {
+				continue
+			}
+			neigh := splitByTree(nodes, sib, f.w)
+			for _, pc := range neigh {
+				if pc.leaf == li {
+					continue
+				}
+				if leafs[pc.leaf].content != bsp.ContentsSolid {
 					key := [2]int{li, pc.leaf}
 					keyInv := [2]int{pc.leaf, li}
 					if !seenPortal[key] && !seenPortal[keyInv] {
@@ -122,13 +220,6 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 							Leafs:  [2]int{li, pc.leaf},
 							Points: windingRemoveColinear(pc.w),
 						})
-					}
-					// Flood adjacency only crosses flood-passable leafs; the
-					// sky shell is opaque to the leak flood (as ericw's
-					// node_t::opaque() treats sky + solid).
-					if !floodOpaque(L.content) && !floodOpaque(leafs[pc.leaf].content) {
-						adj[li] = append(adj[li], pc.leaf)
-						adj[pc.leaf] = append(adj[pc.leaf], li)
 					}
 				}
 			}
@@ -144,13 +235,10 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 			var pi int
 			outward := f.p.Normal
 			if f.pi < 0 {
-				// Void facet: attribute to a coincident table plane (the
-				// outer wall brush face), else no geometry here.
 				pi = planeAtBoxFace(c.planes, f.p)
 				if pi < 0 {
 					continue
 				}
-				// Only the solid side facing the void emits a face.
 				if L.content == bsp.ContentsSolid {
 					gi := len(faces)
 					faces = append(faces, outFace{
@@ -178,7 +266,6 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 				}
 				dense := denseCell(L.content, nc)
 				if dense == 0 {
-					// L is the denser side: emit here.
 					gi := len(faces)
 					faces = append(faces, outFace{
 						planenum: f.pi,
@@ -192,69 +279,11 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, root childRef, nodes []out
 		}
 	}
 
-	// 3. Leak flood from the void ring over flood-passable adjacency.
-	var queue []int
-	for li := range voidLeaf {
-		if voidLeaf[li] && !floodOpaque(leafs[li].content) {
-			floodParent[li] = -1
-			queue = append(queue, li)
-		}
-	}
-	sort.Ints(queue)
-	for qi := 0; qi < len(queue); qi++ {
-		cur := queue[qi]
-		for _, nb := range adj[cur] {
-			if floodParent[nb] == -2 {
-				floodParent[nb] = cur
-				queue = append(queue, nb)
-			}
-		}
-	}
-
-	// 4. Entity origins in flooded leaves leak.
-	var leakPath []vec3
-	leaked := false
-	for _, ent := range m.Entities[1:] {
-		originStr, ok := ent.Value("origin")
-		if !ok {
-			continue
-		}
-		origin, err := parseOrigin(originStr)
-		if err != nil {
-			continue
-		}
-		// Skip bmodels and origin-less entities whose origin is the
-		// default (0 0 0) point (ericw FindOccupiedLeafs skips these).
-		if origin.X == 0 && origin.Y == 0 && origin.Z == 0 {
-			continue
-		}
-		leafIdx, inside := pointInLeaf(nodes, root, origin)
-		if !inside || leafIdx < 0 || leafIdx >= n {
-			return faces, attach, pf, []vec3{origin}, true
-		}
-		if floodParent[leafIdx] == -2 {
-			continue
-		}
-		// Walk the parent chain back to a ring leaf.
-		var trail []vec3
-		cur := leafIdx
-		for cur >= 0 {
-			trail = append([]vec3{c.leafCentroid(bounds, &leafs[cur])}, trail...)
-			if floodParent[cur] < 0 {
-				break
-			}
-			cur = floodParent[cur]
-		}
-		leaked = true
-		leakPath = trail
-		break
-	}
-
-	// 5. Order faces by planenum and set node spans.
+	// 3. Order faces by planenum and set node spans.
 	orderFacesByPlane(&faces, leafs)
 	setNodeFaceSpans(nodes, faces)
 
-	return faces, attach, pf, leakPath, leaked
+	return faces, attach, pf
 }
 
 // centroid returns a representative interior point of a leaf (the facet

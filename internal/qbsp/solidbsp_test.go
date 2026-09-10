@@ -182,7 +182,7 @@ func prettySlab(x0, y0, z0, x1, y1, z1 float64, tex string) string {
 // stripFaceStr removes a specific brush face line (by its first two
 // corner tokens) from a map source.
 func stripFaceStr(src string, x0, y0, z0, x1, y1, z1 float64) string {
-	needle := fmt.Sprintf("( %g %g %g ) ( %g %g %g ) ( %g %g %g )", x0, y0, z0, x0, y0, z1, x0, y1, z0)
+	needle := fmt.Sprintf("( %g %g %g ) ( %g %g %g ) ( %g %g %g )", x0, y1, z0, x0, y1, z1, x0, y0, z1)
 	idx := strings.Index(src, needle)
 	if idx < 0 {
 		return src
@@ -491,9 +491,6 @@ func TestSplitBrushPreservesOnTinyCap(t *testing.T) {
 	front, back := splitBrush(b, 0, plane{Normal: v3(0, 1, 0), Dist: 104.5})
 	if front == nil && back == nil {
 		t.Fatal("splitBrush lost the whole brush on a grazing plane")
-	}
-	if front == nil || back == nil {
-		// exactly one side gets everything: preserved, not lost
 	}
 	got := 0
 	if front != nil {

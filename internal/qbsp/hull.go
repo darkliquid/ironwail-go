@@ -55,7 +55,7 @@ func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3, ext [2]
 			} else if n.Z < 0 {
 				shift += ext[0].Z
 			}
-			p := plane{Normal: n, Dist: snapPlaneDist(s.d + shift)}
+			p := plane{Normal: n, Dist: snapPlaneDist(n, s.d+shift)}
 			faces = append(faces, brushFace{p: p, pn: c.addPlaneIndex(p)})
 		}
 		eb := buildBspBrushFaces(faces, bounds)
@@ -73,7 +73,7 @@ func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3, ext [2]
 // hull clip planes, which share the main plane lump).
 func (c *compiler) addPlaneIndex(p plane) int {
 	p = normalizePlane(p)
-	p.Dist = snapPlaneDist(p.Dist)
+	p.Dist = snapPlaneDist(p.Normal, p.Dist)
 	for i, existing := range c.planes {
 		if planeEqualNear(p, existing) {
 			return i

@@ -130,15 +130,16 @@ func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 	}
 
 	// Non-axial: tangent-square seed with every vertex exactly on the
-	// plane (a constant-dominant-coordinate seed is off-plane and dies
-	// against the box or the brush's other faces, silently dropping
-	// bevel/trim faces — which turned wedge trims into phantom boxes).
-	// A point on the plane (n . org == dist).
-	org := vec3{
-		X: p.Normal.X * p.Dist,
-		Y: p.Normal.Y * p.Dist,
-		Z: p.Normal.Z * p.Dist,
+	// plane, centered on the box center projected onto the plane (seeding
+	// at p.Normal*p.Dist placed the seed near the world origin, so boxes
+	// far from the origin had their non-axial cross-sections clipped away).
+	boxCenter := vec3{
+		X: (mins.X + maxs.X) * 0.5,
+		Y: (mins.Y + maxs.Y) * 0.5,
+		Z: (mins.Z + maxs.Z) * 0.5,
 	}
+	dist := p.Normal.Dot(boxCenter) - p.Dist
+	org := boxCenter.Sub(p.Normal.Scale(dist))
 
 	// Tangent axes spanning the other two world axes (classic vup / v).
 	var up, right vec3
@@ -171,7 +172,7 @@ func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 	// exact intersection polygon wherever the plane crosses the box.
 	radius := math.Sqrt((maxs.X-mins.X)*(maxs.X-mins.X)+
 		(maxs.Y-mins.Y)*(maxs.Y-mins.Y)+
-		(maxs.Z-mins.Z)*(maxs.Z-mins.Z)) * 0.6
+		(maxs.Z-mins.Z)*(maxs.Z-mins.Z)) * 1.5
 	if radius < 1 {
 		radius = 1
 	}
