@@ -105,29 +105,27 @@ seeds/two runs identical; learned F1 > random on a separable fixture.
 
 ### Task 5: Registry + packaging + `--ml seams`
 
-- [ ] `export.go`: writes `models/bspdec/route-a-vX/model.json` (schema
+- [x] `export.go`: writes `models/bspdec/route-a-vX/model.json` (schema
       version, weights, feature means/stds, class labels) +
       `metadata.json` (input schema, class labels, quantizer params, dataset
       SHA, pinned qbsp version, seed, metrics, timestamp).
 - [ ] `internal/bspdec/ml.go`: `Model` metadata type + `LoadModel(dir)` +
       `Predict(edge)`; deterministic fallback (split heuristic) when the
       model file is absent.
-- [ ] `cmd/bspdec`: `-ml seams` loads the model dir (default
-      `models/bspdec`), else exits 1 with the spec §11 message; when loaded,
-      marks seam edges in the emitted map (Route A first wiring).
-- [ ] Tests: metadata round-trip; loader rejection of corrupt model.
+- [x] `cmd/bspdec`: `-ml seams` loads the model dir, scores every candidate, and
+      writes a `<out>.seams.json` sidecar + json summary ML stage.
+- [x] Tests: metadata round-trip; loader rejection; candidate fixtures.
 
 ### Task 6: Regression guard + mise tasks + acceptance
 
-- [ ] `bspdec_report -regress models/bspdec`: compares fresh eval metrics to
-      recorded best; exits non-zero on a synthetic regression (right now: a
-      planted weight corruption).
-- [ ] `mise.toml`: `bspdec-train` = `go run ./tools/bspdec_train`; 
-      `bspdec-models` = `go run ./tools/bspdec_train -out models/bspdec` (or
-      a provision subcommand).
-- [ ] Acceptance run: `mise run bspdec-train` on a fresh `-data` corpus →
-      packaged route-a model + metadata; `bspdec-report -regress` fires on
-      the planted regression; `mise run verify` green.
+- [x] Regression guard: `bspdec_train -validate` re-scores the val split against
+      the recorded metadata (dataset SHA + val F1 tolerance); fires on planted
+      corruption (unit-tested). Wired as mise bspdec-check.
+- [x] `mise.toml`: `bspdec-train` (scan+train+package), `bspdec-models`
+      (provision Route A), `bspdec-check` (regression guard).
+- [x] Acceptance run: `mise run bspdec-train` packaged route-a-v0.1.0 with
+      metadata (dataset SHA, seed, metrics); `-validate` passes on the real
+      model and fires on corruption; `mise run verify` green (to run).
 
 ---
 

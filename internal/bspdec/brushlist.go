@@ -275,3 +275,14 @@ func decompileFromBrushList(ents *mapfile.Map, tree *bsp.Tree, ls []BSPXBrush, o
 	}
 	return attachBrushes(ents, perModel, tree), stats, nil
 }
+
+// BrushListPlanes converts BRUSHLIST brushes to outward plane sets, the
+// original-brush geometry SeamCandidates / SeamTruth label against at
+// inference time (training uses the original .map instead).
+func BrushListPlanes(ls []BSPXBrush) [][]mapfile.Plane {
+	out := make([][]mapfile.Plane, 0, len(ls))
+	for _, b := range ls {
+		out = append(out, b.Faces)
+	}
+	return out
+}

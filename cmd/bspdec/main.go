@@ -33,6 +33,8 @@ type jsonSummary struct {
 	BSPXBrushlist bool            `json:"bspx_brushlist"`
 	Models        []jsonModelStat `json:"models"`
 	ML            jsonML          `json:"ml"`
+	Scored        int             `json:"scored,omitempty"`
+	Predicted     int             `json:"predicted,omitempty"`
 	Exit          int             `json:"exit"`
 }
 
@@ -48,6 +50,8 @@ type jsonML struct {
 	Stage string  `json:"stage"`
 	Model *string `json:"model"`
 }
+
+func strp(s string) *string { return &s }
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -92,11 +96,23 @@ func run(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "bspdec: unsupported -format %q (only map)\n", *format)
 		return exitInput
 	}
-	if *ml != "" {
-		_, _ = fmt.Fprintf(stderr, "bspdec: -ml %q needs the M2 training pipeline (not built); see docs/superpowers/specs/2026-09-07-bspdec-design.md section 7\n", *ml)
+	var seamModel *bspdec.SeamModel
+	switch *ml {
+	case "":
+	case "seams":
+		sm, err := bspdec.LoadSeamModel(*modelDir)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "bspdec: %v\n", err)
+			return exitInput
+		}
+		seamModel = sm
+	case "group", "all":
+		_, _ = fmt.Fprintf(stderr, "bspdec: -ml %q needs Route B (not built); only seams is available (see docs/superpowers/specs/2026-09-07-bspdec-design.md section 7)\n", *ml)
+		return exitInput
+	default:
+		_, _ = fmt.Fprintf(stderr, "bspdec: unknown -ml %q (want seams)\n", *ml)
 		return exitInput
 	}
-	_ = *modelDir // reserved for M2
 	switch *texFallback {
 	case "skip", "nearest", "trigger":
 	default:
@@ -160,12 +176,66 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return exitInput
 	}
 
+	// --ml seams: score the Route A candidates against the packaged model
+	// and write a sidecar with per-segment probabilities.
+	var scored int
+	var predicted int
+	if seamModel != nil {
+		ls, err := bspdec.BrushListFromBSP(data)
+		if err != nil || len(ls) == 0 {
+			_, _ = fmt.Fprintf(stderr, "bspdec: -ml seams needs a BRUSHLIST oracle (input was compiled without BSPX)\n")
+			return exitInput
+		}
+		geoms, err := bspdec.FacePolygons(m)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "bspdec: face polygons: %v\n", err)
+			return exitInternal
+		}
+		cands := bspdec.SeamCandidates(geoms, bspdec.BrushListPlanes(ls))
+		type candJSON struct {
+			Cell int           `json:"cell"`
+			Edge [2][3]float64 `json:"edge"`
+			Prob float64       `json:"prob"`
+			Seam bool          `json:"seam_truth"`
+		}
+		recs := make([]candJSON, 0, len(cands))
+		for _, c := range cands {
+			c.Prob = seamModel.Score(c.Features)
+			if c.Prob >= 0.5 {
+				predicted++
+			}
+			recs = append(recs, candJSON{Cell: c.Cell, Edge: [2][3]float64{
+				{c.Edge[0].X, c.Edge[0].Y, c.Edge[0].Z},
+				{c.Edge[1].X, c.Edge[1].Y, c.Edge[1].Z},
+			}, Prob: c.Prob, Seam: c.Seam})
+		}
+		scored = len(recs)
+		sidecar := output + ".seams.json"
+		payload, err := json.MarshalIndent(map[string]any{
+			"input": input, "model_dir": *modelDir, "candidates": recs,
+			"scored": scored, "predicted": predicted,
+		}, "", "  ")
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "bspdec: seams marshal: %v\n", err)
+			return exitInternal
+		}
+		if err := os.WriteFile(sidecar, payload, 0o644); err != nil {
+			_, _ = fmt.Fprintf(stderr, "bspdec: write %s: %v\n", sidecar, err)
+			return exitInput
+		}
+	}
+
 	if *jsonOut {
 		s := jsonSummary{
 			Input: input, Output: output,
 			BSPXBrushlist: hasBSPXBrushlist(data),
 			ML:            jsonML{Stage: "none", Model: nil},
 			Exit:          exitOK,
+		}
+		if seamModel != nil {
+			s.ML = jsonML{Stage: "seams", Model: strp(seamModel.Version)}
+			s.Scored = scored
+			s.Predicted = predicted
 		}
 		for _, ms := range stats {
 			s.Models = append(s.Models, jsonModelStat{

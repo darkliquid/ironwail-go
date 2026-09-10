@@ -123,3 +123,27 @@ func TestConfigHashDeterministicAndDistinct(t *testing.T) {
 		t.Fatal("schema bump did not change the config hash")
 	}
 }
+
+func TestValidateGuardFiresOnRegression(t *testing.T) {
+	// a minimal packaged model with a corrupt (zeroed) weight set must trip
+	// the dataset-drift and/or F1 guard, never pass silently
+	out := t.TempDir()
+	m := &Model{Weights: make([]float64, nFeatures), Bias: 0}
+	mean := make([]float64, nFeatures)
+	std := make([]float64, nFeatures)
+	for i := range std {
+		std[i] = 1
+	}
+	if _, err := exportRouteA(out, m, mean, std, metrics{ValF1: 0.9}, "cafef00d", 0x5EED); err != nil {
+		t.Fatal(err)
+	}
+	err := validateModel(nil, out, "cafef00d")
+	if err == nil {
+		t.Fatal("guard must fire for a model that cannot reach the recorded F1")
+	}
+	// dataset drift also fires
+	err = validateModel(nil, out, "deadbeef")
+	if err == nil {
+		t.Fatal("guard must fire on dataset SHA mismatch")
+	}
+}

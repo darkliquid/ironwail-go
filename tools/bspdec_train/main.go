@@ -21,7 +21,20 @@ func main() {
 	route := flag.String("route", "a", "route to train: a (seams) | all")
 	seed := flag.Int64("seed", 0x5EED, "training seed (pinned)")
 	out := flag.String("out", "models/bspdec", "model registry root")
+	validate := flag.Bool("validate", false, "run the regression guard on the packaged model and exit 1 on regression")
 	flag.Parse()
+
+	if *validate {
+		recs, datasetSHA, err := scanCorpus(*dataDir)
+		if err != nil {
+			fatal("scan: " + err.Error())
+		}
+		if err := validateModel(recs, *out, datasetSHA); err != nil {
+			fatal(err.Error())
+		}
+		slog.Info("bspdec-train: validation passed", "model", "route-a-v"+routeAVersion)
+		return
+	}
 
 	if *route != "a" && *route != "all" {
 		fatal(fmt.Sprintf("unknown route %q (want a|all)", *route))
@@ -53,10 +66,51 @@ func main() {
 	if err := os.MkdirAll(*out, 0o755); err != nil {
 		fatal(err.Error())
 	}
-	// Task 4 lands the Route A feature extraction and train loop here; the
-	// CLI contract (scan -> train -> package -> metadata.json) is exercised
-	// end-to-end by the acceptance run once it does.
-	slog.Info("bspdec-train: pipeline ready; train loop lands with the feature extraction task (plan Task 3/4)")
+	if *route == "a" || *route == "all" {
+		if err := runRouteA(recs, cacheDir, *out, datasetSHA, *seed); err != nil {
+			fatal(err.Error())
+		}
+	}
+}
+
+// runRouteA extracts Route A features, trains the seam classifier on the
+// train split, reports validation metrics, and packages the versioned model
+// with metadata.json (spec section 7.4).
+func runRouteA(recs []mapRecord, cacheDir, out, datasetSHA string, seed int64) error {
+	var trainSet, valSet, testSet []Sample
+	for _, r := range recs {
+		samples, err := samplesForMap(&r)
+		if err != nil {
+			slog.Warn("bspdec-train: feature extraction failed", "map", r.PkgID+"/"+r.MapID, "err", err)
+			continue
+		}
+		slog.Info("bspdec-train: features", "map", r.PkgID+"/"+r.MapID, "samples", len(samples))
+		switch r.Split {
+		case "train":
+			trainSet = append(trainSet, samples...)
+		case "val":
+			valSet = append(valSet, samples...)
+		case "test":
+			testSet = append(testSet, samples...)
+		}
+	}
+	if len(trainSet) == 0 {
+		return fmt.Errorf("no training samples")
+	}
+	mean, std := featureStats(trainSet)
+	model := trainLogistic(trainSet, mean, std)
+	valP, valR, valF1 := model.evaluate(valSet, mean, std)
+	testP, testR, testF1 := model.evaluate(testSet, mean, std)
+	slog.Info("bspdec-train: route-a trained",
+		"train_samples", len(trainSet), "val_samples", len(valSet), "test_samples", len(testSet),
+		"val_f1", fmt.Sprintf("%.3f", valF1), "val_p/r", fmt.Sprintf("%.3f/%.3f", valP, valR),
+		"test_f1", fmt.Sprintf("%.3f", testF1), "test_p/r", fmt.Sprintf("%.3f/%.3f", testP, testR),
+		"cache", cacheDir)
+	if _, err := exportRouteA(out, model, mean, std, metrics{ValF1: valF1, ValP: valP, ValR: valR}, datasetSHA, seed); err != nil {
+		return err
+	}
+	slog.Info("bspdec-train: packaged", "dir", fmt.Sprintf("%s/route-a-v%s", out, routeAVersion))
+	return nil
 }
 
 func fatal(msg string) {

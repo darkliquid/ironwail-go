@@ -27,10 +27,12 @@ type labelRecord struct {
 // mapRecord is one labeled map with its package-level split assignment
 // (spec section 10: cacheable steps keyed by dataset SHA + config hash).
 type mapRecord struct {
-	PkgID  string
-	MapID  string
-	Split  string // train | val | test | holdout
-	Labels *labelRecord
+	PkgID   string
+	MapID   string
+	Split   string // train | val | test | holdout
+	MapPath string
+	BSPPath string
+	Labels  *labelRecord
 }
 
 // scanCorpus sweeps the labeled slice of a corpus: manifest entries with
@@ -89,7 +91,22 @@ func scanCorpus(dataDir string) ([]mapRecord, string, error) {
 			if err := json.Unmarshal(data, &rec); err != nil {
 				return nil, "", fmt.Errorf("labels %s: %w", lp, err)
 			}
-			recs = append(recs, mapRecord{PkgID: e.PkgID, MapID: stem, Split: split, Labels: &rec})
+			bspPath := ""
+			for _, bf := range e.BSPFiles {
+				if strings.TrimSuffix(filepath.Base(bf), filepath.Ext(bf)) == stem {
+					bspPath = filepath.Join(dataDir, filepath.FromSlash(bf))
+					break
+				}
+			}
+			if bspPath == "" {
+				bspPath = filepath.Join(dataDir, "paired", e.PkgID, stem+".bsp")
+			}
+			recs = append(recs, mapRecord{
+				PkgID: e.PkgID, MapID: stem, Split: split,
+				MapPath: filepath.Join(dataDir, filepath.FromSlash(mf)),
+				BSPPath: bspPath,
+				Labels:  &rec,
+			})
 		}
 	}
 	sort.Slice(recs, func(i, j int) bool {
