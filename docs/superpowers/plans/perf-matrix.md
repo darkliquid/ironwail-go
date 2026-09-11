@@ -41,11 +41,48 @@ about a second with a fraction of the allocations.
 
 | map | size | wall (90s profile window) | total-alloc | GC cycles |
 |---|---|---|---|---|
-| jjj22_dfl.map | 13.9 MB | >16 min foreground, unfinished | 4952 MiB/90s | 81 |
-| sm190_nait.map | 9.2 MB | (capture below) | — | — |
-| jam6_necros_v2.map | 5.6 MB | (capture below) | — | — |
+| jjj22_dfl.map | 13.9 MB | unfinished (>16 min foreground) | 4952 MiB/90s | 81 |
+| sm190_nait.map | 9.2 MB | unfinished (90s window) | 1940 MiB/90s | 52 |
+| jam6_necros_v2.map | 5.6 MB | **32.0 s (completes)** | 43617 MiB/32s (1.36 GiB/s) | 967 |
 
 ericw-tools reference: jjj22_dfl 12.6 s (>24x gap).
+
+### Large-map hot paths (90s windows)
+
+jjj22_dfl and sm190_nait share the superlinear shape — split-selection
+scoring dominates:
+
+| flat | cum | function |
+|---|---|---|
+| 44.3% / 41.7% | 94.6% / 94.5% | classifyBrush (jjj22_dfl / sm190_nait) |
+| 42.4% / 39.2% | — | types.Vec3T[float64].Dot (inlined) |
+| 6.8% / 7.6% | — | planeEqualOriented |
+
+jam6_necros_v2 completes but is churn-bound; its CPU spreads into the
+float plane-comparison machinery that P1a removes:
+
+| flat | cum | function |
+|---|---|---|
+| 17.8% | 22.2% | planeEqualNear |
+| — | 28.4% | compiler.addPlaneIndex (linear plane-table scan) |
+| 10.5% | — | planeEqualOriented |
+| 4.9% | 15.8% | clipWinding |
+
+jam6 allocation sites (43.6 GiB total): clipWinding 57.5%, splitBrush
+30.2%, windingFromBoxPlane 1.7% flat (14.2% cum), tjuncGroup 2.4%,
+windingRemoveColinear 1.5%.
+
+### Canary bench baselines (.tmp/bench/old.txt, -count=5, -benchtime=1x)
+
+| map | ns/op (median) | B/op | allocs/op |
+|---|---|---|---|
+| Dam100 | ~182 ms | 205.8 MB | 1.34 M |
+| end | ~3.84 s | 3.71 GB | 21.2 M |
+| e1m1 | ~6.81 s | 5.08 GB | 28.6 M |
+
+Note: do NOT run jjj22_dfl/sm190_nait under `go test -bench` (multi-minute
+single compiles; a background run was SIGTERMed at 267s by something
+external). Use qbspprof -deadline windows for the large maps.
 
 ### CPU hot path (jjj22_dfl, 90.49s samples)
 
