@@ -106,6 +106,24 @@ external). Use qbspprof -deadline windows for the large maps.
 
 Append one row per measured change (benchstat new vs old + wall on large maps).
 
-| label | date | change | canary wall | jjj22_dfl | allocs |
-|---|---|---|---|---|---|
-| baseline | 2026-09-11 | — | 198ms / 3.97s / 6.88s | unfinished | see above |
+| label | date | change | canary wall | jam6 | jjj22_dfl | GC cycles jam6 |
+|---|---|---|---|---|---|---|
+| baseline | 2026-09-11 | — | 198ms / 3.97s / 6.88s | 32.0s | unfinished (>16 min) | 967 |
+| AUTO+onnode | 2026-09-11 | ericw midsplit budget + onnode | 149ms / 2.31s / 1.56s | 24.7s | unfinished (churn 233GiB/90s) | 1004 |
+| +arena | 2026-09-11 | compiler-wide winding arena, AABB fast-reject | 145ms / 2.29s / 1.60s | 25.1s | unfinished (RSS ~4GB, bounded) | 45 |
+
+Notes:
+- AUTO+onnode without the straddle guard OOM'd at 12.7GB (qbsp.test): a
+  volume-mid cut nothing straddles recurses on an unchanged brush list
+  (non-axial cuts do not shrink childBounds). The guard now rejects
+  no-progress mid splits (arena-rolled-back) and falls back to precise.
+- The compiler-wide arena cut total allocations 43%->24GiB on jam6 and
+  GC cycles 967->45; GC pause totals 79ms -> 1ms. Large-map RSS is now
+  bounded (~4GB jjj22) and -memlimit gives an operational ceiling.
+- REMAINING WALL: jjj22_dfl/sm190_nait still exceed 5 min in the deep
+  sub-1024 precise scoring path (50+ recursion frames at near-identical
+  bounds in sliver regions). Next step is the ericw-faithful
+  positive-paired plane table (planenum & ~1 identity, spatial-hash
+  interning) + facing-side tested dedup in the precise loop — see beads
+  ironwail-go-ysm. ericw reference on the same map: 12.44s, 14,690
+  brushes, 78,042 sides.
