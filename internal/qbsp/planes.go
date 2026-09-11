@@ -2,7 +2,6 @@ package qbsp
 
 import (
 	"math"
-	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/pkg/types"
@@ -83,12 +82,15 @@ func planeEqualNear(a, b plane) bool {
 // skip/hint (non-solid). Returns the BSP contents value and whether the
 // brush contributes geometry.
 //
-// Skip/hint faces are compiler annotations with no contents of their own
-// (ericw-tools Brush_GetContents skips them), so a brush mixing real
-// textures with skip faces keeps the real contents — dropping the brush
-// would delete authored geometry (doors with skip backs, terrain patches)
-// and open the world to the void. Only a brush whose faces are all
-// skip/hint (or empty) carries no volume and is dropped.
+// QUARANTINED (bead ironwail-go-<skip-landing>): keeping brushes that mix
+// real textures with skip faces (ericw Brush_GetContents style) misseals
+// large DECOMPILED maps — the bspdec corpus emits skip-annotated void
+// brushes whose first real face misattributes contents (water/sky on void
+// brushes), opening leaks and exploding the tree on jam6_necros_v2. The
+// old rule (any skip/hint face drops the brush) sealed those but opened
+// e3_mh-style authored terrain patches. The mixed-brush rule needs a
+// smarter contents decision before re-landing; tests are skip-gated in
+// leak_disparity_test.go and skipface_test.go.
 func contentsForBrush(faces []MapFace) (int32, bool) {
 	if len(faces) == 0 {
 		return bsp.ContentsSolid, true
@@ -96,8 +98,8 @@ func contentsForBrush(faces []MapFace) (int32, bool) {
 	for _, f := range faces {
 		name := f.TexName
 		switch {
-		case strings.EqualFold(name, "skip") || strings.EqualFold(name, "hint"):
-			continue
+		case name == "skip" || name == "hint":
+			return bsp.ContentsSolid, false
 		case len(name) >= 6 && name[:6] == "*water":
 			return bsp.ContentsWater, true
 		case len(name) >= 6 && name[:6] == "*slime":
@@ -107,9 +109,8 @@ func contentsForBrush(faces []MapFace) (int32, bool) {
 		case len(name) >= 3 && name[:3] == "sky":
 			return bsp.ContentsSky, true
 		}
-		return bsp.ContentsSolid, true
 	}
-	return bsp.ContentsSolid, false
+	return bsp.ContentsSolid, true
 }
 
 // contentsKindForTexture returns the classic contents-name convention for

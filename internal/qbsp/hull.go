@@ -85,7 +85,7 @@ func (c *compiler) addPlaneIndex(p plane) int {
 // buildHullClipNodes compiles the clip-hull tree (hulls 1/2 shared root at
 // clipnode 0) from the expanded solid brushes using the solidbsp recursion.
 func (c *compiler) buildHullClipNodes(hulls []*bspBrush, bounds [2]vec3) []outClipNode {
-	tb := &treeBuild{register: c.addPlaneIndex, a: c.wa, c: c, maxNodeSize: c.maxNodeSize}
+	tb := &treeBuild{register: c.addPlaneIndex, a: c.wa, maxNodeSize: c.maxNodeSize}
 	tb.register = c.addPlaneIndex
 	root := tb.build(bounds, rootRegion(bounds), -1, -1, hulls, splitFast)
 	if root.isLeaf {

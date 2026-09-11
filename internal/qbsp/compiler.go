@@ -156,7 +156,7 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		if !world {
 			policy = splitFast
 		}
-		tb := &treeBuild{register: c.addPlaneIndex, a: c.wa, c: c, maxNodeSize: c.maxNodeSize}
+		tb := &treeBuild{register: c.addPlaneIndex, a: c.wa, maxNodeSize: c.maxNodeSize}
 		root := tb.build(bounds, rootRegion(bounds), -1, -1, list, policy)
 		var solidBrushes []solidBrushDef
 		for _, wb := range g.brushes {

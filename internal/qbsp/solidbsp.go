@@ -149,8 +149,6 @@ type treeBuild struct {
 	// register returns the table index for a geometric plane, registering
 	// it in the compiler's plane lump when new (deduped, normalized).
 	register func(p plane) int
-	// c is the owning compiler (plane-table access for registerTrack).
-	c *compiler
 	// arena backs the tree-path winding allocations; build marks on entry
 	// and releases on exit so subtree windings are reused without GC.
 	a *windingArena
@@ -381,20 +379,20 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 	if len(brushes) == 0 {
 		return plane{}, false
 	}
-	// Region boundary planes are fixed for this call: hash them once
-	// instead of a linear tolerance scan per candidate. Candidates that
-	// tolerance-match but not bit-match simply fall through to the volume
-	// test, which rejects region-bound planes anyway.
-	regionPlanes := make(map[orientedPlaneKey]struct{}, len(region.bs))
-	for _, b := range region.bs {
-		regionPlanes[orientedPlaneKeyOf(b.p)] = struct{}{}
-	}
-	hasPlane := func(p plane) bool {
-		_, ok := regionPlanes[orientedPlaneKeyOf(p)]
-		return ok
+	// Region-bound candidates are skipped by integer identity against the
+	// region's registered plane entries (both resolve to the same canonical
+	// table entry, so the compare is orientation-correct); candidates that
+	// tolerance-match but not entry-match fall through to the volume test,
+	// which rejects region-bound planes anyway. A per-node map here cost
+	// one allocation per node (OOM on large maps).
+	hasPlane := func(pn int) bool {
+		return regionHasPlane(region, pn)
 	}
 
-	seen := make(map[orientedPlaneKey]struct{}, len(brushes)*2)
+	// Dedup by bit-exact plane key; start small and let it grow — sizing
+	// from the brush count allocated a huge map per node (the jam6/jjj22
+	// OOM regression after the merge).
+	seen := make(map[orientedPlaneKey]struct{}, 64)
 	found := false
 	var bestPlane plane
 	bestValue := -99999
@@ -404,7 +402,7 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 				continue
 			}
 			sp := s.sidePlane()
-			if hasPlane(sp) {
+			if hasPlane(s.planenum) {
 				continue
 			}
 			// Normalize to the table-plane orientation (positive axial
@@ -570,16 +568,17 @@ func (t *treeBuild) build(bounds [2]vec3, region leafRegion, parent, side int, b
 	// even shrink the child bounds — which is the superlinear blowup.
 	if policy == splitAuto && t.nodeAboveMaxNodeSize(bounds) {
 		if mp, mok := chooseMidPlaneFromList(brushes, region, bounds); mok {
-			mpn, added := t.registerTrack(mp)
+			// Register the mid plane before attempting the split: a
+			// rejected split keeps the entry (append-only table — the
+			// planeKeys memo would go stale if entries were popped) and
+			// unreferenced lump planes are legal.
+			mpn := t.register(mp)
 			mf, mb := splitBrushList(t.a, brushes, mpn, mp)
 			if len(mf) > 0 && len(mb) > 0 {
 				markSidesOnnode(brushes, mp)
 				ch := t.splitNode(bounds, region, parent, side, mp, mpn, mf, mb, policy)
 				t.a.release(cp)
 				return ch
-			}
-			if added {
-				t.unregister(mpn)
 			}
 			t.a.release(cp)
 		}
@@ -612,22 +611,6 @@ func (t *treeBuild) nodeAboveMaxNodeSize(bounds [2]vec3) bool {
 	return bounds[1].X-bounds[0].X > s ||
 		bounds[1].Y-bounds[0].Y > s ||
 		bounds[1].Z-bounds[0].Z > s
-}
-
-// registerTrack registers a plane and reports whether it was newly added
-// (so a rejected split can pop it instead of bloating the plane lump).
-func (t *treeBuild) registerTrack(p plane) (int, bool) {
-	before := t.c.planes
-	idx := t.register(p)
-	return idx, len(t.c.planes) > len(before)
-}
-
-// unregister pops a plane that was registered for a rejected split; the
-// index was never handed out to any node or face, so nothing references it.
-func (t *treeBuild) unregister(pn int) {
-	if pn == len(t.c.planes)-1 {
-		t.c.planes = t.c.planes[:pn]
-	}
 }
 
 // splitNode creates the node record and recurses into the split children.

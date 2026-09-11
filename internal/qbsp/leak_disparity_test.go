@@ -98,6 +98,9 @@ func TestFuncDetail_SealingAndEntityStripping(t *testing.T) {
 // the void. Dropping mixed-skip brushes opened leaks that ericw-tools
 // compiles sealed (bead ironwail-go-91i).
 func TestMixedSkipBrush_WorldSealing(t *testing.T) {
+	// QUARANTINED (see contentsForBrush): the mixed-skip rule misseals
+	// large decompiled maps; re-land with a smarter contents decision.
+	t.Skip("quarantined: mixed-skip contents rule broke jam6-scale sealing (bead ironwail-go-ysm thread)")
 	x0, y0, z0, x1, y1, z1, th := -128.0, -128.0, -16.0, 128.0, 128.0, 128.0, 16.0
 	mapData := "{\n\"classname\" \"worldspawn\"\n" +
 		prettySlab(x0, y0, z0, x1, y1, z0+th, "mt_floor") +
@@ -130,6 +133,9 @@ func TestMixedSkipBrush_WorldSealing(t *testing.T) {
 // e3_mh.map vs the 51 produced when mixed-skip brushes were dropped,
 // bead ironwail-go-3qp).
 func TestMixedSkipBrush_SubmodelEntity(t *testing.T) {
+	// QUARANTINED (see contentsForBrush): the mixed-skip rule misseals
+	// large decompiled maps; re-land with a smarter contents decision.
+	t.Skip("quarantined: mixed-skip contents rule broke jam6-scale sealing (bead ironwail-go-ysm thread)")
 	x0, y0, z0, x1, y1, z1, th := -128.0, -128.0, -16.0, 128.0, 128.0, 128.0, 16.0
 	mapData := "{\n\"classname\" \"worldspawn\"\n" +
 		prettyRoom(x0, y0, z0, x1, y1, z1, th) +

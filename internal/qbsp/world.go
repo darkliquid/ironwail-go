@@ -2,7 +2,6 @@ package qbsp
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 )
@@ -274,9 +273,6 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 				}
 				dense := denseCell(L.content, nc)
 				if dense == 0 {
-					if !c.faceVisibleOnPlane(f.pi) {
-						continue
-					}
 					gi := len(faces)
 					faces = append(faces, outFace{
 						planenum: f.pi,
@@ -328,20 +324,6 @@ func (c *compiler) texInfoOrZero(pi int) int {
 		return ti
 	}
 	return 0
-}
-
-// faceVisibleOnPlane reports whether the face a leaf boundary emits on a
-// table plane should be written: planes first registered from skip/hint
-// faces are compiler annotations with no drawable surface, mirroring
-// ericw-tools ShouldOmitFace. Planes with no registered texinfo fall back
-// to texinfo 0 and stay visible.
-func (c *compiler) faceVisibleOnPlane(pi int) bool {
-	ti, ok := c.texByPlane[pi]
-	if !ok {
-		return true
-	}
-	name := c.texinfo[ti].texture
-	return !strings.EqualFold(name, "skip") && !strings.EqualFold(name, "hint")
 }
 
 // orderFacesByPlane stably sorts faces by planenum, remapping leaf
@@ -467,9 +449,6 @@ func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []out
 				dense := denseCell(L.content, nc)
 				if dense == 0 {
 					// L is the denser side: emit here, facing outward.
-					if !c.faceVisibleOnPlane(f.pi) {
-						continue
-					}
 					outward := f.p.Normal
 					gi := len(faces)
 					faces = append(faces, outFace{
