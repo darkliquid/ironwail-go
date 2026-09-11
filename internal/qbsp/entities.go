@@ -203,7 +203,7 @@ func (c *compiler) bspBrushList(g *brushGroup) []*bspBrush {
 		for i, p := range ps {
 			faces[i] = brushFace{p: p, pn: c.addPlaneIndex(p)}
 		}
-		b := buildBspBrushFacesClamped(faces, worldBoundsOf(g), wb.bounds)
+		b := buildBspBrushFacesClamped(c.wa, faces, worldBoundsOf(g), wb.bounds)
 		if b == nil {
 			continue
 		}

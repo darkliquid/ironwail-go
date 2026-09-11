@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"time"
 
@@ -23,7 +24,12 @@ func main() {
 	cpuprof := flag.String("cpuprofile", "", "cpu profile output path")
 	memprof := flag.String("memprofile", "", "mem profile output path")
 	deadline := flag.Duration("deadline", 0, "dump partial profiles after this duration and exit (0 = wait for compile)")
+	memlimit := flag.Int64("memlimit", 0, "soft GC memory limit in MiB (debug.SetMemoryLimit; 0 = off)")
 	flag.Parse()
+
+	if *memlimit > 0 {
+		debug.SetMemoryLimit(*memlimit << 20)
+	}
 
 	if flag.NArg() != 1 {
 		fmt.Fprintln(os.Stderr, "usage: qbspprof [-cpuprofile f] [-memprofile f] [-deadline d] map.map")

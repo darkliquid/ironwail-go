@@ -13,6 +13,7 @@ type bspSide struct {
 	n        vec3    // oriented outward normal
 	d        float64 // oriented plane distance
 	w        winding // face polygon, oriented to n
+	onnode   bool    // plane already used as a node splitter (ericw onnode)
 }
 
 // bspBrush is a convex polyhedron used by the solidbsp CSG (the classic
@@ -53,8 +54,8 @@ type brushFace struct {
 // (ericw CreateBrushWindings), EVERY side keeps its plane even when the
 // winding fails: the halfspace still bounds the brush in the CSG, and only
 // the face output is skipped. Brushes with fewer than 4 sides are dropped.
-func buildBspBrushFaces(faces []brushFace, box [2]vec3) *bspBrush {
-	return buildBspBrushFacesClamped(faces, box, box)
+func buildBspBrushFaces(ar *windingArena, faces []brushFace, box [2]vec3) *bspBrush {
+	return buildBspBrushFacesClamped(ar, faces, box, box)
 }
 
 // buildBspBrushFacesClamped builds a solidbsp brush like
@@ -64,11 +65,11 @@ func buildBspBrushFaces(faces []brushFace, box [2]vec3) *bspBrush {
 // the clamp the world-box seed extends their windings across the map, and
 // the stray vertices misclassify far split planes, routing pieces to the
 // wrong leaves (the e1m1 mid-east floor slice loss, bead ironwail-go-aeh).
-func buildBspBrushFacesClamped(faces []brushFace, box, clampBox [2]vec3) *bspBrush {
+func buildBspBrushFacesClamped(ar *windingArena, faces []brushFace, box, clampBox [2]vec3) *bspBrush {
 	b := &bspBrush{content: bsp.ContentsSolid}
 	for fi, o := range faces {
 		side := bspSide{planenum: o.pn, n: o.p.Normal, d: o.p.Dist}
-		w := windingFromBoxPlane(o.p, box[0], box[1])
+		w := windingFromBoxPlane(ar, o.p, box[0], box[1])
 		if w != nil {
 			ok := true
 			for gi, g := range faces {
@@ -76,7 +77,7 @@ func buildBspBrushFacesClamped(faces []brushFace, box, clampBox [2]vec3) *bspBru
 					continue
 				}
 				// Interior of g: dot(g.n, x) <= g.d  <=>  front of -g.
-				clipped, cok := clipWindingKeepBack(w, g.p)
+				clipped, cok := clipWindingKeepBack(ar, w, g.p)
 				if !cok {
 					ok = false
 					break
@@ -84,10 +85,10 @@ func buildBspBrushFacesClamped(faces []brushFace, box, clampBox [2]vec3) *bspBru
 				w = clipped
 			}
 			if ok && len(w) >= 3 {
-				w = windingRemoveColinear(w)
+				w = windingRemoveColinear(ar, w)
 				if len(w) >= 3 {
 					w = windingClamp(w, clampBox)
-					side.w = windingOrientTo(w, o.p.Normal)
+					side.w = windingOrientTo(ar, w, o.p.Normal)
 				}
 			}
 		}
@@ -177,7 +178,33 @@ const splitEpsilon = 0.1
 // classifyBrush returns the pside bits of the brush relative to plane p:
 // FRONT/BACK bits for vertices on either side, FACING when a side is
 // coplanar with p (the brush "touches" the plane).
+// Fast reject: when the brush AABB lies entirely on one side of p, every
+// winding vertex does too (windings are inside the bounds), so the scan is
+// skipped — the per-node classification loops call this O(brushes) times
+// and the bound test replaces thousands of vertex dot products (ericw
+// TestBrushToPlanenum boxes the brush first the same way).
 func classifyBrush(b *bspBrush, p plane) int {
+	minD, maxD := math.Inf(1), math.Inf(-1)
+	for i := 0; i < 8; i++ {
+		pt := vec3{
+			X: b.bounds[i&1].X,
+			Y: b.bounds[(i>>1)&1].Y,
+			Z: b.bounds[(i>>2)&1].Z,
+		}
+		d := v3Dot(p.Normal, pt) - p.Dist
+		if d < minD {
+			minD = d
+		}
+		if d > maxD {
+			maxD = d
+		}
+	}
+	if minD > splitEpsilon {
+		return psideFront
+	}
+	if maxD < -splitEpsilon {
+		return psideBack
+	}
 	bits := 0
 	for _, s := range b.sides {
 		for _, v := range s.w {
@@ -199,20 +226,20 @@ func classifyBrush(b *bspBrush, p plane) int {
 // the positive side (dot(n,x) >= d), back = the rest. Either may be nil.
 // Both pieces gain a cap on the split plane (the cross-section of the brush
 // at the plane), oriented outward for each piece.
-func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
+func splitBrush(a *windingArena, b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
 	var fs, bs []bspSide
 	for _, s := range b.sides {
-		fw, fok := clipWinding(s.w, p)
+		fw, fok := clipWinding(a, s.w, p)
 		if fok && len(fw) >= 3 {
-			fs = append(fs, bspSide{planenum: s.planenum, n: s.n, d: s.d, w: fw})
+			fs = append(fs, bspSide{planenum: s.planenum, n: s.n, d: s.d, w: fw, onnode: s.onnode})
 		}
-		bw, bok := clipWinding(s.w, negPlane(p))
+		bw, bok := clipWinding(a, s.w, negPlane(p))
 		if bok && len(bw) >= 3 {
-			bs = append(bs, bspSide{planenum: s.planenum, n: s.n, d: s.d, w: bw})
+			bs = append(bs, bspSide{planenum: s.planenum, n: s.n, d: s.d, w: bw, onnode: s.onnode})
 		}
 	}
 	// Cap polygon: the intersection of plane p with the brush volume.
-	cap := brushCrossSection(b, p)
+	cap := brushCrossSection(a, b, p)
 	if len(cap) < 3 {
 		// ericw SplitBrush: the brush "isn't really split" — preserve it
 		// WHOLE on the side with the farthest vertex instead of losing the
@@ -229,9 +256,9 @@ func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
 	// zero-volume piece is discarded.
 	if len(fs) > 0 {
 		np := p.Normal.Neg()
-		capF := windingOrientTo(cap, np)
+		capF := windingOrientTo(a, cap, np)
 		front = &bspBrush{
-			sides:   append(fs, bspSide{planenum: pn, n: np, d: -p.Dist, w: capF}),
+			sides:   append(fs, bspSide{planenum: pn, n: np, d: -p.Dist, w: capF, onnode: true}),
 			content: b.content,
 			sortKey: b.sortKey,
 		}
@@ -241,9 +268,9 @@ func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
 		}
 	}
 	if len(bs) > 0 {
-		capB := windingOrientTo(cap, p.Normal)
+		capB := windingOrientTo(a, cap, p.Normal)
 		back = &bspBrush{
-			sides:   append(bs, bspSide{planenum: pn, n: p.Normal, d: p.Dist, w: capB}),
+			sides:   append(bs, bspSide{planenum: pn, n: p.Normal, d: p.Dist, w: capB, onnode: true}),
 			content: b.content,
 			sortKey: b.sortKey,
 		}
@@ -275,34 +302,34 @@ func brushMostlyOnSide(b *bspBrush, p plane) bool {
 
 // brushCrossSection returns the polygon of plane p inside the brush
 // (seeded from the brush AABB, clipped by every side on the interior).
-func brushCrossSection(b *bspBrush, p plane) winding {
-	w := windingFromBoxPlane(p, b.bounds[0], b.bounds[1])
+func brushCrossSection(ar *windingArena, b *bspBrush, p plane) winding {
+	w := windingFromBoxPlane(ar, p, b.bounds[0], b.bounds[1])
 	if w == nil {
 		return nil
 	}
 	for _, s := range b.sides {
-		clipped, ok := clipWindingKeepBack(w, s.sidePlane())
+		clipped, ok := clipWindingKeepBack(ar, w, s.sidePlane())
 		if !ok {
 			return nil
 		}
 		w = clipped
 	}
-	return windingRemoveColinear(w)
+	return windingRemoveColinear(ar, w)
 }
 
 // clipWindingKeepBack clips w to the BACK side (dot <= d) of p, keeping
 // on-plane points.
-func clipWindingKeepBack(w winding, p plane) (winding, bool) {
-	return clipWinding(w, negPlane(p))
+func clipWindingKeepBack(a *windingArena, w winding, p plane) (winding, bool) {
+	return clipWinding(a, w, negPlane(p))
 }
 
 // subtractBrush returns the pieces of a that remain after subtracting the
 // volume of b. The result is empty when a is entirely inside b.
-func subtractBrush(a, b *bspBrush) []*bspBrush {
+func subtractBrush(ar *windingArena, a, b *bspBrush) []*bspBrush {
 	cur := a
 	var out []*bspBrush
 	for _, s := range b.sides {
-		f, bk := splitBrush(cur, 0, s.sidePlane())
+		f, bk := splitBrush(ar, cur, 0, s.sidePlane())
 		if f != nil {
 			out = append(out, f)
 		}
@@ -355,7 +382,7 @@ func brushGE(b1, b2 *bspBrush) bool {
 
 // chopBrushes carves intersecting solid brushes so no two solid brush
 // volumes overlap, keeping the classic "later brushes win" ordering.
-func chopBrushes(list []*bspBrush) []*bspBrush {
+func chopBrushes(ar *windingArena, list []*bspBrush) []*bspBrush {
 	out := list
 	i := 0
 	for i < len(out) {
@@ -369,7 +396,7 @@ func chopBrushes(list []*bspBrush) []*bspBrush {
 			var sub, sub2 []*bspBrush
 			c1, c2 := int(^uint(0)>>1), int(^uint(0)>>1)
 			if brushGE(b2, b1) {
-				sub = subtractBrush(b1, b2)
+				sub = subtractBrush(ar, b1, b2)
 				if len(sub) == 1 && sub[0] == b1 {
 					continue
 				}
@@ -382,7 +409,7 @@ func chopBrushes(list []*bspBrush) []*bspBrush {
 				c1 = len(sub)
 			}
 			if brushGE(b1, b2) {
-				sub2 = subtractBrush(b2, b1)
+				sub2 = subtractBrush(ar, b2, b1)
 				if len(sub2) == 1 && sub2[0] == b2 {
 					continue
 				}
