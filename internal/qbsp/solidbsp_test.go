@@ -523,12 +523,12 @@ func TestClassifyPlanesideEpsilon(t *testing.T) {
 	// plane at x=63.95 sits within eps of every +x vertex: those vertices
 	// are on-plane, so the brush reports no FRONT (no phantom straddle);
 	// the far -x vertices legitimately stay on the back.
-	bits := classifyBrush(b, plane{Normal: v3(1, 0, 0), Dist: 63.95})
+	bits := classifyBrush(b, -1, plane{Normal: v3(1, 0, 0), Dist: 63.95})
 	if bits&psideFront != 0 {
 		t.Fatalf("near-plane vertices classified front: bits=%d", bits)
 	}
 	// plane at x=63.5 is a real split
-	bits = classifyBrush(b, plane{Normal: v3(1, 0, 0), Dist: 63.5})
+	bits = classifyBrush(b, -1, plane{Normal: v3(1, 0, 0), Dist: 63.5})
 	if bits&psideFront == 0 || bits&psideBack == 0 {
 		t.Fatalf("mid-brush plane not a straddle: bits=%d", bits)
 	}

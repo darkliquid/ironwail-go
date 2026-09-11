@@ -331,11 +331,16 @@ func chooseMidPlaneFromList(brushes []*bspBrush, region leafRegion, bounds [2]ve
 	var bestAny, bestAxial plane
 	bestAnyMetric := math.Inf(1)
 	bestAxialMetric := math.Inf(1)
+	seen := make(map[int]bool, 64) // dedup candidate planes (canonical entries)
 	for _, b := range brushes {
 		for _, s := range b.sides {
 			if s.onnode {
 				continue
 			}
+			if seen[s.planenum] {
+				continue
+			}
+			seen[s.planenum] = true
 			p := normalizePlane(s.sidePlane())
 			if regionHasPlane(region, s.planenum) {
 				continue
@@ -374,6 +379,10 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 	if len(brushes) == 0 {
 		return plane{}, false
 	}
+	// Deduplicate candidate planes by canonical table entry (ericw marks
+	// facing sides tested): thousands of brushes often share one wall
+	// plane, and each duplicate re-runs the O(brushes) scoring loop.
+	seen := make(map[int]bool, 64)
 	found := false
 	var bestPlane plane
 	bestValue := -99999
@@ -382,6 +391,10 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 			if s.onnode {
 				continue
 			}
+			if seen[s.planenum] {
+				continue
+			}
+			seen[s.planenum] = true
 			if regionHasPlane(region, s.planenum) {
 				continue
 			}
@@ -394,7 +407,7 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 			}
 			fronts, backs, splits, facing := 0, 0, 0, 0
 			for _, b2 := range brushes {
-				bits := classifyBrush(b2, p)
+				bits := classifyBrush(b2, s.planenum, p)
 				if bits&psideFront != 0 {
 					fronts++
 				}
@@ -450,7 +463,7 @@ func isAxial(n vec3) bool {
 func splitBrushList(a *windingArena, brushes []*bspBrush, pn int, p plane) ([]*bspBrush, []*bspBrush) {
 	var front, back []*bspBrush
 	for _, b := range brushes {
-		bits := classifyBrush(b, p)
+		bits := classifyBrush(b, pn, p)
 		if bits&psideFront != 0 && bits&psideBack != 0 {
 			f, bk := splitBrush(a, b, pn, p)
 			if f != nil {

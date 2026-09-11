@@ -120,10 +120,17 @@ Notes:
 - The compiler-wide arena cut total allocations 43%->24GiB on jam6 and
   GC cycles 967->45; GC pause totals 79ms -> 1ms. Large-map RSS is now
   bounded (~4GB jjj22) and -memlimit gives an operational ceiling.
-- REMAINING WALL: jjj22_dfl/sm190_nait still exceed 5 min in the deep
-  sub-1024 precise scoring path (50+ recursion frames at near-identical
-  bounds in sliver regions). Next step is the ericw-faithful
-  positive-paired plane table (planenum & ~1 identity, spatial-hash
-  interning) + facing-side tested dedup in the precise loop — see beads
-  ironwail-go-ysm. ericw reference on the same map: 12.44s, 14,690
-  brushes, 78,042 sides.
+- Candidate dedup landed (canonical planenum seen-set in both split
+  selectors, integer facing check in classifyBrush): jjj22 churn in a
+  90s window dropped 135 -> 39.5 GiB. maxnodesize 64/256 does not crack
+  the deep subtrees.
+- REMAINING WALL: jjj22_dfl/sm190_nait still exceed 5 min. The cost is
+  now GC mark/scan/sweep of millions of pointerful objects (brush
+  structs, side slices, piece lists, region bounds) rather than any
+  single algorithmic loop. Next levers, in order: (1) index/SoA brush
+  representation (brush pieces as indices into flat arrays — removes
+  per-object GC scanning), (2) parallel subtree builds (front/back
+  recursion is independent; needs per-subtree arenas + node/leaf merge
+  with deterministic ordering + mutex on the plane table), (3) region
+  bounds stored in flat arrays. ericw reference on the same map:
+  12.44s, 14,690 brushes, 78,042 sides.

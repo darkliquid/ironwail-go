@@ -175,15 +175,18 @@ const (
 // trims and boundary-coincident faces never trigger phantom straddles.
 const splitEpsilon = 0.1
 
-// classifyBrush returns the pside bits of the brush relative to plane p:
-// FRONT/BACK bits for vertices on either side, FACING when a side is
-// coplanar with p (the brush "touches" the plane).
+// classifyBrush returns the pside bits of the brush relative to plane p
+// (table entry pn): FRONT/BACK bits for vertices on either side, FACING
+// when a side is coplanar with p (the brush "touches" the plane).
 // Fast reject: when the brush AABB lies entirely on one side of p, every
 // winding vertex does too (windings are inside the bounds), so the scan is
 // skipped — the per-node classification loops call this O(brushes) times
 // and the bound test replaces thousands of vertex dot products (ericw
-// TestBrushToPlanenum boxes the brush first the same way).
-func classifyBrush(b *bspBrush, p plane) int {
+// TestBrushToPlanenum boxes the brush first the same way). The FACING
+// check is an integer planenum identity: the plane table is
+// orientation-canonical (planeEqualNear merges either normal direction),
+// so sides on the same geometric plane share the table entry.
+func classifyBrush(b *bspBrush, pn int, p plane) int {
 	minD, maxD := math.Inf(1), math.Inf(-1)
 	for i := 0; i < 8; i++ {
 		pt := vec3{
@@ -215,7 +218,7 @@ func classifyBrush(b *bspBrush, p plane) int {
 				bits |= psideBack
 			}
 		}
-		if planeEqualOriented(s.sidePlane(), p) {
+		if s.planenum == pn {
 			bits |= psideFacing
 		}
 	}
