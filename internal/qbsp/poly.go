@@ -12,6 +12,66 @@ type winding []vec3
 // onPlaneEpsilon is the tolerance for coplanarity when clipping.
 const onPlaneEpsilon = 0.001
 
+// windingArena allocates winding backing arrays from large chunks. The
+// solidbsp recursion allocates windings whose lifetime ends when their
+// subtree completes: build() marks the arena on entry and releases it on
+// exit, so released memory is reused without GC involvement (no per-object
+// headers, no mark scanning — the GC tax dominated large-map compiles).
+// A nil *windingArena falls back to ordinary allocation, so call sites
+// outside the tree path pass nil and keep the original behaviour.
+type windingArena struct {
+	chunks [][]vec3
+	cur    []vec3
+	ci     int
+	off    int
+}
+
+// arenaChunkVerts sizes each arena chunk (64K vertices = 1.5 MiB).
+const arenaChunkVerts = 1 << 16
+
+func newWindingArena() *windingArena { return &windingArena{} }
+
+// mark returns an opaque checkpoint for release.
+func (a *windingArena) mark() int {
+	return a.ci<<32 | a.off
+}
+
+// release rewinds the arena to the checkpoint, freeing everything allocated
+// after it for reuse.
+func (a *windingArena) release(m int) {
+	a.ci = m >> 32
+	a.off = m & (1<<32 - 1)
+	if a.ci < len(a.chunks) {
+		a.cur = a.chunks[a.ci]
+	}
+}
+
+// alloc returns a zero-length winding with capacity n (callers append).
+func (a *windingArena) alloc(n int) winding {
+	if a == nil {
+		return make(winding, 0, n)
+	}
+	if a.off+n > cap(a.cur) {
+		if a.ci+1 < len(a.chunks) && n <= cap(a.chunks[a.ci+1]) {
+			a.ci++
+			a.cur = a.chunks[a.ci]
+			a.off = 0
+		} else {
+			size := arenaChunkVerts
+			if n > size {
+				size = n
+			}
+			a.cur = make([]vec3, size)
+			a.chunks = append(a.chunks, a.cur)
+			a.ci = len(a.chunks) - 1
+			a.off = 0
+		}
+	}
+	w := a.cur[a.off : a.off : a.off+n]
+	a.off += n
+	return w
+}
+
 // planeSide returns +1 when v is on the front of p, -1 behind, 0 on it.
 func planeSide(p plane, v vec3) int {
 	d := v3Dot(p.Normal, v) - p.Dist
@@ -31,8 +91,11 @@ var sideBufPool = sync.Pool{New: func() any { s := make([]int, 0, 64); return &s
 
 // clipWinding returns the subset of w on the front side of p (d >= 0),
 // plus whether the result is non-empty. This is the classic Sutherland-
-// Hodgman polygon clip against a plane.
-func clipWinding(w winding, p plane) (winding, bool) {
+// Hodgman polygon clip against a plane. The result is allocated from the
+// arena when non-nil (tree-path lifetime), otherwise heap-allocated.
+// Windings are immutable after construction, so when nothing is strictly
+// behind the plane the input winding is returned as-is with no copy.
+func clipWinding(a *windingArena, w winding, p plane) (winding, bool) {
 	if len(w) == 0 {
 		return nil, false
 	}
@@ -71,7 +134,7 @@ func clipWinding(w winding, p plane) (winding, bool) {
 		return nil, false
 	}
 
-	out := make(winding, 0, len(w)+4)
+	out := a.alloc(len(w) + 4)
 	n := len(w)
 	for i := 0; i < n; i++ {
 		j := (i + 1) % n
@@ -95,7 +158,7 @@ func clipWinding(w winding, p plane) (winding, bool) {
 // to the box. Non-axial faces must not be seeded at a constant dominant
 // coordinate — that quad is off-plane and dies against the box or the
 // brush's other faces (bevel trim faces were being dropped entirely).
-func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
+func windingFromBoxPlane(a *windingArena, p plane, mins, maxs vec3) winding {
 	bestAxis := 0
 	bestDot := math.Abs(p.Normal.X)
 	if math.Abs(p.Normal.Y) > bestDot {
@@ -192,7 +255,7 @@ func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 		radius = 1
 	}
 	corners := [4][2]float64{{-1, -1}, {-1, 1}, {1, 1}, {1, -1}}
-	seed := make(winding, 0, 4)
+	seed := a.alloc(4)
 	for _, c := range corners {
 		pt := org.
 			Add(right.Scale(c[0] * radius)).
@@ -210,7 +273,7 @@ func windingFromBoxPlane(p plane, mins, maxs vec3) winding {
 		if i%2 == 0 {
 			cp = plane{Normal: bp.Normal.Neg(), Dist: -bp.Dist}
 		}
-		clipped, ok := clipWinding(seed, cp)
+		clipped, ok := clipWinding(a, seed, cp)
 		if !ok {
 			return nil
 		}
@@ -268,11 +331,11 @@ func windingBounds(w winding) (vec3, vec3) {
 
 // windingRemoveColinear drops collinear points, matching qbsp's
 // RemoveColinearPoints which keeps the endpoints of straight runs.
-func windingRemoveColinear(w winding) winding {
+func windingRemoveColinear(a *windingArena, w winding) winding {
 	if len(w) < 3 {
 		return w
 	}
-	out := make(winding, 0, len(w))
+	out := a.alloc(len(w))
 	n := len(w)
 	for i := 0; i < n; i++ {
 		prev := w[(i-1+n)%n]
@@ -291,22 +354,21 @@ func windingRemoveColinear(w winding) winding {
 
 // windingOrientTo reverses the winding if its area vector opposes n, so a
 // viewer looking along n sees the polygon counter-clockwise.
-func windingOrientTo(w winding, n vec3) winding {
+func windingOrientTo(a *windingArena, w winding, n vec3) winding {
 	if len(w) < 3 {
 		return w
 	}
 	sum := vec3{}
 	for i := 0; i < len(w); i++ {
-		a := w[i]
+		a2 := w[i]
 		b := w[(i+1)%len(w)]
-		cr := a.Cross(b)
+		cr := a2.Cross(b)
 		sum = sum.Add(cr)
 	}
 	if sum.Dot(n) < 0 {
-		// reverse
-		out := make(winding, len(w))
-		for i := range out {
-			out[i] = w[len(w)-1-i]
+		out := a.alloc(len(w))
+		for i := 0; i < len(w); i++ {
+			out = append(out, w[len(w)-1-i])
 		}
 		return out
 	}

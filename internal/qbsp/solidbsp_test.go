@@ -23,11 +23,11 @@ func TestSolidBSPBrushSplit(t *testing.T) {
 		{p: plane{Normal: v3(0, 0, 1), Dist: 8}},
 		{p: plane{Normal: v3(0, 0, -1), Dist: 0}},
 	}
-	b := buildBspBrushFaces(faces, box)
+	b := buildBspBrushFaces(nil, faces, box)
 	if b == nil {
 		t.Fatal("brush build failed")
 	}
-	front, back := splitBrush(b, 0, plane{Normal: v3(0, 1, 0), Dist: 56}) // y>=56
+	front, back := splitBrush(nil, b, 0, plane{Normal: v3(0, 1, 0), Dist: 56}) // y>=56
 	if front == nil || back == nil {
 		t.Fatalf("split produced nil: front=%v back=%v", front != nil, back != nil)
 	}
@@ -419,7 +419,7 @@ func TestBevelTrimFaceSurvives(t *testing.T) {
 		{p: plane{Normal: v3(0, 0, -1), Dist: 32}},
 		{p: plane{Normal: v3(-0.7071067811865476, -0.7071067811865476, 0), Dist: -33.94112549695428}},
 	}
-	b := buildBspBrushFaces(faces, [2]vec3{v3(-64, -64, -64), v3(64, 64, 64)})
+	b := buildBspBrushFaces(nil, faces, [2]vec3{v3(-64, -64, -64), v3(64, 64, 64)})
 	if b == nil {
 		t.Fatal("bevel trim brush build failed")
 	}
@@ -484,11 +484,11 @@ func TestSplitBrushPreservesOnTinyCap(t *testing.T) {
 		{p: plane{Normal: v3(0, 0, 1), Dist: 256}},
 		{p: plane{Normal: v3(0, 0, -1), Dist: 0}},
 	}
-	b := buildBspBrushFaces(faces, [2]vec3{v3(-8, 96, -8), v3(72, 108, 264)})
+	b := buildBspBrushFaces(nil, faces, [2]vec3{v3(-8, 96, -8), v3(72, 108, 264)})
 	if b == nil {
 		t.Fatal("brush build failed")
 	}
-	front, back := splitBrush(b, 0, plane{Normal: v3(0, 1, 0), Dist: 104.5})
+	front, back := splitBrush(nil, b, 0, plane{Normal: v3(0, 1, 0), Dist: 104.5})
 	if front == nil && back == nil {
 		t.Fatal("splitBrush lost the whole brush on a grazing plane")
 	}
@@ -516,19 +516,19 @@ func TestClassifyPlanesideEpsilon(t *testing.T) {
 		{p: plane{Normal: v3(0, 0, 1), Dist: 64}},
 		{p: plane{Normal: v3(0, 0, -1), Dist: 0}},
 	}
-	b := buildBspBrushFaces(faces, [2]vec3{v3(0, 0, 0), v3(64, 64, 64)})
+	b := buildBspBrushFaces(nil, faces, [2]vec3{v3(0, 0, 0), v3(64, 64, 64)})
 	if b == nil {
 		t.Fatal("brush build failed")
 	}
 	// plane at x=63.95 sits within eps of every +x vertex: those vertices
 	// are on-plane, so the brush reports no FRONT (no phantom straddle);
 	// the far -x vertices legitimately stay on the back.
-	bits := classifyBrush(b, plane{Normal: v3(1, 0, 0), Dist: 63.95})
+	bits := classifyBrush(b, -1, plane{Normal: v3(1, 0, 0), Dist: 63.95})
 	if bits&psideFront != 0 {
 		t.Fatalf("near-plane vertices classified front: bits=%d", bits)
 	}
 	// plane at x=63.5 is a real split
-	bits = classifyBrush(b, plane{Normal: v3(1, 0, 0), Dist: 63.5})
+	bits = classifyBrush(b, -1, plane{Normal: v3(1, 0, 0), Dist: 63.5})
 	if bits&psideFront == 0 || bits&psideBack == 0 {
 		t.Fatalf("mid-brush plane not a straddle: bits=%d", bits)
 	}

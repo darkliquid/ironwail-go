@@ -14,8 +14,10 @@ type piece struct {
 }
 
 // splitByTree partitions a facet winding by the subtree rooted at ref,
-// yielding one piece per leaf it covers.
-func splitByTree(nodes []outNode, ref childRef, w winding) []piece {
+// yielding one piece per leaf it covers. Pieces live as long as the faces
+// they become, so they allocate from the compiler arena (monotonic) when
+// non-nil.
+func splitByTree(ar *windingArena, nodes []outNode, ref childRef, w winding) []piece {
 	if ref.isLeaf {
 		if len(w) < 3 || windingIsTiny(w) || windingArea(w) < 0.1 {
 			return nil
@@ -24,14 +26,14 @@ func splitByTree(nodes []outNode, ref childRef, w winding) []piece {
 	}
 	nd := &nodes[ref.idx]
 	p := plane{Normal: nd.splitN, Dist: nd.splitD}
-	fw, fok := clipWinding(w, p)
-	bw, bok := clipWinding(w, negPlane(p))
+	fw, fok := clipWinding(ar, w, p)
+	bw, bok := clipWinding(ar, w, negPlane(p))
 	var out []piece
 	if fok {
-		out = append(out, splitByTree(nodes, nd.children[0], fw)...)
+		out = append(out, splitByTree(ar, nodes, nd.children[0], fw)...)
 	}
 	if bok {
-		out = append(out, splitByTree(nodes, nd.children[1], bw)...)
+		out = append(out, splitByTree(ar, nodes, nd.children[1], bw)...)
 	}
 	return out
 }
@@ -91,7 +93,7 @@ func (c *compiler) floodLeakCheck(bounds [2]vec3, root childRef, nodes []outNode
 		if L.content == bsp.ContentsSolid {
 			continue
 		}
-		for _, f := range L.region.facets(bounds) {
+		for _, f := range L.region.facets(c.wa, bounds) {
 			if f.pi < 0 {
 				voidLeaf[li] = true
 				continue
@@ -100,7 +102,7 @@ func (c *compiler) floodLeakCheck(bounds [2]vec3, root childRef, nodes []outNode
 			if !ok {
 				continue
 			}
-			neigh := splitByTree(nodes, sib, f.w)
+			neigh := splitByTree(c.wa, nodes, sib, f.w)
 			for _, pc := range neigh {
 				if pc.leaf == li {
 					continue
@@ -204,7 +206,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 		if L.content == bsp.ContentsSolid {
 			continue // solid leaves: no portals
 		}
-		for _, f := range L.region.facets(bounds) {
+		for _, f := range L.region.facets(c.wa, bounds) {
 			if f.pi < 0 {
 				continue
 			}
@@ -212,7 +214,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 			if !ok {
 				continue
 			}
-			neigh := splitByTree(nodes, sib, f.w)
+			neigh := splitByTree(c.wa, nodes, sib, f.w)
 			for _, pc := range neigh {
 				if pc.leaf == li {
 					continue
@@ -224,7 +226,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 						seenPortal[key] = true
 						pf.Portals = append(pf.Portals, Portal{
 							Leafs:  [2]int{li, pc.leaf},
-							Points: windingRemoveColinear(pc.w),
+							Points: windingRemoveColinear(c.wa, pc.w),
 						})
 					}
 				}
@@ -237,7 +239,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 	// from the denser side and attached to the lighter leaf.
 	for li := range leafs {
 		L := &leafs[li]
-		for _, f := range L.region.facets(bounds) {
+		for _, f := range L.region.facets(c.wa, bounds) {
 			var pi int
 			outward := f.p.Normal
 			if f.pi < 0 {
@@ -251,7 +253,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 						planenum: pi,
 						side:     sideBit(c.planes[pi].Normal, outward),
 						texinfo:  c.texInfoOrZero(pi),
-						poly:     windingOrientTo(f.w, outward),
+						poly:     windingOrientTo(c.wa, f.w, outward),
 					})
 					attach[li] = append(attach[li], gi)
 				}
@@ -261,7 +263,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 			if !ok {
 				continue
 			}
-			neigh := splitByTree(nodes, sib, f.w)
+			neigh := splitByTree(c.wa, nodes, sib, f.w)
 			for _, pc := range neigh {
 				if pc.leaf == li {
 					continue
@@ -280,7 +282,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 						planenum: f.pi,
 						side:     sideBit(c.planes[f.pi].Normal, outward),
 						texinfo:  c.texInfoOrZero(f.pi),
-						poly:     windingOrientTo(pc.w, outward),
+						poly:     windingOrientTo(c.wa, pc.w, outward),
 					})
 					attach[pc.leaf] = append(attach[pc.leaf], gi)
 				}
@@ -300,7 +302,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 func (c *compiler) leafCentroid(bounds [2]vec3, L *outLeaf) vec3 {
 	var sum vec3
 	count := 0
-	for _, f := range L.region.facets(bounds) {
+	for _, f := range L.region.facets(c.wa, bounds) {
 		for _, p := range f.w {
 			sum = sum.Add(p)
 			count++
@@ -429,7 +431,7 @@ func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []out
 	attach := make([][]int, len(leafs))
 	for li := range leafs {
 		L := &leafs[li]
-		for _, f := range L.region.facets(bounds) {
+		for _, f := range L.region.facets(c.wa, bounds) {
 			if f.pi < 0 {
 				// Root-box face: the outer surface of a solid leaf that
 				// fills its region (e.g. a crate). Attribute to a
@@ -444,7 +446,7 @@ func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []out
 					planenum: pi,
 					side:     sideBit(c.planes[pi].Normal, outward),
 					texinfo:  c.texInfoOrZero(pi),
-					poly:     windingOrientTo(f.w, outward),
+					poly:     windingOrientTo(c.wa, f.w, outward),
 				})
 				attach[li] = append(attach[li], gi)
 				continue
@@ -453,7 +455,7 @@ func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []out
 			if !ok {
 				continue
 			}
-			outPage := splitByTree(nodes, sib, f.w)
+			outPage := splitByTree(c.wa, nodes, sib, f.w)
 			for _, pc := range outPage {
 				if pc.leaf == li {
 					continue
@@ -474,7 +476,7 @@ func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []out
 						planenum: f.pi,
 						side:     sideBit(c.planes[f.pi].Normal, outward),
 						texinfo:  c.texInfoOrZero(f.pi),
-						poly:     windingOrientTo(pc.w, outward),
+						poly:     windingOrientTo(c.wa, pc.w, outward),
 					})
 					attach[pc.leaf] = append(attach[pc.leaf], gi)
 				}

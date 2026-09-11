@@ -21,6 +21,11 @@ type Options struct {
 	Log func(format string, a ...any)
 	// OmitDetail drops func_detail* brush entities entirely.
 	OmitDetail bool
+	// MaxNodeSize is the AUTO-policy midsplit budget (ericw maxnodesize):
+	// nodes larger than this in any dimension use the volume-mid split
+	// instead of per-brush scoring. Default 1024 (ericw default) when 0.
+	// Lower values trade tree quality for compile speed on huge maps.
+	MaxNodeSize float64
 }
 
 func (o *Options) log(format string, a ...any) {
@@ -69,6 +74,13 @@ type compiler struct {
 	opts    Options
 	planes  []plane
 	texinfo []texinfoEntry
+	// wa backs all winding allocations for the compile. Tree-path frames
+	// checkpoint/rollback it in build(); everything else allocates
+	// monotonically (winding lifetime is output-scale).
+	wa *windingArena
+	// maxNodeSize is the resolved AUTO midsplit budget (Options.MaxNodeSize
+	// with the ericw default 1024 applied).
+	maxNodeSize float64
 	// texByPlane maps a plane index to the texinfo entry used by the brush
 	// that owns it (first brush wins).
 	texByPlane map[int]int
@@ -109,6 +121,11 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		opts:       opts,
 		texByPlane: map[int]int{},
 		planeKeys:  map[orientedPlaneKey]int{},
+		wa:         newWindingArena(),
+	}
+	c.maxNodeSize = opts.MaxNodeSize
+	if c.maxNodeSize == 0 {
+		c.maxNodeSize = 1024 // ericw-tools maxnodesize default
 	}
 	c.logf("--- qbsp %d entities, building planes ---", len(m.Entities))
 
@@ -134,12 +151,12 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		world := g.isWorld
 		bounds := worldBoundsOf(&g)
 		list := c.bspBrushList(&g)
-		list = chopBrushes(list)
-		policy := splitPrecise
+		list = chopBrushes(c.wa, list)
+		policy := splitAuto // world: ericw AUTO (midsplit budget above maxNodeSize)
 		if !world {
 			policy = splitFast
 		}
-		tb := &treeBuild{register: c.addPlaneIndex}
+		tb := &treeBuild{register: c.addPlaneIndex, a: c.wa, c: c, maxNodeSize: c.maxNodeSize}
 		root := tb.build(bounds, rootRegion(bounds), -1, -1, list, policy)
 		var solidBrushes []solidBrushDef
 		for _, wb := range g.brushes {

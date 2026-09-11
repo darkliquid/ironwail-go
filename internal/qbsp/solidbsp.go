@@ -42,19 +42,20 @@ type facetGeom struct {
 
 // facets enumerates the region's boundary facets, each clipped to the
 // exact region by all other bounds. The seed box must contain the region
-// (the root AABB always does).
-func (r *leafRegion) facets(bounds [2]vec3) []facetGeom {
+// (the root AABB always does). Facet windings are allocated from the arena
+// when non-nil (they outlive the tree build into surface generation).
+func (r *leafRegion) facets(ar *windingArena, bounds [2]vec3) []facetGeom {
 	var out []facetGeom
 	for _, b := range r.bs {
 		// Seed on the bound plane within the root AABB (which contains the
 		// region); the other bounds trim it to the exact facet.
-		w := windingFromBoxPlane(b.p, bounds[0], bounds[1])
+		w := windingFromBoxPlane(ar, b.p, bounds[0], bounds[1])
 		if w == nil {
 			continue
 		}
 		ok := true
 		for _, other := range r.bs {
-			clipped, cok := clipWindingKeepBack(w, other.p)
+			clipped, cok := clipWindingKeepBack(ar, w, other.p)
 			if !cok {
 				ok = false
 				break
@@ -64,11 +65,11 @@ func (r *leafRegion) facets(bounds [2]vec3) []facetGeom {
 		if !ok {
 			continue
 		}
-		w = windingRemoveColinear(w)
+		w = windingRemoveColinear(ar, w)
 		if len(w) < 3 || windingIsTiny(w) || windingArea(w) < 0.1 {
 			continue
 		}
-		w = windingOrientTo(w, b.p.Normal)
+		w = windingOrientTo(ar, w, b.p.Normal)
 		out = append(out, facetGeom{pi: b.pi, p: b.p, w: w})
 	}
 	return out
@@ -148,6 +149,14 @@ type treeBuild struct {
 	// register returns the table index for a geometric plane, registering
 	// it in the compiler's plane lump when new (deduped, normalized).
 	register func(p plane) int
+	// c is the owning compiler (plane-table access for registerTrack).
+	c *compiler
+	// arena backs the tree-path winding allocations; build marks on entry
+	// and releases on exit so subtree windings are reused without GC.
+	a *windingArena
+	// maxNodeSize is the AUTO midsplit budget for this build
+	// (Options.MaxNodeSize, default 1024).
+	maxNodeSize float64
 }
 
 // contentsOf returns the leaf content of a (possibly empty) brush list:
@@ -216,10 +225,151 @@ func planeSplitsBounds(bounds [2]vec3, p plane) bool {
 	return maxD > splitEpsilon && minD < -splitEpsilon
 }
 
+// axisAt extracts an axis component (0=X, 1=Y, 2=Z).
+func axisAt(v vec3, i int) float64 {
+	switch i {
+	case 0:
+		return v.X
+	case 1:
+		return v.Y
+	default:
+		return v.Z
+	}
+}
+
+// divideBounds splits an AABB by plane p into front and back pieces (port
+// of ericw DivideBounds). Axial planes cut exactly; non-axial planes make
+// sloping cuts along each axis the normal participates in.
+func divideBounds(in [2]vec3, p plane) (front, back [2]vec3) {
+	front, back = in, in
+	switch classifyPlane(p.Normal) {
+	case planeX:
+		front[0].X, back[1].X = p.Dist, p.Dist
+		return
+	case planeY:
+		front[0].Y, back[1].Y = p.Dist, p.Dist
+		return
+	case planeZ:
+		front[0].Z, back[1].Z = p.Dist, p.Dist
+		return
+	}
+	const normalEpsilon = 1e-6
+	n := [3]float64{p.Normal.X, p.Normal.Y, p.Normal.Z}
+	for a := 0; a < 3; a++ {
+		if math.Abs(n[a]) < normalEpsilon {
+			continue
+		}
+		b, c := (a+1)%3, (a+2)%3
+		extent := axisAt(in[1], a) - axisAt(in[0], a)
+		if extent == 0 {
+			continue
+		}
+		splitMins := axisAt(in[1], a)
+		splitMaxs := axisAt(in[0], a)
+		for i := 0; i < 2; i++ {
+			for j := 0; j < 2; j++ {
+				corner := [3]float64{in[0].X, in[0].Y, in[0].Z}
+				corner[b] = axisAt(in[i], b)
+				corner[c] = axisAt(in[j], c)
+				corner[a] = axisAt(in[0], a)
+				dist1 := corner[0]*n[0] + corner[1]*n[1] + corner[2]*n[2] - p.Dist
+				corner[a] = axisAt(in[1], a)
+				dist2 := corner[0]*n[0] + corner[1]*n[1] + corner[2]*n[2] - p.Dist
+				mid := axisAt(in[0], a) + extent*(dist1/(dist1-dist2))
+				splitMins = math.Max(math.Min(mid, splitMins), axisAt(in[0], a))
+				splitMaxs = math.Min(math.Max(mid, splitMaxs), axisAt(in[1], a))
+			}
+		}
+		if n[a] > 0 {
+			setAxis(&front[0], a, splitMins)
+			setAxis(&back[1], a, splitMaxs)
+		} else {
+			setAxis(&back[0], a, splitMins)
+			setAxis(&front[1], a, splitMaxs)
+		}
+	}
+	return
+}
+
+// boundsVolume returns the AABB volume.
+func boundsVolume(b [2]vec3) float64 {
+	return (b[1].X - b[0].X) * (b[1].Y - b[0].Y) * (b[1].Z - b[0].Z)
+}
+
+// splitPlaneMetric scores a candidate split plane against the node bounds:
+// a good split has equal volumes front and back (ericw SplitPlaneMetric).
+// Pure AABB math, no brush classification.
+func splitPlaneMetric(p plane, bounds [2]vec3) float64 {
+	front, back := divideBounds(bounds, p)
+	return math.Abs(boundsVolume(front) - boundsVolume(back))
+}
+
+// regionHasPlane reports whether the region already bounds on the plane
+// table entry pn (integer identity; region bound planes were registered
+// from the same normalized candidates).
+func regionHasPlane(region leafRegion, pn int) bool {
+	for _, bp := range region.bs {
+		if bp.pi == pn {
+			return true
+		}
+	}
+	return false
+}
+
+// chooseMidPlaneFromList picks the plane whose cut of the node bounds is
+// most volume-balanced (ericw ChooseMidPlaneFromList): candidates are scored
+// by pure AABB math, axial planes preferred. This is the FAST heuristic the
+// AUTO policy uses for nodes above maxNodeSize, where scoring every brush
+// against every candidate plane is superlinear waste.
+func chooseMidPlaneFromList(brushes []*bspBrush, region leafRegion, bounds [2]vec3) (plane, bool) {
+	found := false
+	var bestAny, bestAxial plane
+	bestAnyMetric := math.Inf(1)
+	bestAxialMetric := math.Inf(1)
+	seen := make(map[int]bool, 64) // dedup candidate planes (canonical entries)
+	for _, b := range brushes {
+		for _, s := range b.sides {
+			if s.onnode {
+				continue
+			}
+			if seen[s.planenum] {
+				continue
+			}
+			seen[s.planenum] = true
+			p := normalizePlane(s.sidePlane())
+			if regionHasPlane(region, s.planenum) {
+				continue
+			}
+			if !planeSplitsBounds(bounds, p) {
+				continue
+			}
+			m := splitPlaneMetric(p, bounds)
+			if m < bestAnyMetric {
+				bestAnyMetric = m
+				bestAny = p
+				found = true
+			}
+			if isAxial(p.Normal) && m < bestAxialMetric {
+				bestAxialMetric = m
+				bestAxial = p
+			}
+		}
+	}
+	if !found {
+		return plane{}, false
+	}
+	if bestAxialMetric < math.Inf(1) {
+		return bestAxial, true
+	}
+	return bestAny, true
+}
+
 // selectSplitPlane picks the best split plane from the brush side planes:
 // the plane must split the region bounds (volume test) and the brush list;
 // scoring follows ericw SelectSplitPlane: prefer fewer splits, balanced
-// front/back, and axial planes. FAST takes the first valid plane.
+// front/back, and axial planes. FAST takes the first valid plane; AUTO
+// (world) switches to the budget midsplit heuristic for nodes above
+// maxNodeSize, matching ericw's default maxnodesize behavior.
 //
 // Performance notes (jjj22_dfl profiled >24x slower than ericw without
 // these): region-bound checks and candidate evaluation dedupe by exact
@@ -250,6 +400,9 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 	bestValue := -99999
 	for _, b := range brushes {
 		for _, s := range b.sides {
+			if s.onnode {
+				continue
+			}
 			sp := s.sidePlane()
 			if hasPlane(sp) {
 				continue
@@ -268,7 +421,7 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 			}
 			fronts, backs, splits, facing := 0, 0, 0, 0
 			for _, b2 := range brushes {
-				bits := classifyBrush(b2, p)
+				bits := classifyBrush(b2, s.planenum, p)
 				if bits&psideFront != 0 {
 					fronts++
 				}
@@ -331,13 +484,14 @@ func isAxial(n vec3) bool {
 }
 
 // splitBrushList partitions brushes by plane p, splitting those that
-// straddle it.
-func splitBrushList(brushes []*bspBrush, pn int, p plane) ([]*bspBrush, []*bspBrush) {
+// straddle it. Split pieces are allocated from the arena; their lifetime
+// ends when the calling build frame releases its checkpoint.
+func splitBrushList(a *windingArena, brushes []*bspBrush, pn int, p plane) ([]*bspBrush, []*bspBrush) {
 	var front, back []*bspBrush
 	for _, b := range brushes {
-		bits := classifyBrush(b, p)
+		bits := classifyBrush(b, pn, p)
 		if bits&psideFront != 0 && bits&psideBack != 0 {
-			f, bk := splitBrush(b, pn, p)
+			f, bk := splitBrush(a, b, pn, p)
 			if f != nil {
 				front = append(front, f)
 			}
@@ -388,9 +542,49 @@ func childBounds(bounds [2]vec3, p plane) ([2]vec3, [2]vec3) {
 	return bounds, bounds
 }
 
+// markSidesOnnode flags every side lying on plane p (either orientation) as
+// already used as a node splitter (ericw marks sides in SeparateNodes).
+// Without this, the midsplit heuristic can re-pick the same balanced plane
+// across successive nodes whose brush lists never progress, exploding the
+// tree (the e1m1/end OOM regression).
+func markSidesOnnode(brushes []*bspBrush, p plane) {
+	for _, b := range brushes {
+		sides := b.sides
+		for i := range sides {
+			if !sides[i].onnode && planeEqualNear(sides[i].sidePlane(), p) {
+				sides[i].onnode = true
+			}
+		}
+	}
+}
+
 // build runs the solidbsp recursion over brushes within bounds and returns
 // the tree root.
 func (t *treeBuild) build(bounds [2]vec3, region leafRegion, parent, side int, brushes []*bspBrush, policy splitPolicy) childRef {
+	cp := t.a.mark() // everything the subtree allocates dies at release
+
+	// AUTO budget: above maxNodeSize use the volume-mid split (no
+	// per-brush classification in the candidate scan). Only accept a mid
+	// split that actually separates the brush list: a cut nothing
+	// straddles would recurse on an unchanged list — non-axial cuts don't
+	// even shrink the child bounds — which is the superlinear blowup.
+	if policy == splitAuto && t.nodeAboveMaxNodeSize(bounds) {
+		if mp, mok := chooseMidPlaneFromList(brushes, region, bounds); mok {
+			mpn, added := t.registerTrack(mp)
+			mf, mb := splitBrushList(t.a, brushes, mpn, mp)
+			if len(mf) > 0 && len(mb) > 0 {
+				markSidesOnnode(brushes, mp)
+				ch := t.splitNode(bounds, region, parent, side, mp, mpn, mf, mb, policy)
+				t.a.release(cp)
+				return ch
+			}
+			if added {
+				t.unregister(mpn)
+			}
+			t.a.release(cp)
+		}
+	}
+
 	p, ok := selectSplitPlane(brushes, policy, region, bounds)
 	if !ok {
 		idx := len(t.leafs)
@@ -400,10 +594,44 @@ func (t *treeBuild) build(bounds [2]vec3, region leafRegion, parent, side int, b
 			parent:  parent,
 			side:    side,
 		})
+		t.a.release(cp)
 		return childRef{isLeaf: true, idx: idx}
 	}
 	pn := t.register(p)
-	front, back := splitBrushList(brushes, pn, p)
+	markSidesOnnode(brushes, p)
+	front, back := splitBrushList(t.a, brushes, pn, p)
+	ch := t.splitNode(bounds, region, parent, side, p, pn, front, back, policy)
+	t.a.release(cp)
+	return ch
+}
+
+// nodeAboveMaxNodeSize reports whether any bounds dimension exceeds the
+// midsplit budget (ericw maxnodesize).
+func (t *treeBuild) nodeAboveMaxNodeSize(bounds [2]vec3) bool {
+	s := t.maxNodeSize - splitEpsilon
+	return bounds[1].X-bounds[0].X > s ||
+		bounds[1].Y-bounds[0].Y > s ||
+		bounds[1].Z-bounds[0].Z > s
+}
+
+// registerTrack registers a plane and reports whether it was newly added
+// (so a rejected split can pop it instead of bloating the plane lump).
+func (t *treeBuild) registerTrack(p plane) (int, bool) {
+	before := t.c.planes
+	idx := t.register(p)
+	return idx, len(t.c.planes) > len(before)
+}
+
+// unregister pops a plane that was registered for a rejected split; the
+// index was never handed out to any node or face, so nothing references it.
+func (t *treeBuild) unregister(pn int) {
+	if pn == len(t.c.planes)-1 {
+		t.c.planes = t.c.planes[:pn]
+	}
+}
+
+// splitNode creates the node record and recurses into the split children.
+func (t *treeBuild) splitNode(bounds [2]vec3, region leafRegion, parent, side int, p plane, pn int, front, back []*bspBrush, policy splitPolicy) childRef {
 	idx := len(t.nodes)
 	t.nodes = append(t.nodes, outNode{
 		planenum: pn,
@@ -434,7 +662,7 @@ type solidBrushDef struct {
 // during tree splitting.
 func (t *treeBuild) finalize(rootBounds [2]vec3, solidBrushes []solidBrushDef) {
 	for i := range t.leafs {
-		fs := t.leafs[i].region.facets(rootBounds)
+		fs := t.leafs[i].region.facets(t.a, rootBounds)
 		mins, maxs := rootBounds[0], rootBounds[1]
 		first := true
 		var sum vec3
