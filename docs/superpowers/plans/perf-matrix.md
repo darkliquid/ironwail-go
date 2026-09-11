@@ -111,6 +111,7 @@ Append one row per measured change (benchstat new vs old + wall on large maps).
 | baseline | 2026-09-11 | — | 198ms / 3.97s / 6.88s | 32.0s | unfinished (>16 min) | 967 |
 | AUTO+onnode | 2026-09-11 | ericw midsplit budget + onnode | 149ms / 2.31s / 1.56s | 24.7s | unfinished (churn 233GiB/90s) | 1004 |
 | +arena | 2026-09-11 | compiler-wide winding arena, AABB fast-reject | 145ms / 2.29s / 1.60s | 25.1s | unfinished (RSS ~4GB, bounded) | 45 |
+| merged | 2026-09-11 | merge of parallel main-checkout work (memoized interning, bit-key dedup, planeDotRange pretest) + fixes: append-only plane table, mixed-skip rule quarantined | 121ms / 1.66s / 1.13s | **11.6s** | unfinished (400s cap) | 38 |
 
 Notes:
 - AUTO+onnode without the straddle guard OOM'd at 12.7GB (qbsp.test): a
