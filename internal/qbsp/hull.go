@@ -74,12 +74,11 @@ func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3, ext [2]
 func (c *compiler) addPlaneIndex(p plane) int {
 	p = normalizePlane(p)
 	p.Dist = snapPlaneDist(p.Normal, p.Dist)
-	for i, existing := range c.planes {
-		if planeEqualNear(p, existing) {
-			return i
-		}
+	if i := c.lookupPlaneIndex(p); i >= 0 {
+		return i
 	}
 	c.planes = append(c.planes, p)
+	c.planeKeys[orientedPlaneKeyOf(p)] = len(c.planes) - 1
 	return len(c.planes) - 1
 }
 

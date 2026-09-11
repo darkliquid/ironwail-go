@@ -249,3 +249,112 @@ func TestSplitsIncludeSynth(t *testing.T) {
 		t.Fatalf("splits.json missing synth packages:\n%s", s)
 	}
 }
+
+// TestIsEditorBackupMap covers the editor backup filename patterns that
+// must never enter canonicalization (they have no compiled .bsp and hang
+// the pipeline compiling huge non-production copies).
+func TestIsEditorBackupMap(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{"maps/e1m1.map", false},
+		{"xmasjam_ionous - Kopie.map", true},
+		{"jam - copy.map", true},
+		{"jam - COPY.map", true},
+		{"backup.bak.map", true},
+		{"autosave~.map", true},
+		{"crash.autosave.map", true},
+		{"._handuo_stepwell.map", true},
+		{"mymap.bak", false}, // not a .map file
+		{"copycat.map", false},
+	}
+	for _, tc := range cases {
+		if got := isEditorBackupMap(tc.path); got != tc.want {
+			t.Errorf("isEditorBackupMap(%q) = %v, want %v", tc.path, got, tc.want)
+		}
+	}
+}
+
+// TestScanSkipsEditorBackups verifies enumerate never records backup maps
+// in the manifest.
+func TestScanSkipsEditorBackups(t *testing.T) {
+	src := seedFixtureSource(t)
+	pkgDir := filepath.Join(src, "fixture")
+	for _, name := range []string{"room~.map", "room.bak.map", "room - Kopie.map"} {
+		if err := os.WriteFile(filepath.Join(pkgDir, name), []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := scanLocalSource(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d, want 1 (backup maps must not be scanned)", len(entries))
+	}
+	if len(entries[0].MapFiles) != 1 || entries[0].MapFiles[0] != "fixture/room.map" {
+		t.Fatalf("map files = %v", entries[0].MapFiles)
+	}
+}
+
+// TestCanonicalizeSkipsBackupMapsAndRetries verifies that backup maps
+// already recorded in a manifest are skipped at compile time, and that a
+// failed compile leaves no partial .bsp so the next run retries it.
+func TestCanonicalizeSkipsBackupMapsAndRetries(t *testing.T) {
+	src := seedFixtureSource(t)
+	dataDir := filepath.Join(t.TempDir(), "dataset")
+	ctx := newStageCtx(dataDir)
+	ctx.sourceDir = src
+
+	if err := stageEnumerate(ctx); err != nil {
+		t.Fatalf("enumerate: %v", err)
+	}
+	// inject a backup map into the manifest (simulates corpora enumerated
+	// before backup filtering existed)
+	entries, err := eval.LoadManifest(ctx.manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries[0].MapFiles = append(entries[0].MapFiles, "fixture/room - Kopie.map")
+	if err := eval.AppendToManifest(ctx.manifestPath, entries); err != nil {
+		t.Fatal(err)
+	}
+
+	compiles := 0
+	failFirst := true
+	ctx.compile = func(mapPath, outDir string) (evalPair, error) {
+		compiles++
+		if failFirst {
+			failFirst = false
+			// simulate a half-written output before failing
+			stem := strings.TrimSuffix(mapPath, filepath.Ext(mapPath))
+			_ = os.WriteFile(stem+".bsp", []byte("partial"), 0o644)
+			return evalPair{}, fmt.Errorf("simulated compile crash")
+		}
+		p, err := eval.CompileMapPair(mapPath, outDir)
+		return evalPair{MapPath: p.MapPath, BSPPath: p.BSPPath}, err
+	}
+
+	if err := stageCanonicalize(ctx); err != nil {
+		t.Fatalf("canonicalize: %v", err)
+	}
+	if compiles != 1 {
+		t.Fatalf("compiles = %d, want 1 (backup map skipped, real map compiled once)", compiles)
+	}
+	// partial .bsp must have been removed by the failed run
+	if _, err := os.Stat(filepath.Join(ctx.pairedDir, "fixture", "room.bsp")); !os.IsNotExist(err) {
+		t.Fatalf("partial .bsp survived failed compile")
+	}
+
+	// second run retries the failed map and completes the pair
+	if err := stageCanonicalize(ctx); err != nil {
+		t.Fatalf("canonicalize retry: %v", err)
+	}
+	if compiles != 2 {
+		t.Fatalf("compiles after retry = %d, want 2", compiles)
+	}
+	if _, err := os.Stat(filepath.Join(ctx.pairedDir, "fixture", "room.bsp")); err != nil {
+		t.Fatalf("paired bsp missing after retry: %v", err)
+	}
+}

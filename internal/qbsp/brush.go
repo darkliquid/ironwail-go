@@ -178,6 +178,19 @@ const splitEpsilon = 0.1
 // FRONT/BACK bits for vertices on either side, FACING when a side is
 // coplanar with p (the brush "touches" the plane).
 func classifyBrush(b *bspBrush, p plane) int {
+	// AABB pretest: a brush whose bounds lie entirely beyond the plane has
+	// all vertices on one side and no coplanar side (a coplanar side would
+	// put vertices on the plane, dragging the bounds to it), so the bits
+	// follow without walking any winding. This is conservative: the true
+	// minimum of the linear function dot(n,x) over the box lower-bounds
+	// every vertex dot.
+	dmin, dmax := planeDotRange(p, b.bounds[0], b.bounds[1])
+	if dmin > splitEpsilon {
+		return psideFront
+	}
+	if dmax < -splitEpsilon {
+		return psideBack
+	}
 	bits := 0
 	for _, s := range b.sides {
 		for _, v := range s.w {
@@ -195,12 +208,29 @@ func classifyBrush(b *bspBrush, p plane) int {
 	return bits
 }
 
+// planeDotRange returns the min and max of dot(p.Normal, x) - p.Dist over
+// the box [b0, b1].
+func planeDotRange(p plane, b0, b1 vec3) (float64, float64) {
+	var mn, mx float64
+	for axis, c := range [3]float64{p.Normal.X, p.Normal.Y, p.Normal.Z} {
+		lo := c * getAxis(b0, axis)
+		hi := c * getAxis(b1, axis)
+		if lo > hi {
+			lo, hi = hi, lo
+		}
+		mn += lo
+		mx += hi
+	}
+	return mn - p.Dist, mx - p.Dist
+}
+
 // splitBrush splits b by the oriented plane (planenum pn): front = piece on
 // the positive side (dot(n,x) >= d), back = the rest. Either may be nil.
 // Both pieces gain a cap on the split plane (the cross-section of the brush
 // at the plane), oriented outward for each piece.
 func splitBrush(b *bspBrush, pn int, p plane) (*bspBrush, *bspBrush) {
-	var fs, bs []bspSide
+	fs := make([]bspSide, 0, len(b.sides)+1)
+	bs := make([]bspSide, 0, len(b.sides)+1)
 	for _, s := range b.sides {
 		fw, fok := clipWinding(s.w, p)
 		if fok && len(fw) >= 3 {

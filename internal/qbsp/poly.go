@@ -2,6 +2,7 @@ package qbsp
 
 import (
 	"math"
+	"sync"
 )
 
 // winding is an ordered polygon (convex, planar), used for facets, faces,
@@ -23,6 +24,11 @@ func planeSide(p plane, v vec3) int {
 	return 0
 }
 
+// sideBufPool recycles the per-clip classification buffers: the compiler
+// clips windings millions of times per large map, and per-call allocation
+// drowned the runtime in GC (521GB allocated on jjj22_dfl).
+var sideBufPool = sync.Pool{New: func() any { s := make([]int, 0, 64); return &s }}
+
 // clipWinding returns the subset of w on the front side of p (d >= 0),
 // plus whether the result is non-empty. This is the classic Sutherland-
 // Hodgman polygon clip against a plane.
@@ -30,7 +36,16 @@ func clipWinding(w winding, p plane) (winding, bool) {
 	if len(w) == 0 {
 		return nil, false
 	}
-	side := make([]int, len(w))
+	bufp, _ := sideBufPool.Get().(*[]int)
+	side := (*bufp)[:0]
+	if cap(side) < len(w) {
+		side = make([]int, 0, len(w))
+	}
+	side = side[:len(w)]
+	defer func() {
+		*bufp = side[:0]
+		sideBufPool.Put(bufp)
+	}()
 	fronts := 0
 	backs := 0
 	for i, v := range w {
@@ -48,9 +63,9 @@ func clipWinding(w winding, p plane) (winding, bool) {
 	if backs == 0 {
 		// Nothing strictly behind the plane: keep as-is (points ON the
 		// plane must survive — planar seed polygons have fronts==0).
-		out := make(winding, len(w))
-		copy(out, w)
-		return out, true
+		// Windings are immutable after creation, so aliasing the input is
+		// safe and skips a full copy per unclipped side.
+		return w, true
 	}
 	if fronts == 0 {
 		return nil, false

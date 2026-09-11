@@ -72,7 +72,12 @@ type compiler struct {
 	// texByPlane maps a plane index to the texinfo entry used by the brush
 	// that owns it (first brush wins).
 	texByPlane map[int]int
-	logs       []string
+	// planeKeys memoizes bit-exact plane lookups (see lookupPlaneIndex):
+	// the tolerant linear scan is quadratic on large maps, so scan hits
+	// record their resolved index here. Near-duplicates that miss the map
+	// still resolve through the scan, preserving first-match semantics.
+	planeKeys map[orientedPlaneKey]int
+	logs      []string
 }
 
 func (c *compiler) logf(format string, a ...any) {
@@ -103,6 +108,7 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 	c := &compiler{
 		opts:       opts,
 		texByPlane: map[int]int{},
+		planeKeys:  map[orientedPlaneKey]int{},
 	}
 	c.logf("--- qbsp %d entities, building planes ---", len(m.Entities))
 
@@ -302,16 +308,33 @@ func offsetClipChild(ch int32, base int32) int32 {
 	return ch
 }
 
+// lookupPlaneIndex finds a tolerance-equal table plane for p, or -1. The
+// linear scan is quadratic across large maps, so bit-identical queries are
+// memoized in c.planeKeys (a scan hit records the resolved index, which is
+// exactly what the scan would return for every future bit-identical p).
+func (c *compiler) lookupPlaneIndex(p plane) int {
+	key := orientedPlaneKeyOf(p)
+	if i, ok := c.planeKeys[key]; ok {
+		return i
+	}
+	for i, existing := range c.planes {
+		if planeEqualNear(p, existing) {
+			c.planeKeys[key] = i
+			return i
+		}
+	}
+	return -1
+}
+
 // planeIndexFor finds or creates the plane-table entry for a face.
 func (c *compiler) planeIndexFor(face MapFace) (int, bool) {
 	p := normalizePlane(face.Plane())
 	p.Dist = snapPlaneDist(p.Normal, p.Dist)
-	for i, existing := range c.planes {
-		if planeEqualNear(p, existing) {
-			return i, true
-		}
+	if i := c.lookupPlaneIndex(p); i >= 0 {
+		return i, true
 	}
 	c.planes = append(c.planes, p)
+	c.planeKeys[orientedPlaneKeyOf(p)] = len(c.planes) - 1
 	return len(c.planes) - 1, true
 }
 

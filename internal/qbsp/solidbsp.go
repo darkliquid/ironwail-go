@@ -220,34 +220,49 @@ func planeSplitsBounds(bounds [2]vec3, p plane) bool {
 // the plane must split the region bounds (volume test) and the brush list;
 // scoring follows ericw SelectSplitPlane: prefer fewer splits, balanced
 // front/back, and axial planes. FAST takes the first valid plane.
+//
+// Performance notes (jjj22_dfl profiled >24x slower than ericw without
+// these): region-bound checks and candidate evaluation dedupe by exact
+// plane bits — bit-identical planes score identically, so deduping repeats
+// never changes the selection — and classifyBrush pretests the brush AABB
+// (a box fully beyond the plane needs no vertex walk; no side can be
+// coplanar either, so the FACING bit is impossible).
 func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion, bounds [2]vec3) (plane, bool) {
 	if len(brushes) == 0 {
 		return plane{}, false
 	}
-	// Skip candidates whose geometric plane already bounds the region
-	// (coplanar with an ancestor split: the volume test would reject them
-	// anyway, this just avoids dead metrics).
+	// Region boundary planes are fixed for this call: hash them once
+	// instead of a linear tolerance scan per candidate. Candidates that
+	// tolerance-match but not bit-match simply fall through to the volume
+	// test, which rejects region-bound planes anyway.
+	regionPlanes := make(map[orientedPlaneKey]struct{}, len(region.bs))
+	for _, b := range region.bs {
+		regionPlanes[orientedPlaneKeyOf(b.p)] = struct{}{}
+	}
 	hasPlane := func(p plane) bool {
-		for _, b := range region.bs {
-			if planeEqualOriented(b.p, p) {
-				return true
-			}
-		}
-		return false
+		_, ok := regionPlanes[orientedPlaneKeyOf(p)]
+		return ok
 	}
 
+	seen := make(map[orientedPlaneKey]struct{}, len(brushes)*2)
 	found := false
 	var bestPlane plane
 	bestValue := -99999
 	for _, b := range brushes {
 		for _, s := range b.sides {
-			if hasPlane(s.sidePlane()) {
+			sp := s.sidePlane()
+			if hasPlane(sp) {
 				continue
 			}
 			// Normalize to the table-plane orientation (positive axial
 			// normals): node children must align with the engine's
 			// PointInLeaf (children[0] = front of the stored plane).
-			p := normalizePlane(s.sidePlane())
+			p := normalizePlane(sp)
+			key := orientedPlaneKeyOf(p)
+			if _, dup := seen[key]; dup {
+				continue
+			}
+			seen[key] = struct{}{}
 			if !planeSplitsBounds(bounds, p) {
 				continue
 			}
@@ -290,6 +305,18 @@ func selectSplitPlane(brushes []*bspBrush, policy splitPolicy, region leafRegion
 		return plane{}, false
 	}
 	return bestPlane, true
+}
+
+// orientedPlaneKey is a bit-exact hashable form of an oriented plane.
+type orientedPlaneKey struct{ x, y, z, d uint64 }
+
+func orientedPlaneKeyOf(p plane) orientedPlaneKey {
+	return orientedPlaneKey{
+		x: math.Float64bits(p.Normal.X),
+		y: math.Float64bits(p.Normal.Y),
+		z: math.Float64bits(p.Normal.Z),
+		d: math.Float64bits(p.Dist),
+	}
 }
 
 func absInt(v int) int {

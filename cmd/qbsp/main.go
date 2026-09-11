@@ -8,9 +8,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"runtime/pprof"
 	"strings"
+	"syscall"
 
 	"github.com/darkliquid/ironwail-go/internal/qbsp"
 )
@@ -22,7 +27,41 @@ func main() {
 	leaktest := flag.Bool("leaktest", false, "exit 1 if the map leaks")
 	margin := flag.Float64("margin", 64, "void ring around the map (units)")
 	omitDetail := flag.Bool("omitdetail", false, "drop func_detail* entities entirely")
+	cpuprofile := flag.String("cpuprofile", "", "write a CPU profile to this path and exit when done")
+	pprofAddr := flag.String("pprof", "", "serve pprof on this address (e.g. localhost:6061) for live sampling")
 	flag.Parse()
+
+	if *pprofAddr != "" {
+		go func() {
+			if err := http.ListenAndServe(*pprofAddr, nil); err != nil {
+				log.Printf("qbsp: pprof listener: %v", err)
+			}
+		}()
+	}
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatalf("qbsp: cpuprofile %v", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatalf("qbsp: start cpuprofile %v", err)
+		}
+		// Flush the profile on SIGINT/SIGTERM (timeouts) as well as at
+		// normal exit, so killed runs still yield analyzable profiles.
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			<-sig
+			pprof.StopCPUProfile()
+			_ = f.Close()
+			os.Exit(99)
+		}()
+		defer func() {
+			pprof.StopCPUProfile()
+			_ = f.Close()
+		}()
+	}
 
 	if flag.NArg() != 1 {
 		fmt.Fprintln(os.Stderr, "usage: qbsp [-o out.bsp] [-bsp2] [-leaktest] map.map")

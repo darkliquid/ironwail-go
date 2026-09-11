@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"hash/fnv"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/bspdec"
@@ -54,6 +56,9 @@ func scanLocalSource(srcDir string) ([]eval.ManifestEntry, error) {
 			return nil
 		}
 		if !strings.HasSuffix(strings.ToLower(d.Name()), ".map") {
+			return nil
+		}
+		if isEditorBackupMap(d.Name()) {
 			return nil
 		}
 		dir := filepath.Dir(path)
@@ -118,11 +123,41 @@ func resolveSourcePath(ctx *stageCtx, relPath string) string {
 	return filepath.Join(ctx.sourceDir, filepath.FromSlash(relPath))
 }
 
+// compileCmdTimeout bounds one canonicalize subprocess compile. Rogue
+// non-production maps (huge editor backups that slip through) previously
+// hung the pipeline for 15+ minutes per map.
+var compileCmdTimeout = 5 * time.Minute
+
+// isEditorBackupMap reports whether a .map file is an editor backup,
+// scratch copy, or OS metadata file rather than production map source:
+// editor autosaves ("name~.map"), manual backups ("name.bak.map"),
+// OS/editor duplicate copies ("name - Kopie.map", "name - copy.map"),
+// autosave dumps ("name.autosave.map"), and macOS AppleDouble resource
+// forks ("._name.map", not valid map source). These have no corresponding
+// .bsp and compiling them wastes unbounded time on giant non-production
+// geometry or fails parsing outright.
+func isEditorBackupMap(path string) bool {
+	name := strings.ToLower(filepath.Base(path))
+	if strings.HasPrefix(name, "._") {
+		return true
+	}
+	switch {
+	case strings.HasSuffix(name, "~.map"),
+		strings.HasSuffix(name, ".bak.map"),
+		strings.HasSuffix(name, ".autosave.map"),
+		strings.Contains(name, " - kopie.map"),
+		strings.Contains(name, " - copy.map"):
+		return true
+	}
+	return false
+}
+
 // stageCanonicalize compiles map-only entries into paired/<pkg_id>/ and
 // copies pairs; bsp-only entries land in the classic holdout listing. Each
 // map is compiled in a subprocess (canonicalize-onemap) so a compiler
 // panic on one map cannot abort the pipeline: failures are recorded and the
-// run continues.
+// run continues. Editor backup maps (isEditorBackupMap) are skipped, and
+// each compile is bounded by compileCmdTimeout.
 func stageCanonicalize(ctx *stageCtx) error {
 	entries, err := eval.LoadManifest(ctx.manifestPath)
 	if err != nil {
@@ -133,6 +168,7 @@ func stageCanonicalize(ctx *stageCtx) error {
 	paired := 0
 	holdout := 0
 	failures := 0
+	skipped := 0
 	for i := range entries {
 		e := &entries[i]
 		if e.Flags.Era == "synthetic" {
@@ -156,6 +192,10 @@ func stageCanonicalize(ctx *stageCtx) error {
 			_ = copyFile(src, dst)
 		}
 		for _, mf := range e.MapFiles {
+			if isEditorBackupMap(mf) {
+				skipped++
+				continue
+			}
 			src := resolveSourcePath(ctx, mf)
 			dst := filepath.Join(outDir, filepath.Base(mf))
 			if err := copyFile(src, dst); err != nil {
@@ -171,7 +211,9 @@ func stageCanonicalize(ctx *stageCtx) error {
 				continue
 			}
 			if _, err := ctx.compile(dst, outDir); err != nil {
-				slog.Warn("bspdec-corpus: compile failed", "pkg", e.PkgID, "map", mf, "err", err)
+				slog.Warn("bspdec-corpus: compile failed (retried on next canonicalize run)",
+					"pkg", e.PkgID, "map", mf, "err", err)
+				removePartialPair(stem)
 				failures++
 				continue
 			}
@@ -181,8 +223,16 @@ func stageCanonicalize(ctx *stageCtx) error {
 	if err := eval.AppendToManifest(ctx.manifestPath, entries); err != nil {
 		return err
 	}
-	ctx.provenance("canonicalize", paired, "compiled", holdout, "holdout", failures, "failed")
+	ctx.provenance("canonicalize", paired, "compiled", holdout, "holdout", failures, "failed", skipped, "backup-skipped")
 	return nil
+}
+
+// removePartialPair deletes a possibly half-written compiled pair after a
+// failed compile so the next canonicalize run retries it instead of
+// treating the partial .bsp as a completed pair.
+func removePartialPair(stem string) {
+	_ = os.Remove(stem + ".bsp")
+	_ = os.Remove(stem + ".BSP")
 }
 
 // subprocessCompile is the production compile function: the real corpus
@@ -199,9 +249,14 @@ func subprocessCompile(mapPath, outDir string) (evalPair, error) {
 		p, err := eval.CompileMapPair(mapPath, outDir)
 		return evalPair{MapPath: p.MapPath, BSPPath: p.BSPPath}, err
 	}
-	cmd := exec.Command(exe, "canonicalize-onemap", "-data", filepath.Dir(filepath.Dir(outDir)), "-map", mapPath, "-out", outDir)
+	ctx, cancel := context.WithTimeout(context.Background(), compileCmdTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, exe, "canonicalize-onemap", "-data", filepath.Dir(filepath.Dir(outDir)), "-map", mapPath, "-out", outDir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return evalPair{}, fmt.Errorf("compile timed out after %s (map skipped; retried on next canonicalize run only if it produces a .bsp)", compileCmdTimeout)
+		}
 		return evalPair{}, fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
 	stem := strings.TrimSuffix(filepath.Base(mapPath), filepath.Ext(mapPath))
@@ -260,6 +315,9 @@ func canonicalizeOneMap(ctx *stageCtx, pkgID string) error {
 			_ = copyFile(src, dst)
 		}
 		for _, mf := range e.MapFiles {
+			if isEditorBackupMap(mf) {
+				continue
+			}
 			src := resolveSourcePath(ctx, mf)
 			dst := filepath.Join(outDir, filepath.Base(mf))
 			if err := copyFile(src, dst); err != nil {
@@ -273,6 +331,7 @@ func canonicalizeOneMap(ctx *stageCtx, pkgID string) error {
 				continue
 			}
 			if _, err := eval.CompileMapPair(dst, outDir); err != nil {
+				removePartialPair(stem)
 				return err
 			}
 		}
