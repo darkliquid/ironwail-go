@@ -27,14 +27,15 @@ var hull2Extents = [2]vec3{{X: 32, Y: 32, Z: 24}, {X: 32, Y: 32, Z: 64}}
 // classic qbsp hull semantics). Expanded planes are registered in the
 // compiler's main plane table (clip nodes reference it), deduped against
 // existing entries.
-func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3, ext [2]vec3) []*bspBrush {
-	var out []*bspBrush
+func (c *compiler) expandSolidBrushes(world []brushRef, bounds [2]vec3, ext [2]vec3) []brushRef {
+	var out []brushRef
 	for _, b := range world {
-		if b.content != bsp.ContentsSolid {
+		if c.ba.brushes[b].content != bsp.ContentsSolid {
 			continue // liquids/sky passable in clip hulls
 		}
-		faces := make([]brushFace, 0, len(b.sides))
-		for _, s := range b.sides {
+		faces := make([]brushFace, 0, len(c.ba.sidesOf(b)))
+		for i := range c.ba.sidesOf(b) {
+			s := &c.ba.sidesOf(b)[i]
 			// Per-axis hull-box projection: planes shift by the box half
 			// span along their own normal axis only (adding the z term to
 			// x/y faces would inflate walls by the player height).
@@ -58,12 +59,12 @@ func (c *compiler) expandSolidBrushes(world []*bspBrush, bounds [2]vec3, ext [2]
 			p := plane{Normal: n, Dist: snapPlaneDist(n, s.d+shift)}
 			faces = append(faces, brushFace{p: p, pn: c.addPlaneIndex(p)})
 		}
-		eb := buildBspBrushFaces(c.wa, faces, bounds)
-		if eb == nil {
+		eb := buildBspBrushFaces(c.ba, faces, bounds)
+		if eb == -1 {
 			continue
 		}
-		eb.content = bsp.ContentsSolid
-		eb.sortKey = b.sortKey
+		c.ba.brushes[eb].content = bsp.ContentsSolid
+		c.ba.brushes[eb].sortKey = c.ba.brushes[b].sortKey
 		out = append(out, eb)
 	}
 	return out
@@ -84,15 +85,14 @@ func (c *compiler) addPlaneIndex(p plane) int {
 
 // buildHullClipNodes compiles the clip-hull tree (hulls 1/2 shared root at
 // clipnode 0) from the expanded solid brushes using the solidbsp recursion.
-func (c *compiler) buildHullClipNodes(hulls []*bspBrush, bounds [2]vec3) []outClipNode {
-	tb := &treeBuild{register: c.addPlaneIndex, a: c.wa, maxNodeSize: c.maxNodeSize}
-	tb.register = c.addPlaneIndex
-	root := tb.build(bounds, rootRegion(bounds), -1, -1, hulls, splitFast)
+func (c *compiler) buildHullClipNodes(hulls []brushRef, bounds [2]vec3) []outClipNode {
+	tb := &treeBuild{register: c.addPlaneIndex, ba: c.ba, maxNodeSize: c.maxNodeSize}
+	root := tb.build(bounds, rootRegion(bounds), -1, -1, hulls, splitFast, 0)
 	if root.isLeaf {
 		// Empty clip tree: a single EMPTY clipnode keeps headnode valid.
 		var content int32 = bsp.ContentsEmpty
 		if len(hulls) > 0 {
-			content = hulls[0].content
+			content = c.ba.brushes[hulls[0]].content
 		}
 		return []outClipNode{{plane: 0, children: [2]int32{content, content}}}
 	}

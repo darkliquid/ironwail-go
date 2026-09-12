@@ -23,31 +23,33 @@ func TestSolidBSPBrushSplit(t *testing.T) {
 		{p: plane{Normal: v3(0, 0, 1), Dist: 8}},
 		{p: plane{Normal: v3(0, 0, -1), Dist: 0}},
 	}
-	b := buildBspBrushFaces(nil, faces, box)
-	if b == nil {
+	ba := newBrushArena(newWindingArena())
+	b := buildBspBrushFaces(ba, faces, box)
+	if b == -1 {
 		t.Fatal("brush build failed")
 	}
-	front, back := splitBrush(nil, b, 0, plane{Normal: v3(0, 1, 0), Dist: 56}) // y>=56
-	if front == nil || back == nil {
-		t.Fatalf("split produced nil: front=%v back=%v", front != nil, back != nil)
+	front, back := splitBrush(ba, b, 0, plane{Normal: v3(0, 1, 0), Dist: 56}) // y>=56
+	if front == -1 || back == -1 {
+		t.Fatalf("split produced nil: front=%v back=%v", front != -1, back != -1)
 	}
 	wantFB := [2]vec3{v3(0, 56, 0), v3(64, 64, 8)}
 	wantBK := [2]vec3{v3(0, 0, 0), v3(64, 56, 8)}
-	if front.bounds != wantFB {
-		t.Errorf("front bounds = %v, want %v", front.bounds, wantFB)
+	if ba.brushes[front].bounds != wantFB {
+		t.Errorf("front bounds = %v, want %v", ba.brushes[front].bounds, wantFB)
 	}
-	if back.bounds != wantBK {
-		t.Errorf("back bounds = %v, want %v", back.bounds, wantBK)
+	if ba.brushes[back].bounds != wantBK {
+		t.Errorf("back bounds = %v, want %v", ba.brushes[back].bounds, wantBK)
 	}
 	// Interior consistency: every side's interior halfspace must contain
 	// the brush centroid.
-	centroidOf := func(br *bspBrush) vec3 {
-		m, x := br.bounds[0], br.bounds[1]
+	centroidOf := func(ba *brushArena, br brushRef) vec3 {
+		m, x := ba.brushes[br].bounds[0], ba.brushes[br].bounds[1]
 		return m.Add(x).Scale(0.5)
 	}
-	for _, br := range []*bspBrush{front, back} {
-		c := centroidOf(br)
-		for _, s := range br.sides {
+	for _, br := range []brushRef{front, back} {
+		c := centroidOf(ba, br)
+		for i := range ba.sidesOf(br) {
+			s := &ba.sidesOf(br)[i]
 			if v3Dot(s.n, c)-s.d > 0.01 {
 				t.Errorf("centroid %v outside side n=%v d=%v", c, s.n, s.d)
 			}
@@ -419,8 +421,9 @@ func TestBevelTrimFaceSurvives(t *testing.T) {
 		{p: plane{Normal: v3(0, 0, -1), Dist: 32}},
 		{p: plane{Normal: v3(-0.7071067811865476, -0.7071067811865476, 0), Dist: -33.94112549695428}},
 	}
-	b := buildBspBrushFaces(nil, faces, [2]vec3{v3(-64, -64, -64), v3(64, 64, 64)})
-	if b == nil {
+	ba := newBrushArena(newWindingArena())
+	b := buildBspBrushFaces(ba, faces, [2]vec3{v3(-64, -64, -64), v3(64, 64, 64)})
+	if b == -1 {
 		t.Fatal("bevel trim brush build failed")
 	}
 	// Following ericw CreateBrushWindings, EVERY side keeps its plane even
@@ -428,17 +431,18 @@ func TestBevelTrimFaceSurvives(t *testing.T) {
 	// in the CSG. Five sides carry live windings (x=32, y=32, z=+/-32 and
 	// the diagonal); losing the diagonal would reopen the corner as a
 	// phantom box.
-	if len(b.sides) != 7 {
-		t.Fatalf("nsides = %d, want 7 (all planes kept, reference semantics)", len(b.sides))
+	if len(ba.sidesOf(b)) != 7 {
+		t.Fatalf("nsides = %d, want 7 (all planes kept, reference semantics)", len(ba.sidesOf(b)))
 	}
 	live := 0
 	hasDiag := false
-	for _, s := range b.sides {
-		if s.w != nil {
+	for i := range ba.sidesOf(b) {
+		s := &ba.sidesOf(b)[i]
+		if s.w.count != 0 {
 			live++
 		}
-		if math.Abs(s.sidePlane().Normal.X+0.7071067811865476) < 1e-6 &&
-			math.Abs(s.sidePlane().Normal.Y+0.7071067811865476) < 1e-6 {
+		if math.Abs(sidePlaneOf(s).Normal.X+0.7071067811865476) < 1e-6 &&
+			math.Abs(sidePlaneOf(s).Normal.Y+0.7071067811865476) < 1e-6 {
 			hasDiag = true
 		}
 	}
@@ -451,8 +455,9 @@ func TestBevelTrimFaceSurvives(t *testing.T) {
 	// Interior point (24,24,0) must be inside; the cut-off corner (17,17,0)
 	// must be outside.
 	inside := true
-	for _, s := range b.sides {
-		if v3Dot(s.sidePlane().Normal, v3(24, 24, 0))-s.sidePlane().Dist > 1e-3 {
+	for i := range ba.sidesOf(b) {
+		sp := sidePlaneOf(&ba.sidesOf(b)[i])
+		if v3Dot(sp.Normal, v3(24, 24, 0))-sp.Dist > 1e-3 {
 			inside = false
 		}
 	}
@@ -460,8 +465,9 @@ func TestBevelTrimFaceSurvives(t *testing.T) {
 		t.Error("bevel trim does not contain its interior point (24,24,0)")
 	}
 	cut := true
-	for _, s := range b.sides {
-		if v3Dot(s.sidePlane().Normal, v3(17, 17, 0))-s.sidePlane().Dist > 1e-3 {
+	for i := range ba.sidesOf(b) {
+		sp := sidePlaneOf(&ba.sidesOf(b)[i])
+		if v3Dot(sp.Normal, v3(17, 17, 0))-sp.Dist > 1e-3 {
 			cut = false
 		}
 	}
@@ -484,19 +490,20 @@ func TestSplitBrushPreservesOnTinyCap(t *testing.T) {
 		{p: plane{Normal: v3(0, 0, 1), Dist: 256}},
 		{p: plane{Normal: v3(0, 0, -1), Dist: 0}},
 	}
-	b := buildBspBrushFaces(nil, faces, [2]vec3{v3(-8, 96, -8), v3(72, 108, 264)})
-	if b == nil {
+	ba := newBrushArena(newWindingArena())
+	b := buildBspBrushFaces(ba, faces, [2]vec3{v3(-8, 96, -8), v3(72, 108, 264)})
+	if b == -1 {
 		t.Fatal("brush build failed")
 	}
-	front, back := splitBrush(nil, b, 0, plane{Normal: v3(0, 1, 0), Dist: 104.5})
-	if front == nil && back == nil {
+	front, back := splitBrush(ba, b, 0, plane{Normal: v3(0, 1, 0), Dist: 104.5})
+	if front == -1 && back == -1 {
 		t.Fatal("splitBrush lost the whole brush on a grazing plane")
 	}
 	got := 0
-	if front != nil {
+	if front != -1 {
 		got++
 	}
-	if back != nil {
+	if back != -1 {
 		got++
 	}
 	if got == 0 {
@@ -516,19 +523,20 @@ func TestClassifyPlanesideEpsilon(t *testing.T) {
 		{p: plane{Normal: v3(0, 0, 1), Dist: 64}},
 		{p: plane{Normal: v3(0, 0, -1), Dist: 0}},
 	}
-	b := buildBspBrushFaces(nil, faces, [2]vec3{v3(0, 0, 0), v3(64, 64, 64)})
-	if b == nil {
+	ba := newBrushArena(newWindingArena())
+	b := buildBspBrushFaces(ba, faces, [2]vec3{v3(0, 0, 0), v3(64, 64, 64)})
+	if b == -1 {
 		t.Fatal("brush build failed")
 	}
 	// plane at x=63.95 sits within eps of every +x vertex: those vertices
 	// are on-plane, so the brush reports no FRONT (no phantom straddle);
 	// the far -x vertices legitimately stay on the back.
-	bits := classifyBrush(b, -1, plane{Normal: v3(1, 0, 0), Dist: 63.95})
+	bits := classifyBrush(ba, b, -1, plane{Normal: v3(1, 0, 0), Dist: 63.95})
 	if bits&psideFront != 0 {
 		t.Fatalf("near-plane vertices classified front: bits=%d", bits)
 	}
 	// plane at x=63.5 is a real split
-	bits = classifyBrush(b, -1, plane{Normal: v3(1, 0, 0), Dist: 63.5})
+	bits = classifyBrush(ba, b, -1, plane{Normal: v3(1, 0, 0), Dist: 63.5})
 	if bits&psideFront == 0 || bits&psideBack == 0 {
 		t.Fatalf("mid-brush plane not a straddle: bits=%d", bits)
 	}

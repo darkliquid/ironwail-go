@@ -78,6 +78,8 @@ type compiler struct {
 	// checkpoint/rollback it in build(); everything else allocates
 	// monotonically (winding lifetime is output-scale).
 	wa *windingArena
+	// ba owns the solidbsp working set (brush/side slabs referencing wa).
+	ba *brushArena
 	// maxNodeSize is the resolved AUTO midsplit budget (Options.MaxNodeSize
 	// with the ericw default 1024 applied).
 	maxNodeSize float64
@@ -123,6 +125,7 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		planeKeys:  map[orientedPlaneKey]int{},
 		wa:         newWindingArena(),
 	}
+	c.ba = newBrushArena(c.wa)
 	c.maxNodeSize = opts.MaxNodeSize
 	if c.maxNodeSize == 0 {
 		c.maxNodeSize = 1024 // ericw-tools maxnodesize default
@@ -151,13 +154,13 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		world := g.isWorld
 		bounds := worldBoundsOf(&g)
 		list := c.bspBrushList(&g)
-		list = chopBrushes(c.wa, list)
+		list = chopBrushes(c.ba, list)
 		policy := splitAuto // world: ericw AUTO (midsplit budget above maxNodeSize)
 		if !world {
 			policy = splitFast
 		}
-		tb := &treeBuild{register: c.addPlaneIndex, a: c.wa, maxNodeSize: c.maxNodeSize}
-		root := tb.build(bounds, rootRegion(bounds), -1, -1, list, policy)
+		tb := &treeBuild{register: c.addPlaneIndex, ba: c.ba, maxNodeSize: c.maxNodeSize, trace: c.opts.Log}
+		root := tb.build(bounds, rootRegion(bounds), -1, -1, list, policy, 0)
 		var solidBrushes []solidBrushDef
 		for _, wb := range g.brushes {
 			if wb.content == bsp.ContentsSolid {
@@ -287,12 +290,12 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 // buildClipHulls compiles and appends the per-model clip trees (hull 1 =
 // player box, hull 2 = large box) into the shared clipnode lump, returning
 // their roots (clipnode indices).
-func (c *compiler) buildClipHulls(world bool, list []*bspBrush, bounds [2]vec3, allClips *[]outClipNode) (int32, int32) {
+func (c *compiler) buildClipHulls(world bool, list []brushRef, bounds [2]vec3, allClips *[]outClipNode) (int32, int32) {
 	hulls := list
 	if !world {
-		var solid []*bspBrush
+		var solid []brushRef
 		for _, b := range list {
-			if b.content == bsp.ContentsSolid {
+			if c.ba.brushes[b].content == bsp.ContentsSolid {
 				solid = append(solid, b)
 			}
 		}

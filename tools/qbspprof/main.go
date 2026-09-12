@@ -26,7 +26,10 @@ func main() {
 	deadline := flag.Duration("deadline", 0, "dump partial profiles after this duration and exit (0 = wait for compile)")
 	memlimit := flag.Int64("memlimit", 0, "soft GC memory limit in MiB (debug.SetMemoryLimit; 0 = off)")
 	maxnodesize := flag.Float64("maxnodesize", 0, "AUTO midsplit budget in units (0 = qbsp default 1024)")
+	gcpercent := flag.Int("gcpercent", 100, "GOGC value (-1 disables the GC; use with -memlimit)")
 	flag.Parse()
+
+	debug.SetGCPercent(*gcpercent)
 
 	if *memlimit > 0 {
 		debug.SetMemoryLimit(*memlimit << 20)

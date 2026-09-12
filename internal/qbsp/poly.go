@@ -48,9 +48,20 @@ func (a *windingArena) release(m int) {
 
 // alloc returns a zero-length winding with capacity n (callers append).
 func (a *windingArena) alloc(n int) winding {
-	if a == nil {
-		return make(winding, 0, n)
-	}
+	w, _ := a.reserve(n)
+	return w
+}
+
+// wref addresses a winding inside the arena: chunk index + offset within
+// the chunk + vertex count. Pure integers, so records holding wrefs are
+// pointer-free (invisible to the GC marker).
+type wref struct {
+	chunk, off, count int32
+}
+
+// reserve allocates capacity n and returns the fill view (len 0, cap n)
+// plus its reference; after filling via append, set ref.count = len(view).
+func (a *windingArena) reserve(n int) (winding, wref) {
 	if a.off+n > cap(a.cur) {
 		if a.ci+1 < len(a.chunks) && n <= cap(a.chunks[a.ci+1]) {
 			a.ci++
@@ -68,8 +79,19 @@ func (a *windingArena) alloc(n int) winding {
 		}
 	}
 	w := a.cur[a.off : a.off : a.off+n]
+	ref := wref{chunk: int32(a.ci), off: int32(a.off)}
 	a.off += n
-	return w
+	return w, ref
+}
+
+// at resolves a reference to its vertex view (for reading/filling).
+// Zero-count references (sides whose winding died at construction) resolve
+// to nil without touching the chunk list.
+func (a *windingArena) at(r wref) winding {
+	if r.count == 0 {
+		return nil
+	}
+	return a.chunks[r.chunk][r.off : r.off+r.count : r.off+r.count]
 }
 
 // planeSide returns +1 when v is on the front of p, -1 behind, 0 on it.
@@ -149,6 +171,113 @@ func clipWinding(a *windingArena, w winding, p plane) (winding, bool) {
 		}
 	}
 	return out, len(out) >= 3
+}
+
+// clipWindingRef is the CSG/tree-path twin of clipWinding operating on
+// arena references: the whole solidbsp working set is pointer-free slab
+// records addressed by integers, so the GC never marks per-split objects.
+func clipWindingRef(a *windingArena, w wref, p plane) (wref, bool) {
+	if w.count == 0 {
+		return wref{}, false
+	}
+	v := a.at(w)
+	bufp, _ := sideBufPool.Get().(*[]int)
+	side := (*bufp)[:0]
+	if cap(side) < int(w.count) {
+		side = make([]int, 0, w.count)
+	}
+	side = side[:w.count]
+	defer func() {
+		*bufp = side[:0]
+		sideBufPool.Put(bufp)
+	}()
+	fronts := 0
+	backs := 0
+	for i, vert := range v {
+		switch planeSide(p, vert) {
+		case 1:
+			side[i] = 1
+			fronts++
+		case -1:
+			side[i] = -1
+			backs++
+		default:
+			side[i] = 0
+		}
+	}
+	if backs == 0 {
+		return w, true
+	}
+	if fronts == 0 {
+		return wref{}, false
+	}
+	out, ref := a.reserve(int(w.count) + 4)
+	n := int(w.count)
+	for i := 0; i < n; i++ {
+		j := (i + 1) % n
+		if side[i] >= 0 {
+			out = append(out, v[i])
+		}
+		if side[i]*side[j] < 0 {
+			t := (p.Dist - p.Normal.Dot(v[i])) / p.Normal.Dot(v[j].Sub(v[i]))
+			out = append(out, v[i].Lerp(v[j], t))
+		}
+	}
+	if len(out) < 3 {
+		return wref{}, false
+	}
+	ref.count = int32(len(out))
+	return ref, true
+}
+
+// windingRemoveColinearRef drops collinear points from an arena winding.
+func windingRemoveColinearRef(a *windingArena, w wref) wref {
+	if w.count < 3 {
+		return w
+	}
+	v := a.at(w)
+	out, ref := a.reserve(int(w.count))
+	n := int(w.count)
+	for i := 0; i < n; i++ {
+		prev := v[(i-1+n)%n]
+		cur := v[i]
+		next := v[(i+1)%n]
+		v1 := prev.Sub(cur)
+		v2 := next.Sub(cur)
+		prodLen := v1.Len() * v2.Len()
+		if prodLen > 0 && math.Abs(v1.Dot(v2)) >= (1-1e-6)*prodLen {
+			continue
+		}
+		out = append(out, cur)
+	}
+	if len(out) < 3 {
+		return wref{}
+	}
+	ref.count = int32(len(out))
+	return ref
+}
+
+// windingOrientToRef reverses an arena winding if its area vector opposes n.
+func windingOrientToRef(a *windingArena, w wref, n vec3) wref {
+	if w.count < 3 {
+		return w
+	}
+	v := a.at(w)
+	sum := vec3{}
+	for i := 0; i < int(w.count); i++ {
+		a2 := v[i]
+		b := v[(i+1)%int(w.count)]
+		sum = sum.Add(a2.Cross(b))
+	}
+	if sum.Dot(n) >= 0 {
+		return w
+	}
+	out, ref := a.reserve(int(w.count))
+	for i := int(w.count) - 1; i >= 0; i-- {
+		out = append(out, v[i])
+	}
+	ref.count = int32(len(out))
+	return ref
 }
 
 // windingFromBoxPlane computes the polygon of plane p intersecting the
@@ -408,4 +537,116 @@ func windingIsTiny(w winding) bool {
 		}
 	}
 	return true
+}
+
+// windingFromBoxPlaneRef is the CSG/tree-path twin of windingFromBoxPlane
+// producing an arena reference.
+func windingFromBoxPlaneRef(a *windingArena, p plane, mins, maxs vec3) wref {
+	bestAxis := 0
+	bestDot := math.Abs(p.Normal.X)
+	if math.Abs(p.Normal.Y) > bestDot {
+		bestDot = math.Abs(p.Normal.Y)
+		bestAxis = 1
+	}
+	if math.Abs(p.Normal.Z) > bestDot {
+		bestDot = math.Abs(p.Normal.Z)
+		bestAxis = 2
+	}
+	if bestDot < 1e-9 {
+		return wref{}
+	}
+
+	if bestDot > 1-1e-9 {
+		pn := getAxis(p.Normal, bestAxis)
+		coord := p.Dist / pn
+		if coord < getAxis(mins, bestAxis) {
+			coord = getAxis(mins, bestAxis)
+		}
+		if coord > getAxis(maxs, bestAxis) {
+			coord = getAxis(maxs, bestAxis)
+		}
+		u := (bestAxis + 1) % 3
+		v := (bestAxis + 2) % 3
+		seed, ref := a.reserve(4)
+		corners := [4][2]int{{0, 0}, {0, 1}, {1, 1}, {1, 0}}
+		minsU, maxsU := getAxis(mins, u), getAxis(maxs, u)
+		minsV, maxsV := getAxis(mins, v), getAxis(maxs, v)
+		for _, c := range corners {
+			var pt vec3
+			setAxis(&pt, bestAxis, coord)
+			setAxis(&pt, u, minsU+float64(c[0])*(maxsU-minsU))
+			if pn > 0 {
+				setAxis(&pt, v, minsV+float64(c[1])*(maxsV-minsV))
+			} else {
+				setAxis(&pt, v, minsV+float64(1-c[1])*(maxsV-minsV))
+			}
+			seed = append(seed, pt)
+		}
+		ref.count = 4
+		return ref
+	}
+
+	boxCenter := vec3{
+		X: (mins.X + maxs.X) * 0.5,
+		Y: (mins.Y + maxs.Y) * 0.5,
+		Z: (mins.Z + maxs.Z) * 0.5,
+	}
+	dist := p.Normal.Dot(boxCenter) - p.Dist
+	org := boxCenter.Sub(p.Normal.Scale(dist))
+
+	var up, right vec3
+	switch bestAxis {
+	case 0, 1:
+		up = v3(0, 0, 1)
+	default:
+		up = v3(0, 1, 0)
+	}
+	right = p.Normal.Cross(up)
+	if rl := right.Len(); rl < 1e-9 {
+		up = v3(0, 0, 1)
+		right = p.Normal.Cross(up)
+		rl = right.Len()
+		if rl < 1e-9 {
+			return wref{}
+		}
+		right = right.Scale(1 / rl)
+	} else {
+		right = right.Scale(1 / rl)
+	}
+	up = right.Cross(p.Normal)
+	if ul := up.Len(); ul < 1e-9 {
+		return wref{}
+	} else {
+		up = up.Scale(1 / ul)
+	}
+
+	radius := math.Sqrt((maxs.X-mins.X)*(maxs.X-mins.X)+
+		(maxs.Y-mins.Y)*(maxs.Y-mins.Y)+
+		(maxs.Z-mins.Z)*(maxs.Z-mins.Z)) * 1.5
+	if radius < 1 {
+		radius = 1
+	}
+	corners := [4][2]float64{{-1, -1}, {-1, 1}, {1, 1}, {1, -1}}
+	seed, ref := a.reserve(4)
+	for _, c := range corners {
+		pt := org.
+			Add(right.Scale(c[0] * radius)).
+			Add(up.Scale(c[1] * radius))
+		seed = append(seed, pt)
+	}
+	ref.count = int32(len(seed))
+
+	box := boxPlanes(mins, maxs)
+	for i, bp := range box {
+		cp := bp
+		if i%2 == 0 {
+			cp = plane{Normal: bp.Normal.Neg(), Dist: -bp.Dist}
+		}
+		clipped, ok := clipWindingRef(a, ref, cp)
+		if !ok {
+			return wref{}
+		}
+		ref = clipped
+	}
+	return ref
 }
