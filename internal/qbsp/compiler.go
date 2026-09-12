@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"sync"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 )
@@ -91,6 +92,9 @@ type compiler struct {
 	maxWorkers int
 	// midsplitFraction is the resolved brush-fraction midsplit gate.
 	midsplitFraction float64
+	// planeMu guards planes/planeKeys: tree units read concurrently
+	// (RUnlock-ed lookups); sequential phases hold the write lock.
+	planeMu sync.RWMutex
 	// maxNodeSize is the resolved AUTO midsplit budget (Options.MaxNodeSize
 	// with the ericw default 1024 applied).
 	maxNodeSize float64
@@ -330,6 +334,10 @@ func (u *treeUnit) buildClipHulls(world bool, list []brushRef, bounds [2]vec3, a
 		}
 		hulls = solid
 	}
+	// SEQUENTIAL for now: parallel hull units double peak memory (two full
+	// unit working sets) and the corpus harness already runs maps in
+	// parallel — re-land with the worker budget integrated (each hull
+	// acquiring a token) before enabling.
 	appendTree := func(ext [2]vec3) int32 {
 		base := int32(len(*allClips))
 		clip := u.buildHullClipNodes(hulls, bounds, ext)
@@ -361,7 +369,14 @@ func offsetClipChild(ch int32, base int32) int32 {
 // first-match scan (bucketed variants leaked: coverage edge cases change
 // which duplicates merge, which changes sealing). The scan is ~10% of the
 // mutator on large maps — acceptable for exact semantics.
+// Write-locked: call sites in sequential phases only.
 func (c *compiler) lookupPlaneIndex(p plane) int {
+	c.planeMu.Lock()
+	defer c.planeMu.Unlock()
+	return c.lookupPlaneIndexLocked(p)
+}
+
+func (c *compiler) lookupPlaneIndexLocked(p plane) int {
 	key := orientedPlaneKeyOf(p)
 	if i, ok := c.planeKeys[key]; ok {
 		return i
@@ -369,6 +384,23 @@ func (c *compiler) lookupPlaneIndex(p plane) int {
 	for i, existing := range c.planes {
 		if planeEqualNear(p, existing) {
 			c.planeKeys[key] = i
+			return i
+		}
+	}
+	return -1
+}
+
+// lookupPlaneIndexRO is the read-only variant for parallel tree units: it
+// never writes the memo (units keep their own local dedup maps).
+func (c *compiler) lookupPlaneIndexRO(p plane) int {
+	c.planeMu.RLock()
+	defer c.planeMu.RUnlock()
+	key := orientedPlaneKeyOf(p)
+	if i, ok := c.planeKeys[key]; ok {
+		return i
+	}
+	for i, existing := range c.planes {
+		if planeEqualNear(p, existing) {
 			return i
 		}
 	}

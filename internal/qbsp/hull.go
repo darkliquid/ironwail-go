@@ -75,7 +75,9 @@ func (u *treeUnit) expandSolidBrushes(world []brushRef, bounds [2]vec3, ext [2]v
 func (c *compiler) addPlaneIndex(p plane) int {
 	p = normalizePlane(p)
 	p.Dist = snapPlaneDist(p.Normal, p.Dist)
-	if i := c.lookupPlaneIndex(p); i >= 0 {
+	c.planeMu.Lock()
+	defer c.planeMu.Unlock()
+	if i := c.lookupPlaneIndexLocked(p); i >= 0 {
 		return i
 	}
 	c.planes = append(c.planes, p)

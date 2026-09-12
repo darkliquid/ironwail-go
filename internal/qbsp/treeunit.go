@@ -82,7 +82,9 @@ func (u *treeUnit) unitRegister(p plane) int {
 			return i
 		}
 	}
-	if i := u.shared.lookupPlaneIndex(p); i >= 0 {
+	// The shared table is frozen while units run: read-only lookup (the
+	// shared memo is only written by sequential phases).
+	if i := u.shared.lookupPlaneIndexRO(p); i >= 0 {
 		return i
 	}
 	if i, ok := u.localKeys[key]; ok {
