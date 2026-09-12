@@ -193,7 +193,7 @@ func splitBrush(ba *brushArena, b brushRef, pn int, p plane) (brushRef, brushRef
 		np := p.Normal.Neg()
 		capF := windingOrientToRef(ba.w, capRef, np)
 		fs = append(fs, sideRec{planenum: int32(pn), n: np, d: -p.Dist, w: capF, onnode: true})
-		front = ba.addBrush(fs, br.content, br.sortKey)
+		front = ba.addBrushDetail(fs, br.content, br.sortKey, br.detail)
 		if brushDegenerate(ba, front) {
 			front = -1
 		}
@@ -201,7 +201,7 @@ func splitBrush(ba *brushArena, b brushRef, pn int, p plane) (brushRef, brushRef
 	if len(bs) > 0 {
 		capB := windingOrientToRef(ba.w, capRef, p.Normal)
 		bs = append(bs, sideRec{planenum: int32(pn), n: p.Normal, d: p.Dist, w: capB, onnode: true})
-		back = ba.addBrush(bs, br.content, br.sortKey)
+		back = ba.addBrushDetail(bs, br.content, br.sortKey, br.detail)
 		if brushDegenerate(ba, back) {
 			back = -1
 		}

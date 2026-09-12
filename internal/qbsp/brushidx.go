@@ -45,13 +45,15 @@ type brushRec struct {
 	content    int32
 	sortKey    int64
 	bounds     [2]vec3
+	detail     bool // from a func_detail* entity (split pass ordering)
 }
 
 // brushArena owns the slab arrays and the winding arena they reference.
 type brushArena struct {
-	sides   []sideRec
-	brushes []brushRec
-	w       *windingArena
+	sides    []sideRec
+	brushes  []brushRec
+	w        *windingArena
+	straddle *int64
 }
 
 func newBrushArena(w *windingArena) *brushArena { return &brushArena{w: w} }
@@ -76,12 +78,18 @@ func (ba *brushArena) release(m brushMark) {
 // addBrush appends a piece with a contiguous copy of sides and computes its
 // bounds from the side planes' windings.
 func (ba *brushArena) addBrush(sides []sideRec, content int32, sortKey int64) brushRef {
+	return ba.addBrushDetail(sides, content, sortKey, false)
+}
+
+// addBrushDetail is addBrush with the detail pass key.
+func (ba *brushArena) addBrushDetail(sides []sideRec, content int32, sortKey int64, detail bool) brushRef {
 	id := brushRef(len(ba.brushes))
 	ba.brushes = append(ba.brushes, brushRec{
 		sidesStart: int32(len(ba.sides)),
 		sidesCount: int32(len(sides)),
 		content:    content,
 		sortKey:    sortKey,
+		detail:     detail,
 	})
 	ba.sides = append(ba.sides, sides...)
 	ba.computeBounds(id)

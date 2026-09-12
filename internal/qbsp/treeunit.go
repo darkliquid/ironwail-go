@@ -27,14 +27,23 @@ type treeUnit struct {
 	// maxNodeSize is the AUTO midsplit budget for this build
 	// (Options.MaxNodeSize, default 1024).
 	maxNodeSize float64
+	// totalBrushes is the root list size; midsplitFraction gates the
+	// midsplit on the node's share of the model's brushes (ericw
+	// midsplitbrushfraction).
+	totalBrushes     int
+	midsplitFraction float64
 	// trace, when non-nil, receives node-count progress diagnostics (debug).
 	trace     func(format string, a ...any)
 	nextTrace int
 
 	localPlanes []plane
 	localKeys   map[orientedPlaneKey]int
-	shared      *compiler
-	parentUnit  *treeUnit
+	// hist buckets nodes by input-list size; straddles counts brushes
+	// split (CSG volume diagnostics).
+	hist       [6]int64
+	straddles  int64
+	shared     *compiler
+	parentUnit *treeUnit
 	// localStart is this unit's local-index origin captured at init: the
 	// ancestor-space length (shared table plus every ancestor's locals) at
 	// the moment the unit spawns. Indices below it are ancestor-space and
@@ -53,6 +62,7 @@ func (u *treeUnit) init(shared *compiler, parent *treeUnit, maxNodeSize float64,
 	}
 	u.wa = newWindingArena()
 	u.ba = newBrushArena(u.wa)
+	u.ba.straddle = &u.straddles
 	u.maxNodeSize = maxNodeSize
 	u.trace = trace
 	u.register = u.unitRegister
@@ -122,6 +132,10 @@ func (u *treeUnit) mergeUp() {
 	// stale mappings.
 	u.localPlanes = nil
 	u.localKeys = nil
+	if u.trace != nil {
+		u.trace("tree hist: empty=%d tiny=%d small=%d mid=%d large=%d huge=%d straddles=%d",
+			u.hist[0], u.hist[1], u.hist[2], u.hist[3], u.hist[4], u.hist[5], u.straddles)
+	}
 }
 
 // adopt copies a brush (sides + windings) from another unit's arena into
@@ -212,3 +226,21 @@ var (
 	budget_mu   sync.Mutex
 	unitBudgets = map[*compiler]chan struct{}{}
 )
+
+// histBucket indexes the brush-count histogram (diagnostic).
+func histBucket(n int) int {
+	switch {
+	case n == 0:
+		return 0
+	case n <= 2:
+		return 1
+	case n <= 16:
+		return 2
+	case n <= 128:
+		return 3
+	case n <= 1024:
+		return 4
+	default:
+		return 5
+	}
+}

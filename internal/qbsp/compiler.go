@@ -27,6 +27,11 @@ type Options struct {
 	// instead of per-brush scoring. Default 1024 (ericw default) when 0.
 	// Lower values trade tree quality for compile speed on huge maps.
 	MaxNodeSize float64
+	// MidsplitFraction midsplits nodes holding more than this fraction of
+	// the model's brushes, regardless of bounds size (ericw
+	// midsplitbrushfraction). Default 0.1 when 0; <=0 disables only via
+	// explicit negative values.
+	MidsplitFraction float64
 }
 
 func (o *Options) log(format string, a ...any) {
@@ -61,6 +66,7 @@ type worldBrush struct {
 	content int32
 	bounds  [2]vec3
 	sortKey int64
+	detail  bool // from a func_detail* entity (split pass ordering)
 }
 
 // texinfoEntry is one final texinfo (deduplicated).
@@ -83,6 +89,8 @@ type compiler struct {
 	ba *brushArena
 	// maxWorkers bounds concurrent tree units (default GOMAXPROCS).
 	maxWorkers int
+	// midsplitFraction is the resolved brush-fraction midsplit gate.
+	midsplitFraction float64
 	// maxNodeSize is the resolved AUTO midsplit budget (Options.MaxNodeSize
 	// with the ericw default 1024 applied).
 	maxNodeSize float64
@@ -92,7 +100,8 @@ type compiler struct {
 	// planeKeys memoizes bit-exact plane lookups (see lookupPlaneIndex):
 	// the tolerant linear scan is quadratic on large maps, so scan hits
 	// record their resolved index here. Near-duplicates that miss the map
-	// still resolve through the scan, preserving first-match semantics.
+	// still resolve through the grid-bucketed scan, preserving
+	// first-match semantics.
 	planeKeys map[orientedPlaneKey]int
 	logs      []string
 }
@@ -133,6 +142,10 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 	if c.maxNodeSize == 0 {
 		c.maxNodeSize = 1024 // ericw-tools maxnodesize default
 	}
+	c.midsplitFraction = opts.MidsplitFraction
+	if c.midsplitFraction == 0 {
+		c.midsplitFraction = 0.1
+	}
 	c.maxWorkers = runtime.GOMAXPROCS(0)
 	if c.maxWorkers > 8 {
 		c.maxWorkers = 8
@@ -162,6 +175,8 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		bounds := worldBoundsOf(&g)
 		unit := &treeUnit{}
 		unit.init(c, nil, c.maxNodeSize, c.opts.Log)
+		unit.totalBrushes = len(g.brushes)
+		unit.midsplitFraction = c.midsplitFraction
 		list := unit.bspBrushList(&g)
 		list = chopBrushes(unit.ba, list)
 		policy := splitAuto // world: ericw AUTO (midsplit budget above maxNodeSize)
@@ -341,10 +356,11 @@ func offsetClipChild(ch int32, base int32) int32 {
 	return ch
 }
 
-// lookupPlaneIndex finds a tolerance-equal table plane for p, or -1. The
-// linear scan is quadratic across large maps, so bit-identical queries are
-// memoized in c.planeKeys (a scan hit records the resolved index, which is
-// exactly what the scan would return for every future bit-identical p).
+// lookupPlaneIndex finds a tolerance-equal table plane for p, or -1.
+// Bit-identical queries hit the c.planeKeys memo; misses run the exact
+// first-match scan (bucketed variants leaked: coverage edge cases change
+// which duplicates merge, which changes sealing). The scan is ~10% of the
+// mutator on large maps — acceptable for exact semantics.
 func (c *compiler) lookupPlaneIndex(p plane) int {
 	key := orientedPlaneKeyOf(p)
 	if i, ok := c.planeKeys[key]; ok {
@@ -357,6 +373,25 @@ func (c *compiler) lookupPlaneIndex(p plane) int {
 		}
 	}
 	return -1
+}
+
+// plane-grid quantization: planeEqualNear admits normals within ~0.0141
+// radians per component (dot >= 1-1e-4) and distances within 0.01, so grid
+// cells of 1/64 (normal) and 1/64 (dist) with +-1 neighbor probes cover
+// every within-tolerance plane.
+const (
+	planeGridNormalQuant = 64.0
+	planeGridDistQuant   = 64.0
+	planeGridOrigin      = 1 << 20
+)
+
+func planeGridKey(n vec3, d float64) [4]int {
+	return [4]int{
+		int(n.X*planeGridNormalQuant) + planeGridOrigin,
+		int(n.Y*planeGridNormalQuant) + planeGridOrigin,
+		int(n.Z*planeGridNormalQuant) + planeGridOrigin,
+		int(d*planeGridDistQuant) + planeGridOrigin,
+	}
 }
 
 // planeIndexFor finds or creates the plane-table entry for a face.

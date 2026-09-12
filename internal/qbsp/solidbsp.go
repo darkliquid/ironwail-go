@@ -387,77 +387,84 @@ func selectSplitPlane(ba *brushArena, brushes []brushRef, policy splitPolicy, re
 		return regionHasPlane(region, pn)
 	}
 
-	// Dedup by bit-exact plane key; start small and let it grow — sizing
-	// from the brush count allocated a huge map per node (the jam6/jjj22
-	// OOM regression after the merge).
-	seen := make(map[orientedPlaneKey]struct{}, 64)
-	found := false
-	var bestPlane plane
-	bestValue := -99999
-	for _, b := range brushes {
-		for i := range ba.sidesOf(b) {
-			s := &ba.sidesOf(b)[i]
-			if s.onnode {
+	// Two passes (structural, then detail), matching ericw's pass order:
+	// when a structural candidate scores, detail-brush sides are never
+	// scored — on detail-heavy decompiled maps that is most of the
+	// candidate set.
+	for pass := 0; pass < 2; pass++ {
+		seen := make(map[orientedPlaneKey]struct{}, 64)
+		found := false
+		var bestPlane plane
+		bestValue := -99999
+		for _, b := range brushes {
+			if ba.brushes[b].detail != (pass == 1) {
 				continue
 			}
-			if s.w.count == 0 {
-				continue
-			}
-			sp := sidePlaneOf(s)
-			if hasPlane(int(s.planenum)) {
-				continue
-			}
-			// Normalize to the table-plane orientation (positive axial
-			// normals): node children must align with the engine's
-			// PointInLeaf (children[0] = front of the stored plane).
-			p := normalizePlane(sp)
-			key := orientedPlaneKeyOf(p)
-			if _, dup := seen[key]; dup {
-				continue
-			}
-			seen[key] = struct{}{}
-			if !planeSplitsBounds(bounds, p) {
-				continue
-			}
-			fronts, backs, splits, facing := 0, 0, 0, 0
-			for _, b2 := range brushes {
-				bits := classifyBrush(ba, b2, int(s.planenum), p)
-				if bits&psideFront != 0 {
-					fronts++
+			for i := range ba.sidesOf(b) {
+				s := &ba.sidesOf(b)[i]
+				if s.onnode {
+					continue
 				}
-				if bits&psideBack != 0 {
-					backs++
+				if s.w.count == 0 {
+					continue
 				}
-				if bits&psideFront != 0 && bits&psideBack != 0 {
-					splits++
+				sp := sidePlaneOf(s)
+				if hasPlane(int(s.planenum)) {
+					continue
 				}
-				if bits&psideFacing != 0 {
-					facing++
+				// Normalize to the table-plane orientation (positive axial
+				// normals): node children must align with the engine's
+				// PointInLeaf (children[0] = front of the stored plane).
+				p := normalizePlane(sp)
+				key := orientedPlaneKeyOf(p)
+				if _, dup := seen[key]; dup {
+					continue
 				}
-			}
-			// ericw SelectSplitPlane metric: facing brushes (whose face lies on
-			// the candidate plane) are strongly preferred; without the facing
-			// bonus, boundary-sealing planes (wall faces, trim edges) lose to
-			// balanced mid-map planes, small brushes get swallowed into larger
-			// leaves, and phantom-solid leaves create false leaks.
-			value := 5*facing - 5*splits - absInt(fronts-backs)
-			if isAxial(s.n) {
-				value += 5
-			}
-			if policy == splitFast {
-				return p, true
-			}
-			if value > bestValue {
-				bestValue = value
-				bestPlane = p
-				found = true
+				seen[key] = struct{}{}
+				if !planeSplitsBounds(bounds, p) {
+					continue
+				}
+				fronts, backs, splits, facing := 0, 0, 0, 0
+				for _, b2 := range brushes {
+					bits := classifyBrush(ba, b2, int(s.planenum), p)
+					if bits&psideFront != 0 {
+						fronts++
+					}
+					if bits&psideBack != 0 {
+						backs++
+					}
+					if bits&psideFront != 0 && bits&psideBack != 0 {
+						splits++
+					}
+					if bits&psideFacing != 0 {
+						facing++
+					}
+				}
+				// ericw SelectSplitPlane metric: facing brushes (whose face
+				// lies on the candidate plane) are strongly preferred;
+				// without the facing bonus, boundary-sealing planes (wall
+				// faces, trim edges) lose to balanced mid-map planes, small
+				// brushes get swallowed into larger leaves, and
+				// phantom-solid leaves create false leaks.
+				value := 5*facing - 5*splits - absInt(fronts-backs)
+				if isAxial(s.n) {
+					value += 5
+				}
+				if policy == splitFast {
+					return p, true
+				}
+				if value > bestValue {
+					bestValue = value
+					bestPlane = p
+					found = true
+				}
 			}
 		}
+		if found {
+			return bestPlane, true
+		}
 	}
-	if !found {
-		return plane{}, false
-	}
-	return bestPlane, true
+	return plane{}, false
 }
 
 // orientedPlaneKey is a bit-exact hashable form of an oriented plane.
@@ -487,10 +494,12 @@ func isAxial(n vec3) bool {
 // straddle it. Split pieces are allocated from the arena; their lifetime
 // ends when the calling build frame releases its checkpoint.
 func splitBrushList(ba *brushArena, brushes []brushRef, pn int, p plane) ([]brushRef, []brushRef) {
-	var front, back []brushRef
+	front := make([]brushRef, 0, len(brushes))
+	back := make([]brushRef, 0, len(brushes))
 	for _, b := range brushes {
 		bits := classifyBrush(ba, b, pn, p)
 		if bits&psideFront != 0 && bits&psideBack != 0 {
+			*ba.straddle++
 			f, bk := splitBrush(ba, b, pn, p)
 			if f != -1 {
 				front = append(front, f)
@@ -547,11 +556,14 @@ func childBounds(bounds [2]vec3, p plane) ([2]vec3, [2]vec3) {
 // Without this, the midsplit heuristic can re-pick the same balanced plane
 // across successive nodes whose brush lists never progress, exploding the
 // tree (the e1m1/end OOM regression).
-func markSidesOnnode(ba *brushArena, brushes []brushRef, p plane) {
+func markSidesOnnode(ba *brushArena, brushes []brushRef, p plane, pn int) {
 	for _, b := range brushes {
 		for i := range ba.sidesOf(b) {
 			s := &ba.sidesOf(b)[i]
-			if !s.onnode && planeEqualNear(sidePlaneOf(s), p) {
+			// Integer identity: the plane table is orientation-canonical,
+			// so sides on the same geometric plane share the entry. The
+			// float compare here was ~9% of the mutator on large maps.
+			if !s.onnode && s.planenum == int32(pn) {
 				s.onnode = true
 			}
 		}
@@ -563,10 +575,11 @@ func markSidesOnnode(ba *brushArena, brushes []brushRef, p plane) {
 func (t *treeUnit) build(bounds [2]vec3, region leafRegion, parent, side int, brushes []brushRef, policy splitPolicy, depth int) childRef {
 	cp := t.ba.mark() // everything the subtree allocates dies at release
 
+	t.hist[histBucket(len(brushes))]++
 	if t.trace != nil && len(t.nodes) >= t.nextTrace {
 		t.nextTrace += 20000
-		t.trace("progress: nodes %d leafs %d brushes %d depth %d region.planes %d",
-			len(t.nodes), len(t.leafs), len(brushes), depth, len(region.bs))
+		t.trace("progress: nodes %d leafs %d brushes %d depth %d region.planes %d straddles %d",
+			len(t.nodes), len(t.leafs), len(brushes), depth, len(region.bs), t.straddles)
 	}
 
 	// AUTO budget: above maxNodeSize use the volume-mid split (no
@@ -574,7 +587,9 @@ func (t *treeUnit) build(bounds [2]vec3, region leafRegion, parent, side int, br
 	// split that actually separates the brush list: a cut nothing
 	// straddles would recurse on an unchanged list — non-axial cuts don't
 	// even shrink the child bounds — which is the superlinear blowup.
-	if policy == splitAuto && t.nodeAboveMaxNodeSize(bounds) {
+	if policy == splitAuto &&
+		(t.nodeAboveMaxNodeSize(bounds) ||
+			(t.midsplitFraction > 0 && len(brushes) > t.totalBrushesFraction())) {
 		if mp, mok := chooseMidPlaneFromList(t.ba, brushes, region, bounds); mok {
 			// Register the mid plane before attempting the split: a
 			// rejected split keeps the entry (append-only table — the
@@ -583,7 +598,7 @@ func (t *treeUnit) build(bounds [2]vec3, region leafRegion, parent, side int, br
 			mpn := t.register(mp)
 			mf, mb := splitBrushList(t.ba, brushes, mpn, mp)
 			if len(mf) > 0 && len(mb) > 0 {
-				markSidesOnnode(t.ba, brushes, mp)
+				markSidesOnnode(t.ba, brushes, mp, mpn)
 				ch := t.splitNode(bounds, region, parent, side, mp, mpn, mf, mb, policy, depth)
 				t.ba.release(cp)
 				return ch
@@ -605,11 +620,17 @@ func (t *treeUnit) build(bounds [2]vec3, region leafRegion, parent, side int, br
 		return childRef{isLeaf: true, idx: idx}
 	}
 	pn := t.register(p)
-	markSidesOnnode(t.ba, brushes, p)
+	markSidesOnnode(t.ba, brushes, p, pn)
 	front, back := splitBrushList(t.ba, brushes, pn, p)
 	ch := t.splitNode(bounds, region, parent, side, p, pn, front, back, policy, depth)
 	t.ba.release(cp)
 	return ch
+}
+
+// totalBrushesFraction returns the brush count above which a node
+// midsplits (the ericw midsplitbrushfraction gate).
+func (t *treeUnit) totalBrushesFraction() int {
+	return int(float64(t.totalBrushes) * t.midsplitFraction)
 }
 
 // nodeAboveMaxNodeSize reports whether any bounds dimension exceeds the
@@ -651,6 +672,8 @@ func (t *treeUnit) splitNode(bounds [2]vec3, region leafRegion, parent, side int
 			go func() {
 				cu := &treeUnit{}
 				cu.init(t.shared, t, t.maxNodeSize, nil)
+				cu.totalBrushes = t.totalBrushes
+				cu.midsplitFraction = t.midsplitFraction
 				list := cu.adoptList(t.ba, front)
 				ch := cu.build(fb, region.addFront(pn, p), idx, 0, list, policy, depth+1)
 				done <- ch
@@ -659,6 +682,8 @@ func (t *treeUnit) splitNode(bounds [2]vec3, region leafRegion, parent, side int
 			go func() {
 				cu := &treeUnit{}
 				cu.init(t.shared, t, t.maxNodeSize, nil)
+				cu.totalBrushes = t.totalBrushes
+				cu.midsplitFraction = t.midsplitFraction
 				list := cu.adoptList(t.ba, back)
 				ch := cu.build(bb, region.addBack(pn, p), idx, 1, list, policy, depth+1)
 				done <- ch

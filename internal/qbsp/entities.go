@@ -48,7 +48,7 @@ func (c *compiler) collectAllBrushes(m *Map, omitDetail bool) ([]brushGroup, err
 				if isIllusionaryDetail(ent) {
 					override = bsp.ContentsEmpty
 				}
-				if _, err := c.collectBrushesInto(ent.Brushes, &groups[0], override); err != nil {
+				if _, err := c.collectBrushesIntoDetail(ent.Brushes, &groups[0], override, true); err != nil {
 					return nil, err
 				}
 			}
@@ -92,8 +92,15 @@ func (c *compiler) collectAllBrushes(m *Map, omitDetail bool) ([]brushGroup, err
 // collectBrushesInto registers a brush set's planes/texinfos and appends
 // worldBrush entries to the group.
 func (c *compiler) collectBrushesInto(brushList []MapBrush, g *brushGroup, overrideContent int32) ([]brushGroup, error) {
+	return c.collectBrushesIntoDetail(brushList, g, overrideContent, false)
+}
+
+// collectBrushesIntoDetail records whether the brushes came from a detail
+// entity (the split-selection pass key: structural candidates are scored
+// before detail ones, mirroring ericw's pass structure).
+func (c *compiler) collectBrushesIntoDetail(brushList []MapBrush, g *brushGroup, overrideContent int32, detail bool) ([]brushGroup, error) {
 	addBrush := func(brush MapBrush, content int32, sortKey int64) error {
-		wb := worldBrush{orig: brush, content: content, sortKey: sortKey}
+		wb := worldBrush{orig: brush, content: content, sortKey: sortKey, detail: detail}
 		for _, face := range brush.Faces {
 			pi, ok := c.planeIndexFor(face)
 			if !ok {
@@ -209,6 +216,7 @@ func (u *treeUnit) bspBrushList(g *brushGroup) []brushRef {
 		}
 		u.ba.brushes[b].content = wb.content
 		u.ba.brushes[b].sortKey = wb.sortKey
+		u.ba.brushes[b].detail = wb.detail
 		list = append(list, b)
 	}
 	return list
