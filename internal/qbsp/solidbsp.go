@@ -148,25 +148,6 @@ type outLeaf struct {
 	side        int
 }
 
-// treeBuild accumulates nodes/leafs during the solidbsp recursion.
-type treeBuild struct {
-	nodes []outNode
-	leafs []outLeaf
-	// register returns the table index for a geometric plane, registering
-	// it in the compiler's plane lump when new (deduped, normalized).
-	register func(p plane) int
-	// ba owns the tree-path working set (brush/side slabs + windings);
-	// build marks on entry and releases on exit so subtree allocations are
-	// reused without GC.
-	ba *brushArena
-	// maxNodeSize is the AUTO midsplit budget for this build
-	// (Options.MaxNodeSize, default 1024).
-	maxNodeSize float64
-	// trace, when non-nil, receives node-count progress diagnostics (debug).
-	trace     func(format string, a ...any)
-	nextTrace int
-}
-
 // contentsOf returns the leaf content of a (possibly empty) brush list:
 // highest precedence is solid, then liquid types, sky, or empty.
 func contentsOf(ba *brushArena, brushes []brushRef) int32 {
@@ -579,7 +560,7 @@ func markSidesOnnode(ba *brushArena, brushes []brushRef, p plane) {
 
 // build runs the solidbsp recursion over brushes within bounds and returns
 // the tree root.
-func (t *treeBuild) build(bounds [2]vec3, region leafRegion, parent, side int, brushes []brushRef, policy splitPolicy, depth int) childRef {
+func (t *treeUnit) build(bounds [2]vec3, region leafRegion, parent, side int, brushes []brushRef, policy splitPolicy, depth int) childRef {
 	cp := t.ba.mark() // everything the subtree allocates dies at release
 
 	if t.trace != nil && len(t.nodes) >= t.nextTrace {
@@ -633,15 +614,23 @@ func (t *treeBuild) build(bounds [2]vec3, region leafRegion, parent, side int, b
 
 // nodeAboveMaxNodeSize reports whether any bounds dimension exceeds the
 // midsplit budget (ericw maxnodesize).
-func (t *treeBuild) nodeAboveMaxNodeSize(bounds [2]vec3) bool {
+func (t *treeUnit) nodeAboveMaxNodeSize(bounds [2]vec3) bool {
 	s := t.maxNodeSize - splitEpsilon
 	return bounds[1].X-bounds[0].X > s ||
 		bounds[1].Y-bounds[0].Y > s ||
 		bounds[1].Z-bounds[0].Z > s
 }
 
+// parallelMinBrushes is the smallest subtree list worth a goroutine: below
+// it, recursion stays inline (spawn + adopt overhead dominates).
+const parallelMinBrushes = 1 << 30 // TEMP-DISABLED for bisect
+
 // splitNode creates the node record and recurses into the split children.
-func (t *treeBuild) splitNode(bounds [2]vec3, region leafRegion, parent, side int, p plane, pn int, front, back []brushRef, policy splitPolicy, depth int) childRef {
+// Large subtrees build in PARALLEL: each child becomes its own treeUnit
+// (own arena working set + local plane table) running in a worker-bounded
+// goroutine, then merges back in left-then-right order — the serialised
+// output stays byte-identical to a sequential build.
+func (t *treeUnit) splitNode(bounds [2]vec3, region leafRegion, parent, side int, p plane, pn int, front, back []brushRef, policy splitPolicy, depth int) childRef {
 	idx := len(t.nodes)
 	t.nodes = append(t.nodes, outNode{
 		planenum: pn,
@@ -652,6 +641,42 @@ func (t *treeBuild) splitNode(bounds [2]vec3, region leafRegion, parent, side in
 		side:     side,
 	})
 	fb, bb := childBounds(bounds, p)
+
+	if t.shared != nil &&
+		len(front) >= parallelMinBrushes && len(back) >= parallelMinBrushes {
+		select {
+		case unitBudget(t.shared) <- struct{}{}:
+			done := make(chan childRef, 2)
+			mergeCh := make(chan *treeUnit, 2)
+			go func() {
+				cu := &treeUnit{}
+				cu.init(t.shared, t, t.maxNodeSize, nil)
+				list := cu.adoptList(t.ba, front)
+				ch := cu.build(fb, region.addFront(pn, p), idx, 0, list, policy, depth+1)
+				done <- ch
+				mergeCh <- cu
+			}()
+			go func() {
+				cu := &treeUnit{}
+				cu.init(t.shared, t, t.maxNodeSize, nil)
+				list := cu.adoptList(t.ba, back)
+				ch := cu.build(bb, region.addBack(pn, p), idx, 1, list, policy, depth+1)
+				done <- ch
+				mergeCh <- cu
+			}()
+			ch0, ch1 := <-done, <-done
+			cu0, cu1 := <-mergeCh, <-mergeCh
+			<-unitBudget(t.shared)
+			// Deterministic merge order: left first, then right.
+			mch0 := t.mergeFrom(cu0, ch0)
+			mch1 := t.mergeFrom(cu1, ch1)
+			t.nodes[idx].children = [2]childRef{mch0, mch1}
+			return childRef{isLeaf: false, idx: idx}
+		default:
+			// Worker budget exhausted: fall through to inline recursion.
+		}
+	}
+
 	ch0 := t.build(fb, region.addFront(pn, p), idx, 0, front, policy, depth+1)
 	ch1 := t.build(bb, region.addBack(pn, p), idx, 1, back, policy, depth+1)
 	t.nodes[idx].children = [2]childRef{ch0, ch1}
@@ -670,9 +695,14 @@ type solidBrushDef struct {
 // geometrically contained within the volume of a solid brush is marked solid,
 // restoring solidity lost when open or degenerate brushes drop sliver pieces
 // during tree splitting.
-func (t *treeBuild) finalize(rootBounds [2]vec3, solidBrushes []solidBrushDef) {
+func (t *treeUnit) finalize(rootBounds [2]vec3, solidBrushes []solidBrushDef) {
+	// Scratch arena: facet windings are transient (bounds + solidity only);
+	// per-leaf mark/release keeps the scratch bounded instead of piling
+	// every leaf's facets into the monotonic arena.
+	scratch := newWindingArena()
 	for i := range t.leafs {
-		fs := t.leafs[i].region.facets(t.ba.w, rootBounds)
+		m := scratch.mark()
+		fs := t.leafs[i].region.facets(scratch, rootBounds)
 		mins, maxs := rootBounds[0], rootBounds[1]
 		first := true
 		var sum vec3
@@ -761,6 +791,7 @@ func (t *treeBuild) finalize(rootBounds [2]vec3, solidBrushes []solidBrushDef) {
 				}
 			}
 		}
+		scratch.release(m)
 	}
 }
 

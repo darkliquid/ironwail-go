@@ -3,6 +3,7 @@ package qbsp
 import (
 	"fmt"
 	"math"
+	"runtime"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 )
@@ -80,6 +81,8 @@ type compiler struct {
 	wa *windingArena
 	// ba owns the solidbsp working set (brush/side slabs referencing wa).
 	ba *brushArena
+	// maxWorkers bounds concurrent tree units (default GOMAXPROCS).
+	maxWorkers int
 	// maxNodeSize is the resolved AUTO midsplit budget (Options.MaxNodeSize
 	// with the ericw default 1024 applied).
 	maxNodeSize float64
@@ -130,6 +133,10 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 	if c.maxNodeSize == 0 {
 		c.maxNodeSize = 1024 // ericw-tools maxnodesize default
 	}
+	c.maxWorkers = runtime.GOMAXPROCS(0)
+	if c.maxWorkers > 8 {
+		c.maxWorkers = 8
+	}
 	c.logf("--- qbsp %d entities, building planes ---", len(m.Entities))
 
 	groups, err := c.collectAllBrushes(m, opts.OmitDetail)
@@ -153,14 +160,16 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 	for gi, g := range groups {
 		world := g.isWorld
 		bounds := worldBoundsOf(&g)
-		list := c.bspBrushList(&g)
-		list = chopBrushes(c.ba, list)
+		unit := &treeUnit{}
+		unit.init(c, nil, c.maxNodeSize, c.opts.Log)
+		list := unit.bspBrushList(&g)
+		list = chopBrushes(unit.ba, list)
 		policy := splitAuto // world: ericw AUTO (midsplit budget above maxNodeSize)
 		if !world {
 			policy = splitFast
 		}
-		tb := &treeBuild{register: c.addPlaneIndex, ba: c.ba, maxNodeSize: c.maxNodeSize, trace: c.opts.Log}
-		root := tb.build(bounds, rootRegion(bounds), -1, -1, list, policy, 0)
+		root := unit.build(bounds, rootRegion(bounds), -1, -1, list, policy, 0)
+		unit.mergeUp()
 		var solidBrushes []solidBrushDef
 		for _, wb := range g.brushes {
 			if wb.content == bsp.ContentsSolid {
@@ -170,17 +179,17 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 				})
 			}
 		}
-		tb.finalize(bounds, solidBrushes)
+		unit.finalize(bounds, solidBrushes)
 
 		if world {
-			leakPath, leaked = c.floodLeakCheck(bounds, root, tb.nodes, tb.leafs, m)
+			leakPath, leaked = c.floodLeakCheck(bounds, root, unit.nodes, unit.leafs, m)
 		}
 
 		// Renumber leaves non-solid-first (per model) and offset into the
 		// shared node/leaf tables. Paths are computed on the local tree
 		// before offsetting (parent links stay model-local afterwards).
-		nodes, leafs, remap := renumberLeaves(tb.nodes, tb.leafs)
-		paths := modelPaths(tb.nodes, tb.leafs, remap)
+		nodes, leafs, remap := renumberLeaves(unit.nodes, unit.leafs)
+		paths := modelPaths(unit.nodes, unit.leafs, remap)
 		nodeBase, leafBase := len(allNodes), len(allLeafs)
 		for i := range nodes {
 			for ch := 0; ch < 2; ch++ {
@@ -230,7 +239,7 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		// hull 2 (large box). The world's hull-1 tree lands at clipnode 0,
 		// which the engine's world collision uses directly; submodels get
 		// both trees with roots in headnode[1]/[2].
-		clipRoot1, clipRoot2 := c.buildClipHulls(world, list, bounds, &allClips)
+		clipRoot1, clipRoot2 := unit.buildClipHulls(world, list, bounds, &allClips)
 
 		mo := modelOut{
 			mins:      bounds[0],
@@ -287,15 +296,20 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 	return res, nil
 }
 
+// frozenLen is the plane-table length while tree units run: the table is
+// append-only and only grows during sequential merges, so unit builds see
+// it read-only.
+func (c *compiler) frozenLen() int { return len(c.planes) }
+
 // buildClipHulls compiles and appends the per-model clip trees (hull 1 =
 // player box, hull 2 = large box) into the shared clipnode lump, returning
 // their roots (clipnode indices).
-func (c *compiler) buildClipHulls(world bool, list []brushRef, bounds [2]vec3, allClips *[]outClipNode) (int32, int32) {
+func (u *treeUnit) buildClipHulls(world bool, list []brushRef, bounds [2]vec3, allClips *[]outClipNode) (int32, int32) {
 	hulls := list
 	if !world {
 		var solid []brushRef
 		for _, b := range list {
-			if c.ba.brushes[b].content == bsp.ContentsSolid {
+			if u.ba.brushes[b].content == bsp.ContentsSolid {
 				solid = append(solid, b)
 			}
 		}
@@ -303,8 +317,7 @@ func (c *compiler) buildClipHulls(world bool, list []brushRef, bounds [2]vec3, a
 	}
 	appendTree := func(ext [2]vec3) int32 {
 		base := int32(len(*allClips))
-		expanded := c.expandSolidBrushes(hulls, bounds, ext)
-		clip := c.buildHullClipNodes(expanded, bounds)
+		clip := u.buildHullClipNodes(hulls, bounds, ext)
 		for i := range clip {
 			clip[i].children[0] = offsetClipChild(clip[i].children[0], base)
 			clip[i].children[1] = offsetClipChild(clip[i].children[1], base)

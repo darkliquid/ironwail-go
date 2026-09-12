@@ -95,6 +95,18 @@ func buildBspBrushFacesClamped(ba *brushArena, faces []brushFace, box, clampBox 
 	if len(sides) < 4 {
 		return -1
 	}
+	// A brush with fewer than 3 live windings has no verifiable volume
+	// (hull expansion can degenerate sliver brushes into all-dead sides);
+	// the pre-SoA code carried these as Inf-bounds ghosts.
+	live := 0
+	for i := range sides {
+		if sides[i].w.count != 0 {
+			live++
+		}
+	}
+	if live < 3 {
+		return -1
+	}
 	return ba.addBrush(sides, bsp.ContentsSolid, 0)
 }
 

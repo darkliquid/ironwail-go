@@ -86,13 +86,15 @@ func (c *compiler) floodLeakCheck(bounds [2]vec3, root childRef, nodes []outNode
 		floodParent[i] = -2 // unvisited
 	}
 
+	scratch := newWindingArena()
 	voidLeaf := make([]bool, n)
 	for li := range leafs {
 		L := &leafs[li]
 		if L.content == bsp.ContentsSolid {
 			continue
 		}
-		for _, f := range L.region.facets(c.wa, bounds) {
+		m := scratch.mark()
+		for _, f := range L.region.facets(scratch, bounds) {
 			if f.pi < 0 {
 				voidLeaf[li] = true
 				continue
@@ -101,7 +103,7 @@ func (c *compiler) floodLeakCheck(bounds [2]vec3, root childRef, nodes []outNode
 			if !ok {
 				continue
 			}
-			neigh := splitByTree(c.wa, nodes, sib, f.w)
+			neigh := splitByTree(scratch, nodes, sib, f.w)
 			for _, pc := range neigh {
 				if pc.leaf == li {
 					continue
@@ -114,6 +116,7 @@ func (c *compiler) floodLeakCheck(bounds [2]vec3, root childRef, nodes []outNode
 				}
 			}
 		}
+		scratch.release(m)
 	}
 
 	var queue []int
@@ -194,6 +197,11 @@ func (c *compiler) floodLeakCheck(bounds [2]vec3, root childRef, nodes []outNode
 // into leafs[].marksurface. Nodes gain firstface/numfaces spans (faces are
 // returned sorted by planenum for the span lookup).
 func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []outLeaf, paths [][]pathStep) ([]outFace, [][]int, *PortalFile) {
+	// Scratch arena: facet seeds, tree-split pieces, and portal probe
+	// windings are transient; only retained polys are copied out to the
+	// compiler arena. Without this the monotonic arena grows by every
+	// intermediate clip (GiBs on large maps).
+	scratch := newWindingArena()
 	var faces []outFace
 	attach := make([][]int, len(leafs))
 	pf := &PortalFile{LeafCount: len(leafs)}
@@ -205,7 +213,8 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 		if L.content == bsp.ContentsSolid {
 			continue // solid leaves: no portals
 		}
-		for _, f := range L.region.facets(c.wa, bounds) {
+		m := scratch.mark()
+		for _, f := range L.region.facets(scratch, bounds) {
 			if f.pi < 0 {
 				continue
 			}
@@ -213,7 +222,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 			if !ok {
 				continue
 			}
-			neigh := splitByTree(c.wa, nodes, sib, f.w)
+			neigh := splitByTree(scratch, nodes, sib, f.w)
 			for _, pc := range neigh {
 				if pc.leaf == li {
 					continue
@@ -231,6 +240,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 				}
 			}
 		}
+		scratch.release(m)
 	}
 
 	// 2. Faces: every leaf (solid included) emits its boundary facets where
@@ -238,7 +248,8 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 	// from the denser side and attached to the lighter leaf.
 	for li := range leafs {
 		L := &leafs[li]
-		for _, f := range L.region.facets(c.wa, bounds) {
+		m := scratch.mark()
+		for _, f := range L.region.facets(scratch, bounds) {
 			var pi int
 			outward := f.p.Normal
 			if f.pi < 0 {
@@ -252,7 +263,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 						planenum: pi,
 						side:     sideBit(c.planes[pi].Normal, outward),
 						texinfo:  c.texInfoOrZero(pi),
-						poly:     windingOrientTo(c.wa, f.w, outward),
+						poly:     copyWinding(c.wa, windingOrientTo(scratch, f.w, outward)),
 					})
 					attach[li] = append(attach[li], gi)
 				}
@@ -262,7 +273,7 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 			if !ok {
 				continue
 			}
-			neigh := splitByTree(c.wa, nodes, sib, f.w)
+			neigh := splitByTree(scratch, nodes, sib, f.w)
 			for _, pc := range neigh {
 				if pc.leaf == li {
 					continue
@@ -278,12 +289,13 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 						planenum: f.pi,
 						side:     sideBit(c.planes[f.pi].Normal, outward),
 						texinfo:  c.texInfoOrZero(f.pi),
-						poly:     windingOrientTo(c.wa, pc.w, outward),
+						poly:     copyWinding(c.wa, windingOrientTo(scratch, pc.w, outward)),
 					})
 					attach[pc.leaf] = append(attach[pc.leaf], gi)
 				}
 			}
 		}
+		scratch.release(m)
 	}
 
 	// 3. Order faces by planenum and set node spans.
@@ -296,9 +308,11 @@ func (c *compiler) buildWorldSurfaces(bounds [2]vec3, nodes []outNode, leafs []o
 // centroid returns a representative interior point of a leaf (the facet
 // vertex average, which lies strictly inside a convex region).
 func (c *compiler) leafCentroid(bounds [2]vec3, L *outLeaf) vec3 {
+	scratch := newWindingArena()
+	defer func() { _ = scratch }()
 	var sum vec3
 	count := 0
-	for _, f := range L.region.facets(c.wa, bounds) {
+	for _, f := range L.region.facets(scratch, bounds) {
 		for _, p := range f.w {
 			sum = sum.Add(p)
 			count++
@@ -396,6 +410,7 @@ func modelPaths(nodes []outNode, leafs []outLeaf, remap map[int]int) [][]pathSte
 // splitByTree index the model-local slices, so a local copy with the bases
 // subtracted is used here. The world path is unaffected (bases are 0).
 func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []outNode, nodeBase, leafBase int, leafs []outLeaf, paths [][]pathStep) ([]outFace, [][]int) {
+	scratch := newWindingArena()
 	local := make([]outNode, len(nodes))
 	copy(local, nodes)
 	for i := range local {
@@ -413,7 +428,8 @@ func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []out
 	attach := make([][]int, len(leafs))
 	for li := range leafs {
 		L := &leafs[li]
-		for _, f := range L.region.facets(c.wa, bounds) {
+		m := scratch.mark()
+		for _, f := range L.region.facets(scratch, bounds) {
 			if f.pi < 0 {
 				// Root-box face: the outer surface of a solid leaf that
 				// fills its region (e.g. a crate). Attribute to a
@@ -428,7 +444,7 @@ func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []out
 					planenum: pi,
 					side:     sideBit(c.planes[pi].Normal, outward),
 					texinfo:  c.texInfoOrZero(pi),
-					poly:     windingOrientTo(c.wa, f.w, outward),
+					poly:     copyWinding(c.wa, windingOrientTo(scratch, f.w, outward)),
 				})
 				attach[li] = append(attach[li], gi)
 				continue
@@ -437,7 +453,7 @@ func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []out
 			if !ok {
 				continue
 			}
-			outPage := splitByTree(c.wa, nodes, sib, f.w)
+			outPage := splitByTree(scratch, nodes, sib, f.w)
 			for _, pc := range outPage {
 				if pc.leaf == li {
 					continue
@@ -455,12 +471,13 @@ func (c *compiler) buildModelSurfaces(bounds [2]vec3, root childRef, nodes []out
 						planenum: f.pi,
 						side:     sideBit(c.planes[f.pi].Normal, outward),
 						texinfo:  c.texInfoOrZero(f.pi),
-						poly:     windingOrientTo(c.wa, pc.w, outward),
+						poly:     copyWinding(c.wa, windingOrientTo(scratch, pc.w, outward)),
 					})
 					attach[pc.leaf] = append(attach[pc.leaf], gi)
 				}
 			}
 		}
+		scratch.release(m)
 	}
 	return faces, attach
 }

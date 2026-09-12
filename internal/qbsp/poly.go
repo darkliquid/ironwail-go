@@ -94,6 +94,18 @@ func (a *windingArena) at(r wref) winding {
 	return a.chunks[r.chunk][r.off : r.off+r.count : r.off+r.count]
 }
 
+// copyWinding duplicates a winding into an arena (retaining it past a
+// scratch release).
+func copyWinding(dst *windingArena, w winding) winding {
+	if len(w) == 0 {
+		return nil
+	}
+	out, _ := dst.reserve(len(w))
+	out = out[:len(w)]
+	copy(out, w)
+	return out
+}
+
 // planeSide returns +1 when v is on the front of p, -1 behind, 0 on it.
 func planeSide(p plane, v vec3) int {
 	d := v3Dot(p.Normal, v) - p.Dist
