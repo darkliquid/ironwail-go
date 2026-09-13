@@ -337,10 +337,12 @@ func (u *treeUnit) buildClipHulls(world bool, list []brushRef, bounds [2]vec3, a
 		}
 		hulls = solid
 	}
-	// SEQUENTIAL for now: parallel hull units double peak memory (two full
-	// unit working sets) and the corpus harness already runs maps in
-	// parallel — re-land with the worker budget integrated (each hull
-	// acquiring a token) before enabling.
+	// SEQUENTIAL: the adoption-based hull parallelism triples peak memory
+	// (each hull unit copies the full world brush set) and OOMs the
+	// in-process corpus suite. The path to parallel hulls is the
+	// delegating-arena design: unit arenas resolve refs through a base
+	// chain (shared read-only slabs + unit-local appends), removing the
+	// adoption copies. Tracked under ironwail-go-dmm.
 	appendTree := func(ext [2]vec3) int32 {
 		base := int32(len(*allClips))
 		clip := u.buildHullClipNodes(hulls, bounds, ext)
