@@ -64,6 +64,7 @@ type Point = vec3
 type worldBrush struct {
 	orig    MapBrush
 	planes  []int // plane table indices (one per face)
+	outward []plane
 	content int32
 	bounds  [2]vec3
 	sortKey int64

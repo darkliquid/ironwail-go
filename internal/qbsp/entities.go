@@ -107,6 +107,14 @@ func (c *compiler) collectBrushesIntoDetail(brushList []MapBrush, g *brushGroup,
 				continue
 			}
 			wb.planes = append(wb.planes, pi)
+			// The oriented+snapped plane for the CSG side, in lockstep
+			// with wb.planes (skipping degenerate normals exactly like
+			// the old OutwardPlanes filter did).
+			p := face.Plane()
+			if v3Length(p.Normal) >= 1e-9 {
+				p.Dist = snapPlaneDist(p.Normal, p.Dist)
+				wb.outward = append(wb.outward, p)
+			}
 			if _, exists := c.texByPlane[pi]; !exists {
 				ti := c.texinfoIndex(face)
 				c.texByPlane[pi] = ti
@@ -205,10 +213,13 @@ func worldBoundsOf(g *brushGroup) [2]vec3 {
 func (u *treeUnit) bspBrushList(g *brushGroup) []brushRef {
 	var list []brushRef
 	for _, wb := range g.brushes {
-		ps := wb.OutwardPlanes()
+		// The plane table indices were resolved at collection time; the
+		// old path re-interned every side through the full-table scan
+		// (~21% of the mutator on large maps).
+		ps := wb.outward
 		faces := make([]brushFace, len(ps))
 		for i, p := range ps {
-			faces[i] = brushFace{p: p, pn: u.register(p)}
+			faces[i] = brushFace{p: p, pn: wb.planes[i]}
 		}
 		b := buildBspBrushFacesClamped(u.ba, faces, worldBoundsOf(g), wb.bounds)
 		if b == -1 {
