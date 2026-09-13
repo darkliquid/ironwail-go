@@ -50,10 +50,11 @@ type brushRec struct {
 
 // brushArena owns the slab arrays and the winding arena they reference.
 type brushArena struct {
-	sides    []sideRec
-	brushes  []brushRec
-	w        *windingArena
-	straddle *int64
+	sides       []sideRec
+	brushes     []brushRec
+	w           *windingArena
+	straddle    *int64
+	candsScored *int64
 }
 
 func newBrushArena(w *windingArena) *brushArena { return &brushArena{w: w} }

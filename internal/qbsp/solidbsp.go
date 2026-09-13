@@ -424,6 +424,7 @@ func selectSplitPlane(ba *brushArena, brushes []brushRef, policy splitPolicy, re
 				if !planeSplitsBounds(bounds, p) {
 					continue
 				}
+				*ba.candsScored += int64(len(brushes))
 				fronts, backs, splits, facing := 0, 0, 0, 0
 				for _, b2 := range brushes {
 					bits := classifyBrush(ba, b2, int(s.planenum), p)
@@ -578,8 +579,8 @@ func (t *treeUnit) build(bounds [2]vec3, region leafRegion, parent, side int, br
 	t.hist[histBucket(len(brushes))]++
 	if t.trace != nil && len(t.nodes) >= t.nextTrace {
 		t.nextTrace += 20000
-		t.trace("progress: nodes %d leafs %d brushes %d depth %d region.planes %d straddles %d",
-			len(t.nodes), len(t.leafs), len(brushes), depth, len(region.bs), t.straddles)
+		t.trace("progress: nodes %d leafs %d brushes %d depth %d region.planes %d straddles %d cands %d",
+			len(t.nodes), len(t.leafs), len(brushes), depth, len(region.bs), t.straddles, *t.ba.candsScored)
 	}
 
 	// AUTO budget: above maxNodeSize use the volume-mid split (no

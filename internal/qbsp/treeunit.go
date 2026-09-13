@@ -40,10 +40,11 @@ type treeUnit struct {
 	localKeys   map[orientedPlaneKey]int
 	// hist buckets nodes by input-list size; straddles counts brushes
 	// split (CSG volume diagnostics).
-	hist       [6]int64
-	straddles  int64
-	shared     *compiler
-	parentUnit *treeUnit
+	hist        [6]int64
+	straddles   int64
+	candsScored int64
+	shared      *compiler
+	parentUnit  *treeUnit
 	// localStart is this unit's local-index origin captured at init: the
 	// ancestor-space length (shared table plus every ancestor's locals) at
 	// the moment the unit spawns. Indices below it are ancestor-space and
@@ -63,6 +64,7 @@ func (u *treeUnit) init(shared *compiler, parent *treeUnit, maxNodeSize float64,
 	u.wa = newWindingArena()
 	u.ba = newBrushArena(u.wa)
 	u.ba.straddle = &u.straddles
+	u.ba.candsScored = &u.candsScored
 	u.maxNodeSize = maxNodeSize
 	u.trace = trace
 	u.register = u.unitRegister
@@ -135,8 +137,8 @@ func (u *treeUnit) mergeUp() {
 	u.localPlanes = nil
 	u.localKeys = nil
 	if u.trace != nil {
-		u.trace("tree hist: empty=%d tiny=%d small=%d mid=%d large=%d huge=%d straddles=%d",
-			u.hist[0], u.hist[1], u.hist[2], u.hist[3], u.hist[4], u.hist[5], u.straddles)
+		u.trace("tree hist: empty=%d tiny=%d small=%d mid=%d large=%d huge=%d straddles=%d cands=%d",
+			u.hist[0], u.hist[1], u.hist[2], u.hist[3], u.hist[4], u.hist[5], u.straddles, *u.ba.candsScored)
 	}
 }
 
