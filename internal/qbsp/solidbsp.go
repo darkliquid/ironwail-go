@@ -668,6 +668,10 @@ func (t *treeUnit) splitNode(bounds [2]vec3, region leafRegion, parent, side int
 		len(front) >= parallelMinBrushes && len(back) >= parallelMinBrushes {
 		select {
 		case unitBudget(t.shared) <- struct{}{}:
+			// A second token: two goroutines run, so two slots are held
+			// (the budget bounds live unit working sets, and each spawned
+			// unit is a full working set).
+			unitBudget(t.shared) <- struct{}{}
 			done := make(chan childRef, 2)
 			mergeCh := make(chan *treeUnit, 2)
 			go func() {
@@ -692,6 +696,7 @@ func (t *treeUnit) splitNode(bounds [2]vec3, region leafRegion, parent, side int
 			}()
 			ch0, ch1 := <-done, <-done
 			cu0, cu1 := <-mergeCh, <-mergeCh
+			<-unitBudget(t.shared)
 			<-unitBudget(t.shared)
 			// Deterministic merge order: left first, then right.
 			mch0 := t.mergeFrom(cu0, ch0)
