@@ -108,6 +108,7 @@ type compiler struct {
 	// still resolve through the grid-bucketed scan, preserving
 	// first-match semantics.
 	planeKeys map[orientedPlaneKey]int
+	planeGrid map[[4]int][]int32
 	logs      []string
 }
 
@@ -140,6 +141,7 @@ func Compile(m *Map, opts Options) (*CompileResult, error) {
 		opts:       opts,
 		texByPlane: map[int]int{},
 		planeKeys:  map[orientedPlaneKey]int{},
+		planeGrid:  map[[4]int][]int32{},
 		wa:         newWindingArena(),
 	}
 	c.ba = newBrushArena(c.wa)
@@ -382,13 +384,16 @@ func (c *compiler) lookupPlaneIndexLocked(p plane) int {
 	if i, ok := c.planeKeys[key]; ok {
 		return i
 	}
-	for i, existing := range c.planes {
-		if planeEqualNear(p, existing) {
-			c.planeKeys[key] = i
-			return i
+	best := -1
+	for _, i := range c.probePlaneBuckets(p) {
+		if planeEqualNear(p, c.planes[i]) && (best == -1 || i < best) {
+			best = i
 		}
 	}
-	return -1
+	if best >= 0 {
+		c.planeKeys[key] = best
+	}
+	return best
 }
 
 // lookupPlaneIndexRO is the read-only variant for parallel tree units: it
@@ -400,31 +405,99 @@ func (c *compiler) lookupPlaneIndexRO(p plane) int {
 	if i, ok := c.planeKeys[key]; ok {
 		return i
 	}
-	for i, existing := range c.planes {
-		if planeEqualNear(p, existing) {
-			return i
+	best := -1
+	for _, i := range c.probePlaneBuckets(p) {
+		if planeEqualNear(p, c.planes[i]) && (best == -1 || i < best) {
+			best = i
 		}
 	}
-	return -1
+	return best
 }
 
-// plane-grid quantization: planeEqualNear admits normals within ~0.0141
-// radians per component (dot >= 1-1e-4) and distances within 0.01, so grid
-// cells of 1/64 (normal) and 1/64 (dist) with +-1 neighbor probes cover
-// every within-tolerance plane.
+// plane-grid quantization: planeEqualNear admits same-orientation normals
+// within ~0.0141 per component (dot >= 1-1e-4) and distances within 0.01,
+// so 1/64 cells with +-1 neighbor probes cover every within-tolerance
+// plane once the key is canonicalized to the positive orientation — the
+// match is orientation-agnostic, and without canonicalization (n,d) and
+// (-n,-d) land in opposite cells so opposite-facing wall duplicates never
+// merge (the leak on e3m5/e3m6/e2m5/e2m7).
 const (
-	planeGridNormalQuant = 64.0
-	planeGridDistQuant   = 64.0
-	planeGridOrigin      = 1 << 20
+	planeGridQuant  = 64.0
+	planeGridOrigin = 1 << 20
 )
 
-func planeGridKey(n vec3, d float64) [4]int {
-	return [4]int{
-		int(n.X*planeGridNormalQuant) + planeGridOrigin,
-		int(n.Y*planeGridNormalQuant) + planeGridOrigin,
-		int(n.Z*planeGridNormalQuant) + planeGridOrigin,
-		int(d*planeGridDistQuant) + planeGridOrigin,
+// canonicalPlaneKey negates (n, d) when the dominant normal component is
+// negative, so both orientations of one geometric plane share a grid key.
+func canonicalPlaneKey(n vec3, d float64) (vec3, float64) {
+	cn := classifyPlane(n)
+	dom := 0.0
+	switch cn {
+	case planeX:
+		dom = n.X
+	case planeY:
+		dom = n.Y
+	case planeZ:
+		dom = n.Z
+	default:
+		dom = n.X
+		if absF(n.Y) > absF(dom) {
+			dom = n.Y
+		}
+		if absF(n.Z) > absF(dom) {
+			dom = n.Z
+		}
 	}
+	if dom < 0 {
+		return n.Neg(), -d
+	}
+	return n, d
+}
+
+func absF(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func planeGridKey(n vec3, d float64) [4]int {
+	cn, cd := canonicalPlaneKey(n, d)
+	return [4]int{
+		int(cn.X*planeGridQuant) + planeGridOrigin,
+		int(cn.Y*planeGridQuant) + planeGridOrigin,
+		int(cn.Z*planeGridQuant) + planeGridOrigin,
+		int(cd*planeGridQuant) + planeGridOrigin,
+	}
+}
+
+// indexPlane registers a table entry in its home grid cell.
+func (c *compiler) indexPlane(i int, p plane) {
+	k := planeGridKey(p.Normal, p.Dist)
+	c.planeGrid[k] = append(c.planeGrid[k], int32(i))
+}
+
+// probePlaneBuckets returns candidate table indices within tolerance
+// reach of p (the +-1 neighbor cells of the canonical key).
+func (c *compiler) probePlaneBuckets(p plane) []int {
+	k := planeGridKey(p.Normal, p.Dist)
+	seen := map[int32]bool{}
+	var out []int
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			for dz := -1; dz <= 1; dz++ {
+				for dd := -1; dd <= 1; dd++ {
+					gk := [4]int{k[0] + dx, k[1] + dy, k[2] + dz, k[3] + dd}
+					for _, i := range c.planeGrid[gk] {
+						if !seen[i] {
+							seen[i] = true
+							out = append(out, int(i))
+						}
+					}
+				}
+			}
+		}
+	}
+	return out
 }
 
 // planeIndexFor finds or creates the plane-table entry for a face.
@@ -435,6 +508,7 @@ func (c *compiler) planeIndexFor(face MapFace) (int, bool) {
 		return i, true
 	}
 	c.planes = append(c.planes, p)
+	c.indexPlane(len(c.planes)-1, p)
 	c.planeKeys[orientedPlaneKeyOf(p)] = len(c.planes) - 1
 	return len(c.planes) - 1, true
 }

@@ -81,6 +81,7 @@ func (c *compiler) addPlaneIndex(p plane) int {
 		return i
 	}
 	c.planes = append(c.planes, p)
+	c.indexPlane(len(c.planes)-1, p)
 	c.planeKeys[orientedPlaneKeyOf(p)] = len(c.planes) - 1
 	return len(c.planes) - 1
 }
